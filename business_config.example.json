@@ -1,0 +1,31 @@
+{
+  "owner_name": "Your Name",
+  "owner_keywords": ["Your", "Name"],
+  "unit_primary": "primary-unit",
+  "unit_secondary": "secondary-unit",
+  "default_entity": "your-entity",
+  "known_people": {
+    "Person Name": {
+      "group": "developers",
+      "parent": "staff",
+      "unit": "backoffice primary-unit",
+      "desc": "Development"
+    }
+  },
+  "service_map": {
+    "example service": {
+      "contractor": "Example Inc.",
+      "unit": "backoffice primary-unit",
+      "description": "Service description",
+      "group": "infrastructure",
+      "parent": "goods and services"
+    },
+    "split service": {
+      "contractor": "Split Inc.",
+      "description": "Shared service",
+      "group": "software",
+      "parent": "goods and services",
+      "split": true
+    }
+  }
+}

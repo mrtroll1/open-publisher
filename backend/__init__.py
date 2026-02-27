@@ -1,0 +1,109 @@
+"""Backend facade — re-exports everything the telegram bot needs."""
+
+# --- Contractor repository (module-level functions) ---
+from backend.infrastructure.repositories.contractor_repo import (  # noqa: F401
+    bind_telegram_id,
+    find_contractor,
+    find_contractor_by_id,
+    find_contractor_by_telegram_id,
+    find_contractor_strict,
+    fuzzy_find,
+    increment_invoice_number,
+    load_all_contractors,
+    next_contractor_id,
+    pop_random_secret_code,
+    save_contractor,
+)
+
+# --- Invoice repository ---
+from backend.infrastructure.repositories.invoice_repo import (  # noqa: F401
+    load_invoices,
+    save_invoice,
+    update_invoice_status,
+)
+
+# --- Gateways (exposed as module-level convenience functions) ---
+from backend.infrastructure.gateways.drive_gateway import DriveGateway as _DriveGateway
+from backend.infrastructure.gateways.gemini_gateway import GeminiGateway as _GeminiGateway
+from backend.infrastructure.gateways.content_gateway import ContentGateway as _ContentGateway
+
+_drive = _DriveGateway()
+_gemini = _GeminiGateway()
+_content = _ContentGateway()
+
+
+def fetch_articles(contractor, month):
+    """Fetch articles for a contractor from the content API."""
+    return _content.fetch_articles(contractor, month)
+
+
+def fetch_articles_by_name(author: str, month: str) -> list[int]:
+    """Check if an author name has articles for the given month."""
+    return _content.fetch_articles_by_name(author, month)
+
+
+def parse_contractor_data(text: str, fields_csv: str, context: str = "") -> dict:
+    """Parse contractor data from free-form text using LLM."""
+    return _gemini.parse_contractor_data(text, fields_csv, context)
+
+
+def translate_name_to_russian(name_en: str) -> str:
+    """Translate a name to Russian."""
+    return _gemini.translate_name_to_russian(name_en)
+
+
+def upload_invoice_pdf(contractor, month, filename, pdf_bytes):
+    """Upload an invoice PDF and return a shareable link."""
+    return _drive.upload_invoice_pdf(contractor, month, filename, pdf_bytes)
+
+
+def read_budget_amounts(month: str) -> dict:
+    """Read budget sheet for a month. Returns {name_lower: (eur, rub, note)}."""
+    from common.config import BUDGET_SHEETS_FOLDER_ID
+    from backend.infrastructure.gateways.sheets_gateway import SheetsGateway
+    sheet_name = f"Payments-for-{month}"
+    sheet_id = _drive.find_file_by_name(sheet_name, BUDGET_SHEETS_FOLDER_ID)
+    if not sheet_id:
+        return {}
+    sheets = SheetsGateway()
+    rows = sheets.read(sheet_id, "A2:E200")
+    amounts = {}
+    for row in rows:
+        if not row or not row[0].strip():
+            continue
+        name = row[0].strip().lower()
+        try:
+            eur = int(row[2].strip()) if len(row) > 2 and row[2].strip() else 0
+        except ValueError:
+            eur = 0
+        try:
+            rub = int(row[3].strip()) if len(row) > 3 and row[3].strip() else 0
+        except ValueError:
+            rub = 0
+        note = row[4].strip() if len(row) > 4 else ""
+        if eur or rub:
+            amounts[name] = (eur, rub, note)
+    return amounts
+
+
+def generate_invoice(contractor, invoice, articles, invoice_date):
+    """Generate an invoice PDF. Returns (pdf_bytes, doc_id).
+
+    This is the legacy function signature used by the bot.
+    For the full use-case orchestration, use GenerateInvoice().execute().
+    """
+    from backend.domain.generate_invoice import GenerateInvoice
+    uc = GenerateInvoice()
+    return uc._generate_pdf(contractor, invoice, articles, invoice_date)
+
+
+def export_pdf(doc_id: str) -> bytes:
+    """Re-export a PDF from a Google Docs document ID."""
+    from backend.infrastructure.gateways.docs_gateway import DocsGateway
+    return DocsGateway().export_pdf(doc_id)
+
+
+# --- Use cases ---
+from backend.domain.generate_invoice import GenerateInvoice  # noqa: F401
+from backend.domain.parse_bank_statement import ParseBankStatement  # noqa: F401
+from backend.domain.compute_budget import ComputeBudget  # noqa: F401

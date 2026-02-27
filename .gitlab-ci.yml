@@ -1,0 +1,25 @@
+stages:
+  - deploy
+  - test
+  - secret-detection
+
+sast:
+  stage: test
+  include:
+    - template: Security/SAST.gitlab-ci.yml
+    - template: Security/Secret-Detection.gitlab-ci.yml
+  variables:
+    SECRET_DETECTION_ENABLED: 'true'
+  secret_detection:
+    stage: secret-detection
+
+deploy:
+  stage: deploy
+  tags:
+    - self-hosted
+  only:
+    - main
+  script:
+    - cd /opt/open-publisher
+    - git pull
+    - docker compose up -d --build

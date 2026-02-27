@@ -2,6 +2,7 @@
 service_account.json
 business_config.json
 sample-data/
+deploy-scripts
 __pycache__/
 *.pyc
 .claude/

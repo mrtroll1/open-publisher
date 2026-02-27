@@ -814,6 +814,14 @@ async def handle_verification_code(message: types.Message, state: FSMContext) ->
         await message.answer(
             replies.verification.success.format(name=contractor.display_name)
         )
+        for admin_id in ADMIN_TELEGRAM_IDS:
+            try:
+                await bot.send_message(
+                    admin_id,
+                    f"🔗 Контрагент {contractor.display_name} привязался к Telegram.",
+                )
+            except Exception:
+                pass
         delivered = await _deliver_existing_invoice(message, contractor)
         if delivered:
             await state.clear()

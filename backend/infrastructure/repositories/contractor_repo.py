@@ -53,6 +53,9 @@ def _parse_contractor(
     aliases = [a.strip() for a in aliases_raw.split(",") if a.strip()]
 
     role_raw = row.get("role_code", "A").strip().upper()
+    is_photographer = role_raw.endswith(":F")
+    if is_photographer:
+        role_raw = role_raw.removesuffix(":F")
     try:
         role_code = RoleCode(role_raw)
     except ValueError:
@@ -70,6 +73,7 @@ def _parse_contractor(
         id=row.get("id", ""),
         aliases=aliases,
         role_code=role_code,
+        is_photographer=is_photographer,
         email=row.get("email", ""),
         bank_name=row.get("bank_name", ""),
         bank_account=row.get("bank_account", ""),
@@ -212,7 +216,10 @@ def contractor_to_row(c: Contractor) -> list[str]:
         if col == "aliases":
             row.append(", ".join(c.aliases))
         elif col == "role_code":
-            row.append(c.role_code.value)
+            val = c.role_code.value
+            if c.is_photographer:
+                val += ":F"
+            row.append(val)
         elif col == "invoice_number":
             row.append(str(c.invoice_number))
         else:

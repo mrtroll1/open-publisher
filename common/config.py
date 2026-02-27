@@ -47,6 +47,11 @@ TEMPLATE_GLOBAL_ID = os.getenv(
     "TEMPLATE_GLOBAL_ID"
 )
 
+# --- Google Docs template IDs (photographer variants) ---
+TEMPLATE_IP_PHOTO_ID = os.getenv("TEMPLATE_IP_PHOTO_ID")
+TEMPLATE_SAMOZANYATY_PHOTO_ID = os.getenv("TEMPLATE_SAMOZANYATY_PHOTO_ID")
+TEMPLATE_GLOBAL_PHOTO_ID = os.getenv("TEMPLATE_GLOBAL_PHOTO_ID")
+
 # --- Google Drive folder IDs ---
 DRIVE_FOLDER_RU = os.environ.get("DRIVE_FOLDER_RU", "")
 DRIVE_FOLDER_GLOBAL = os.environ.get("DRIVE_FOLDER_GLOBAL", "")

@@ -53,6 +53,7 @@ class Contractor(BaseModel):
     id: str
     aliases: list[str] = Field(default_factory=list)
     role_code: RoleCode = RoleCode.AUTHOR
+    is_photographer: bool = False
     email: str
     bank_name: str
     bank_account: str

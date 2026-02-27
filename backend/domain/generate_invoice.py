@@ -9,8 +9,11 @@ from decimal import Decimal
 from common.config import (
     BUDGET_SHEETS_FOLDER_ID,
     TEMPLATE_GLOBAL_ID,
+    TEMPLATE_GLOBAL_PHOTO_ID,
     TEMPLATE_IP_ID,
+    TEMPLATE_IP_PHOTO_ID,
     TEMPLATE_SAMOZANYATY_ID,
+    TEMPLATE_SAMOZANYATY_PHOTO_ID,
 )
 from common.models import (
     ArticleEntry,
@@ -159,7 +162,8 @@ class GenerateInvoice:
         articles: list[ArticleEntry], invoice_date: date, folder_id: str,
     ) -> tuple[bytes, str]:
         title = f"{contractor.name_en}+Unsigned"
-        doc_id = self._docs.copy_template(TEMPLATE_GLOBAL_ID, title, folder_id)
+        template = TEMPLATE_GLOBAL_PHOTO_ID if contractor.is_photographer else TEMPLATE_GLOBAL_ID
+        doc_id = self._docs.copy_template(template, title, folder_id)
 
         replacements = {
             "{{INVOICE_DATE}}": DocsGateway.format_date_en(invoice_date),
@@ -183,7 +187,8 @@ class GenerateInvoice:
         articles: list[ArticleEntry], invoice_date: date, folder_id: str,
     ) -> tuple[bytes, str]:
         title = f"СчетОферта_ИП_{contractor.name_ru}_{invoice.month}"
-        doc_id = self._docs.copy_template(TEMPLATE_IP_ID, title, folder_id)
+        template = TEMPLATE_IP_PHOTO_ID if contractor.is_photographer else TEMPLATE_IP_ID
+        doc_id = self._docs.copy_template(template, title, folder_id)
 
         date_ru = DocsGateway.format_date_ru(invoice_date)
         replacements = {
@@ -217,7 +222,8 @@ class GenerateInvoice:
         articles: list[ArticleEntry], invoice_date: date, folder_id: str,
     ) -> tuple[bytes, str]:
         title = f"СчетОферта_СЗ_{contractor.name_ru}_{invoice.month}"
-        doc_id = self._docs.copy_template(TEMPLATE_SAMOZANYATY_ID, title, folder_id)
+        template = TEMPLATE_SAMOZANYATY_PHOTO_ID if contractor.is_photographer else TEMPLATE_SAMOZANYATY_ID
+        doc_id = self._docs.copy_template(template, title, folder_id)
 
         date_ru = DocsGateway.format_date_ru(invoice_date)
         replacements = {

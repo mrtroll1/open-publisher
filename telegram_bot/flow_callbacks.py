@@ -422,9 +422,9 @@ async def cmd_generate_invoices(message: types.Message, state: FSMContext) -> No
     """Batch-generate invoices for all contractors."""
     debug = "debug" in message.text.lower().split()
 
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
-
     month = prev_month()
+    status_msg = await message.answer(f"Генерирую инвойсы за {month}...")
+
     contractors = await get_contractors()
     existing_invoices = await asyncio.to_thread(load_invoices, month)
     already_generated = {inv.contractor_id for inv in existing_invoices}
@@ -432,32 +432,47 @@ async def cmd_generate_invoices(message: types.Message, state: FSMContext) -> No
     # Read budget sheet once for all contractors
     budget_amounts = await asyncio.to_thread(read_budget_amounts, month)
     if not budget_amounts:
-        await message.answer(f"Бюджетная таблица за {month} не найдена. Сначала выполните /budget.")
+        await status_msg.edit_text(f"Бюджетная таблица за {month} не найдена. Сначала выполните /budget.")
         return
 
-    counts = {"global": 0, "samozanyaty": 0, "ip": 0}
-    errors: list[str] = []
-    generated_pdfs: list[tuple[bytes, Contractor, Invoice]] = []
-
+    # Count how many contractors will be processed
+    to_generate: list[Contractor] = []
     for contractor in contractors:
         if contractor.id in already_generated:
             continue
-
-        # Look up amount from budget sheet
         name_lower = contractor.display_name.lower().strip()
         budget_entry = budget_amounts.get(name_lower)
         if not budget_entry:
             continue
         eur, rub, _note = budget_entry
         amount_int = eur if contractor.currency == Currency.EUR else rub
-        if not amount_int:
-            continue
+        if amount_int:
+            to_generate.append(contractor)
+
+    total = len(to_generate)
+    if not total:
+        await status_msg.edit_text(f"Нет новых счетов для генерации за {month}.")
+        return
+
+    await status_msg.edit_text(f"Генерирую инвойсы за {month}... (0/{total})")
+
+    counts = {"global": 0, "samozanyaty": 0, "ip": 0}
+    errors: list[str] = []
+    generated_pdfs: list[tuple[bytes, Contractor, Invoice]] = []
+    done = 0
+
+    for contractor in to_generate:
+        name_lower = contractor.display_name.lower().strip()
+        budget_entry = budget_amounts[name_lower]
+        eur, rub, _note = budget_entry
+        amount_int = eur if contractor.currency == Currency.EUR else rub
         default_amount = Decimal(str(amount_int))
 
         try:
             articles = await asyncio.to_thread(fetch_articles, contractor, month)
         except Exception as e:
             errors.append(f"{contractor.display_name}: ошибка API ({e})")
+            done += 1
             continue
 
         if not debug and contractor.currency == Currency.RUB:
@@ -485,6 +500,7 @@ async def cmd_generate_invoices(message: types.Message, state: FSMContext) -> No
         except Exception as e:
             errors.append(f"{contractor.display_name}: ошибка генерации ({e})")
             logger.exception("Generate failed for %s", contractor.display_name)
+            done += 1
             continue
 
         filename = f"{contractor.display_name}+Unsigned.pdf"
@@ -509,6 +525,11 @@ async def cmd_generate_invoices(message: types.Message, state: FSMContext) -> No
             counts["ip"] += 1
 
         generated_pdfs.append((pdf_bytes, contractor, invoice))
+        done += 1
+        try:
+            await status_msg.edit_text(f"Генерирую инвойсы за {month}... ({done}/{total})")
+        except Exception:
+            pass
 
     # Summary message
     prefix = "[DEBUG] " if debug else ""

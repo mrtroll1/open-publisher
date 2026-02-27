@@ -1,17 +1,10 @@
-stages:
-  - deploy
-  - test
-  - secret-detection
+include:
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Secret-Detection.gitlab-ci.yml
 
-sast:
-  stage: test
-  include:
-    - template: Security/SAST.gitlab-ci.yml
-    - template: Security/Secret-Detection.gitlab-ci.yml
-  variables:
-    SECRET_DETECTION_ENABLED: 'true'
-  secret_detection:
-    stage: secret-detection
+stages:
+  - test
+  - deploy
 
 deploy:
   stage: deploy

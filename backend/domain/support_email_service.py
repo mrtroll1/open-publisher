@@ -43,7 +43,7 @@ class SupportEmailService:
         if not draft:
             return None
         em = draft.email
-        self._email_gw.send_reply(em.from_addr, em.subject, draft.draft_reply, em.message_id)
+        self._email_gw.send_reply(em.from_addr, em.subject, draft.draft_reply, em.message_id, from_addr=em.to_addr)
         self._email_gw.mark_read(uid)
         return draft
 
@@ -68,5 +68,6 @@ class SupportEmailService:
         email_text = f"From: {email.from_addr}\nSubject: {email.subject}\n\n{email.body}"
         prompt, model, _ = compose_request.support_email(email_text)
         result = self._gemini.call(prompt, model)
-        logger.info("Drafted support response for %s (uid=%s)", email.from_addr, email.uid)
-        return SupportDraft(email=email, draft_reply=result.get("reply", ""))
+        can_answer = result.get("can_answer", False)
+        logger.info("Drafted support response for %s (uid=%s, can_answer=%s)", email.from_addr, email.uid, can_answer)
+        return SupportDraft(email=email, can_answer=can_answer, draft_reply=result.get("reply", ""))

@@ -1298,7 +1298,7 @@ async def _send_email_draft(admin_id: int, draft: SupportDraft) -> None:
         f"From: {em.from_addr}\n"
         f"Subject: {em.subject}\n\n"
         f"{body_preview}\n\n"
-        f"--- Draft reply ---\n"
+        f"--- Draft reply (can_answer: {draft.can_answer}) ---\n"
         f"{draft.draft_reply}"
     )
     buttons = InlineKeyboardMarkup(inline_keyboard=[[

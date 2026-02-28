@@ -303,6 +303,7 @@ class IncomingEmail(BaseModel):
 class SupportDraft(BaseModel):
     """A drafted reply to a support email, pending admin approval."""
     email: IncomingEmail
+    can_answer: bool
     draft_reply: str
 
 

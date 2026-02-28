@@ -39,10 +39,10 @@ class EmailGateway:
             conn.select("INBOX")
             conn.store(uid.encode(), "+FLAGS", "\\Seen")
 
-    def send_reply(self, to: str, subject: str, body: str, in_reply_to: str = "") -> None:
+    def send_reply(self, to: str, subject: str, body: str, in_reply_to: str = "", from_addr: str = "") -> None:
         """Send an email reply via SMTP. Threads correctly if in_reply_to is set."""
         msg = MIMEText(body, "plain", "utf-8")
-        msg["From"] = EMAIL_ADDRESS
+        msg["From"] = from_addr or EMAIL_ADDRESS
         msg["To"] = to
         msg["Subject"] = f"Re: {subject}" if not subject.startswith("Re:") else subject
         if in_reply_to:

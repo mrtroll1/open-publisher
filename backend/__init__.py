@@ -20,6 +20,7 @@ from backend.infrastructure.repositories.invoice_repo import (  # noqa: F401
     load_invoices,
     save_invoice,
     update_invoice_status,
+    update_legium_link,
 )
 
 # --- Gateways (exposed as module-level convenience functions) ---

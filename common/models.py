@@ -268,6 +268,7 @@ class Invoice(BaseModel):
     status: InvoiceStatus = InvoiceStatus.DRAFT
     gdrive_path: str = ""
     doc_id: str = ""
+    legium_link: str = ""
 
 
 class ArticleEntry(BaseModel):

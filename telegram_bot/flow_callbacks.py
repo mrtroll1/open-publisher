@@ -52,6 +52,7 @@ from backend import (
     save_invoice,
     translate_name_to_russian,
     update_invoice_status,
+    update_legium_link,
     upload_invoice_pdf,
 )
 from telegram_bot import replies
@@ -391,13 +392,14 @@ async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
         return
     contractor_tg, contractor_id = entry
     try:
+        url = message.text.strip()
         await bot.send_message(
             int(contractor_tg),
-            replies.invoice.legium_link.format(url=message.text),
+            replies.invoice.legium_link.format(url=url),
         )
         month = prev_month()
         await asyncio.to_thread(
-            update_invoice_status, contractor_id, month, InvoiceStatus.SENT,
+            update_legium_link, contractor_id, month, url,
         )
         await message.answer(replies.invoice.legium_sent)
         del _admin_reply_map[key]
@@ -680,7 +682,16 @@ async def _deliver_existing_invoice(message: types.Message, contractor: Contract
             await message.answer(replies.invoice.proforma_already_sent)
     else:
         # RUB contractor
-        if inv.status == InvoiceStatus.DRAFT:
+        if inv.legium_link:
+            await bot.send_document(
+                message.chat.id, doc,
+                caption=replies.invoice.legium_link.format(url=inv.legium_link),
+            )
+            if inv.status == InvoiceStatus.DRAFT:
+                await asyncio.to_thread(
+                    update_invoice_status, inv.contractor_id, month, InvoiceStatus.SENT,
+                )
+        elif inv.status == InvoiceStatus.DRAFT:
             await bot.send_document(
                 message.chat.id, doc,
                 caption=replies.invoice.rub_invoice_caption,

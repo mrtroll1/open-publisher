@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
@@ -26,11 +27,16 @@ from common.models import (
 )
 from backend.infrastructure.gateways.docs_gateway import DocsGateway
 from backend.infrastructure.gateways.drive_gateway import DriveGateway
-from backend.infrastructure.gateways.content_gateway import ContentGateway
-from backend.infrastructure.repositories.budget_repo import lookup_amount as lookup_budget_amount
 from backend.infrastructure.repositories.contractor_repo import increment_invoice_number
+from backend.infrastructure.repositories.invoice_repo import save_invoice
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class InvoiceResult:
+    pdf_bytes: bytes
+    invoice: Invoice
 
 
 class GenerateInvoice:
@@ -39,50 +45,33 @@ class GenerateInvoice:
     def __init__(self):
         self._docs = DocsGateway()
         self._drive = DriveGateway()
-        self._content = ContentGateway()
 
-    def execute(
+    def create_and_save(
         self,
         contractor: Contractor,
         month: str,
-        amount: Decimal | None = None,
+        amount: Decimal,
+        articles: list[ArticleEntry],
         invoice_date: date | None = None,
-    ) -> tuple[bytes, str]:
-        """Generate an invoice PDF.
+        debug: bool = False,
+    ) -> InvoiceResult:
+        """Full invoice flow: increment number, generate PDF, upload, save.
 
-        Returns (pdf_bytes, google_doc_id).
+        In debug mode, skips number increment and sheet save.
         """
         if invoice_date is None:
             invoice_date = date.today()
 
-        # 1. Fetch articles (needed for PDF article table)
-        articles = self._content.fetch_articles(contractor, month)
-
-        # 2. Resolve amount: explicit > budget sheet
-        if amount is None:
-            budget_amount = lookup_budget_amount(contractor, month)
-            if budget_amount is not None:
-                amount = Decimal(str(budget_amount))
-            else:
-                logger.warning(
-                    "No budget sheet amount for %s — cannot determine amount",
-                    contractor.display_name,
-                )
-                raise ValueError(
-                    f"Budget sheet for {month} not found or {contractor.display_name} "
-                    f"not listed. Generate the budget first."
-                )
-
-        # 3. Increment invoice number (only for RUB contractors)
-        if contractor.currency == Currency.RUB:
-            new_invoice_number = increment_invoice_number(contractor.id)
+        # 1. Increment invoice number (skip in debug)
+        if not debug and contractor.currency == Currency.RUB:
+            invoice_number = increment_invoice_number(contractor.id)
         else:
-            new_invoice_number = 0
+            invoice_number = 0
 
-        # 4. Build invoice model
+        # 2. Build invoice model
         invoice = Invoice(
             contractor_id=contractor.id,
-            invoice_number=new_invoice_number,
+            invoice_number=invoice_number,
             month=month,
             amount=amount,
             currency=contractor.currency,
@@ -90,8 +79,25 @@ class GenerateInvoice:
             status=InvoiceStatus.DRAFT,
         )
 
-        # 5. Generate PDF
-        return self._generate_pdf(contractor, invoice, articles, invoice_date)
+        # 3. Generate PDF
+        pdf_bytes, doc_id = self._generate_pdf(contractor, invoice, articles, invoice_date)
+        invoice.doc_id = doc_id
+
+        # 4. Upload to Google Drive
+        filename = f"{contractor.display_name}+Unsigned.pdf"
+        try:
+            gdrive_link = self._drive.upload_invoice_pdf(
+                contractor, month, filename, pdf_bytes,
+            )
+        except Exception:
+            logger.exception("Drive upload failed for %s", contractor.display_name)
+            gdrive_link = ""
+        invoice.gdrive_path = gdrive_link
+
+        # 5. Save to invoices sheet
+        save_invoice(invoice)
+
+        return InvoiceResult(pdf_bytes=pdf_bytes, invoice=invoice)
 
     def _generate_pdf(
         self,

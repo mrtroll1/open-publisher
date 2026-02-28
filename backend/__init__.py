@@ -69,15 +69,15 @@ def read_budget_amounts(month: str) -> dict:
     return read_all_amounts(month)
 
 
-def generate_invoice(contractor, invoice, articles, invoice_date):
-    """Generate an invoice PDF. Returns (pdf_bytes, doc_id).
+def create_and_save_invoice(contractor, month, amount, articles, invoice_date=None, debug=False):
+    """Full invoice flow: increment number, generate PDF, upload, save.
 
-    This is the legacy function signature used by the bot.
-    For the full use-case orchestration, use GenerateInvoice().execute().
+    Returns InvoiceResult(pdf_bytes, invoice).
     """
     from backend.domain.generate_invoice import GenerateInvoice
-    uc = GenerateInvoice()
-    return uc._generate_pdf(contractor, invoice, articles, invoice_date)
+    return GenerateInvoice().create_and_save(
+        contractor, month, amount, articles, invoice_date, debug,
+    )
 
 
 def export_pdf(doc_id: str) -> bytes:
@@ -86,8 +86,14 @@ def export_pdf(doc_id: str) -> bytes:
     return DocsGateway().export_pdf(doc_id)
 
 
+# --- Domain helpers ---
+from backend.domain.validate_contractor import validate_fields as validate_contractor_fields  # noqa: F401
+from backend.domain.resolve_amount import resolve_amount, plural_ru  # noqa: F401
+from backend.domain.prepare_invoice import prepare_existing_invoice  # noqa: F401
+
 # --- Use cases ---
-from backend.domain.generate_invoice import GenerateInvoice  # noqa: F401
+from backend.domain.generate_invoice import GenerateInvoice, InvoiceResult  # noqa: F401
+from backend.domain.generate_batch_invoices import GenerateBatchInvoices, BatchResult  # noqa: F401
 from backend.domain.parse_bank_statement import ParseBankStatement  # noqa: F401
 from backend.domain.compute_budget import ComputeBudget  # noqa: F401
 from backend.domain.support_email_service import SupportEmailService  # noqa: F401

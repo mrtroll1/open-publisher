@@ -101,6 +101,9 @@ def get_gmail_creds():
         scopes=["https://mail.google.com/"],
     )
 
+# --- Subscription service ---
+SUBSCRIPTION_SERVICE_URL = os.getenv("SUBSCRIPTION_SERVICE_URL", "")
+
 # --- Product name (used in user-facing strings) ---
 PRODUCT_NAME = os.getenv("PRODUCT_NAME", "")
 

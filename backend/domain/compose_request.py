@@ -1,5 +1,6 @@
 """Compose LLM requests: template + knowledge → (prompt, model, response_keys)."""
 
+from common.config import SUBSCRIPTION_SERVICE_URL
 from common.prompt_loader import load_knowledge, load_template
 
 _MODELS = {
@@ -10,7 +11,10 @@ _MODELS = {
 
 
 def support_email(email_text: str) -> tuple[str, str, list[str]]:
-    knowledge = load_knowledge("base.md", "email-inbox.md", "tech-support.md")
+    knowledge = load_knowledge(
+        "base.md", "email-inbox.md", "tech-support.md",
+        replacements={"SUBSCRIPTION_SERVICE_URL": SUBSCRIPTION_SERVICE_URL},
+    )
     prompt = load_template("support-email.md", {
         "KNOWLEDGE": knowledge,
         "EMAIL": email_text,
@@ -21,7 +25,7 @@ def support_email(email_text: str) -> tuple[str, str, list[str]]:
 def contractor_parse(
     text: str, fields_csv: str, context: str = "",
 ) -> tuple[str, str, list[str]]:
-    knowledge = load_knowledge("base.md", "contractors.md")
+    knowledge = load_knowledge("base.md", "payment-data-validation.md")
     prompt = load_template("contractor-parse.md", {
         "FIELDS": fields_csv,
         "CONTEXT": context,

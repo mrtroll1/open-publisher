@@ -126,6 +126,8 @@ async def handle_data_input(message: types.Message, state: FSMContext) -> str | 
         await message.answer(replies.registration.parse_error)
         return None
 
+    llm_comment = parsed.pop("comment", None)
+
     for key, value in parsed.items():
         if isinstance(value, str) and value.strip():
             collected[key] = value.strip()
@@ -138,6 +140,8 @@ async def handle_data_input(message: types.Message, state: FSMContext) -> str | 
         if not collected.get(field, "").strip()
     }
     warnings = _validate_fields(collected, ctype)
+    if llm_comment:
+        warnings.append(llm_comment)
 
     if missing or warnings:
         await state.update_data(collected_data=collected)

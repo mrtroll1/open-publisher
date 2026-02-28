@@ -14,10 +14,15 @@ def load_template(name: str, replacements: dict[str, str] | None = None) -> str:
     return text
 
 
-def load_knowledge(*filenames: str) -> str:
+def load_knowledge(
+    *filenames: str, replacements: dict[str, str] | None = None,
+) -> str:
     parts = []
     for name in filenames:
         path = _KNOWLEDGE / name
         if path.exists():
             parts.append(path.read_text(encoding="utf-8"))
-    return "\n\n---\n\n".join(parts)
+    text = "\n\n---\n\n".join(parts)
+    for key, val in (replacements or {}).items():
+        text = text.replace(f"{{{{{key}}}}}", val)
+    return text

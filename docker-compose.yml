@@ -2,7 +2,8 @@ services:
   bot:
     build: .
     restart: unless-stopped
-    env_file: .env
+    env_file: config/.env
     volumes:
-      - ./service_account.json:/app/service_account.json:ro
-      - ./business_config.json:/app/business_config.json:ro
+      - ./config/service_account.json:/app/config/service_account.json:ro
+      - ./config/business_config.json:/app/config/business_config.json:ro
+      - ./config/tech_config.json:/app/config/tech_config.json:ro

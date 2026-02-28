@@ -7,7 +7,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
 
-load_dotenv()
+_ROOT = Path(__file__).resolve().parent.parent
+_CONFIG = _ROOT / "config"
+
+load_dotenv(_CONFIG / ".env")
 
 # --- Telegram ---
 TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
@@ -18,7 +21,7 @@ ADMIN_TELEGRAM_TAG = os.environ["ADMIN_TELEGRAM_TAG"]
 
 # --- Google ---
 GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv(
-    "GOOGLE_SERVICE_ACCOUNT_FILE", "service_account.json"
+    "GOOGLE_SERVICE_ACCOUNT_FILE", str(_CONFIG / "service_account.json")
 )
 GOOGLE_SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -97,8 +100,8 @@ ENTITY_UAE_NAME = os.getenv("ENTITY_UAE_NAME", "")
 ENTITY_UAE_REG = os.getenv("ENTITY_UAE_REG", "")
 ENTITY_UAE_ADDRESS = os.getenv("ENTITY_UAE_ADDRESS", "")
 
-# --- Business config (loaded from business_config.json) ---
-_BUSINESS_CONFIG_PATH = Path(__file__).resolve().parent.parent / "business_config.json"
+# --- Business config ---
+_BUSINESS_CONFIG_PATH = _CONFIG / "business_config.json"
 
 
 def _load_business_config() -> dict:
@@ -116,8 +119,8 @@ UNIT_PRIMARY: str = _biz.get("unit_primary", "")
 UNIT_SECONDARY: str = _biz.get("unit_secondary", "")
 DEFAULT_ENTITY: str = _biz.get("default_entity", "")
 
-# --- Tech config (loaded from tech_config.json) ---
-_TECH_CONFIG_PATH = Path(__file__).resolve().parent.parent / "tech_config.json"
+# --- Tech config ---
+_TECH_CONFIG_PATH = _CONFIG / "tech_config.json"
 
 
 def _load_tech_config() -> dict:

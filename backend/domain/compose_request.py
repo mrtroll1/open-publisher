@@ -1,6 +1,5 @@
 """Compose LLM requests: template + knowledge → (prompt, model, response_keys)."""
 
-from common.config import SUPPORT_ADDRESSES
 from common.prompt_loader import load_knowledge, load_template
 
 _MODELS = {
@@ -10,11 +9,8 @@ _MODELS = {
 }
 
 
-def support_email(email_text: str, to_addr: str) -> tuple[str, str, list[str]]:
-    knowledge_files = ["base.md", "email-inbox.md"]
-    if to_addr in SUPPORT_ADDRESSES:
-        knowledge_files.append("tech-support.md")
-    knowledge = load_knowledge(*knowledge_files)
+def support_email(email_text: str) -> tuple[str, str, list[str]]:
+    knowledge = load_knowledge("base.md", "email-inbox.md", "tech-support.md")
     prompt = load_template("support-email.md", {
         "KNOWLEDGE": knowledge,
         "EMAIL": email_text,

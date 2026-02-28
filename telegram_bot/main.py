@@ -5,14 +5,12 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from aiogram import Dispatcher, F, types
+from aiogram import Dispatcher, F
 
 from telegram_bot.bot_helpers import bot
 from telegram_bot.flow_engine import register_flows
-from telegram_bot.flow_callbacks import handle_duplicate_callback, handle_non_document
-from telegram_bot.email_support import (
-    email_listener_task, handle_email_callback,
-    handle_email_edit_reply, is_editing_email,
+from telegram_bot.flow_callbacks import (
+    email_listener_task, handle_email_callback, handle_duplicate_callback, handle_non_document,
 )
 from telegram_bot.flows import bot_flows
 
@@ -20,8 +18,6 @@ logger = logging.getLogger(__name__)
 dp = Dispatcher()
 dp.callback_query.register(handle_email_callback, F.data.startswith("email:"))
 dp.callback_query.register(handle_duplicate_callback, F.data.startswith("dup:"))
-# Email edit reply must be registered before flows so it catches text from admins in edit mode
-dp.message.register(handle_email_edit_reply, is_editing_email)
 register_flows(dp, bot_flows)
 
 # Catch photos/stickers/etc — must be after flows so it doesn't interfere

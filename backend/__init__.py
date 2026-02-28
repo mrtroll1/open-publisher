@@ -89,4 +89,4 @@ def export_pdf(doc_id: str) -> bytes:
 from backend.domain.generate_invoice import GenerateInvoice  # noqa: F401
 from backend.domain.parse_bank_statement import ParseBankStatement  # noqa: F401
 from backend.domain.compute_budget import ComputeBudget  # noqa: F401
-from backend.domain.handle_support_email import HandleSupportEmail  # noqa: F401
+from backend.domain.support_email_service import SupportEmailService  # noqa: F401

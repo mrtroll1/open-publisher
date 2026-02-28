@@ -18,7 +18,7 @@ from aiogram.enums import ChatAction
 from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
-from common.config import ADMIN_TELEGRAM_IDS, GEMINI_API_KEY
+from common.config import ADMIN_TELEGRAM_IDS, EMAIL_ADDRESS, GEMINI_API_KEY
 
 from common.models import (
     CONTRACTOR_CLASS_BY_TYPE,
@@ -30,6 +30,7 @@ from common.models import (
     Invoice,
     InvoiceStatus,
     SamozanyatyContractor,
+    SupportDraft,
 )
 from backend import (
     bind_telegram_id,
@@ -1262,3 +1263,67 @@ async def cmd_upload_to_airtable(message: types.Message, state: FSMContext) -> N
     finally:
         import os
         os.unlink(tmp_path)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Email support: background listener + callback handler
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+from backend.domain.support_email_service import SupportEmailService
+
+_email_service = SupportEmailService()
+
+
+async def email_listener_task() -> None:
+    """Background task: listen for new emails and send drafts to admin."""
+    admin_id = ADMIN_TELEGRAM_IDS[0]
+    logger.info("Email listener started for %s", EMAIL_ADDRESS)
+    while True:
+        try:
+            has_new = await asyncio.to_thread(_email_service.wait_for_mail, 300)
+            if not has_new:
+                continue
+            drafts = await asyncio.to_thread(_email_service.fetch_new_drafts)
+            for draft in drafts:
+                await _send_email_draft(admin_id, draft)
+        except Exception as e:
+            logger.exception("Email listener error: %s", e)
+            await asyncio.sleep(30)
+
+
+async def _send_email_draft(admin_id: int, draft: SupportDraft) -> None:
+    em = draft.email
+    body_preview = em.body[:500] + ("..." if len(em.body) > 500 else "")
+    text = (
+        f"From: {em.from_addr}\n"
+        f"Subject: {em.subject}\n\n"
+        f"{body_preview}\n\n"
+        f"--- Draft reply ---\n"
+        f"{draft.draft_reply}"
+    )
+    buttons = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="Send", callback_data=f"email:send:{em.uid}"),
+        InlineKeyboardButton(text="Skip", callback_data=f"email:skip:{em.uid}"),
+    ]])
+    await bot.send_message(admin_id, text, reply_markup=buttons)
+
+
+async def handle_email_callback(callback: CallbackQuery) -> None:
+    """Handle send/skip button presses for email drafts."""
+    await callback.answer()
+    parts = callback.data.split(":")
+    if len(parts) != 3:
+        return
+    _, action, uid = parts
+
+    draft = _email_service.get_pending(uid)
+    if not draft:
+        await callback.message.edit_text("(expired — email already handled)")
+        return
+
+    if action == "send":
+        await asyncio.to_thread(_email_service.approve, uid)
+        await callback.message.edit_text(f"Reply sent to {draft.email.from_addr}")
+    elif action == "skip":
+        await asyncio.to_thread(_email_service.skip, uid)
+        await callback.message.edit_text(f"Skipped email from {draft.email.from_addr}")

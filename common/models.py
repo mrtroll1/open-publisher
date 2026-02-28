@@ -289,6 +289,22 @@ class BankTransaction(BaseModel):
     notes: str = ""
 
 
+class IncomingEmail(BaseModel):
+    """An email fetched from the support inbox."""
+    uid: str
+    from_addr: str
+    subject: str
+    body: str
+    date: str
+    message_id: str = ""
+
+
+class SupportDraft(BaseModel):
+    """A drafted reply to a support email, pending admin approval."""
+    email: IncomingEmail
+    draft_reply: str
+
+
 class AirtableExpense(BaseModel):
     """A row to be pushed to the Airtable expenses table."""
     id: Optional[int] = None

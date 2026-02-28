@@ -7,7 +7,6 @@ from datetime import date
 from decimal import Decimal
 
 from common.config import (
-    BUDGET_SHEETS_FOLDER_ID,
     TEMPLATE_GLOBAL_ID,
     TEMPLATE_GLOBAL_PHOTO_ID,
     TEMPLATE_IP_ID,
@@ -28,51 +27,10 @@ from common.models import (
 from backend.infrastructure.gateways.docs_gateway import DocsGateway
 from backend.infrastructure.gateways.drive_gateway import DriveGateway
 from backend.infrastructure.gateways.content_gateway import ContentGateway
-from backend.infrastructure.gateways.sheets_gateway import SheetsGateway
+from backend.infrastructure.repositories.budget_repo import lookup_amount as lookup_budget_amount
 from backend.infrastructure.repositories.contractor_repo import increment_invoice_number
 
 logger = logging.getLogger(__name__)
-
-
-def lookup_budget_amount(
-    contractor: Contractor, month: str,
-    drive: DriveGateway | None = None,
-    sheets: SheetsGateway | None = None,
-) -> int | None:
-    """Look up contractor's amount from the Payments-for-{month} budget sheet.
-
-    Returns the integer amount or None if not found.
-    """
-    if drive is None:
-        drive = DriveGateway()
-    if sheets is None:
-        sheets = SheetsGateway()
-
-    sheet_name = f"Payments-for-{month}"
-    sheet_id = drive.find_file_by_name(sheet_name, BUDGET_SHEETS_FOLDER_ID)
-    if not sheet_id:
-        logger.info("Budget sheet not found: %s", sheet_name)
-        return None
-
-    rows = sheets.read(sheet_id, "A2:D200")
-    name_lower = contractor.display_name.lower().strip()
-    for row in rows:
-        if len(row) >= 1 and row[0].strip().lower() == name_lower:
-            eur = _parse_int(row[2]) if len(row) > 2 else 0
-            rub = _parse_int(row[3]) if len(row) > 3 else 0
-            amount = eur if contractor.currency == Currency.EUR else rub
-            if amount:
-                logger.info("Budget lookup for %s: %d", contractor.display_name, amount)
-                return amount
-    logger.info("Contractor %s not found in budget sheet %s", contractor.display_name, sheet_name)
-    return None
-
-
-def _parse_int(val: str) -> int:
-    try:
-        return int(val.strip()) if val.strip() else 0
-    except ValueError:
-        return 0
 
 
 class GenerateInvoice:
@@ -82,7 +40,6 @@ class GenerateInvoice:
         self._docs = DocsGateway()
         self._drive = DriveGateway()
         self._content = ContentGateway()
-        self._sheets = SheetsGateway()
 
     def execute(
         self,
@@ -103,9 +60,7 @@ class GenerateInvoice:
 
         # 2. Resolve amount: explicit > budget sheet
         if amount is None:
-            budget_amount = lookup_budget_amount(
-                contractor, month, self._drive, self._sheets,
-            )
+            budget_amount = lookup_budget_amount(contractor, month)
             if budget_amount is not None:
                 amount = Decimal(str(budget_amount))
             else:

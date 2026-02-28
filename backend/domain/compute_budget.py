@@ -5,14 +5,13 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from common.config import (
-    BUDGET_SHEETS_FOLDER_ID,
-    BUDGET_TEMPLATE_SHEET_ID,
-)
 from common.models import Contractor, Currency, RoleCode
-from backend.infrastructure.gateways.drive_gateway import DriveGateway
 from backend.infrastructure.gateways.content_gateway import ContentGateway
-from backend.infrastructure.gateways.sheets_gateway import SheetsGateway
+from backend.infrastructure.repositories.budget_repo import (
+    create_sheet,
+    populate_sheet,
+    sheet_url,
+)
 from backend.infrastructure.repositories.contractor_repo import (
     find_contractor,
     find_contractor_by_id,
@@ -98,8 +97,6 @@ class ComputeBudget:
 
     def __init__(self):
         self._content = ContentGateway()
-        self._drive = DriveGateway()
-        self._sheets = SheetsGateway()
 
     def execute(self, month: str) -> str:
         """Generate the payments sheet for the given month. Returns the sheet URL."""
@@ -108,14 +105,10 @@ class ComputeBudget:
 
         entries = self._build_entries(published_authors, contractors, month)
 
-        sheet_name = f"Payments-for-{month}"
-        sheet_id = self._drive.copy_file(
-            BUDGET_TEMPLATE_SHEET_ID, sheet_name, BUDGET_SHEETS_FOLDER_ID,
-        )
-
+        sheet_id = create_sheet(month)
         self._populate_sheet(sheet_id, entries, month)
 
-        url = f"https://docs.google.com/spreadsheets/d/{sheet_id}"
+        url = sheet_url(sheet_id)
         logger.info("Budget sheet created: %s", url)
         return url
 
@@ -338,17 +331,6 @@ class ComputeBudget:
 
     def _populate_sheet(self, sheet_id: str, entries: list[PaymentEntry], month: str) -> None:
         """Write payment entries into the copied template sheet."""
-        self._sheets.clear(sheet_id, "A2:E200")
-        self._sheets.clear(sheet_id, "G6")
-
-        # Update header with target month
-        target = _target_month_name(month)
-        self._sheets.write(
-            sheet_id, "H1",
-            [[f"Editorial Expenses (бюджет на {target})"]],
-        )
-
-        # Build rows from entries
         rows: list[list[str]] = []
         for e in entries:
             if e.is_blank:
@@ -358,6 +340,6 @@ class ComputeBudget:
                 rub_str = str(e.rub) if e.rub else ""
                 rows.append([e.name, e.label, eur_str, rub_str, e.note])
 
-        if rows:
-            end_row = 1 + len(rows)
-            self._sheets.write(sheet_id, f"A2:E{end_row}", rows)
+        target = _target_month_name(month)
+        header = f"Editorial Expenses (бюджет на {target})"
+        populate_sheet(sheet_id, rows, header)

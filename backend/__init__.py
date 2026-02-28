@@ -59,31 +59,8 @@ def upload_invoice_pdf(contractor, month, filename, pdf_bytes):
 
 def read_budget_amounts(month: str) -> dict:
     """Read budget sheet for a month. Returns {name_lower: (eur, rub, note)}."""
-    from common.config import BUDGET_SHEETS_FOLDER_ID
-    from backend.infrastructure.gateways.sheets_gateway import SheetsGateway
-    sheet_name = f"Payments-for-{month}"
-    sheet_id = _drive.find_file_by_name(sheet_name, BUDGET_SHEETS_FOLDER_ID)
-    if not sheet_id:
-        return {}
-    sheets = SheetsGateway()
-    rows = sheets.read(sheet_id, "A2:E200")
-    amounts = {}
-    for row in rows:
-        if not row or not row[0].strip():
-            continue
-        name = row[0].strip().lower()
-        try:
-            eur = int(row[2].strip()) if len(row) > 2 and row[2].strip() else 0
-        except ValueError:
-            eur = 0
-        try:
-            rub = int(row[3].strip()) if len(row) > 3 and row[3].strip() else 0
-        except ValueError:
-            rub = 0
-        note = row[4].strip() if len(row) > 4 else ""
-        if eur or rub:
-            amounts[name] = (eur, rub, note)
-    return amounts
+    from backend.infrastructure.repositories.budget_repo import read_all_amounts
+    return read_all_amounts(month)
 
 
 def generate_invoice(contractor, invoice, articles, invoice_date):
@@ -107,3 +84,4 @@ def export_pdf(doc_id: str) -> bytes:
 from backend.domain.generate_invoice import GenerateInvoice  # noqa: F401
 from backend.domain.parse_bank_statement import ParseBankStatement  # noqa: F401
 from backend.domain.compute_budget import ComputeBudget  # noqa: F401
+from backend.domain.handle_support_email import HandleSupportEmail  # noqa: F401

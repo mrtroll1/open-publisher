@@ -78,6 +78,12 @@ CONTENT_API_URL = os.environ.get("CONTENT_API_URL", "")
 # --- Gemini (for new-contractor parsing) ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
+# --- Email (support inbox) ---
+EMAIL_IMAP_HOST = os.getenv("EMAIL_IMAP_HOST", "imap.gmail.com")
+EMAIL_SMTP_HOST = os.getenv("EMAIL_SMTP_HOST", "smtp.gmail.com")
+EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS", "")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "")
+
 # --- Product name (used in user-facing strings) ---
 PRODUCT_NAME = os.getenv("PRODUCT_NAME", "")
 

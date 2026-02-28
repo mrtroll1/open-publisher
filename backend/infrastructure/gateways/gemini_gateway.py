@@ -55,6 +55,19 @@ class GeminiGateway:
             logger.error("Name translation failed: %s", e)
             return ""
 
+    def draft_support_response(self, email_text: str, knowledge: str) -> str:
+        """Draft a support email response using the knowledge base."""
+        prompt = (
+            "You are a support agent. Use the knowledge base below to answer.\n"
+            "If you cannot answer confidently, say so honestly.\n"
+            "Reply in the same language as the incoming email.\n"
+            "Write only the reply body — no subject line, no greeting like 'Subject:'.\n\n"
+            f"## Knowledge Base\n{knowledge}\n\n"
+            f"## Incoming Email\n{email_text}\n\n"
+            "Draft a concise, helpful reply:"
+        )
+        return self._call(prompt)
+
     @staticmethod
     def _extract_json(raw: str) -> dict:
         """Extract JSON object from LLM response (handles markdown fences)."""

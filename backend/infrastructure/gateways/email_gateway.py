@@ -17,7 +17,8 @@ from common.models import IncomingEmail
 
 logger = logging.getLogger(__name__)
 
-_POLL_INTERVAL = 30  # seconds between polls in idle_wait
+_POLL_INTERVAL = 60  # seconds between polls
+_RECENT_WINDOW = 120  # fetch emails no older than this (seconds), 2x poll for overlap safety
 
 
 class EmailGateway:
@@ -35,8 +36,12 @@ class EmailGateway:
     def fetch_unread(self) -> list[IncomingEmail]:
         """Fetch all unread emails from the inbox."""
         gmail = self._gmail()
-        resp = gmail.users().messages().list(userId="me", q="is:unread").execute()
+        after = int(time.time()) - _RECENT_WINDOW
+        resp = gmail.users().messages().list(
+            userId="me", q=f"is:unread after:{after}"
+        ).execute()
         message_ids = [m["id"] for m in resp.get("messages", [])]
+        logger.info("Gmail poll: %d recent unread messages", len(message_ids))
 
         emails = []
         for msg_id in message_ids:
@@ -73,21 +78,9 @@ class EmailGateway:
         logger.info("Sent reply to %s: %s", to, subject)
 
     def idle_wait(self, timeout: int = 300) -> bool:
-        """Poll for new unread mail. Returns True if unread count increases."""
-        gmail = self._gmail()
-        baseline = self._unread_count(gmail)
-        elapsed = 0
-        while elapsed < timeout:
-            time.sleep(_POLL_INTERVAL)
-            elapsed += _POLL_INTERVAL
-            if self._unread_count(gmail) > baseline:
-                return True
-        return False
-
-    @staticmethod
-    def _unread_count(gmail) -> int:
-        resp = gmail.users().messages().list(userId="me", q="is:unread").execute()
-        return resp.get("resultSizeEstimate", 0)
+        """Poll for new unread mail. Just sleeps — actual check happens in fetch_unread."""
+        time.sleep(min(timeout, _POLL_INTERVAL))
+        return True
 
     @staticmethod
     def _parse(uid: str, msg: email.message.Message) -> IncomingEmail:

@@ -67,13 +67,13 @@ class SupportEmailService:
     def get_pending(self, uid: str) -> SupportDraft | None:
         return self._pending.get(uid)
 
-    def _fetch_user_data(self, email_text: str) -> str:
+    def _fetch_user_data(self, email_text: str, fallback_email: str) -> str:
         """Run triage LLM call; if data needed, fetch from APIs."""
         try:
             prompt, model, _ = compose_request.support_triage(email_text)
             result = self._gemini.call(prompt, model)
             needs = result.get("needs", [])
-            lookup_email = result.get("lookup_email", "")
+            lookup_email = result.get("lookup_email") or fallback_email
             logger.info("Support triage: needs=%s, lookup_email=%s", needs, lookup_email)
             if not needs or not lookup_email:
                 return ""
@@ -87,7 +87,7 @@ class SupportEmailService:
     def _draft(self, email: IncomingEmail) -> SupportDraft:
         """Use compose_request + Gemini to draft a reply."""
         email_text = f"From: {email.from_addr}\nSubject: {email.subject}\n\n{email.body}"
-        user_data = self._fetch_user_data(email_text)
+        user_data = self._fetch_user_data(email_text, email.reply_to or email.from_addr)
         if user_data:
             prompt, model, _ = compose_request.support_email_with_context(email_text, user_data)
         else:

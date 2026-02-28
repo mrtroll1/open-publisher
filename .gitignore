@@ -1,7 +1,6 @@
 config/*
 !config/example/
-sample-data/
-deploy-scripts
+docs
 __pycache__/
 *.pyc
 .claude/

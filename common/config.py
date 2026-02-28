@@ -81,11 +81,25 @@ CONTENT_API_URL = os.environ.get("CONTENT_API_URL", "")
 # --- Gemini (for new-contractor parsing) ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
-# --- Email (support inbox) ---
-EMAIL_IMAP_HOST = os.getenv("EMAIL_IMAP_HOST", "imap.gmail.com")
-EMAIL_SMTP_HOST = os.getenv("EMAIL_SMTP_HOST", "smtp.gmail.com")
+# --- Email (support inbox via Gmail API) ---
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS", "")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "")
+GMAIL_CLIENT_ID = os.getenv("GMAIL_CLIENT_ID", "")
+GMAIL_CLIENT_SECRET = os.getenv("GMAIL_CLIENT_SECRET", "")
+GMAIL_REFRESH_TOKEN = os.getenv("GMAIL_REFRESH_TOKEN", "")
+
+
+def get_gmail_creds():
+    """Build Gmail OAuth2 credentials from refresh token."""
+    from google.oauth2.credentials import Credentials as OAuthCredentials
+
+    return OAuthCredentials(
+        token=None,
+        refresh_token=GMAIL_REFRESH_TOKEN,
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=GMAIL_CLIENT_ID,
+        client_secret=GMAIL_CLIENT_SECRET,
+        scopes=["https://mail.google.com/"],
+    )
 
 # --- Product name (used in user-facing strings) ---
 PRODUCT_NAME = os.getenv("PRODUCT_NAME", "")

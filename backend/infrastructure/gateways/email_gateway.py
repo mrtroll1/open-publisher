@@ -1,46 +1,63 @@
-"""Email gateway — IMAP read + SMTP send for support inbox."""
+"""Email gateway — Gmail API for support inbox."""
 
 from __future__ import annotations
 
+import base64
 import email
-import imaplib
 import logging
-import smtplib
+import time
 from email.header import decode_header
 from email.mime.text import MIMEText
 from email.utils import parseaddr
 
-from common.config import EMAIL_ADDRESS, EMAIL_IMAP_HOST, EMAIL_PASSWORD, EMAIL_SMTP_HOST
+from googleapiclient.discovery import build
+
+from common.config import EMAIL_ADDRESS, get_gmail_creds
 from common.models import IncomingEmail
 
 logger = logging.getLogger(__name__)
 
+_POLL_INTERVAL = 30  # seconds between polls in idle_wait
+
 
 class EmailGateway:
-    """Wraps IMAP and SMTP for the support inbox."""
+    """Wraps Gmail API for the support inbox."""
+
+    def __init__(self):
+        self._service = None
+
+    def _gmail(self):
+        if self._service is None:
+            creds = get_gmail_creds()
+            self._service = build("gmail", "v1", credentials=creds)
+        return self._service
 
     def fetch_unread(self) -> list[IncomingEmail]:
         """Fetch all unread emails from the inbox."""
-        with self._imap() as conn:
-            conn.select("INBOX")
-            _, data = conn.search(None, "UNSEEN")
-            uids = data[0].split()
-            emails = []
-            for uid in uids:
-                _, msg_data = conn.fetch(uid, "(RFC822)")
-                raw = msg_data[0][1]
-                msg = email.message_from_bytes(raw)
-                emails.append(self._parse(uid.decode(), msg))
-            return emails
+        gmail = self._gmail()
+        resp = gmail.users().messages().list(userId="me", q="is:unread").execute()
+        message_ids = [m["id"] for m in resp.get("messages", [])]
+
+        emails = []
+        for msg_id in message_ids:
+            raw_resp = gmail.users().messages().get(
+                userId="me", id=msg_id, format="raw"
+            ).execute()
+            raw_bytes = base64.urlsafe_b64decode(raw_resp["raw"])
+            msg = email.message_from_bytes(raw_bytes)
+            emails.append(self._parse(msg_id, msg))
+        return emails
 
     def mark_read(self, uid: str) -> None:
-        """Mark an email as seen."""
-        with self._imap() as conn:
-            conn.select("INBOX")
-            conn.store(uid.encode(), "+FLAGS", "\\Seen")
+        """Remove UNREAD label from a message."""
+        self._gmail().users().messages().modify(
+            userId="me", id=uid, body={"removeLabelIds": ["UNREAD"]}
+        ).execute()
 
-    def send_reply(self, to: str, subject: str, body: str, in_reply_to: str = "", from_addr: str = "") -> None:
-        """Send an email reply via SMTP. Threads correctly if in_reply_to is set."""
+    def send_reply(
+        self, to: str, subject: str, body: str, in_reply_to: str = "", from_addr: str = ""
+    ) -> None:
+        """Send an email reply via Gmail API."""
         msg = MIMEText(body, "plain", "utf-8")
         msg["From"] = from_addr or EMAIL_ADDRESS
         msg["To"] = to
@@ -49,29 +66,28 @@ class EmailGateway:
             msg["In-Reply-To"] = in_reply_to
             msg["References"] = in_reply_to
 
-        with smtplib.SMTP(EMAIL_SMTP_HOST, 587) as smtp:
-            smtp.starttls()
-            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-            smtp.send_message(msg)
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        self._gmail().users().messages().send(
+            userId="me", body={"raw": raw}
+        ).execute()
         logger.info("Sent reply to %s: %s", to, subject)
 
     def idle_wait(self, timeout: int = 300) -> bool:
-        """IMAP IDLE — block until new mail or timeout. Returns True if new mail."""
-        with self._imap() as conn:
-            conn.select("INBOX")
-            tag = conn._new_tag().decode()
-            conn.send(f"{tag} IDLE\r\n".encode())
-            conn.readline()  # + idling
-            import select
-            readable, _, _ = select.select([conn.socket()], [], [], timeout)
-            conn.send(b"DONE\r\n")
-            conn.readline()  # tagged response
-            return bool(readable)
+        """Poll for new unread mail. Returns True if unread count increases."""
+        gmail = self._gmail()
+        baseline = self._unread_count(gmail)
+        elapsed = 0
+        while elapsed < timeout:
+            time.sleep(_POLL_INTERVAL)
+            elapsed += _POLL_INTERVAL
+            if self._unread_count(gmail) > baseline:
+                return True
+        return False
 
-    def _imap(self) -> imaplib.IMAP4_SSL:
-        conn = imaplib.IMAP4_SSL(EMAIL_IMAP_HOST)
-        conn.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-        return conn
+    @staticmethod
+    def _unread_count(gmail) -> int:
+        resp = gmail.users().messages().list(userId="me", q="is:unread").execute()
+        return resp.get("resultSizeEstimate", 0)
 
     @staticmethod
     def _parse(uid: str, msg: email.message.Message) -> IncomingEmail:

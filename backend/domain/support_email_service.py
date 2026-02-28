@@ -32,6 +32,8 @@ class SupportEmailService:
         for em in emails:
             if em.to_addr not in SUPPORT_ADDRESSES:
                 continue
+            if em.uid in self._pending:
+                continue
             draft = self._draft(em)
             self._pending[em.uid] = draft
             drafts.append(draft)

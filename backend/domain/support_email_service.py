@@ -45,7 +45,7 @@ class SupportEmailService:
         if not draft:
             return None
         em = draft.email
-        self._email_gw.send_reply(em.from_addr, em.subject, draft.draft_reply, em.message_id, from_addr=em.to_addr)
+        self._email_gw.send_reply(em.reply_to or em.from_addr, em.subject, draft.draft_reply, em.message_id, from_addr=em.to_addr)
         self._email_gw.mark_read(uid)
         return draft
 

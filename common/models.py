@@ -295,6 +295,7 @@ class IncomingEmail(BaseModel):
     uid: str
     from_addr: str
     to_addr: str = ""
+    reply_to: str = ""
     subject: str
     body: str
     date: str

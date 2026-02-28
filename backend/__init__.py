@@ -26,11 +26,11 @@ from backend.infrastructure.repositories.invoice_repo import (  # noqa: F401
 # --- Gateways (exposed as module-level convenience functions) ---
 from backend.infrastructure.gateways.drive_gateway import DriveGateway as _DriveGateway
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway as _GeminiGateway
-from backend.infrastructure.gateways.content_gateway import ContentGateway as _ContentGateway
+from backend.infrastructure.gateways.republic_gateway import RepublicGateway as _RepublicGateway
 
 _drive = _DriveGateway()
 _gemini = _GeminiGateway()
-_content = _ContentGateway()
+_content = _RepublicGateway()
 
 
 def fetch_articles(contractor, month):

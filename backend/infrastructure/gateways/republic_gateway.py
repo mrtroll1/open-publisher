@@ -1,4 +1,4 @@
-"""Content API gateway — fetch articles by author or magazine aliases."""
+"""Republic API gateway — content API + support user lookup."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import time
 
 import requests
 
-from common.config import CONTENT_API_URL
+from common.config import CONTENT_API_URL, REPUBLIC_API_URL, REPUBLIC_SUPPORT_API_KEY
 from common.models import ArticleEntry, Contractor
 
 logger = logging.getLogger(__name__)
@@ -16,8 +16,12 @@ MAX_RETRIES = 3
 RETRY_DELAY = 2  # seconds
 
 
-class ContentGateway:
-    """Wraps the content API."""
+class RepublicGateway:
+    """Wraps Republic API: content endpoints and support endpoints."""
+
+    # ------------------------------------------------------------------
+    #  Content API (articles)
+    # ------------------------------------------------------------------
 
     @staticmethod
     def _api_get(url: str, params: dict, label: str) -> list[int]:
@@ -128,3 +132,22 @@ class ContentGateway:
         except Exception as e:
             logger.error("Content API error for /posts/authors: %s", e)
             return []
+
+    # ------------------------------------------------------------------
+    #  Support API (user lookup)
+    # ------------------------------------------------------------------
+
+    def get_user_by_email(self, email: str) -> dict | None:
+        """Look up a Republic user by email. Returns user dict or None."""
+        try:
+            resp = requests.get(
+                f"{REPUBLIC_API_URL}/support/user-by-email",
+                params={"email": email},
+                headers={"X-Api-Key": REPUBLIC_SUPPORT_API_KEY},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            return resp.json().get("user")
+        except Exception as e:
+            logger.error("Republic user lookup failed for %s: %s", email, e)
+            return None

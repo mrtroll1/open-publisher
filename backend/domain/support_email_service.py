@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from backend.domain import compose_request
+from backend.domain.support_user_lookup import SupportUserLookup
 from backend.infrastructure.gateways.email_gateway import EmailGateway
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from common.config import SUPPORT_ADDRESSES
@@ -19,6 +20,7 @@ class SupportEmailService:
     def __init__(self):
         self._email_gw = EmailGateway()
         self._gemini = GeminiGateway()
+        self._user_lookup = SupportUserLookup()
         self._pending: dict[str, SupportDraft] = {}
 
     def wait_for_mail(self, timeout: int = 300) -> bool:
@@ -65,10 +67,29 @@ class SupportEmailService:
     def get_pending(self, uid: str) -> SupportDraft | None:
         return self._pending.get(uid)
 
+    def _fetch_user_data(self, email_text: str) -> str:
+        """Run triage LLM call; if data needed, fetch from APIs."""
+        try:
+            prompt, model, _ = compose_request.support_triage(email_text)
+            result = self._gemini.call(prompt, model)
+            needs = result.get("needs", [])
+            lookup_email = result.get("lookup_email", "")
+            logger.info("Support triage: needs=%s, lookup_email=%s", needs, lookup_email)
+            if not needs or not lookup_email:
+                return ""
+            return self._user_lookup.fetch_and_format(lookup_email, needs)
+        except Exception as e:
+            logger.error("Support triage/lookup failed: %s", e)
+            return ""
+
     def _draft(self, email: IncomingEmail) -> SupportDraft:
         """Use compose_request + Gemini to draft a reply."""
         email_text = f"From: {email.from_addr}\nSubject: {email.subject}\n\n{email.body}"
-        prompt, model, _ = compose_request.support_email(email_text)
+        user_data = self._fetch_user_data(email_text)
+        if user_data:
+            prompt, model, _ = compose_request.support_email_with_context(email_text, user_data)
+        else:
+            prompt, model, _ = compose_request.support_email(email_text)
         result = self._gemini.call(prompt, model)
         can_answer = result.get("can_answer", False)
         logger.info("Drafted support response for %s (uid=%s, can_answer=%s)", email.from_addr, email.uid, can_answer)

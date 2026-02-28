@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass
 
 from common.models import Contractor, Currency, RoleCode
-from backend.infrastructure.gateways.content_gateway import ContentGateway
+from backend.infrastructure.gateways.republic_gateway import RepublicGateway
 from backend.infrastructure.repositories.budget_repo import (
     create_sheet,
     populate_sheet,
@@ -96,7 +96,7 @@ class ComputeBudget:
     """Build the monthly payments Google Sheet."""
 
     def __init__(self):
-        self._content = ContentGateway()
+        self._content = RepublicGateway()
 
     def execute(self, month: str) -> str:
         """Generate the payments sheet for the given month. Returns the sheet URL."""

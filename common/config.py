@@ -104,6 +104,12 @@ def get_gmail_creds():
 # --- Subscription service ---
 SUBSCRIPTION_SERVICE_URL = os.getenv("SUBSCRIPTION_SERVICE_URL", "")
 
+# --- Support APIs (user data lookup) ---
+REPUBLIC_API_URL = os.getenv("REPUBLIC_API_URL", "")
+REPUBLIC_SUPPORT_API_KEY = os.getenv("REPUBLIC_SUPPORT_API_KEY", "")
+REDEFINE_API_URL = os.getenv("REDEFINE_API_URL", "")
+REDEFINE_SUPPORT_API_KEY = os.getenv("REDEFINE_SUPPORT_API_KEY", "")
+
 # --- Product name (used in user-facing strings) ---
 PRODUCT_NAME = os.getenv("PRODUCT_NAME", "")
 

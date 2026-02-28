@@ -14,7 +14,7 @@ from common.models import (
     Invoice,
     SamozanyatyContractor,
 )
-from backend.infrastructure.gateways.content_gateway import ContentGateway
+from backend.infrastructure.gateways.republic_gateway import RepublicGateway
 from backend.infrastructure.repositories.budget_repo import read_all_amounts
 from backend.infrastructure.repositories.invoice_repo import load_invoices
 from backend.domain.generate_invoice import GenerateInvoice
@@ -35,7 +35,7 @@ class GenerateBatchInvoices:
     """Orchestrates batch invoice generation for all contractors."""
 
     def __init__(self):
-        self._content = ContentGateway()
+        self._content = RepublicGateway()
         self._gen = GenerateInvoice()
 
     def execute(

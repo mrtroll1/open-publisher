@@ -115,3 +115,18 @@ OWNER_KEYWORDS: list[str] = _biz.get("owner_keywords", [])
 UNIT_PRIMARY: str = _biz.get("unit_primary", "")
 UNIT_SECONDARY: str = _biz.get("unit_secondary", "")
 DEFAULT_ENTITY: str = _biz.get("default_entity", "")
+
+# --- Tech config (loaded from tech_config.json) ---
+_TECH_CONFIG_PATH = Path(__file__).resolve().parent.parent / "tech_config.json"
+
+
+def _load_tech_config() -> dict:
+    if _TECH_CONFIG_PATH.exists():
+        with open(_TECH_CONFIG_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+_tech = _load_tech_config()
+
+SUPPORT_ADDRESSES: list[str] = _tech.get("support_addresses", [])

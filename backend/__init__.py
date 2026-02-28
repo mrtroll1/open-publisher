@@ -44,12 +44,17 @@ def fetch_articles_by_name(author: str, month: str) -> list[int]:
 
 def parse_contractor_data(text: str, fields_csv: str, context: str = "") -> dict:
     """Parse contractor data from free-form text using LLM."""
-    return _gemini.parse_contractor_data(text, fields_csv, context)
+    from backend.domain import compose_request
+    prompt, model, _ = compose_request.contractor_parse(text, fields_csv, context)
+    return _gemini.call(prompt, model)
 
 
 def translate_name_to_russian(name_en: str) -> str:
     """Translate a name to Russian."""
-    return _gemini.translate_name_to_russian(name_en)
+    from backend.domain import compose_request
+    prompt, model, _ = compose_request.translate_name(name_en)
+    result = _gemini.call(prompt, model)
+    return result.get("translated_name", "")
 
 
 def upload_invoice_pdf(contractor, month, filename, pdf_bytes):

@@ -1,4 +1,4 @@
-"""Gemini API gateway — LLM calls for parsing and translation."""
+"""Gemini API gateway — thin JSON-returning LLM wrapper."""
 
 from __future__ import annotations
 
@@ -11,62 +11,22 @@ logger = logging.getLogger(__name__)
 
 
 class GeminiGateway:
-    """Wraps Google Gemini API calls."""
+    """Wraps Google Gemini API calls. Returns parsed JSON."""
 
     def __init__(self, model: str = "gemini-2.5-flash"):
         self._model = model
 
-    def _call(self, prompt: str) -> str:
-        """Make a synchronous Gemini API call. Returns raw response text."""
+    def call(self, prompt: str, model: str | None = None) -> dict:
+        """Send a prompt and return parsed JSON from the response."""
         from google import genai
 
         client = genai.Client(api_key=GEMINI_API_KEY)
         response = client.models.generate_content(
-            model=self._model,
+            model=model or self._model,
             contents=prompt,
         )
-        return response.text.strip()
-
-    def parse_contractor_data(self, text: str, fields_csv: str, context: str = "") -> dict:
-        """Extract contractor fields from free-form text. Returns dict of field values."""
-        prompt = (
-            f"Extract the following fields from this contractor data: {fields_csv}\n"
-            f"{context}\n\n"
-            f"Input:\n{text}\n\n"
-            "Return ONLY a JSON object with the extracted fields. "
-            "Use empty string for fields not found in the input."
-        )
-        try:
-            raw = self._call(prompt)
-            return self._extract_json(raw)
-        except Exception as e:
-            logger.error("LLM parsing failed: %s", e)
-            return {"parse_error": str(e)}
-
-    def translate_name_to_russian(self, name_en: str) -> str:
-        """Translate a name to Russian. Returns the translated name or empty string."""
-        prompt = (
-            f"Translate this person's name to Russian (Cyrillic): {name_en}\n\n"
-            "Return ONLY the translated name, nothing else."
-        )
-        try:
-            return self._call(prompt).strip().strip('"').strip("'")
-        except Exception as e:
-            logger.error("Name translation failed: %s", e)
-            return ""
-
-    def draft_support_response(self, email_text: str, knowledge: str) -> str:
-        """Draft a support email response using the knowledge base."""
-        prompt = (
-            "You are a support agent. Use the knowledge base below to answer.\n"
-            "If you cannot answer confidently, say so honestly.\n"
-            "Reply in the same language as the incoming email.\n"
-            "Write only the reply body — no subject line, no greeting like 'Subject:'.\n\n"
-            f"## Knowledge Base\n{knowledge}\n\n"
-            f"## Incoming Email\n{email_text}\n\n"
-            "Draft a concise, helpful reply:"
-        )
-        return self._call(prompt)
+        raw = response.text.strip()
+        return self._extract_json(raw)
 
     @staticmethod
     def _extract_json(raw: str) -> dict:

@@ -293,6 +293,7 @@ class IncomingEmail(BaseModel):
     """An email fetched from the support inbox."""
     uid: str
     from_addr: str
+    to_addr: str = ""
     subject: str
     body: str
     date: str

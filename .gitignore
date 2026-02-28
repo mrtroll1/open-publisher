@@ -1,6 +1,7 @@
 .env
 service_account.json
 business_config.json
+tech_config.json
 sample-data/
 deploy-scripts
 __pycache__/

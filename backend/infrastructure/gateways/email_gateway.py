@@ -86,6 +86,7 @@ class EmailGateway:
                 subject += part
 
         _, from_addr = parseaddr(msg.get("From", ""))
+        _, to_addr = parseaddr(msg.get("To", ""))
 
         body = ""
         if msg.is_multipart():
@@ -105,6 +106,7 @@ class EmailGateway:
         return IncomingEmail(
             uid=uid,
             from_addr=from_addr,
+            to_addr=to_addr,
             subject=subject,
             body=body.strip(),
             date=msg.get("Date", ""),

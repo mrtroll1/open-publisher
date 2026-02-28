@@ -20,8 +20,10 @@ class SupportUserLookup:
         sections: list[str] = []
 
         republic_user = self._republic.get_user_by_email(email)
+        logger.info("Republic lookup for %s: %s", email, "found" if republic_user else "not found")
 
         redefine_customer = self._redefine.get_customer_by_email(email)
+        logger.info("Redefine lookup for %s: %s", email, "found" if redefine_customer else "not found")
 
         # Fallback: use redefine_user_id from Republic if direct lookup failed
         if not redefine_customer and republic_user:

@@ -77,7 +77,9 @@ class SupportEmailService:
             logger.info("Support triage: needs=%s, lookup_email=%s", needs, lookup_email)
             if not needs or not lookup_email:
                 return ""
-            return self._user_lookup.fetch_and_format(lookup_email, needs)
+            user_data = self._user_lookup.fetch_and_format(lookup_email, needs)
+            logger.info("User data for %s:\n%s", lookup_email, user_data or "(empty)")
+            return user_data
         except Exception as e:
             logger.error("Support triage/lookup failed: %s", e)
             return ""

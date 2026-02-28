@@ -1005,9 +1005,13 @@ async def email_listener_task() -> None:
 
 async def _send_email_draft(admin_id: int, draft: SupportDraft) -> None:
     em = draft.email
+    sender = em.reply_to or em.from_addr
     body_preview = em.body[:500] + ("..." if len(em.body) > 500 else "")
+    header = f"From: {em.from_addr}\n"
+    if em.reply_to and em.reply_to != em.from_addr:
+        header += f"Reply-To: {em.reply_to}\n"
     text = (
-        f"From: {em.from_addr}\n"
+        f"{header}"
         f"Subject: {em.subject}\n\n"
         f"{body_preview}\n\n"
         f"--- Draft reply (can_answer: {draft.can_answer}) ---\n"
@@ -1035,7 +1039,7 @@ async def handle_email_callback(callback: CallbackQuery) -> None:
 
     if action == "send":
         await asyncio.to_thread(_email_service.approve, uid)
-        await callback.message.edit_text(f"Reply sent to {draft.email.from_addr}")
+        await callback.message.edit_text(f"Reply sent to {draft.email.reply_to or draft.email.from_addr}")
     elif action == "skip":
         await asyncio.to_thread(_email_service.skip, uid)
         await callback.message.edit_text(f"Skipped email from {draft.email.from_addr}")

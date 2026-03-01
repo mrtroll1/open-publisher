@@ -288,7 +288,14 @@ def fetch_eur_rub_rate() -> float:
 
 ## Phase 4: Email Intelligence (Features 4 + 5)
 
-### Feature 4: Article Proposal Monitoring
+### Feature 4: Article Proposal Monitoring ✅ (Session 5)
+
+- [x] Step 4.1: Add env var
+- [x] Step 4.2: Create ArticleProposalService
+- [x] Step 4.3: Create LLM prompt
+- [x] Step 4.4: Add compose function
+- [x] Step 4.5: Modify email_listener_task
+- [x] Step 4.6: Expose non-support emails from SupportEmailService
 
 #### Step 4.1: Add env var
 `common/config.py`:

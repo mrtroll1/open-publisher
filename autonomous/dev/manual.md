@@ -16,3 +16,10 @@
 - **EUR_RUB_CELL**: Cell where EUR/RUB rate is written in the budget sheet (default `G2`)
 - **PNL API response format**: The code expects `{"data": {"items": [{"name": "...", "category": "...", "amount": 123456}]}}`. Verify this matches the actual Redefine PNL API response and adjust `_build_pnl_rows()` in `compute_budget.py` if needed.
 - Exchange rate is fetched from `open.er-api.com` (free, no API key). If this service goes down, the rate will be `0.0` and PNL rows will be skipped.
+
+## Feature 4: Article Proposal Monitoring
+
+- **CHIEF_EDITOR_EMAIL**: Set to the chief editor's email address in `config/.env`. If empty, proposal forwarding is silently skipped.
+- Non-support emails (those NOT addressed to `SUPPORT_ADDRESSES`) are automatically triaged by LLM to detect article proposals.
+- Legitimate proposals are forwarded to the chief editor via Gmail API and admin is notified via Telegram.
+- All non-support emails are marked as read after processing (whether forwarded or not).

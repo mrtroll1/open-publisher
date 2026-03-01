@@ -1142,8 +1142,10 @@ async def cmd_upload_to_airtable(message: types.Message, state: FSMContext) -> N
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 from backend.domain.support_email_service import SupportEmailService
+from backend.domain.article_proposal_service import ArticleProposalService
 
 _email_service = SupportEmailService()
+_proposal_service = ArticleProposalService()
 
 
 async def email_listener_task() -> None:
@@ -1158,6 +1160,14 @@ async def email_listener_task() -> None:
             drafts = await asyncio.to_thread(_email_service.fetch_new_drafts)
             for draft in drafts:
                 await _send_email_draft(admin_id, draft)
+            # Process non-support emails for article proposals
+            non_support = await asyncio.to_thread(_email_service.fetch_non_support)
+            if non_support:
+                forwarded = await asyncio.to_thread(_proposal_service.process_proposals, non_support)
+                for em in forwarded:
+                    await bot.send_message(admin_id, f"Forwarded article proposal from {em.from_addr}: {em.subject}")
+                for em in non_support:
+                    await asyncio.to_thread(_email_service.skip, em.uid)
         except Exception as e:
             logger.exception("Email listener error: %s", e)
             await asyncio.sleep(30)

@@ -89,6 +89,7 @@ EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS", "")
 GMAIL_CLIENT_ID = os.getenv("GMAIL_CLIENT_ID", "")
 GMAIL_CLIENT_SECRET = os.getenv("GMAIL_CLIENT_SECRET", "")
 GMAIL_REFRESH_TOKEN = os.getenv("GMAIL_REFRESH_TOKEN", "")
+CHIEF_EDITOR_EMAIL = os.getenv("CHIEF_EDITOR_EMAIL", "")
 
 
 def get_gmail_creds():

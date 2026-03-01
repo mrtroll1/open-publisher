@@ -105,3 +105,4 @@ from backend.domain.generate_batch_invoices import GenerateBatchInvoices, BatchR
 from backend.domain.parse_bank_statement import ParseBankStatement  # noqa: F401
 from backend.domain.compute_budget import ComputeBudget  # noqa: F401
 from backend.domain.support_email_service import SupportEmailService  # noqa: F401
+from backend.domain.article_proposal_service import ArticleProposalService  # noqa: F401

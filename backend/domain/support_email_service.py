@@ -26,6 +26,7 @@ class SupportEmailService:
         self._db = DbGateway()
         self._db.init_schema()
         self._pending: dict[str, SupportDraft] = {}
+        self._non_support: list[IncomingEmail] = []
         # Map uid → thread_id for saving outbound replies
         self._uid_thread: dict[str, str] = {}
 
@@ -37,15 +38,24 @@ class SupportEmailService:
         """Fetch unread emails, filter by SUPPORT_ADDRESSES, draft replies."""
         emails = self._email_gw.fetch_unread()
         drafts = []
+        non_support = []
         for em in emails:
             if em.to_addr not in SUPPORT_ADDRESSES:
+                non_support.append(em)
                 continue
             if em.uid in self._pending:
                 continue
             draft = self._draft(em)
             self._pending[em.uid] = draft
             drafts.append(draft)
+        self._non_support = non_support
         return drafts
+
+    def fetch_non_support(self) -> list[IncomingEmail]:
+        """Return non-support emails from the last fetch, clearing the buffer."""
+        result = self._non_support
+        self._non_support = []
+        return result
 
     def approve(self, uid: str) -> SupportDraft | None:
         """Send the pending draft reply and mark as read."""

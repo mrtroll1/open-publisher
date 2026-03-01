@@ -173,7 +173,7 @@ for i in $(seq 1 $ITERATIONS); do
         COMMITS="(no commits)"
     fi
 
-    log "Session $i: $STATUS | ${DURATION_MIN}m${DURATION_MIN:+}$(( DURATION % 60 ))s | $COMMITS"
+    log "Session $i: $STATUS | ${DURATION_MIN}m$(( DURATION % 60 ))s | $COMMITS"
     echo "--- Session $i result: $STATUS (${DURATION}s) ---" >> "$LAST_RUN_LOG"
     echo "Commits: $COMMITS" >> "$LAST_RUN_LOG"
     echo "" >> "$LAST_RUN_LOG"

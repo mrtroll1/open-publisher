@@ -275,16 +275,21 @@ async def handle_contractor_text(message: types.Message, state: FSMContext) -> s
     contractors = await get_contractors()
     telegram_id = message.from_user.id
 
-    # Already bound? Show linked menu (admins use lookup instead)
-    if not is_admin(telegram_id):
-        contractor = find_contractor_by_telegram_id(telegram_id, contractors)
-        if contractor:
-            await message.answer(
-                replies.menu.prompt,
-                reply_markup=_linked_menu_markup(contractor),
-            )
-            await state.clear()
-            return None
+    # Admins use commands, not free text
+    if is_admin(telegram_id):
+        await message.answer(replies.menu.admin)
+        await state.clear()
+        return None
+
+    # Already bound? Show linked menu
+    contractor = find_contractor_by_telegram_id(telegram_id, contractors)
+    if contractor:
+        await message.answer(
+            replies.menu.prompt,
+            reply_markup=_linked_menu_markup(contractor),
+        )
+        await state.clear()
+        return None
 
     query = message.text.strip()
 
@@ -469,10 +474,16 @@ async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
         url = message.text.strip()
         month = prev_month()
         if contractor_tg:
-            await bot.send_message(
-                int(contractor_tg),
-                replies.invoice.legium_link.format(url=url),
-            )
+            caption = replies.invoice.legium_link.format(url=url)
+            contractors = await get_contractors()
+            contractor = find_contractor_by_id(contractor_id, contractors)
+            prepared = await asyncio.to_thread(prepare_existing_invoice, contractor, month) if contractor else None
+            if prepared:
+                filename = f"{contractor.display_name}+Unsigned.pdf"
+                doc = BufferedInputFile(prepared.pdf_bytes, filename=filename)
+                await bot.send_document(int(contractor_tg), doc, caption=caption)
+            else:
+                await bot.send_message(int(contractor_tg), caption)
             await asyncio.to_thread(
                 update_legium_link, contractor_id, month, url,
             )
@@ -670,10 +681,14 @@ async def cmd_send_legium_links(message: types.Message, state: FSMContext) -> No
                 errors.append(f"{contractor.display_name}: не привязан к Telegram")
                 continue
             try:
-                await bot.send_message(
-                    int(contractor.telegram),
-                    replies.invoice.legium_link.format(url=inv.legium_link),
-                )
+                caption = replies.invoice.legium_link.format(url=inv.legium_link)
+                prepared = await asyncio.to_thread(prepare_existing_invoice, contractor, month)
+                if prepared:
+                    filename = f"{contractor.display_name}+Unsigned.pdf"
+                    doc = BufferedInputFile(prepared.pdf_bytes, filename=filename)
+                    await bot.send_document(int(contractor.telegram), doc, caption=caption)
+                else:
+                    await bot.send_message(int(contractor.telegram), caption)
             except Exception as e:
                 errors.append(f"{contractor.display_name}: ошибка отправки ({e})")
                 continue

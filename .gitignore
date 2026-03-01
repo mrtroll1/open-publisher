@@ -1,9 +1,9 @@
 config/*
 !config/example/
-docs
+docs/*
 __pycache__/
 *.pyc
-.claude/
+.claude/memory/
 .venv/
 .DS_Store
 .pytest_cache/

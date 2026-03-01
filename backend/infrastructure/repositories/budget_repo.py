@@ -12,6 +12,8 @@ from backend.infrastructure.repositories.sheets_utils import parse_int
 
 logger = logging.getLogger(__name__)
 
+EUR_RUB_RATE = 100
+
 _drive = DriveGateway()
 _sheets = SheetsGateway()
 
@@ -109,7 +111,8 @@ def redirect_in_budget(source_name: str, target: Contractor, month: str) -> None
     target_lower = target.display_name.lower().strip()
     source_idx = None
     target_idx = None
-    source_amount = 0
+    source_eur = 0
+    source_rub = 0
 
     for i, row in enumerate(rows):
         if not row or not row[0].strip():
@@ -117,15 +120,23 @@ def redirect_in_budget(source_name: str, target: Contractor, month: str) -> None
         name = row[0].strip().lower()
         if name == source_lower:
             source_idx = i
-            eur = parse_int(row[2]) if len(row) > 2 else 0
-            rub = parse_int(row[3]) if len(row) > 3 else 0
-            source_amount = eur if target.currency == Currency.EUR else rub
+            source_eur = parse_int(row[2]) if len(row) > 2 else 0
+            source_rub = parse_int(row[3]) if len(row) > 3 else 0
         if name == target_lower:
             target_idx = i
 
-    if source_idx is None or target_idx is None or not source_amount:
+    if source_idx is None or target_idx is None or not (source_eur or source_rub):
         logger.warning("redirect_in_budget: source=%s(%s) target=%s(%s) — skipping",
                         source_name, source_idx, target.display_name, target_idx)
+        return
+
+    # Determine amount to add, converting if currencies differ
+    if target.currency == Currency.EUR:
+        add_amount = source_eur or (source_rub // EUR_RUB_RATE if source_rub else 0)
+    else:
+        add_amount = source_rub or (source_eur * EUR_RUB_RATE if source_eur else 0)
+
+    if not add_amount:
         return
 
     # Update target row: add amount + append to note
@@ -135,11 +146,11 @@ def redirect_in_budget(source_name: str, target: Contractor, month: str) -> None
     old_note = t_row[4].strip()
 
     if target.currency == Currency.EUR:
-        t_row[2] = str(old_eur + source_amount)
+        t_row[2] = str(old_eur + add_amount)
     else:
-        t_row[3] = str(old_rub + source_amount)
+        t_row[3] = str(old_rub + add_amount)
 
-    bonus_entry = f"{source_name} ({source_amount})"
+    bonus_entry = f"{source_name} ({add_amount})"
     t_row[4] = f"{old_note}, {bonus_entry}" if old_note else bonus_entry
 
     t_sheet_row = target_idx + 2  # +1 header, +1 for 1-based
@@ -175,7 +186,7 @@ def unredirect_in_budget(source_name: str, target: Contractor, month: str) -> No
     if not old_note:
         return
 
-    # Parse the bonus for this source from the note
+    # Parse the bonus for this source from the note: "name (amount)"
     source_amount = 0
     new_parts = []
     for part in old_note.split(","):
@@ -210,6 +221,7 @@ def unredirect_in_budget(source_name: str, target: Contractor, month: str) -> No
     _sheets.write(sheet_id, f"A{t_sheet_row}:E{t_sheet_row}", [t_row[:5]])
 
     # Restore source as a standalone row in the first empty slot
+    # Amount stays in target's currency (the converted value)
     sym_col = 2 if target.currency == Currency.EUR else 3
     new_row = [""] * 5
     new_row[0] = source_name

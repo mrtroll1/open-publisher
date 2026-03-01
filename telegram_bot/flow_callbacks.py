@@ -390,7 +390,7 @@ async def cmd_generate(message: types.Message, state: FSMContext) -> None:
             doc, caption=f"[DEBUG] {contractor.display_name} ({tg_info})",
         )
     else:
-        await message.answer_document(doc, caption=f"Документ для {contractor.display_name}")
+        await message.answer_document(doc, caption=replies.admin.generate_caption.format(name=contractor.display_name))
         if isinstance(contractor, GlobalContractor):
             await message.answer(replies.admin.proforma_ready)
         else:
@@ -446,6 +446,7 @@ async def cmd_generate_invoices(message: types.Message, state: FSMContext) -> No
 
     month = prev_month()
     status_msg = await message.answer(replies.admin.batch_generating.format(month=month))
+    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
 
     contractors = await get_contractors()
 
@@ -464,17 +465,18 @@ async def cmd_generate_invoices(message: types.Message, state: FSMContext) -> No
     # Summary message
     prefix = "[DEBUG] " if debug else ""
     counts = batch_result.counts
-    parts = [f"{prefix}Генерация за {month} завершена."]
+    parts = [replies.admin.batch_done.format(prefix=prefix, month=month)]
     generated = counts["global"] + counts["samozanyaty"] + counts["ip"]
     if generated:
-        parts.append(
-            f"Сгенерировано: {counts['global']} global, "
-            f"{counts['samozanyaty']} самозанятых, {counts['ip']} ИП"
-        )
+        parts.append(replies.admin.batch_counts.format(
+            global_=counts["global"], samozanyaty=counts["samozanyaty"], ip=counts["ip"],
+        ))
     else:
-        parts.append("Новых счетов не сгенерировано.")
+        parts.append(replies.admin.batch_no_generated)
     if batch_result.errors:
-        parts.append("Ошибки:\n" + "\n".join(f"  - {e}" for e in batch_result.errors))
+        parts.append(replies.admin.batch_errors.format(
+            errors="\n".join(f"  - {e}" for e in batch_result.errors),
+        ))
     await message.answer("\n\n".join(parts))
 
     # Send PDFs to admin
@@ -563,9 +565,11 @@ async def cmd_send_global_invoices(message: types.Message, state: FSMContext) ->
         sent_count += 1
 
     prefix = "[DEBUG] " if debug else ""
-    parts = [f"{prefix}Отправлено {sent_count} глобальных счетов за {month}."]
+    parts = [replies.admin.send_global_done.format(prefix=prefix, count=sent_count, month=month)]
     if errors:
-        parts.append("Ошибки:\n" + "\n".join(f"  - {e}" for e in errors))
+        parts.append(replies.admin.batch_errors.format(
+            errors="\n".join(f"  - {e}" for e in errors),
+        ))
     await message.answer("\n\n".join(parts))
 
 
@@ -577,6 +581,7 @@ async def _start_invoice_flow(
     message: types.Message, state: FSMContext, contractor: Contractor,
 ) -> str | None:
     """Fetch budget + articles and prompt for amount. Returns "invoice" or None."""
+    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
     month = prev_month()
     budget_amounts = await asyncio.to_thread(read_budget_amounts, month)
     articles = await asyncio.to_thread(fetch_articles, contractor, month)
@@ -692,7 +697,7 @@ async def handle_duplicate_callback(callback: CallbackQuery, state: FSMContext) 
 
     try:
         await callback.message.edit_text(
-            f"✓ {contractor.display_name}",
+            replies.lookup.selected.format(name=contractor.display_name),
             reply_markup=None,
         )
     except TelegramBadRequest:
@@ -729,7 +734,12 @@ async def handle_linked_menu_callback(callback: CallbackQuery, state: FSMContext
 
     if action == "contract":
         await bot.send_chat_action(callback.message.chat.id, ChatAction.TYPING)
-        delivered = await _deliver_existing_invoice(callback.message, contractor)
+        try:
+            delivered = await _deliver_existing_invoice(callback.message, contractor)
+        except Exception:
+            logger.exception("Invoice delivery failed for %s", contractor.display_name)
+            await callback.message.answer(replies.invoice.delivery_error)
+            return
         if not delivered:
             month = prev_month()
             await callback.message.answer(
@@ -897,7 +907,11 @@ async def handle_verification_code(message: types.Message, state: FSMContext) ->
                 )
             except Exception:
                 pass
-        delivered = await _deliver_existing_invoice(message, contractor)
+        try:
+            delivered = await _deliver_existing_invoice(message, contractor)
+        except Exception:
+            logger.exception("Invoice delivery failed for %s", contractor.display_name)
+            delivered = False
         if delivered:
             await state.clear()
             return "verified"
@@ -1142,7 +1156,7 @@ async def cmd_upload_to_airtable(message: types.Message, state: FSMContext) -> N
         review_count = sum(1 for e in expenses if e.comment == "NEEDS REVIEW")
         text = replies.admin.upload_done.format(count=len(expenses))
         if review_count:
-            text += f"\n⚠ {review_count} записей требуют проверки (NEEDS REVIEW)."
+            text += replies.admin.upload_needs_review.format(count=review_count)
         await message.answer(text)
     except Exception as e:
         logger.exception("Airtable upload failed")

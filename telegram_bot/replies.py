@@ -44,6 +44,7 @@ class lookup:
     )
     fuzzy_suggestions = "Точного совпадения нет. Возможные варианты:\n{suggestions}"
     new_contractor_btn = "Я новый контрагент"
+    selected = "✓ {name}"
 
 
 # ── Registration ─────────────────────────────────────────────────────
@@ -136,6 +137,10 @@ class invoice:
         "Ответьте на это сообщение ссылкой из Легиума."
     )
     no_articles = "У {name} нет публикаций за {month}."
+    delivery_error = (
+        "Произошла ошибка при подготовке документа. "
+        f"Попробуйте позже или напишите {ADMIN_TELEGRAM_TAG}."
+    )
 
 
 # ── Linked user menu ─────────────────────────────────────────────────
@@ -186,6 +191,7 @@ class document:
 
 class admin:
     generate_usage = "Использование: /generate <имя контрагента>"
+    generate_caption = "Документ для {name}"
     proforma_ready = "Проформа готова. Отправьте контрагенту на подпись."
     invoice_ready = "Счёт-оферта готова. Ожидайте ссылки на легиум."
     budget_generating = "Генерирую бюджетную таблицу за {month}..."
@@ -195,9 +201,18 @@ class admin:
     upload_usage = "Прикрепите CSV-файл банковской выписки с подписью:\n/upload_to_airtable <курс AED→RUB>"
     upload_processing = "Обрабатываю выписку (курс {rate} AED→RUB)..."
     upload_done = "Загружено {count} записей в Airtable."
+    upload_needs_review = "\n⚠ {count} записей требуют проверки (NEEDS REVIEW)."
     upload_error = "Ошибка загрузки: {error}"
     batch_generating = "Генерирую инвойсы за {month}..."
+    batch_done = "{prefix}Генерация за {month} завершена."
+    batch_counts = (
+        "Сгенерировано: {global_} global, "
+        "{samozanyaty} самозанятых, {ip} ИП"
+    )
+    batch_no_generated = "Новых счетов не сгенерировано."
+    batch_errors = "Ошибки:\n{errors}"
     batch_no_new = "Нет новых счетов для генерации за {month}."
+    send_global_done = "{prefix}Отправлено {count} глобальных счетов за {month}."
     not_in_budget = "Контрагент {name} не найден в бюджетной таблице за {month}."
     zero_amount = "Сумма для {name} за {month} не указана в бюджетной таблице."
 

@@ -488,6 +488,29 @@ _None yet._
 - `_generate_rub_invoice` works for both IP and Samozanyaty — the shared fields (passport, bank, amount, dates) are identical
 - No function signatures or public behavior changed
 
+### Session 20 (2026-03-01) — Maintenance: Polish UX (round 3)
+**Status:** Complete
+
+**What was done:**
+- Moved 9 hardcoded Russian strings from `flow_callbacks.py` to `replies.py`:
+  - `lookup.selected` — duplicate selection confirmation
+  - `admin.generate_caption` — single invoice document caption
+  - `admin.batch_done`, `admin.batch_counts`, `admin.batch_no_generated`, `admin.batch_errors` — batch generation summary parts
+  - `admin.send_global_done` — global send summary
+  - `admin.upload_needs_review` — bank upload review warning
+  - `invoice.delivery_error` — user-facing error when invoice delivery fails
+- Added typing indicators in 2 places:
+  - `cmd_generate_invoices`: before `GenerateBatchInvoices().execute` (long batch operation)
+  - `_start_invoice_flow`: before Google Sheets calls (budget + articles lookup)
+- Added error handling for invoice delivery failures:
+  - `handle_linked_menu_callback` ("contract" action): wrapped `_deliver_existing_invoice` in try/except, shows friendly error message
+  - `handle_verification_code` (post-verification): wrapped in try/except, sets `delivered=False` so flow falls through gracefully
+
+**Notes:**
+- All 274 tests pass
+- Input matching patterns ("самозанятый", "ип", "отмена") were intentionally left inline — they're not user-facing messages
+- `invoice.delivery_error` uses f-string with `ADMIN_TELEGRAM_TAG` at class definition time (same pattern as other reply classes)
+
 ## Next up
 
-- Maintenance mode continues. Fourth cycle: next session should be polish UX (round 3).
+- Maintenance mode continues. Fourth cycle: next session should be improve prompts (round 3).

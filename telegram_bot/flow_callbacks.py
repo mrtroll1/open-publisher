@@ -631,7 +631,7 @@ async def cmd_send_global_invoices(message: types.Message, state: FSMContext) ->
     await message.answer("\n\n".join(parts))
 
 
-async def cmd_send_legium_link(message: types.Message, state: FSMContext) -> None:
+async def cmd_send_legium_links(message: types.Message, state: FSMContext) -> None:
     """Batch-send legium links to contractors whose invoices have a link but are still DRAFT."""
     debug = "debug" in message.text.lower().split()
 

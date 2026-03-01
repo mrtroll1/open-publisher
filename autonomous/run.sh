@@ -21,8 +21,6 @@ ITERATIONS=24
 INTERVAL=1800  # 30 minutes
 MAX_TURNS=80
 
-mkdir -p "$LOG_DIR"
-
 # Verify we're on the right branch
 CURRENT_BRANCH=$(git -C "$ROOT_DIR" branch --show-current)
 if [ "$CURRENT_BRANCH" != "claude-autonomous" ]; then
@@ -72,6 +70,7 @@ Bash(echo:*),
 Bash(grep:*),
 Bash(sort:*),
 Bash(find:*),
+Bash(rm:*),
 Bash(docker compose:*),
 Bash(pip:*)
 EOF
@@ -102,21 +101,40 @@ EOF
 )
 DENIED_TOOLS=$(echo "$DENIED_TOOLS" | tr -d '\n ' )
 
-# --- Run loop ---
+# --- Logging ---
 
 RUN_ID=$(date +%Y%m%d_%H%M%S)
+RUN_LOG="$LOG_DIR/run-${RUN_ID}.log"
+LAST_RUN_LOG="$LOG_DIR/last-run.log"
 
-echo "=== Autonomous run $RUN_ID starting ==="
-echo "Plan: $PLAN_FILE"
-echo "Sessions: $ITERATIONS every ${INTERVAL}s"
-echo "Max turns per session: $MAX_TURNS"
-echo ""
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') | $1" | tee -a "$RUN_LOG"
+}
+
+# --- Run loop ---
+
+log "=== RUN STARTED ==="
+log "Plan: $PLAN_NAME ($PLAN_FILE)"
+log "Sessions: $ITERATIONS x ${INTERVAL}s, max $MAX_TURNS turns each"
+log ""
+
+# Also start the detailed last-run log (overwritten each run)
+cp /dev/null "$LAST_RUN_LOG"
+echo "=== Detailed log for run $RUN_ID ===" >> "$LAST_RUN_LOG"
+echo "Started: $(date)" >> "$LAST_RUN_LOG"
+echo "Plan: $PLAN_FILE" >> "$LAST_RUN_LOG"
+echo "" >> "$LAST_RUN_LOG"
+
+COMPLETED=0
+FAILED=0
+STUCK=0
 
 for i in $(seq 1 $ITERATIONS); do
-    SESSION_LOG="$LOG_DIR/session-${RUN_ID}-$(printf '%02d' $i).log"
+    SESSION_DETAIL="$LOG_DIR/session-${RUN_ID}-$(printf '%02d' $i).log"
     SESSION_START=$(date +%s)
 
-    echo "--- Session $i/$ITERATIONS at $(date) ---" | tee "$SESSION_LOG"
+    log "--- Session $i/$ITERATIONS started ---"
+    echo "====== SESSION $i/$ITERATIONS at $(date) ======" >> "$LAST_RUN_LOG"
 
     PROMPT=$(cat "$PROMPT_FILE")
     PROMPT="$PROMPT
@@ -124,25 +142,57 @@ for i in $(seq 1 $ITERATIONS); do
 [Session $i of $ITERATIONS. Plan file: $PLAN_FILE]"
 
     cd "$ROOT_DIR"
-    claude -p "$PROMPT" \
+
+    # Capture exit code
+    EXIT_CODE=0
+    timeout "${INTERVAL}s" claude -p "$PROMPT" \
         --allowedTools "$ALLOWED_TOOLS" \
         --disallowedTools "$DENIED_TOOLS" \
         --max-turns "$MAX_TURNS" \
-        2>&1 | tee -a "$SESSION_LOG" || true
+        2>&1 | tee "$SESSION_DETAIL" >> "$LAST_RUN_LOG" || EXIT_CODE=$?
 
-    echo "--- Session $i completed at $(date) ---" | tee -a "$SESSION_LOG"
+    SESSION_END=$(date +%s)
+    DURATION=$(( SESSION_END - SESSION_START ))
+    DURATION_MIN=$(( DURATION / 60 ))
+
+    # Detect what happened
+    if [ $EXIT_CODE -eq 124 ]; then
+        STATUS="STUCK (timed out after ${INTERVAL}s)"
+        STUCK=$(( STUCK + 1 ))
+    elif [ $EXIT_CODE -ne 0 ]; then
+        STATUS="FAILED (exit code $EXIT_CODE)"
+        FAILED=$(( FAILED + 1 ))
+    else
+        STATUS="OK"
+        COMPLETED=$(( COMPLETED + 1 ))
+    fi
+
+    # Changelog: what commits were made during this session?
+    COMMITS=$(git -C "$ROOT_DIR" log --oneline --since="@${SESSION_START}" --until="@${SESSION_END}" 2>/dev/null || true)
+    if [ -z "$COMMITS" ]; then
+        COMMITS="(no commits)"
+    fi
+
+    log "Session $i: $STATUS | ${DURATION_MIN}m${DURATION_MIN:+}$(( DURATION % 60 ))s | $COMMITS"
+    echo "--- Session $i result: $STATUS (${DURATION}s) ---" >> "$LAST_RUN_LOG"
+    echo "Commits: $COMMITS" >> "$LAST_RUN_LOG"
+    echo "" >> "$LAST_RUN_LOG"
 
     # Sleep only the remaining time until the next 30-min mark
     if [ $i -lt $ITERATIONS ]; then
-        ELAPSED=$(( $(date +%s) - SESSION_START ))
-        REMAINING=$(( INTERVAL - ELAPSED ))
+        REMAINING=$(( INTERVAL - DURATION ))
         if [ $REMAINING -gt 0 ]; then
-            echo "Next session in ${REMAINING}s..."
+            log "Next session in ${REMAINING}s..."
             sleep $REMAINING
         else
-            echo "Session took longer than ${INTERVAL}s, starting next immediately."
+            log "Session ran long, starting next immediately."
         fi
     fi
 done
 
-echo "=== Autonomous run $RUN_ID completed at $(date) ==="
+log ""
+log "=== RUN FINISHED ==="
+log "Completed: $COMPLETED | Failed: $FAILED | Stuck: $STUCK | Total: $ITERATIONS"
+
+echo "=== Run finished at $(date) ===" >> "$LAST_RUN_LOG"
+echo "Completed: $COMPLETED | Failed: $FAILED | Stuck: $STUCK" >> "$LAST_RUN_LOG"

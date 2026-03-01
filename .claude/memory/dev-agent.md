@@ -383,6 +383,34 @@ _None yet._
 - Tone review confirmed consistent formal "вы" for contractors, casual for admins — no changes needed
 - All 167 tests pass
 
+### Session 16 (2026-03-01) — Maintenance: Improve Prompts (round 2)
+**Status:** Complete
+
+**What was done:**
+- Expanded `knowledge/payment-data-validation.md` from 3 lines to comprehensive format reference:
+  - Added digit-extraction instruction for numeric fields
+  - Added "Форматы полей: самозанятый / ИП" section with 11 field format rules (matching validate_contractor.py checks)
+  - Added "Форматы полей: global" section with 5 international field format rules
+- Improved `templates/contractor-parse.md`:
+  - Added digit-only extraction rule for numeric fields
+  - Added ФИО reordering instruction (Имя Фамилия → Фамилия Имя Отчество)
+  - Added "don't hallucinate missing values" instruction
+- Improved `templates/translate-name.md`:
+  - Handle already-Cyrillic names (return as-is)
+  - Phonetic transliteration fallback for names with no standard translation
+  - Preserve original word order
+- Improved `templates/article-proposal-triage.md`:
+  - Added "press releases and PR mailings" to negative criteria
+  - Added 4 concrete examples (2 true, 2 false) matching tech-search-terms pattern
+- Improved `templates/support-email.md`:
+  - Added first-person voice instruction (no "наша команда техподдержки")
+  - Added email signature convention: "С уважением, Иван Добровольский, Republic"
+
+**Notes:**
+- All changes are content-only (templates + knowledge files), no code changes
+- All 167 tests pass
+- payment-data-validation.md now mirrors validate_contractor.py rules — LLM should extract cleaner data on first pass, reducing validation warnings
+
 ## Next up
 
-- Maintenance mode continues. Third cycle: next session should be improve prompts (round 2) or write tests (round 3).
+- Maintenance mode continues. Third cycle: next session should be write tests (round 3).

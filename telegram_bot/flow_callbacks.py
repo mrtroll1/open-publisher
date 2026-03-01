@@ -467,15 +467,21 @@ async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
     contractor_tg, contractor_id = entry
     try:
         url = message.text.strip()
-        await bot.send_message(
-            int(contractor_tg),
-            replies.invoice.legium_link.format(url=url),
-        )
         month = prev_month()
-        await asyncio.to_thread(
-            update_legium_link, contractor_id, month, url,
-        )
-        await message.answer(replies.invoice.legium_sent)
+        if contractor_tg:
+            await bot.send_message(
+                int(contractor_tg),
+                replies.invoice.legium_link.format(url=url),
+            )
+            await asyncio.to_thread(
+                update_legium_link, contractor_id, month, url,
+            )
+            await message.answer(replies.invoice.legium_sent)
+        else:
+            await asyncio.to_thread(
+                update_legium_link, contractor_id, month, url, mark_sent=False,
+            )
+            await message.answer(replies.invoice.legium_saved)
         del _admin_reply_map[key]
     except Exception as e:
         await message.answer(replies.invoice.legium_send_error.format(error=e))
@@ -703,7 +709,7 @@ async def cmd_orphan_contractors(message: types.Message, state: FSMContext) -> N
         return
 
     lines = "\n".join(f"  - {n}" for n in orphans)
-    await message.answer(f"В бюджете за {month}, но нет контрагента ({len(orphans)}):\n{lines}")
+    await message.answer(f"В бюджете за {month}, но нет привязанного контрагента ({len(orphans)}):\n{lines}")
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -19,6 +19,7 @@ SHEET_RANGE = f"'{SHEET_NAME}'!A:Z"
 
 COLUMNS = [
     "contractor_id",
+    "contractor_name",
     "invoice_number",
     "month",
     "amount",
@@ -38,6 +39,7 @@ def _row_to_invoice(row: dict[str, str]) -> Invoice | None:
         inv_num = int(row.get("invoice_number", "0") or "0")
         return Invoice(
             contractor_id=row.get("contractor_id", ""),
+            contractor_name=row.get("contractor_name", ""),
             invoice_number=inv_num,
             month=row.get("month", ""),
             amount=Decimal(row.get("amount", "0") or "0"),
@@ -56,6 +58,7 @@ def _row_to_invoice(row: dict[str, str]) -> Invoice | None:
 def _invoice_to_row(inv: Invoice) -> list[str]:
     return [
         inv.contractor_id,
+        inv.contractor_name,
         str(inv.invoice_number),
         inv.month,
         str(inv.amount),
@@ -138,12 +141,13 @@ def update_invoice_status(contractor_id: str, month: str, status: InvoiceStatus)
     logger.info("Updated invoice status for %s/%s to %s", contractor_id, month, status.value)
 
 
-def update_legium_link(contractor_id: str, month: str, url: str) -> None:
+def update_legium_link(contractor_id: str, month: str, url: str, *, mark_sent: bool = True) -> None:
     result = _find_invoice_row(contractor_id, month)
     if result is None:
         logger.warning("Invoice not found for %s/%s", contractor_id, month)
         return
     headers, row_idx = result
-    _write_invoice_field(headers, row_idx, "status", InvoiceStatus.SENT.value)
+    if mark_sent:
+        _write_invoice_field(headers, row_idx, "status", InvoiceStatus.SENT.value)
     _write_invoice_field(headers, row_idx, "legium_link", url)
     logger.info("Set legium_link for %s/%s", contractor_id, month)

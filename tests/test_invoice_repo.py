@@ -16,6 +16,7 @@ def _minimal_row(**overrides) -> dict[str, str]:
     """Build a minimal valid invoice row dict."""
     row = {
         "contractor_id": "c001",
+        "contractor_name": "Alice Smith",
         "invoice_number": "42",
         "month": "2026-01",
         "amount": "1500.00",
@@ -34,6 +35,7 @@ def _minimal_invoice(**overrides) -> Invoice:
     """Build a minimal Invoice model."""
     kwargs = dict(
         contractor_id="c001",
+        contractor_name="Alice Smith",
         invoice_number=42,
         month="2026-01",
         amount=Decimal("1500.00"),
@@ -155,6 +157,7 @@ class TestInvoiceToRow:
         row = _invoice_to_row(inv)
         assert row == [
             "c001",           # contractor_id
+            "Alice Smith",    # contractor_name
             "42",             # invoice_number
             "2026-01",        # month
             "1500.00",        # amount
@@ -169,41 +172,41 @@ class TestInvoiceToRow:
     def test_empty_article_ids(self):
         inv = _minimal_invoice(article_ids=[])
         row = _invoice_to_row(inv)
-        assert row[5] == ""
+        assert row[6] == ""
 
     def test_single_article_id(self):
         inv = _minimal_invoice(article_ids=["art1"])
         row = _invoice_to_row(inv)
-        assert row[5] == "art1"
+        assert row[6] == "art1"
 
     def test_status_values(self):
         for status in InvoiceStatus:
             inv = _minimal_invoice(status=status)
             row = _invoice_to_row(inv)
-            assert row[6] == status.value
+            assert row[7] == status.value
 
     def test_currency_values(self):
         for currency in Currency:
             inv = _minimal_invoice(currency=currency)
             row = _invoice_to_row(inv)
-            assert row[4] == currency.value
+            assert row[5] == currency.value
 
     def test_zero_invoice_number(self):
         inv = _minimal_invoice(invoice_number=0)
         row = _invoice_to_row(inv)
-        assert row[1] == "0"
+        assert row[2] == "0"
 
     def test_large_amount(self):
         inv = _minimal_invoice(amount=Decimal("999999.99"))
         row = _invoice_to_row(inv)
-        assert row[3] == "999999.99"
+        assert row[4] == "999999.99"
 
     def test_empty_optional_fields(self):
         inv = _minimal_invoice(gdrive_path="", doc_id="", legium_link="")
         row = _invoice_to_row(inv)
-        assert row[7] == ""
         assert row[8] == ""
         assert row[9] == ""
+        assert row[10] == ""
 
 
 # ===================================================================
@@ -219,7 +222,7 @@ class TestRoundtrip:
         row_back = _invoice_to_row(inv)
         # article_ids formatting differs: "art1, art2" → ["art1", "art2"] → "art1,art2"
         expected = [
-            "c001", "42", "2026-01", "1500.00", "EUR",
+            "c001", "Alice Smith", "42", "2026-01", "1500.00", "EUR",
             "art1,art2", "draft", "/invoices/c001", "doc_abc",
             "https://legium.io/123",
         ]
@@ -229,8 +232,8 @@ class TestRoundtrip:
         original = _minimal_invoice()
         row = _invoice_to_row(original)
         row_dict = dict(zip(
-            ["contractor_id", "invoice_number", "month", "amount", "currency",
-             "article_ids", "status", "gdrive_path", "doc_id", "legium_link"],
+            ["contractor_id", "contractor_name", "invoice_number", "month", "amount",
+             "currency", "article_ids", "status", "gdrive_path", "doc_id", "legium_link"],
             row,
         ))
         inv_back = _row_to_invoice(row_dict)

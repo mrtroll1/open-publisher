@@ -71,6 +71,7 @@ class GenerateInvoice:
         # 2. Build invoice model
         invoice = Invoice(
             contractor_id=contractor.id,
+            contractor_name=contractor.display_name,
             invoice_number=invoice_number,
             month=month,
             amount=amount,

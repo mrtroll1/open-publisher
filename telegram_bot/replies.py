@@ -132,6 +132,7 @@ class invoice:
         "Перейдите по ссылке и подпишите. После этого ничего дополнительного делать не нужно."
     )
     legium_sent = "Ссылка отправлена контрагенту."
+    legium_saved = "Контрагент не привязан к Telegram. Ссылка сохранена — отправится через /send_legium_links."
     legium_send_error = "Не удалось отправить: {error}"
     legium_admin_caption = (
         "{name} ({type}) — {month}\n"

@@ -260,6 +260,7 @@ CONTRACTOR_CLASS_BY_TYPE: dict[ContractorType, type[Contractor]] = {
 
 class Invoice(BaseModel):
     contractor_id: str
+    contractor_name: str = ""
     invoice_number: int
     month: str  # "2026-01"
     amount: Decimal

@@ -8,6 +8,7 @@ from typing import Optional
 from aiogram import Dispatcher, F, Router, types
 from aiogram.enums import ChatAction
 from aiogram.filters import Command, CommandStart
+from aiogram.types import BotCommand
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
@@ -191,6 +192,14 @@ def _register_document_handler(router: Router, flow: Flow) -> None:
 
 # ── Public API ───────────────────────────────────────────────────────
 
+async def set_bot_commands(bot) -> None:
+    """Set the bot's command menu button."""
+    await bot.set_my_commands([
+        BotCommand(command="menu", description="Меню"),
+        BotCommand(command="start", description="Начать сначала"),
+    ])
+
+
 def register_flows(dp: Dispatcher, bot_flows: BotFlows) -> None:
     """Register all flows and commands from a BotFlows declaration."""
 
@@ -202,6 +211,15 @@ def register_flows(dp: Dispatcher, bot_flows: BotFlows) -> None:
             await _h(message, state)
 
         dp.message.register(cmd_start, CommandStart())
+
+    # /menu
+    if bot_flows.menu_handler:
+        menu_h = bot_flows.menu_handler
+
+        async def cmd_menu(message: types.Message, state: FSMContext, _h=menu_h):
+            await _h(message, state)
+
+        dp.message.register(cmd_menu, Command("menu"))
 
     # Admin commands (stateless, highest priority after /start)
     admin_router = Router(name="admin")

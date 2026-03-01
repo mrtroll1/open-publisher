@@ -3,7 +3,7 @@ config/*
 docs
 __pycache__/
 *.pyc
-.claude/memory/
+.claude/memory
 .venv/
 .DS_Store
 .pytest_cache/

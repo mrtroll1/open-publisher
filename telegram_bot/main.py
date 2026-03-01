@@ -8,7 +8,7 @@ import logging
 from aiogram import Dispatcher, F
 
 from telegram_bot.bot_helpers import bot
-from telegram_bot.flow_engine import register_flows
+from telegram_bot.flow_engine import register_flows, set_bot_commands
 from telegram_bot.flow_callbacks import (
     email_listener_task, handle_email_callback, handle_duplicate_callback,
     handle_editor_source_callback, handle_linked_menu_callback, handle_non_document,
@@ -33,6 +33,7 @@ async def main():
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
     )
     logger.info("Starting bot...")
+    await set_bot_commands(bot)
     asyncio.create_task(email_listener_task())
     await dp.start_polling(bot)
 

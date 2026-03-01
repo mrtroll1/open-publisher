@@ -103,4 +103,5 @@ class BotFlows:
     flows: list[Flow] = field(default_factory=list)
     admin_commands: list[AdminCommand] = field(default_factory=list)
     start_handler: Optional[HandlerFn] = None
+    menu_handler: Optional[HandlerFn] = None
     reply_handler: Optional[HandlerFn] = None

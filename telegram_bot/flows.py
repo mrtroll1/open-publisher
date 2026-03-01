@@ -22,6 +22,7 @@ from telegram_bot.flow_dsl import (
 from telegram_bot import replies
 from telegram_bot.flow_callbacks import (
     handle_start,
+    handle_menu,
     # Contractor flow
     handle_contractor_text,
     handle_verification_code,
@@ -210,5 +211,6 @@ bot_flows = BotFlows(
     flows=[contractor_flow, document_flow],
     admin_commands=admin_commands,
     start_handler=handle_start,
+    menu_handler=handle_menu,
     reply_handler=handle_admin_reply,
 )

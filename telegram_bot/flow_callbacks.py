@@ -92,6 +92,14 @@ async def handle_start(message: types.Message, state: FSMContext) -> None:
     if is_admin(message.from_user.id):
         await message.answer(replies.start.admin)
         return
+    await message.answer(replies.start.contractor)
+
+
+async def handle_menu(message: types.Message, state: FSMContext) -> None:
+    await state.clear()
+    if is_admin(message.from_user.id):
+        await message.answer(replies.start.admin)
+        return
     contractors = await get_contractors()
     contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
     if contractor:
@@ -907,23 +915,12 @@ async def handle_verification_code(message: types.Message, state: FSMContext) ->
                 )
             except Exception:
                 pass
-        try:
-            delivered = await _deliver_existing_invoice(message, contractor)
-        except Exception:
-            logger.exception("Invoice delivery failed for %s", contractor.display_name)
-            delivered = False
-        if delivered:
-            await state.clear()
-            return "verified"
-
-        # No pre-generated invoice — check budget sheet and start amount flow
+        await message.answer(
+            replies.linked_menu.prompt.format(name=contractor.display_name),
+            reply_markup=_linked_menu_markup(contractor),
+        )
         await state.clear()
-        result = await _start_invoice_flow(message, state, contractor)
-        if not result:
-            await message.answer(replies.registration.no_articles.format(month=prev_month()))
-            await state.clear()
-            return "verified"
-        return result
+        return "verified"
 
     attempts += 1
     if attempts >= 3:

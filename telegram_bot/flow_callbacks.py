@@ -36,6 +36,7 @@ from backend import (
     add_redirect_rule,
     bind_telegram_id,
     create_and_save_invoice,
+    delete_invoice,
     export_pdf,
     fetch_articles,
     find_contractor,
@@ -749,10 +750,13 @@ async def handle_linked_menu_callback(callback: CallbackQuery, state: FSMContext
             await callback.message.answer(replies.invoice.delivery_error)
             return
         if not delivered:
-            month = prev_month()
-            await callback.message.answer(
-                replies.lookup.no_invoices.format(name=contractor.display_name, month=month)
-            )
+            result = await _start_invoice_flow(callback.message, state, contractor)
+            if result == "invoice":
+                await state.set_state("ContractorStates:waiting_amount")
+            else:
+                await callback.message.answer(
+                    replies.registration.no_articles.format(month=prev_month())
+                )
     elif action == "update":
         await state.set_state("ContractorStates:waiting_update_data")
         await callback.message.answer(replies.linked_menu.update_prompt)
@@ -804,8 +808,8 @@ async def handle_editor_source_callback(callback: CallbackQuery, state: FSMConte
     if data.startswith("rm:"):
         source_name = data.removeprefix("rm:")
         removed = await asyncio.to_thread(remove_redirect_rule, source_name, contractor.id)
-        # Show toast notification with removal confirmation
         if removed:
+            await asyncio.to_thread(delete_invoice, contractor.id, prev_month())
             await callback.answer(replies.editor_sources.removed.format(name=source_name))
         else:
             await callback.answer()
@@ -846,6 +850,7 @@ async def handle_editor_source_name(message: types.Message, state: FSMContext) -
 
     source_name = message.text.strip()
     await asyncio.to_thread(add_redirect_rule, source_name, contractor.id)
+    await asyncio.to_thread(delete_invoice, contractor.id, prev_month())
     await message.answer(replies.editor_sources.added.format(name=source_name))
 
     # Show updated list as a new message (can't edit since user sent text)

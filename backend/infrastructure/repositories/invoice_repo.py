@@ -117,6 +117,17 @@ def _write_invoice_field(headers: list[str], row_idx: int, field: str, value: st
     return True
 
 
+def delete_invoice(contractor_id: str, month: str) -> bool:
+    """Delete the invoice row for contractor_id + month. Returns True if deleted."""
+    result = _find_invoice_row(contractor_id, month)
+    if result is None:
+        return False
+    _headers, row_idx = result
+    _sheets.delete_row(CONTRACTORS_SHEET_ID, SHEET_NAME, row_idx)
+    logger.info("Deleted invoice for %s/%s", contractor_id, month)
+    return True
+
+
 def update_invoice_status(contractor_id: str, month: str, status: InvoiceStatus) -> None:
     result = _find_invoice_row(contractor_id, month)
     if result is None:

@@ -25,6 +25,7 @@ from backend.infrastructure.repositories.rules_repo import (  # noqa: F401
 
 # --- Invoice repository ---
 from backend.infrastructure.repositories.invoice_repo import (  # noqa: F401
+    delete_invoice,
     load_invoices,
     save_invoice,
     update_invoice_status,

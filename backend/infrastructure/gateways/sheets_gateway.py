@@ -80,6 +80,27 @@ class SheetsGateway:
             .execute()
         )
 
+    def delete_row(self, spreadsheet_id: str, sheet_name: str, row_idx: int) -> None:
+        """Delete a row by 0-based index. Requires sheet name to resolve sheet ID."""
+        service = self._service()
+        meta = service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
+        sheet_id = None
+        for s in meta["sheets"]:
+            if s["properties"]["title"] == sheet_name:
+                sheet_id = s["properties"]["sheetId"]
+                break
+        if sheet_id is None:
+            raise ValueError(f"Sheet '{sheet_name}' not found")
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body={"requests": [{"deleteDimension": {"range": {
+                "sheetId": sheet_id,
+                "dimension": "ROWS",
+                "startIndex": row_idx,
+                "endIndex": row_idx + 1,
+            }}}]},
+        ).execute()
+
     def read_as_dicts(
         self, spreadsheet_id: str, range_name: str
     ) -> list[dict[str, str]]:

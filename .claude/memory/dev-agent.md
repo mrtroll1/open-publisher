@@ -250,6 +250,48 @@ _None yet._
 - `_notify_admins_rub_invoice` takes `pdf_bytes, filename, contractor, month, amount` — used by both existing invoice delivery and new contractor invoice generation
 - The `SupportEmailService` and `ArticleProposalService` module-level imports in flow_callbacks.py were left in place (they create instances immediately below)
 
+### Session 10 (2026-03-01) — Maintenance: Polish UX
+**Status:** Complete
+
+**What was done:**
+- Translated all English email-related bot messages to Russian (4 strings in email callback handler + proposal notification)
+- Added cancel support ("отмена" / "/cancel") for `waiting_update_data` and `waiting_editor_source_name` FSM states — users previously had no way to exit these except /start
+- Moved 10+ hardcoded Russian strings from `flow_callbacks.py` to `replies.py`:
+  - `lookup.new_contractor_btn` — "Я новый контрагент" button
+  - `admin.batch_generating`, `admin.batch_no_new`, `admin.not_in_budget`, `admin.zero_amount` — batch generation messages
+  - `document.forwarded_to_admin`, `document.forwarded_drive` — document forwarding captions
+  - `notifications.contractor_linked`, `notifications.new_registration`, `notifications.new_registration_parsed` — admin notifications
+- Improved admin email draft display:
+  - `can_answer: True/False` → "Черновик ответа" / "Черновик ответа (⚠ не уверен в ответе)"
+  - "Send"/"Skip" buttons → "Отправить"/"Пропустить"
+- Added two new reply classes: `email_support` and `notifications`
+
+**Notes:**
+- Cancel strings are inline in flow_callbacks.py (not in replies.py) since they're one-off short responses
+- `_send_email_draft` From/Subject/Reply-To headers still in English (intentional — email metadata is typically displayed in English)
+- Updated prompt strings include cancel hint: `update_prompt` and `add_prompt` now mention "отмена"
+
+### Session 11 (2026-03-01) — Maintenance: Improve Prompts
+**Status:** Complete
+
+**What was done:**
+- Fixed critical bug in `knowledge/tech-support.md`: `{{SUBSCRIPTION_RSERVICE_URL}}` → `{{SUBSCRIPTION_SERVICE_URL}}` in 4 places. The extra "R" meant the subscription URL was never injected into support email LLM prompts — the LLM was seeing raw template variables instead of actual URLs.
+- Fixed 10+ Russian typos across `knowledge/base.md`, `knowledge/tech-support.md`, and `templates/support-email.md`
+- Improved `templates/support-email.md`:
+  - Clearer `can_answer` criteria (knowledge base has info for confident answer vs. answer would be a guess)
+  - Added: always write best possible reply even when `can_answer=false` (helps admin reviewer)
+  - Explicit that `reply` should be full ready-to-send email text
+- Improved `templates/tech-search-terms.md`:
+  - Added `needs_code` default guidance: false for user questions (subscriptions, payments, accounts), true only for potential code bugs
+  - Added 4 concrete examples
+- Improved `templates/support-triage.md`:
+  - Added: use empty string "" for `lookup_email` when no user email can be identified
+  - Added: automated system emails should get empty needs and empty lookup_email
+
+**Notes:**
+- The SUBSCRIPTION_RSERVICE_URL bug was likely degrading support email quality since the LLM lacked the actual redefine.media URL for referencing subscription management links
+- All prompt improvements are backward-compatible — no code changes needed, only template/knowledge file edits
+
 ## Next up
 
-- Maintenance mode continues. Priorities: polish UX, improve prompts.
+- Maintenance mode continues. All 5 maintenance priorities completed (tests, bugs, refactor, UX, prompts). Next sessions: cycle back through priorities — focus on areas that benefit most from another pass.

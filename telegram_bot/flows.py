@@ -43,6 +43,7 @@ from telegram_bot.flow_callbacks import (
     cmd_generate_invoices,
     cmd_send_global_invoices,
     cmd_send_legium_links,
+    cmd_orphan_contractors,
     cmd_upload_to_airtable,
 )
 
@@ -197,6 +198,12 @@ admin_commands = [
         description="Отправить ссылки на Легиум контрагентам в Telegram",
         handler=cmd_send_legium_links,
         usage="/send_legium_links",
+    ),
+    AdminCommand(
+        command="orphan_contractors",
+        description="Показать несовпадения между бюджетом и контрагентами",
+        handler=cmd_orphan_contractors,
+        usage="/orphan_contractors",
     ),
     AdminCommand(
         command="budget",

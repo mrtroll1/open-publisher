@@ -687,6 +687,25 @@ async def cmd_send_legium_links(message: types.Message, state: FSMContext) -> No
     await message.answer("\n\n".join(parts))
 
 
+async def cmd_orphan_contractors(message: types.Message, state: FSMContext) -> None:
+    """Show budget entries that don't match any contractor."""
+    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+
+    month = prev_month()
+    contractors = await get_contractors()
+    budget_amounts = await asyncio.to_thread(read_budget_amounts, month)
+
+    contractor_names = {c.display_name.lower().strip() for c in contractors}
+    orphans = sorted(n for n in budget_amounts if n not in contractor_names)
+
+    if not orphans:
+        await message.answer(f"Все записи в бюджете за {month} совпадают с контрагентами.")
+        return
+
+    lines = "\n".join(f"  - {n}" for n in orphans)
+    await message.answer(f"В бюджете за {month}, но нет контрагента ({len(orphans)}):\n{lines}")
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  Private helpers
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

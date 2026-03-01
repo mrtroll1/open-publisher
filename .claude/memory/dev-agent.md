@@ -411,6 +411,39 @@ _None yet._
 - All 167 tests pass
 - payment-data-validation.md now mirrors validate_contractor.py rules — LLM should extract cleaner data on first pass, reducing validation warnings
 
+### Session 17 (2026-03-01) — Maintenance: Write Tests (round 3)
+**Status:** Complete
+
+**What was done:**
+- Created `tests/test_parse_bank_statement.py` — 30 tests across 7 classes:
+  - `TestToRub` (9): AED-to-RUB conversion, rounding, zero/large amounts
+  - `TestFormatDate` (6): ISO date validation, invalid formats returned as-is
+  - `TestMonthLabel` (7): month name extraction, invalid/empty input fallback
+  - `TestBo` (3): backoffice unit shorthand
+  - `TestClassifyPerson` (4): known people lookup from config, unknown defaults
+  - `TestIsOwner` (5): owner keyword matching, case sensitivity
+  - `TestMatchService` (8): service matching by substring, case-insensitive, split flag
+- Created `tests/test_invoice_repo.py` — 26 tests across 3 classes:
+  - `TestRowToInvoice` (15): valid/missing fields, all enum values, defaults
+  - `TestInvoiceToRow` (8): serialization, all status/currency enums
+  - `TestRoundtrip` (2): bidirectional row↔invoice consistency
+- Created `tests/test_sheets_utils.py` — 21 tests across 2 classes:
+  - `TestIndexToColumnLetter` (11): single/double/triple letter columns, progression
+  - `TestParseInt` (10): valid/invalid/edge cases
+- Created `tests/test_models.py` — 20 tests across 5 classes:
+  - `TestRequiredFields` (5): all contractor subclasses + base
+  - `TestAllFieldLabels` (5): field count matches FIELD_META, subset check
+  - `TestFieldNamesCsv` (4): CSV output for all subclasses
+  - `TestIncomingEmailAsText` (5): formatting, unicode, excluded fields
+
+**Net result:** 87 new tests (274 total), all passing in 0.35s
+
+**Notes:**
+- `test_parse_bank_statement.py` tests use real business config values (KNOWN_PEOPLE, OWNER_KEYWORDS, SERVICE_MAP) — tests will catch unintended config changes
+- `test_invoice_repo.py` has roundtrip tests verifying row→invoice→row and invoice→row→invoice consistency
+- No conftest.py changes needed — existing stubs sufficient
+- Pure-logic coverage now comprehensive. Remaining untested areas are service-layer code (requires mocked gateways) and email parsing
+
 ## Next up
 
-- Maintenance mode continues. Third cycle: next session should be write tests (round 3).
+- Maintenance mode continues. Fourth cycle: next session should be spot bugs (round 3).

@@ -10,7 +10,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
+import tempfile
 from decimal import Decimal
 from aiogram import types
 from aiogram.enums import ChatAction
@@ -60,6 +62,8 @@ from backend import (
 )
 from telegram_bot import replies
 from telegram_bot.bot_helpers import bot, get_contractors, is_admin, prev_month
+from backend.domain.compute_budget import ComputeBudget
+from backend.domain.parse_bank_statement import ParseBankStatement
 
 logger = logging.getLogger(__name__)
 
@@ -421,7 +425,6 @@ async def cmd_budget(message: types.Message, state: FSMContext) -> None:
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
 
     try:
-        from backend.domain.compute_budget import ComputeBudget
         uc = ComputeBudget()
         url = await asyncio.to_thread(uc.execute, month)
         await message.answer(replies.admin.budget_done.format(url=url))
@@ -563,6 +566,54 @@ async def cmd_send_global_invoices(message: types.Message, state: FSMContext) ->
 #  Private helpers
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+async def _start_invoice_flow(
+    message: types.Message, state: FSMContext, contractor: Contractor,
+) -> str | None:
+    """Fetch budget + articles and prompt for amount. Returns "invoice" or None."""
+    month = prev_month()
+    budget_amounts = await asyncio.to_thread(read_budget_amounts, month)
+    articles = await asyncio.to_thread(fetch_articles, contractor, month)
+    num_articles = len(articles)
+
+    default_amount_int, explanation = resolve_amount(
+        budget_amounts, contractor, num_articles,
+    )
+    if not default_amount_int:
+        return None
+
+    article_ids = [a.article_id for a in articles]
+    await state.update_data(
+        invoice_contractor_id=contractor.id,
+        invoice_month=month,
+        invoice_article_ids=article_ids,
+        invoice_default_amount=default_amount_int,
+    )
+    pub_word = plural_ru(num_articles, "публикация", "публикации", "публикаций") if num_articles else "0 публикаций"
+    await message.answer(
+        replies.invoice.amount_prompt.format(
+            pub_word=pub_word, month=month, explanation=explanation,
+        )
+    )
+    return "invoice"
+
+
+async def _notify_admins_rub_invoice(
+    pdf_bytes: bytes, filename: str, contractor: Contractor,
+    month: str, amount,
+) -> None:
+    for admin_id in ADMIN_TELEGRAM_IDS:
+        try:
+            admin_doc = BufferedInputFile(pdf_bytes, filename=filename)
+            caption = replies.invoice.legium_admin_caption.format(
+                name=contractor.display_name, type=contractor.type.value,
+                month=month, amount=amount,
+            )
+            sent = await bot.send_document(admin_id, admin_doc, caption=caption)
+            _admin_reply_map[(admin_id, sent.message_id)] = (contractor.telegram, contractor.id)
+        except Exception:
+            pass
+
+
 async def _deliver_existing_invoice(message: types.Message, contractor: Contractor) -> bool:
     """Check for a pre-generated invoice and deliver it to the contractor.
 
@@ -604,17 +655,7 @@ async def _deliver_existing_invoice(message: types.Message, contractor: Contract
                 message.chat.id, doc,
                 caption=replies.invoice.rub_invoice_caption,
             )
-            for admin_id in ADMIN_TELEGRAM_IDS:
-                try:
-                    admin_doc = BufferedInputFile(prepared.pdf_bytes, filename=filename)
-                    caption = replies.invoice.legium_admin_caption.format(
-                        name=contractor.display_name, type=contractor.type.value,
-                        month=month, amount=inv.amount,
-                    )
-                    sent = await bot.send_document(admin_id, admin_doc, caption=caption)
-                    _admin_reply_map[(admin_id, sent.message_id)] = (contractor.telegram, contractor.id)
-                except Exception:
-                    pass
+            await _notify_admins_rub_invoice(prepared.pdf_bytes, filename, contractor, month, inv.amount)
         else:
             await message.answer(replies.invoice.legium_already_sent)
 
@@ -829,33 +870,13 @@ async def handle_verification_code(message: types.Message, state: FSMContext) ->
             return "verified"
 
         # No pre-generated invoice — check budget sheet and start amount flow
-        month = prev_month()
-        budget_amounts = await asyncio.to_thread(read_budget_amounts, month)
-        articles = await asyncio.to_thread(fetch_articles, contractor, month)
-        num_articles = len(articles)
-
-        default_amount_int, explanation = resolve_amount(
-            budget_amounts, contractor, num_articles,
-        )
-        if not default_amount_int:
-            await message.answer(replies.registration.no_articles.format(month=month))
+        await state.clear()
+        result = await _start_invoice_flow(message, state, contractor)
+        if not result:
+            await message.answer(replies.registration.no_articles.format(month=prev_month()))
             await state.clear()
             return "verified"
-
-        article_ids = [a.article_id for a in articles]
-        await state.set_data({
-            "invoice_contractor_id": contractor.id,
-            "invoice_month": month,
-            "invoice_article_ids": article_ids,
-            "invoice_default_amount": default_amount_int,
-        })
-        pub_word = plural_ru(num_articles, "публикация", "публикации", "публикаций") if num_articles else "0 публикаций"
-        await message.answer(
-            replies.invoice.amount_prompt.format(
-                pub_word=pub_word, month=month, explanation=explanation,
-            )
-        )
-        return "invoice"
+        return result
 
     attempts += 1
     if attempts >= 3:
@@ -900,32 +921,11 @@ async def _finish_registration(
         return "complete"
 
     # Check budget sheet / articles → start invoice flow
-    month = prev_month()
-    budget_amounts = await asyncio.to_thread(read_budget_amounts, month)
-    articles = await asyncio.to_thread(fetch_articles, contractor, month)
-    num_articles = len(articles)
-
-    default_amount_int, explanation = resolve_amount(
-        budget_amounts, contractor, num_articles,
-    )
-    if not default_amount_int:
-        await message.answer(replies.registration.no_articles.format(month=month))
+    result = await _start_invoice_flow(message, state, contractor)
+    if not result:
+        await message.answer(replies.registration.no_articles.format(month=prev_month()))
         return "complete"
-
-    article_ids = [a.article_id for a in articles]
-    await state.update_data(
-        invoice_contractor_id=contractor.id,
-        invoice_month=month,
-        invoice_article_ids=article_ids,
-        invoice_default_amount=default_amount_int,
-    )
-    pub_word = plural_ru(num_articles, "публикация", "публикации", "публикаций") if num_articles else "0 публикаций"
-    await message.answer(
-        replies.invoice.amount_prompt.format(
-            pub_word=pub_word, month=month, explanation=explanation,
-        )
-    )
-    return "invoice"
+    return result
 
 
 async def handle_amount_input(message: types.Message, state: FSMContext) -> str | None:
@@ -985,17 +985,7 @@ async def handle_amount_input(message: types.Message, state: FSMContext) -> str 
             message.chat.id, doc,
             caption=replies.invoice.rub_invoice_caption,
         )
-        for admin_id in ADMIN_TELEGRAM_IDS:
-            try:
-                admin_doc = BufferedInputFile(result.pdf_bytes, filename=filename)
-                caption = replies.invoice.legium_admin_caption.format(
-                    name=contractor.display_name, type=contractor.type.value,
-                    month=month, amount=invoice.amount,
-                )
-                sent = await bot.send_document(admin_id, admin_doc, caption=caption)
-                _admin_reply_map[(admin_id, sent.message_id)] = (contractor.telegram, contractor.id)
-            except Exception:
-                pass
+        await _notify_admins_rub_invoice(result.pdf_bytes, filename, contractor, month, invoice.amount)
 
     return "done"
 
@@ -1107,7 +1097,6 @@ async def cmd_upload_to_airtable(message: types.Message, state: FSMContext) -> N
     await message.answer(replies.admin.upload_processing.format(rate=rate))
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
 
-    import tempfile
     file = await bot.get_file(message.document.file_id)
     file_bytes = await bot.download_file(file.file_path)
 
@@ -1117,7 +1106,6 @@ async def cmd_upload_to_airtable(message: types.Message, state: FSMContext) -> N
             tmp.write(file_bytes.read())
             tmp_path = tmp.name
 
-        from backend.domain.parse_bank_statement import ParseBankStatement
         uc = ParseBankStatement()
         expenses = await asyncio.to_thread(uc.execute, tmp_path, rate, True)
 
@@ -1130,7 +1118,6 @@ async def cmd_upload_to_airtable(message: types.Message, state: FSMContext) -> N
         logger.exception("Airtable upload failed")
         await message.answer(replies.admin.upload_error.format(error=e))
     finally:
-        import os
         if tmp_path:
             os.unlink(tmp_path)
 

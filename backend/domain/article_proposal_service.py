@@ -25,7 +25,7 @@ class ArticleProposalService:
         return forwarded
 
     def _is_legit_proposal(self, email: IncomingEmail) -> bool:
-        email_text = f"From: {email.from_addr}\nSubject: {email.subject}\n\n{email.body}"
+        email_text = email.as_text()
         prompt, model, _ = compose_request.article_proposal_triage(email_text)
         result = self._gemini.call(prompt, model)
         return result.get("is_legit_proposal", False)

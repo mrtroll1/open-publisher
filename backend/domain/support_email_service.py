@@ -172,7 +172,7 @@ class SupportEmailService:
         self._uid_thread[email.uid] = thread_id
         history = self._db.get_thread_history(thread_id)
 
-        email_text = f"From: {email.from_addr}\nSubject: {email.subject}\n\n{email.body}"
+        email_text = email.as_text()
         user_data = self._fetch_user_data(email_text, email.reply_to or email.from_addr)
         code_context = self._fetch_code_context(email_text)
 

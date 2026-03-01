@@ -226,6 +226,30 @@ _None yet._
 - Tests can't run locally due to missing `google.oauth2` dependency (deployment-only). Pre-existing issue.
 - Future sessions can add mocking to fix local test execution.
 
+### Session 9 (2026-03-01) — Maintenance: Refactor
+**Status:** Complete
+
+**What was done:**
+- Extracted duplicated utility functions to shared module:
+  - Created `backend/infrastructure/repositories/sheets_utils.py` with `index_to_column_letter()` and `parse_int()`
+  - Removed duplicate `_index_to_column_letter` from `contractor_repo.py` and `invoice_repo.py`
+  - Removed duplicate `_parse_int` from `rules_repo.py` and `budget_repo.py`
+  - Updated all call sites and imports in 4 repo files
+- Extracted duplicated blocks in `telegram_bot/flow_callbacks.py`:
+  - `_start_invoice_flow()` — extracted from `handle_verification_code` and `_finish_registration` (budget fetch → amount prompt logic)
+  - `_notify_admins_rub_invoice()` — extracted from `_deliver_existing_invoice` and `handle_amount_input` (RUB invoice admin notification)
+- Moved inline imports to top of `flow_callbacks.py`: `os`, `tempfile`, `ComputeBudget`, `ParseBankStatement`
+- Added `as_text()` method to `IncomingEmail` model in `common/models.py`
+- Updated `support_email_service.py` and `article_proposal_service.py` to use `email.as_text()`
+- Fixed `set_data` → `update_data` behavioral change: added explicit `state.clear()` before `_start_invoice_flow` in verification path to preserve original state-clearing behavior
+
+**Net result:** -42 lines, 6 duplicated code blocks eliminated across 9 files
+
+**Notes:**
+- `_start_invoice_flow` returns None when no articles found (callers handle messaging/state clearing themselves)
+- `_notify_admins_rub_invoice` takes `pdf_bytes, filename, contractor, month, amount` — used by both existing invoice delivery and new contractor invoice generation
+- The `SupportEmailService` and `ArticleProposalService` module-level imports in flow_callbacks.py were left in place (they create instances immediately below)
+
 ## Next up
 
-- Maintenance mode continues. Priorities: refactor, polish UX, improve prompts.
+- Maintenance mode continues. Priorities: polish UX, improve prompts.

@@ -21,6 +21,7 @@ from common.models import (
     SamozanyatyContractor,
 )
 from backend.infrastructure.gateways.sheets_gateway import SheetsGateway
+from backend.infrastructure.repositories.sheets_utils import index_to_column_letter
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +203,7 @@ def bind_telegram_id(contractor_id: str, telegram_id: int) -> None:
         logger.error("telegram column not found in sheet %s", sheet_name)
         return
 
-    col_letter = _index_to_column_letter(tg_col_idx)
+    col_letter = index_to_column_letter(tg_col_idx)
     cell_address = f"'{sheet_name}'!{col_letter}{row_idx + 1}"
     _sheets.write(CONTRACTORS_SHEET_ID, cell_address, [[str(telegram_id)]])
     logger.info("Bound telegram_id %s to contractor %s", telegram_id, contractor_id)
@@ -266,7 +267,7 @@ def increment_invoice_number(contractor_id: str) -> int:
 
     new_num = current_num + 1
 
-    col_letter = _index_to_column_letter(invoice_num_col_idx)
+    col_letter = index_to_column_letter(invoice_num_col_idx)
     cell_address = f"'{sheet_name}'!{col_letter}{contractor_row_idx + 1}"
     _sheets.write(CONTRACTORS_SHEET_ID, cell_address, [[str(new_num)]])
     logger.info(f"Updated {contractor_id} invoice_number to {new_num}")
@@ -304,20 +305,9 @@ def update_contractor_fields(contractor_id: str, updates: dict[str, str]) -> int
         except ValueError:
             logger.warning("Column %s not found in sheet %s", field, sheet_name)
             continue
-        col_letter = _index_to_column_letter(col_idx)
+        col_letter = index_to_column_letter(col_idx)
         cell_address = f"'{sheet_name}'!{col_letter}{row_idx + 1}"
         _sheets.write(CONTRACTORS_SHEET_ID, cell_address, [[value]])
         count += 1
     logger.info("Updated %d fields for contractor %s", count, contractor_id)
     return count
-
-
-def _index_to_column_letter(idx: int) -> str:
-    """Convert 0-based column index to letter (0->A, 1->B, ..., 26->AA)."""
-    result = ""
-    idx += 1
-    while idx > 0:
-        idx -= 1
-        result = chr(65 + (idx % 26)) + result
-        idx //= 26
-    return result

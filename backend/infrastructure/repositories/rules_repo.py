@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from common.config import SPECIAL_RULES_SHEET_ID
 from backend.infrastructure.gateways.sheets_gateway import SheetsGateway
+from backend.infrastructure.repositories.sheets_utils import parse_int
 
 logger = logging.getLogger(__name__)
 
@@ -97,8 +98,8 @@ def load_flat_rate_rules() -> list[FlatRateRule]:
         name = r.get("name", "").strip()
         if not name:
             continue
-        eur = _parse_int(r.get("eur", ""))
-        rub = _parse_int(r.get("rub", ""))
+        eur = parse_int(r.get("eur", ""))
+        rub = parse_int(r.get("rub", ""))
         rules.append(FlatRateRule(
             contractor_id=r.get("contractor_id", "").strip(),
             name=name,
@@ -117,15 +118,8 @@ def load_article_rate_rules() -> list[ArticleRateRule]:
         cid = r.get("contractor_id", "").strip()
         if not cid:
             continue
-        eur = _parse_int(r.get("eur", ""))
-        rub = _parse_int(r.get("rub", ""))
+        eur = parse_int(r.get("eur", ""))
+        rub = parse_int(r.get("rub", ""))
         if eur or rub:
             rules.append(ArticleRateRule(contractor_id=cid, eur=eur, rub=rub))
     return rules
-
-
-def _parse_int(val: str) -> int:
-    try:
-        return int(val.strip()) if val.strip() else 0
-    except ValueError:
-        return 0

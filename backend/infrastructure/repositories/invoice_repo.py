@@ -8,6 +8,7 @@ from decimal import Decimal
 from common.config import CONTRACTORS_SHEET_ID
 from common.models import Currency, Invoice, InvoiceStatus
 from backend.infrastructure.gateways.sheets_gateway import SheetsGateway
+from backend.infrastructure.repositories.sheets_utils import index_to_column_letter
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,7 @@ def update_invoice_status(contractor_id: str, month: str, status: InvoiceStatus)
     for idx, row in enumerate(rows[1:], start=1):
         padded = row + [""] * (len(headers) - len(row))
         if padded[cid_col] == contractor_id and padded[month_col] == month:
-            col_letter = _index_to_column_letter(status_col)
+            col_letter = index_to_column_letter(status_col)
             cell = f"'{SHEET_NAME}'!{col_letter}{idx + 1}"
             _sheets.write(CONTRACTORS_SHEET_ID, cell, [[status.value]])
             logger.info("Updated invoice status for %s/%s to %s", contractor_id, month, status.value)
@@ -132,21 +133,11 @@ def update_legium_link(contractor_id: str, month: str, url: str) -> None:
         padded = row + [""] * (len(headers) - len(row))
         if padded[cid_col] == contractor_id and padded[month_col] == month:
             row_num = idx + 1
-            status_cell = f"'{SHEET_NAME}'!{_index_to_column_letter(status_col)}{row_num}"
-            link_cell = f"'{SHEET_NAME}'!{_index_to_column_letter(link_col)}{row_num}"
+            status_cell = f"'{SHEET_NAME}'!{index_to_column_letter(status_col)}{row_num}"
+            link_cell = f"'{SHEET_NAME}'!{index_to_column_letter(link_col)}{row_num}"
             _sheets.write(CONTRACTORS_SHEET_ID, status_cell, [[InvoiceStatus.SENT.value]])
             _sheets.write(CONTRACTORS_SHEET_ID, link_cell, [[url]])
             logger.info("Set legium_link for %s/%s", contractor_id, month)
             return
 
     logger.warning("Invoice not found for %s/%s", contractor_id, month)
-
-
-def _index_to_column_letter(idx: int) -> str:
-    result = ""
-    idx += 1
-    while idx > 0:
-        idx -= 1
-        result = chr(65 + (idx % 26)) + result
-        idx //= 26
-    return result

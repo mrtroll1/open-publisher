@@ -303,6 +303,9 @@ class IncomingEmail(BaseModel):
     in_reply_to: str = ""
     references: str = ""
 
+    def as_text(self) -> str:
+        return f"From: {self.from_addr}\nSubject: {self.subject}\n\n{self.body}"
+
 
 class SupportDraft(BaseModel):
     """A drafted reply to a support email, pending admin approval."""

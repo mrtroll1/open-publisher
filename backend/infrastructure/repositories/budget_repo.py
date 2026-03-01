@@ -8,6 +8,7 @@ from common.config import BUDGET_SHEETS_FOLDER_ID, BUDGET_TEMPLATE_SHEET_ID, EUR
 from common.models import Contractor, Currency
 from backend.infrastructure.gateways.drive_gateway import DriveGateway
 from backend.infrastructure.gateways.sheets_gateway import SheetsGateway
+from backend.infrastructure.repositories.sheets_utils import parse_int
 
 logger = logging.getLogger(__name__)
 
@@ -26,13 +27,6 @@ def _find_sheet(month: str) -> str | None:
     return _drive.find_file_by_name(_sheet_name(month), BUDGET_SHEETS_FOLDER_ID)
 
 
-def _parse_int(val: str) -> int:
-    try:
-        return int(val.strip()) if val.strip() else 0
-    except ValueError:
-        return 0
-
-
 def read_all_amounts(month: str) -> dict[str, tuple[int, int, str]]:
     """Read all payment entries for a month.
 
@@ -47,8 +41,8 @@ def read_all_amounts(month: str) -> dict[str, tuple[int, int, str]]:
         if not row or not row[0].strip():
             continue
         name = row[0].strip().lower()
-        eur = _parse_int(row[2]) if len(row) > 2 else 0
-        rub = _parse_int(row[3]) if len(row) > 3 else 0
+        eur = parse_int(row[2]) if len(row) > 2 else 0
+        rub = parse_int(row[3]) if len(row) > 3 else 0
         note = row[4].strip() if len(row) > 4 else ""
         if eur or rub:
             amounts[name] = (eur, rub, note)
@@ -69,8 +63,8 @@ def lookup_amount(contractor: Contractor, month: str) -> int | None:
     name_lower = contractor.display_name.lower().strip()
     for row in rows:
         if len(row) >= 1 and row[0].strip().lower() == name_lower:
-            eur = _parse_int(row[2]) if len(row) > 2 else 0
-            rub = _parse_int(row[3]) if len(row) > 3 else 0
+            eur = parse_int(row[2]) if len(row) > 2 else 0
+            rub = parse_int(row[3]) if len(row) > 3 else 0
             amount = eur if contractor.currency == Currency.EUR else rub
             if amount:
                 logger.info("Budget lookup for %s: %d", contractor.display_name, amount)

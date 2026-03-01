@@ -631,6 +631,62 @@ async def cmd_send_global_invoices(message: types.Message, state: FSMContext) ->
     await message.answer("\n\n".join(parts))
 
 
+async def cmd_send_legium_link(message: types.Message, state: FSMContext) -> None:
+    """Batch-send legium links to contractors whose invoices have a link but are still DRAFT."""
+    debug = "debug" in message.text.lower().split()
+
+    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+
+    month = prev_month()
+    invoices = await asyncio.to_thread(load_invoices, month)
+    pending = [inv for inv in invoices if inv.legium_link and inv.status == InvoiceStatus.DRAFT]
+
+    if not pending:
+        await message.answer(replies.admin.no_legium_pending.format(month=month))
+        return
+
+    contractors = await get_contractors()
+    sent_count = 0
+    errors: list[str] = []
+
+    for inv in pending:
+        contractor = find_contractor_by_id(inv.contractor_id, contractors)
+        if not contractor:
+            errors.append(f"{inv.contractor_id}: контрагент не найден")
+            continue
+
+        if debug:
+            tg_info = f"tg: {contractor.telegram}" if contractor.telegram else "tg id not found"
+            await message.answer(
+                f"[DEBUG] {contractor.display_name} ({tg_info})\n{inv.legium_link}",
+            )
+        else:
+            if not contractor.telegram:
+                errors.append(f"{contractor.display_name}: не привязан к Telegram")
+                continue
+            try:
+                await bot.send_message(
+                    int(contractor.telegram),
+                    replies.invoice.legium_link.format(url=inv.legium_link),
+                )
+            except Exception as e:
+                errors.append(f"{contractor.display_name}: ошибка отправки ({e})")
+                continue
+
+        await asyncio.to_thread(
+            update_invoice_status, inv.contractor_id, month, InvoiceStatus.SENT,
+        )
+        sent_count += 1
+
+    prefix = "[DEBUG] " if debug else ""
+    parts = [replies.admin.send_legium_done.format(prefix=prefix, count=sent_count, month=month)]
+    if errors:
+        parts.append(replies.admin.batch_errors.format(
+            errors="\n".join(f"  - {e}" for e in errors),
+        ))
+    await message.answer("\n\n".join(parts))
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  Private helpers
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -228,6 +228,8 @@ class admin:
     batch_errors = "Ошибки:\n{errors}"
     batch_no_new = "Нет новых счетов для генерации за {month}."
     send_global_done = "{prefix}Отправлено {count} глобальных счетов за {month}."
+    no_legium_pending = "Нет неотправленных ссылок на Легиум за {month}."
+    send_legium_done = "{prefix}Отправлено {count} ссылок на Легиум за {month}."
     not_in_budget = "Контрагент {name} не найден в бюджетной таблице за {month}."
     zero_amount = "Сумма для {name} за {month} не указана в бюджетной таблице."
 

@@ -17,6 +17,7 @@ from decimal import Decimal
 from aiogram import types
 from aiogram.enums import ChatAction
 from aiogram.fsm.context import FSMContext
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
 from common.config import ADMIN_TELEGRAM_IDS, EMAIL_ADDRESS
@@ -178,12 +179,12 @@ async def handle_data_input(message: types.Message, state: FSMContext) -> str | 
             val = collected.get(field, "")
             if val:
                 filled_lines.append(f"  ✓ {label}: {val}")
-        parts = ["Вот что я уже получил:\n" + "\n".join(filled_lines)]
+        parts = [replies.registration.progress_header.format(filled="\n".join(filled_lines))]
         if missing:
-            parts.append("Ещё нужно: " + ", ".join(missing.values()) + ".")
+            parts.append(replies.registration.still_needed.format(fields=", ".join(missing.values())))
         if warnings:
             parts.append("\n".join(f"  ⚠ {w}" for w in warnings))
-        parts.append("Пришлите исправленные/недостающие данные.")
+        parts.append(replies.registration.send_corrections)
         await message.answer("\n\n".join(parts))
         return None
 
@@ -254,7 +255,11 @@ async def handle_contractor_text(message: types.Message, state: FSMContext) -> s
 
 
 async def handle_non_document(message: types.Message, state: FSMContext) -> None:
-    """Catch photos/stickers/etc from Global contractors — remind them to send a PDF."""
+    """Catch photos/stickers/etc — remind user to send text or PDF as appropriate."""
+    current = await state.get_state()
+    if current is not None:
+        await message.answer(replies.generic.text_expected)
+        return
     contractors = await get_contractors()
     contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
     if isinstance(contractor, GlobalContractor):
@@ -668,7 +673,10 @@ async def handle_duplicate_callback(callback: CallbackQuery, state: FSMContext) 
     await callback.answer()
 
     if data_str == "dup:new":
-        await callback.message.delete()
+        try:
+            await callback.message.delete()
+        except TelegramBadRequest:
+            pass
         await state.set_state("ContractorStates:waiting_type")
         await callback.message.answer(replies.registration.type_prompt)
         return
@@ -680,10 +688,13 @@ async def handle_duplicate_callback(callback: CallbackQuery, state: FSMContext) 
         await callback.message.answer(replies.lookup.not_found)
         return
 
-    await callback.message.edit_text(
-        f"✓ {contractor.display_name}",
-        reply_markup=None,
-    )
+    try:
+        await callback.message.edit_text(
+            f"✓ {contractor.display_name}",
+            reply_markup=None,
+        )
+    except TelegramBadRequest:
+        pass
     await bot.send_chat_action(callback.message.chat.id, ChatAction.TYPING)
 
     telegram_id = callback.from_user.id
@@ -715,6 +726,7 @@ async def handle_linked_menu_callback(callback: CallbackQuery, state: FSMContext
     action = callback.data.removeprefix("menu:")
 
     if action == "contract":
+        await bot.send_chat_action(callback.message.chat.id, ChatAction.TYPING)
         delivered = await _deliver_existing_invoice(callback.message, contractor)
         if not delivered:
             month = prev_month()
@@ -752,7 +764,10 @@ async def _show_editor_sources(callback: CallbackQuery, contractor: Contractor) 
     """Render the editor sources list with inline buttons."""
     rules = await asyncio.to_thread(find_redirect_rules_by_target, contractor.id)
     text, markup = _editor_sources_content(rules)
-    await callback.message.edit_text(text, reply_markup=markup)
+    try:
+        await callback.message.edit_text(text, reply_markup=markup)
+    except TelegramBadRequest:
+        pass
 
 
 async def handle_editor_source_callback(callback: CallbackQuery, state: FSMContext) -> None:
@@ -779,21 +794,27 @@ async def handle_editor_source_callback(callback: CallbackQuery, state: FSMConte
     elif data == "add":
         await callback.answer()
         await state.set_state("ContractorStates:waiting_editor_source_name")
-        await callback.message.edit_text(replies.editor_sources.add_prompt, reply_markup=None)
+        try:
+            await callback.message.edit_text(replies.editor_sources.add_prompt, reply_markup=None)
+        except TelegramBadRequest:
+            await callback.message.answer(replies.editor_sources.add_prompt)
 
     elif data == "back":
         await callback.answer()
-        await callback.message.edit_text(
-            replies.linked_menu.prompt.format(name=contractor.display_name),
-            reply_markup=_linked_menu_markup(contractor),
-        )
+        try:
+            await callback.message.edit_text(
+                replies.linked_menu.prompt.format(name=contractor.display_name),
+                reply_markup=_linked_menu_markup(contractor),
+            )
+        except TelegramBadRequest:
+            pass
 
 
 async def handle_editor_source_name(message: types.Message, state: FSMContext) -> str | None:
     """Handle text input for adding a new editor source. Returns 'done' or None."""
-    if message.text.strip().lower() == "отмена":
+    if message.text and message.text.strip().lower() == "отмена":
         await state.clear()
-        await message.answer("Добавление отменено.")
+        await message.answer(replies.editor_sources.add_cancelled)
         return "done"
 
     contractors = await get_contractors()
@@ -816,9 +837,9 @@ async def handle_editor_source_name(message: types.Message, state: FSMContext) -
 
 async def handle_update_data(message: types.Message, state: FSMContext) -> str | None:
     """Parse free-form update text and write changes to sheet. Returns 'done' or None."""
-    if message.text.strip().lower() == "отмена":
+    if message.text and message.text.strip().lower() == "отмена":
         await state.clear()
-        await message.answer("Обновление отменено.")
+        await message.answer(replies.linked_menu.update_cancelled)
         return "done"
 
     contractors = await get_contractors()
@@ -919,12 +940,9 @@ async def _finish_registration(
     contractor, secret_code = await _save_new_contractor(collected, ctype, telegram_id)
     await _forward_to_admins(raw_text, ctype, collected)
 
-    text = (
-        "Ваши данные:\n" + summary + "\n\n"
-        "Вы добавлены в систему!"
-    )
+    text = replies.registration.complete_summary.format(summary=summary)
     if secret_code:
-        text += f"\n\nВаш секретный код: *{secret_code}*."
+        text += replies.registration.complete_secret.format(code=secret_code)
     await message.answer(text)
 
     if not contractor:
@@ -1203,12 +1221,21 @@ async def handle_email_callback(callback: CallbackQuery) -> None:
 
     draft = _email_service.get_pending(uid)
     if not draft:
-        await callback.message.edit_text(replies.email_support.expired)
+        try:
+            await callback.message.edit_text(replies.email_support.expired)
+        except TelegramBadRequest:
+            pass
         return
 
     if action == "send":
         await asyncio.to_thread(_email_service.approve, uid)
-        await callback.message.edit_text(replies.email_support.reply_sent.format(addr=draft.email.reply_to or draft.email.from_addr))
+        try:
+            await callback.message.edit_text(replies.email_support.reply_sent.format(addr=draft.email.reply_to or draft.email.from_addr))
+        except TelegramBadRequest:
+            pass
     elif action == "skip":
         await asyncio.to_thread(_email_service.skip, uid)
-        await callback.message.edit_text(replies.email_support.skipped.format(from_addr=draft.email.from_addr))
+        try:
+            await callback.message.edit_text(replies.email_support.skipped.format(from_addr=draft.email.from_addr))
+        except TelegramBadRequest:
+            pass

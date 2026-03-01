@@ -24,7 +24,7 @@ dp.callback_query.register(handle_linked_menu_callback, F.data.startswith("menu:
 register_flows(dp, bot_flows)
 
 # Catch photos/stickers/etc — must be after flows so it doesn't interfere
-dp.message.register(handle_non_document, F.photo | F.sticker | F.video | F.voice | F.video_note)
+dp.message.register(handle_non_document, F.photo | F.sticker | F.video | F.voice | F.video_note | F.audio)
 
 
 async def main():

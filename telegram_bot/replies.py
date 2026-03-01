@@ -80,6 +80,11 @@ class registration:
         ),
     }
     parse_error = "Не удалось обработать сообщение. Попробуйте отправить данные ещё раз."
+    progress_header = "Вот что я уже получил:\n{filled}"
+    still_needed = "Ещё нужно: {fields}."
+    send_corrections = "Пришлите исправленные/недостающие данные."
+    complete_summary = "Ваши данные:\n{summary}\n\nВы добавлены в систему!"
+    complete_secret = "\n\nВаш секретный код: *{code}*."
     no_articles = (
         "Публикаций за {month} не найдено.\n"
         f"Если это ошибка — напишите {ADMIN_TELEGRAM_TAG}."
@@ -142,6 +147,7 @@ class linked_menu:
     btn_editor_sources = "Настроить, за кого я получаю деньги"
     update_prompt = "Какие данные вы хотите обновить? Отправьте новые значения в свободной форме.\n\nОтправьте «отмена» для отмены."
     update_success = "Данные обновлены."
+    update_cancelled = "Обновление отменено."
     no_changes = "Изменений не найдено."
 
 
@@ -153,6 +159,7 @@ class editor_sources:
     removed = "Автор «{name}» удалён из списка."
     add_prompt = "Введите имя автора (как в бюджетной таблице):\nОтправьте «отмена» для отмены."
     added = "Автор «{name}» добавлен."
+    add_cancelled = "Добавление отменено."
     btn_add = "Добавить автора"
     btn_remove = "❌"
     btn_back = "← Назад"
@@ -214,3 +221,9 @@ class email_support:
     draft_header_uncertain = "--- Черновик ответа (⚠ не уверен в ответе) ---"
     btn_send = "Отправить"
     btn_skip = "Пропустить"
+
+
+# ── Generic ──────────────────────────────────────────────────────────
+
+class generic:
+    text_expected = "Пожалуйста, отправьте текстовое сообщение."

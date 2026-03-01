@@ -364,6 +364,25 @@ _None yet._
 - `_write_cell` returns bool so callers can branch on success/failure
 - `_find_invoice_row` returns `(headers, row_idx)` tuple so callers can still resolve additional columns
 
+### Session 15 (2026-03-01) — Maintenance: Polish UX (round 2)
+**Status:** Complete
+
+**What was done:**
+- Moved 7 hardcoded Russian strings from `flow_callbacks.py` to `replies.py`:
+  - `registration.progress_header`, `registration.still_needed`, `registration.send_corrections` — registration progress messages
+  - `registration.complete_summary`, `registration.complete_secret` — registration completion
+  - `linked_menu.update_cancelled`, `editor_sources.add_cancelled` — cancel confirmations
+- Added `generic.text_expected` reply string class
+- **Non-text input in FSM states**: `handle_non_document` now checks `state.get_state()` first — if user is in an active FSM state, replies "Пожалуйста, отправьте текстовое сообщение." instead of silently dropping the message
+- **Audio filter**: Added `F.audio` to non-document handler filter in `main.py` (was missing)
+- **Stale callback protection**: Wrapped 7 `edit_text()`/`delete()` call sites in `TelegramBadRequest` try/except across 4 handlers (`handle_duplicate_callback`, `_show_editor_sources`, `handle_editor_source_callback`, `handle_email_callback`)
+- **Defensive None-safety**: Added `message.text and` guard before `.strip().lower()` in cancel checks in `handle_editor_source_name` and `handle_update_data`
+- **Typing indicator**: Added `ChatAction.TYPING` before contract delivery in `handle_linked_menu_callback` (Google Sheets/Drive fetch can be slow)
+
+**Notes:**
+- Tone review confirmed consistent formal "вы" for contractors, casual for admins — no changes needed
+- All 167 tests pass
+
 ## Next up
 
-- Maintenance mode continues. Third cycle: next session should be UX polish (round 2) or prompts (round 2).
+- Maintenance mode continues. Third cycle: next session should be improve prompts (round 2) or write tests (round 3).

@@ -23,6 +23,9 @@ from telegram_bot import replies
 from telegram_bot.flow_callbacks import (
     handle_start,
     handle_menu,
+    handle_sign_doc,
+    handle_update_payment_data,
+    handle_manage_redirects,
     # Contractor flow
     handle_contractor_text,
     handle_verification_code,
@@ -213,4 +216,9 @@ bot_flows = BotFlows(
     start_handler=handle_start,
     menu_handler=handle_menu,
     reply_handler=handle_admin_reply,
+    command_handlers={
+        "sign_doc": handle_sign_doc,
+        "update_payment_data": handle_update_payment_data,
+        "manage_redirects": handle_manage_redirects,
+    },
 )

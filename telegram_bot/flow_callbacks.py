@@ -101,17 +101,64 @@ async def handle_start(message: types.Message, state: FSMContext) -> None:
 async def handle_menu(message: types.Message, state: FSMContext) -> None:
     await state.clear()
     if is_admin(message.from_user.id):
-        await message.answer(replies.start.admin)
+        await message.answer(replies.menu.admin)
         return
     contractors = await get_contractors()
     contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
     if contractor:
         await message.answer(
-            replies.linked_menu.prompt.format(name=contractor.display_name),
+            replies.menu.prompt,
             reply_markup=_linked_menu_markup(contractor),
         )
         return
     await message.answer(replies.start.contractor)
+
+
+async def handle_sign_doc(message: types.Message, state: FSMContext) -> None:
+    await state.clear()
+    contractors = await get_contractors()
+    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    if not contractor:
+        await message.answer(replies.start.contractor)
+        return
+    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    try:
+        delivered = await _deliver_existing_invoice(message, contractor)
+    except Exception:
+        logger.exception("Invoice delivery failed for %s", contractor.display_name)
+        await message.answer(replies.invoice.delivery_error)
+        return
+    if not delivered:
+        result = await _start_invoice_flow(message, state, contractor)
+        if result == "invoice":
+            await state.set_state("ContractorStates:waiting_amount")
+        else:
+            await message.answer(
+                replies.registration.no_articles.format(month=prev_month())
+            )
+
+
+async def handle_update_payment_data(message: types.Message, state: FSMContext) -> None:
+    await state.clear()
+    contractors = await get_contractors()
+    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    if not contractor:
+        await message.answer(replies.start.contractor)
+        return
+    await state.set_state("ContractorStates:waiting_update_data")
+    await message.answer(replies.linked_menu.update_prompt)
+
+
+async def handle_manage_redirects(message: types.Message, state: FSMContext) -> None:
+    await state.clear()
+    contractors = await get_contractors()
+    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    if not contractor or contractor.role_code != RoleCode.REDAKTOR:
+        await message.answer(replies.start.contractor)
+        return
+    rules = await asyncio.to_thread(find_redirect_rules_by_target, contractor.id)
+    text, markup = _editor_sources_content(rules)
+    await message.answer(text, reply_markup=markup)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -233,7 +280,7 @@ async def handle_contractor_text(message: types.Message, state: FSMContext) -> s
         contractor = find_contractor_by_telegram_id(telegram_id, contractors)
         if contractor:
             await message.answer(
-                replies.linked_menu.prompt.format(name=contractor.display_name),
+                replies.menu.prompt,
                 reply_markup=_linked_menu_markup(contractor),
             )
             await state.clear()
@@ -831,7 +878,7 @@ async def handle_editor_source_callback(callback: CallbackQuery, state: FSMConte
         await callback.answer()
         try:
             await callback.message.edit_text(
-                replies.linked_menu.prompt.format(name=contractor.display_name),
+                replies.menu.prompt,
                 reply_markup=_linked_menu_markup(contractor),
             )
         except TelegramBadRequest:
@@ -927,7 +974,7 @@ async def handle_verification_code(message: types.Message, state: FSMContext) ->
             except Exception:
                 pass
         await message.answer(
-            replies.linked_menu.prompt.format(name=contractor.display_name),
+            replies.menu.prompt,
             reply_markup=_linked_menu_markup(contractor),
         )
         await state.clear()

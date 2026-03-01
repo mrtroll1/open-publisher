@@ -196,7 +196,9 @@ async def set_bot_commands(bot) -> None:
     """Set the bot's command menu button."""
     await bot.set_my_commands([
         BotCommand(command="menu", description="Меню"),
-        BotCommand(command="start", description="Начать сначала"),
+        BotCommand(command="sign_doc", description="Подписать договор для выплат"),
+        BotCommand(command="update_payment_data", description="Обновить платежные данные"),
+        BotCommand(command="manage_redirects", description="Настроить, за кого я получаю деньги"),
     ])
 
 
@@ -220,6 +222,14 @@ def register_flows(dp: Dispatcher, bot_flows: BotFlows) -> None:
             await _h(message, state)
 
         dp.message.register(cmd_menu, Command("menu"))
+
+    # Extra command handlers (e.g. /sign_doc, /update_payment_data)
+    for cmd_name, handler in bot_flows.command_handlers.items():
+        def _make_handler(h=handler):
+            async def _handler(message: types.Message, state: FSMContext):
+                await h(message, state)
+            return _handler
+        dp.message.register(_make_handler(), Command(cmd_name))
 
     # Admin commands (stateless, highest priority after /start)
     admin_router = Router(name="admin")

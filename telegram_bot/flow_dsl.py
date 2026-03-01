@@ -105,3 +105,4 @@ class BotFlows:
     start_handler: Optional[HandlerFn] = None
     menu_handler: Optional[HandlerFn] = None
     reply_handler: Optional[HandlerFn] = None
+    command_handlers: dict[str, HandlerFn] = field(default_factory=dict)

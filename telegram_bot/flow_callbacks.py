@@ -561,8 +561,7 @@ async def cmd_generate_invoices(message: types.Message, state: FSMContext) -> No
             )
             try:
                 sent = await message.answer_document(doc, caption=caption)
-                if contractor.telegram:
-                    _admin_reply_map[(message.chat.id, sent.message_id)] = (contractor.telegram, contractor.id)
+                _admin_reply_map[(message.chat.id, sent.message_id)] = (contractor.telegram, contractor.id)
             except Exception:
                 pass
 

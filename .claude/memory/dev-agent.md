@@ -543,6 +543,34 @@ _None yet._
 - All 274 tests pass
 - Files reviewed but not changed (already good): translate-name.md, knowledge/support-triage.md, knowledge/email-inbox.md, knowledge/contractors.md
 
+### Session 22 (2026-03-01) — Maintenance: Write Tests (round 4)
+**Status:** Complete
+
+**What was done:**
+- Created 14 new test files with 229 tests (total: 503 tests across 23 files, all passing in 1.26s)
+
+| File | Tests | Covers |
+|---|---|---|
+| `test_docs_gateway.py` | 26 | `format_date_ru()`, `format_date_en()`, `_find_placeholder_index()` |
+| `test_email_parse.py` | 18 | `EmailGateway._parse()` — raw email → IncomingEmail |
+| `test_prompt_loader.py` | 13 | `load_template()`, `load_knowledge()` |
+| `test_compose_request.py` | 18 | compose functions structure, model registry, key extraction |
+| `test_support_user_lookup.py` | 23 | `_fmt_account()`, `_fmt_subscriptions()`, `_fmt_payments()`, `_fmt_audit_log()` |
+| `test_support_email_service.py` | 6 | `_format_thread()` |
+| `test_flow_dsl.py` | 26 | `FlowState`, `Transition`, `Flow`, `AdminCommand`, `BotFlows` |
+| `test_flow_engine.py` | 13 | `_build_states_group()`, `_resolve_transition()` |
+| `test_flow_callbacks_helpers.py` | 7 | `_dup_button_label()` |
+| `test_bot_helpers.py` | 12 | `prev_month()`, `current_month()`, `is_admin()` |
+| `test_budget_repo.py` | 7 | `_sheet_name()`, `sheet_url()` |
+| `test_rules_repo.py` | 6 | `RedirectRule`, `FlatRateRule`, `ArticleRateRule` |
+| `test_flows_structure.py` | 28 | Flow state machine integrity, transitions, admin commands |
+| `test_models_properties.py` | 26 | `display_name`, `all_names`, `type`, `currency`, `SHEET_COLUMNS` |
+
+**Notes:**
+- All tests are pure-logic, no mocking of gateways/APIs
+- Coverage now extends to prompt loading, email parsing, flow DSL, flow engine, compose functions, support formatting, bot helpers, and model properties
+- Remaining untested: service-layer orchestration code (requires full mocking of gateways)
+
 ## Next up
 
-- Maintenance mode continues. Fourth cycle: next session should be write tests (round 4).
+- Maintenance mode continues. Fourth cycle: next session should be spot bugs (round 4).

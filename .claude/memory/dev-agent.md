@@ -471,6 +471,23 @@ _None yet._
 - All 274 tests pass after fixes
 - Bug 3 (debug mode) is the most impactful — could silently block real invoice generation after a debug run
 
+### Session 19 (2026-03-01) — Maintenance: Refactor (round 3)
+**Status:** Complete
+
+**What was done:**
+- Extracted `_generate_rub_invoice()` helper in `generate_invoice.py` — unified `_generate_ip()` and `_generate_samozanyaty()` which shared 14 identical template replacements. Each now only provides their unique fields via `extra_replacements` dict.
+- Extracted `_write_invoice_field()` helper in `invoice_repo.py` — column lookup + write pattern, matching existing `_write_cell()` in contractor_repo. Used by `update_invoice_status()` and `update_legium_link()`.
+- Extracted `_pick_by_currency()` helper in `compute_budget.py` — eliminated duplicated tuple→currency→value logic in two places within `_build_entries()`.
+- Moved inline imports (`SupportEmailService`, `ArticleProposalService`) to top-of-file in `flow_callbacks.py`.
+- Fixed duplicate `logger.info` line introduced during refactoring in `update_legium_link`.
+
+**Net result:** -14 lines, 4 duplicated code blocks eliminated across 4 files
+
+**Notes:**
+- All 274 tests pass
+- `_generate_rub_invoice` works for both IP and Samozanyaty — the shared fields (passport, bank, amount, dates) are identical
+- No function signatures or public behavior changed
+
 ## Next up
 
-- Maintenance mode continues. Fourth cycle: next session should be refactor (round 3).
+- Maintenance mode continues. Fourth cycle: next session should be polish UX (round 3).

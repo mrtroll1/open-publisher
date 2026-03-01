@@ -63,8 +63,10 @@ from backend import (
 )
 from telegram_bot import replies
 from telegram_bot.bot_helpers import bot, get_contractors, is_admin, prev_month
+from backend.domain.article_proposal_service import ArticleProposalService
 from backend.domain.compute_budget import ComputeBudget
 from backend.domain.parse_bank_statement import ParseBankStatement
+from backend.domain.support_email_service import SupportEmailService
 
 logger = logging.getLogger(__name__)
 
@@ -1153,9 +1155,6 @@ async def cmd_upload_to_airtable(message: types.Message, state: FSMContext) -> N
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  Email support: background listener + callback handler
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-from backend.domain.support_email_service import SupportEmailService
-from backend.domain.article_proposal_service import ArticleProposalService
 
 _email_service = SupportEmailService()
 _proposal_service = ArticleProposalService()

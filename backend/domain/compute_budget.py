@@ -93,6 +93,14 @@ def _role_label(contractor: Contractor) -> str:
     return ""
 
 
+def _pick_by_currency(eur_rub: tuple[int, int] | None, currency: Currency) -> int | None:
+    """Pick EUR or RUB from a tuple, treating 0 as absent."""
+    if not eur_rub:
+        return None
+    val = eur_rub[0] if currency == Currency.EUR else eur_rub[1]
+    return val or None
+
+
 BLANK = PaymentEntry()
 
 
@@ -228,12 +236,8 @@ class ComputeBudget:
 
         # Process published authors first (order preserved from API)
         for cid, (c, article_count) in matched.items():
-            flat_tuple = flat_by_id.get(cid)
-            flat = (flat_tuple[0] if c.currency == Currency.EUR else flat_tuple[1]) if flat_tuple else None
-            flat = flat or None  # treat 0 as absent
-            rate_tuple = rate_by_id.get(cid)
-            rate = (rate_tuple[0] if c.currency == Currency.EUR else rate_tuple[1]) if rate_tuple else None
-            rate = rate or None  # treat 0 as absent
+            flat = _pick_by_currency(flat_by_id.get(cid), c.currency)
+            rate = _pick_by_currency(rate_by_id.get(cid), c.currency)
             amount = _compute_budget_amount(flat, rate, article_count, c.currency)
             if amount <= 0:
                 continue
@@ -251,10 +255,8 @@ class ComputeBudget:
             if c is None:
                 logger.warning("Flat-rate contractor not found: %s", fr.contractor_id)
                 continue
-            flat = (fr.eur if c.currency == Currency.EUR else fr.rub) or None
-            rate_tuple = rate_by_id.get(fr.contractor_id)
-            rate = (rate_tuple[0] if c.currency == Currency.EUR else rate_tuple[1]) if rate_tuple else None
-            rate = rate or None  # treat 0 as absent
+            flat = _pick_by_currency((fr.eur, fr.rub), c.currency)
+            rate = _pick_by_currency(rate_by_id.get(fr.contractor_id), c.currency)
             # Check if they also have articles
             article_count = 0
             if rate is not None:

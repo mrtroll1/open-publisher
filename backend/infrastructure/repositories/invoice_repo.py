@@ -105,20 +105,25 @@ def _find_invoice_row(contractor_id: str, month: str) -> tuple[list[str], int] |
     return None
 
 
+def _write_invoice_field(headers: list[str], row_idx: int, field: str, value: str) -> bool:
+    """Find column by name and write value to the invoice row. Returns True on success."""
+    try:
+        col_idx = headers.index(field)
+    except ValueError:
+        logger.error("Column %s not found in invoices sheet", field)
+        return False
+    col_letter = index_to_column_letter(col_idx)
+    _sheets.write(CONTRACTORS_SHEET_ID, f"'{SHEET_NAME}'!{col_letter}{row_idx + 1}", [[value]])
+    return True
+
+
 def update_invoice_status(contractor_id: str, month: str, status: InvoiceStatus) -> None:
     result = _find_invoice_row(contractor_id, month)
     if result is None:
         logger.warning("Invoice not found for %s/%s", contractor_id, month)
         return
     headers, row_idx = result
-    try:
-        status_col = headers.index("status")
-    except ValueError:
-        logger.error("status column not found in invoices sheet")
-        return
-    col_letter = index_to_column_letter(status_col)
-    cell = f"'{SHEET_NAME}'!{col_letter}{row_idx + 1}"
-    _sheets.write(CONTRACTORS_SHEET_ID, cell, [[status.value]])
+    _write_invoice_field(headers, row_idx, "status", status.value)
     logger.info("Updated invoice status for %s/%s to %s", contractor_id, month, status.value)
 
 
@@ -128,13 +133,6 @@ def update_legium_link(contractor_id: str, month: str, url: str) -> None:
         logger.warning("Invoice not found for %s/%s", contractor_id, month)
         return
     headers, row_idx = result
-    try:
-        status_col = headers.index("status")
-        link_col = headers.index("legium_link")
-    except ValueError:
-        logger.error("Required columns not found in invoices sheet")
-        return
-    row_num = row_idx + 1
-    _sheets.write(CONTRACTORS_SHEET_ID, f"'{SHEET_NAME}'!{index_to_column_letter(status_col)}{row_num}", [[InvoiceStatus.SENT.value]])
-    _sheets.write(CONTRACTORS_SHEET_ID, f"'{SHEET_NAME}'!{index_to_column_letter(link_col)}{row_num}", [[url]])
+    _write_invoice_field(headers, row_idx, "status", InvoiceStatus.SENT.value)
+    _write_invoice_field(headers, row_idx, "legium_link", url)
     logger.info("Set legium_link for %s/%s", contractor_id, month)

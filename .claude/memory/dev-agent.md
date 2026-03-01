@@ -318,6 +318,32 @@ _None yet._
 - `_parse_contractor` always defaults missing fields to "" via `row.get(field, "")`, so Pydantic ValidationError never triggers for missing keys
 - Future: consider testing `parse_bank_statement.py` helpers (need to handle config dependency), service-layer code with mocked gateways
 
+### Session 13 (2026-03-01) — Maintenance: Spot Bugs (round 2)
+**Status:** Complete
+
+**What was done:**
+- Thorough code review across all files modified in sessions 9-12 (refactor, UX, prompts, tests)
+- Found and fixed 3 issues:
+
+1. **CONFIRMED BUG — Currency-blind flat/rate selection in `compute_budget.py`**:
+   - `flat_by_id` stored `fr.eur or fr.rub` (single int), losing currency distinction
+   - `rate` selection used `(rate_tuple[0] or rate_tuple[1])` — always picks EUR if non-zero, regardless of contractor's actual currency
+   - **Fix**: `flat_by_id` now stores `(eur, rub)` tuple; selection uses `c.currency == Currency.EUR` to pick the correct value
+   - **Impact**: Could have assigned wrong-currency amounts to contractors with both EUR and RUB values configured
+
+2. **DEAD CODE — `/cancel` check in FSM text handlers** (flow_callbacks.py):
+   - `handle_editor_source_name` and `handle_update_data` checked for `/cancel` in text input
+   - But `flow_engine.py:138` filters out `/`-prefixed messages (`F.text & ~F.text.startswith("/")`) — `/cancel` would never reach these handlers
+   - **Fix**: Removed unreachable `/cancel` check, kept only "отмена"
+
+3. **TEST FIX — `flat_ids` type mismatch**:
+   - `test_no_label_in_flat_ids_to_staff` passed `{"g1": 500}` but `_route_entry` now expects `dict[str, tuple[int, int]]`
+   - Fixed to `{"g1": (500, 0)}`
+
+**Notes:**
+- The currency bug was incorrectly classified as "false positive" in session 8 ("rates are mutually exclusive per contractor"). While rates may typically be mutually exclusive in practice, the `or` logic was fragile and incorrect for edge cases
+- All 167 tests pass after fixes
+
 ## Next up
 
-- Maintenance mode continues. Second pass through priorities done: tests. Next sessions: continue cycling — spot bugs, refactor, UX, or prompts (in areas that benefit most from another pass).
+- Maintenance mode continues. Full second cycle complete (tests, bugs, refactor, UX, prompts, tests, bugs). Next session: refactor (round 2).

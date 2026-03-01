@@ -791,7 +791,7 @@ async def handle_editor_source_callback(callback: CallbackQuery, state: FSMConte
 
 async def handle_editor_source_name(message: types.Message, state: FSMContext) -> str | None:
     """Handle text input for adding a new editor source. Returns 'done' or None."""
-    if message.text.strip().lower() in ("отмена", "/cancel"):
+    if message.text.strip().lower() == "отмена":
         await state.clear()
         await message.answer("Добавление отменено.")
         return "done"
@@ -816,7 +816,7 @@ async def handle_editor_source_name(message: types.Message, state: FSMContext) -
 
 async def handle_update_data(message: types.Message, state: FSMContext) -> str | None:
     """Parse free-form update text and write changes to sheet. Returns 'done' or None."""
-    if message.text.strip().lower() in ("отмена", "/cancel"):
+    if message.text.strip().lower() == "отмена":
         await state.clear()
         await message.answer("Обновление отменено.")
         return "done"

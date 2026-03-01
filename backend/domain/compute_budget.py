@@ -148,11 +148,11 @@ class ComputeBudget:
             r.source_name: (r.target_id, r.add_to_total)
             for r in redirect_rules if r.target_id
         }
-        flat_by_id: dict[str, int] = {}      # contractor_id → flat amount
+        flat_by_id: dict[str, tuple[int, int]] = {}  # contractor_id → (eur, rub)
         label_by_id: dict[str, str] = {}      # contractor_id → label
         for fr in flat_rate_rules:
             if fr.contractor_id:
-                flat_by_id[fr.contractor_id] = fr.eur or fr.rub
+                flat_by_id[fr.contractor_id] = (fr.eur, fr.rub)
                 if fr.label:
                     label_by_id[fr.contractor_id] = fr.label
         rate_by_id: dict[str, tuple[int, int]] = {
@@ -228,9 +228,12 @@ class ComputeBudget:
 
         # Process published authors first (order preserved from API)
         for cid, (c, article_count) in matched.items():
-            flat = flat_by_id.get(cid)
+            flat_tuple = flat_by_id.get(cid)
+            flat = (flat_tuple[0] if c.currency == Currency.EUR else flat_tuple[1]) if flat_tuple else None
+            flat = flat or None  # treat 0 as absent
             rate_tuple = rate_by_id.get(cid)
-            rate = (rate_tuple[0] or rate_tuple[1]) if rate_tuple else None
+            rate = (rate_tuple[0] if c.currency == Currency.EUR else rate_tuple[1]) if rate_tuple else None
+            rate = rate or None  # treat 0 as absent
             amount = _compute_budget_amount(flat, rate, article_count, c.currency)
             if amount <= 0:
                 continue
@@ -248,9 +251,10 @@ class ComputeBudget:
             if c is None:
                 logger.warning("Flat-rate contractor not found: %s", fr.contractor_id)
                 continue
-            flat = fr.eur or fr.rub
+            flat = (fr.eur if c.currency == Currency.EUR else fr.rub) or None
             rate_tuple = rate_by_id.get(fr.contractor_id)
-            rate = (rate_tuple[0] or rate_tuple[1]) if rate_tuple else None
+            rate = (rate_tuple[0] if c.currency == Currency.EUR else rate_tuple[1]) if rate_tuple else None
+            rate = rate or None  # treat 0 as absent
             # Check if they also have articles
             article_count = 0
             if rate is not None:
@@ -315,7 +319,7 @@ class ComputeBudget:
         contractor: Contractor,
         label: str,
         entry: PaymentEntry,
-        flat_ids: dict[str, int],
+        flat_ids: dict[str, tuple[int, int]],
         authors: list[PaymentEntry],
         staff: list[PaymentEntry],
         editors: list[PaymentEntry],

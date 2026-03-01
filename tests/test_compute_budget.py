@@ -230,7 +230,7 @@ class TestRouteEntry:
 
     def test_no_label_in_flat_ids_to_staff(self):
         c = _global(id="g1", role_code=RoleCode.AUTHOR)
-        assert self._route(c, "", flat_ids={"g1": 500}) == "staff"
+        assert self._route(c, "", flat_ids={"g1": (500, 0)}) == "staff"
 
     def test_no_label_not_in_flat_ids_to_authors(self):
         c = _global(id="g1", role_code=RoleCode.AUTHOR)

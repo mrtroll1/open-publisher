@@ -725,11 +725,7 @@ async def handle_editor_source_callback(callback: CallbackQuery, state: FSMConte
 
     data = callback.data.removeprefix("esrc:")
 
-    if data == "list":
-        await callback.answer()
-        await _show_editor_sources(callback, contractor)
-
-    elif data.startswith("rm:"):
+    if data.startswith("rm:"):
         source_name = data.removeprefix("rm:")
         removed = await asyncio.to_thread(remove_redirect_rule, source_name, contractor.id)
         # Show toast notification with removal confirmation
@@ -1115,6 +1111,7 @@ async def cmd_upload_to_airtable(message: types.Message, state: FSMContext) -> N
     file = await bot.get_file(message.document.file_id)
     file_bytes = await bot.download_file(file.file_path)
 
+    tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
             tmp.write(file_bytes.read())
@@ -1134,7 +1131,8 @@ async def cmd_upload_to_airtable(message: types.Message, state: FSMContext) -> N
         await message.answer(replies.admin.upload_error.format(error=e))
     finally:
         import os
-        os.unlink(tmp_path)
+        if tmp_path:
+            os.unlink(tmp_path)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1150,6 +1148,9 @@ _proposal_service = ArticleProposalService()
 
 async def email_listener_task() -> None:
     """Background task: listen for new emails and send drafts to admin."""
+    if not ADMIN_TELEGRAM_IDS:
+        logger.warning("No admin IDs configured, email listener disabled")
+        return
     admin_id = ADMIN_TELEGRAM_IDS[0]
     logger.info("Email listener started for %s", EMAIL_ADDRESS)
     while True:

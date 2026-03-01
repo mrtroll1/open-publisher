@@ -209,12 +209,18 @@ def unredirect_in_budget(source_name: str, target: Contractor, month: str) -> No
     t_sheet_row = target_idx + 2
     _sheets.write(sheet_id, f"A{t_sheet_row}:E{t_sheet_row}", [t_row[:5]])
 
-    # Append the source as a standalone row at the bottom
+    # Restore source as a standalone row in the first empty slot
     sym_col = 2 if target.currency == Currency.EUR else 3
     new_row = [""] * 5
     new_row[0] = source_name
     new_row[sym_col] = str(source_amount)
-    _sheets.append(sheet_id, "A2:E200", [new_row])
+    empty_idx = len(rows)
+    for i, row in enumerate(rows):
+        if not row or not row[0].strip():
+            empty_idx = i
+            break
+    write_row = empty_idx + 2  # +1 header, +1 for 1-based
+    _sheets.write(sheet_id, f"A{write_row}:E{write_row}", [new_row])
     logger.info("Budget: restored %s (%d) from %s", source_name, source_amount, target.display_name)
 
 

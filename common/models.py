@@ -300,6 +300,11 @@ class IncomingEmail(BaseModel):
     body: str
     date: str
     message_id: str = ""
+    in_reply_to: str = ""
+    references: str = ""
+
+    def as_text(self) -> str:
+        return f"From: {self.from_addr}\nSubject: {self.subject}\n\n{self.body}"
 
 
 class SupportDraft(BaseModel):

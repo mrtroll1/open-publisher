@@ -31,9 +31,17 @@
 
 ## Phase 1: Foundation (Features 6 + 1)
 
-### Feature 6: Postgres + Email Thread Tracking
+### Feature 6: Postgres + Email Thread Tracking ✅ (Session 1)
 
 **Why first:** Establishes database infrastructure all other features may benefit from.
+
+- [x] Step 6.1: Add Postgres to docker-compose.yml
+- [x] Step 6.2: Add DATABASE_URL env var to config.py
+- [x] Step 6.3: Create db_gateway.py with thread tracking
+- [x] Step 6.4: Add in_reply_to and references to IncomingEmail
+- [x] Step 6.5: Parse In-Reply-To and References headers in email_gateway.py
+- [x] Step 6.6: Integrate thread tracking into SupportEmailService
+- [x] Step 6.7: Add psycopg2-binary to requirements.txt
 
 #### Step 6.1: Add Postgres to docker-compose.yml
 ```yaml
@@ -99,7 +107,15 @@ class IncomingEmail(BaseModel):
 
 ---
 
-### Feature 1: Linked User Menu
+### Feature 1: Linked User Menu ✅ (Session 2)
+
+- [x] Step 1.1: Add reply strings
+- [x] Step 1.2: Add FSM states for update flow
+- [x] Step 1.3: Modify `handle_contractor_text`
+- [x] Step 1.4: Add `handle_linked_menu_callback`
+- [x] Step 1.5: Add `update_contractor_fields()`
+- [x] Step 1.6: Register callbacks
+- [x] Step 1.7: Modify `handle_start` for linked users
 
 #### Step 1.1: Add reply strings
 `telegram_bot/replies.py` — new class `linked_menu`:
@@ -151,7 +167,14 @@ Show menu for linked contractors instead of generic greeting.
 
 ## Phase 2: Editor Tools (Feature 2)
 
-### Feature 2: Editor Source Management
+### Feature 2: Editor Source Management ✅ (Session 3)
+
+- [x] Step 2.1: Add CRUD to rules_repo
+- [x] Step 2.2: Modify the linked user menu
+- [x] Step 2.3: Add editor source handlers
+- [x] Step 2.4: Add FSM state for new source
+- [x] Step 2.5: Add reply strings
+- [x] Step 2.6: Register callbacks
 
 #### Step 2.1: Add CRUD to rules_repo
 `backend/infrastructure/repositories/rules_repo.py`:
@@ -206,7 +229,13 @@ dp.callback_query.register(handle_editor_source_callback, F.data.startswith("esr
 
 ## Phase 3: Data Pipeline (Feature 3)
 
-### Feature 3: Redefine PNL + Exchange Rate → Budget Sheet
+### Feature 3: Redefine PNL + Exchange Rate → Budget Sheet ✅ (Session 4)
+
+- [x] Step 3.1: Add env vars
+- [x] Step 3.2: Add PNL method to RedefineGateway
+- [x] Step 3.3: Create exchange rate gateway
+- [x] Step 3.4: Modify budget generation
+- [x] Step 3.5: Modify budget_repo.py
 
 #### Step 3.1: Add env vars
 `common/config.py`:
@@ -259,7 +288,14 @@ def fetch_eur_rub_rate() -> float:
 
 ## Phase 4: Email Intelligence (Features 4 + 5)
 
-### Feature 4: Article Proposal Monitoring
+### Feature 4: Article Proposal Monitoring ✅ (Session 5)
+
+- [x] Step 4.1: Add env var
+- [x] Step 4.2: Create ArticleProposalService
+- [x] Step 4.3: Create LLM prompt
+- [x] Step 4.4: Add compose function
+- [x] Step 4.5: Modify email_listener_task
+- [x] Step 4.6: Expose non-support emails from SupportEmailService
 
 #### Step 4.1: Add env var
 `common/config.py`:
@@ -299,7 +335,14 @@ def article_proposal_triage(email_text: str) -> tuple[str, str, list[str]]:
 
 ---
 
-### Feature 5: Repo Access for Tech Support
+### Feature 5: Repo Access for Tech Support ✅ (Session 6)
+
+- [x] Step 5.1: Add env vars
+- [x] Step 5.2: Create RepoGateway
+- [x] Step 5.3: Create LLM prompt for search terms
+- [x] Step 5.4: Integrate into SupportEmailService
+- [x] Step 5.5: Modify Docker setup
+- [ ] Step 5.6: Future — Claude Code subprocess (deferred)
 
 #### Step 5.1: Add env vars
 `common/config.py`:

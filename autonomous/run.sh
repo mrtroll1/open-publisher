@@ -127,7 +127,6 @@ echo "" >> "$LAST_RUN_LOG"
 
 COMPLETED=0
 FAILED=0
-STUCK=0
 
 for i in $(seq 1 $ITERATIONS); do
     SESSION_DETAIL="$LOG_DIR/session-${RUN_ID}-$(printf '%02d' $i).log"
@@ -145,7 +144,7 @@ for i in $(seq 1 $ITERATIONS); do
 
     # Capture exit code
     EXIT_CODE=0
-    timeout "${INTERVAL}s" claude -p "$PROMPT" \
+    claude -p "$PROMPT" \
         --allowedTools "$ALLOWED_TOOLS" \
         --disallowedTools "$DENIED_TOOLS" \
         --max-turns "$MAX_TURNS" \
@@ -156,10 +155,7 @@ for i in $(seq 1 $ITERATIONS); do
     DURATION_MIN=$(( DURATION / 60 ))
 
     # Detect what happened
-    if [ $EXIT_CODE -eq 124 ]; then
-        STATUS="STUCK (timed out after ${INTERVAL}s)"
-        STUCK=$(( STUCK + 1 ))
-    elif [ $EXIT_CODE -ne 0 ]; then
+    if [ $EXIT_CODE -ne 0 ]; then
         STATUS="FAILED (exit code $EXIT_CODE)"
         FAILED=$(( FAILED + 1 ))
     else
@@ -192,7 +188,7 @@ done
 
 log ""
 log "=== RUN FINISHED ==="
-log "Completed: $COMPLETED | Failed: $FAILED | Stuck: $STUCK | Total: $ITERATIONS"
+log "Completed: $COMPLETED | Failed: $FAILED  | Total: $ITERATIONS"
 
 echo "=== Run finished at $(date) ===" >> "$LAST_RUN_LOG"
-echo "Completed: $COMPLETED | Failed: $FAILED | Stuck: $STUCK" >> "$LAST_RUN_LOG"
+echo "Completed: $COMPLETED | Failed: $FAILED " >> "$LAST_RUN_LOG"

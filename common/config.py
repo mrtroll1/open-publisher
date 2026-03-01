@@ -79,11 +79,15 @@ CONTENT_API_URL = os.environ.get("CONTENT_API_URL", "")
 # --- Gemini (for new-contractor parsing) ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
+# --- Database ---
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://agent:agent_dev_pass@db:5432/republic_agent")
+
 # --- Email (support inbox via Gmail API) ---
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS", "")
 GMAIL_CLIENT_ID = os.getenv("GMAIL_CLIENT_ID", "")
 GMAIL_CLIENT_SECRET = os.getenv("GMAIL_CLIENT_SECRET", "")
 GMAIL_REFRESH_TOKEN = os.getenv("GMAIL_REFRESH_TOKEN", "")
+CHIEF_EDITOR_EMAIL = os.getenv("CHIEF_EDITOR_EMAIL", "")
 
 
 def get_gmail_creds():
@@ -107,6 +111,18 @@ REPUBLIC_API_URL = os.getenv("REPUBLIC_API_URL", "")
 REPUBLIC_SUPPORT_API_KEY = os.getenv("REPUBLIC_SUPPORT_API_KEY", "")
 REDEFINE_API_URL = os.getenv("REDEFINE_API_URL", "")
 REDEFINE_SUPPORT_API_KEY = os.getenv("REDEFINE_SUPPORT_API_KEY", "")
+
+# --- Redefine PNL ---
+PNL_API_URL = os.getenv("PNL_API_URL", "")
+PNL_API_USER = os.getenv("PNL_API_USER", "")
+PNL_API_PASSWORD = os.getenv("PNL_API_PASSWORD", "")
+EUR_RUB_CELL = os.getenv("EUR_RUB_CELL", "G2")
+
+# --- Repos ---
+REPOS_DIR = os.getenv("REPOS_DIR", "/opt/repos")
+REPUBLIC_REPO_URL = os.getenv("REPUBLIC_REPO_URL", "")
+REDEFINE_REPO_URL = os.getenv("REDEFINE_REPO_URL", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
 # --- Product name (used in user-facing strings) ---
 PRODUCT_NAME = os.getenv("PRODUCT_NAME", "")

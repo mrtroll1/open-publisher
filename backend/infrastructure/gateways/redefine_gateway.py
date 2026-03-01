@@ -6,7 +6,13 @@ import logging
 
 import requests
 
-from common.config import REDEFINE_API_URL, REDEFINE_SUPPORT_API_KEY
+from common.config import (
+    REDEFINE_API_URL,
+    REDEFINE_SUPPORT_API_KEY,
+    PNL_API_URL,
+    PNL_API_USER,
+    PNL_API_PASSWORD,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -68,3 +74,20 @@ class RedefineGateway:
         except Exception as e:
             logger.error("Redefine %s failed: %s", path, e)
             return []
+
+    def get_pnl_stats(self, month: str) -> dict:
+        if not PNL_API_URL:
+            logger.warning("PNL_API_URL not configured")
+            return {}
+        try:
+            resp = requests.get(
+                f"{PNL_API_URL}/stats",
+                params={"month": month},
+                auth=(PNL_API_USER, PNL_API_PASSWORD),
+                timeout=15,
+            )
+            resp.raise_for_status()
+            return resp.json().get("data", {})
+        except Exception as e:
+            logger.error("PNL stats fetch failed for %s: %s", month, e)
+            return {}

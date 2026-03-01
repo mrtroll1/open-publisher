@@ -21,6 +21,7 @@ from common.models import (
     SamozanyatyContractor,
 )
 from backend.infrastructure.gateways.sheets_gateway import SheetsGateway
+from backend.infrastructure.repositories.sheets_utils import index_to_column_letter
 
 logger = logging.getLogger(__name__)
 
@@ -187,25 +188,29 @@ def _find_contractor_in_sheets(contractor_id: str) -> tuple[str, list[list[str]]
     return None
 
 
+def _write_cell(sheet_name: str, headers: list[str], row_idx: int, field: str, value: str) -> bool:
+    """Find column by name and write value. Returns True on success."""
+    try:
+        col_idx = headers.index(field)
+    except ValueError:
+        logger.warning("Column %s not found in sheet %s", field, sheet_name)
+        return False
+    col_letter = index_to_column_letter(col_idx)
+    cell = f"'{sheet_name}'!{col_letter}{row_idx + 1}"
+    _sheets.write(CONTRACTORS_SHEET_ID, cell, [[value]])
+    return True
+
+
 def bind_telegram_id(contractor_id: str, telegram_id: int) -> None:
     """Write the Telegram user ID into the contractor's row in the sheet."""
     result = _find_contractor_in_sheets(contractor_id)
     if result is None:
         logger.error("Contractor %s not found in any sheet", contractor_id)
         return
-
     sheet_name, rows, row_idx = result
     headers = [h.strip().lower() for h in rows[0]]
-    try:
-        tg_col_idx = headers.index("telegram")
-    except ValueError:
-        logger.error("telegram column not found in sheet %s", sheet_name)
-        return
-
-    col_letter = _index_to_column_letter(tg_col_idx)
-    cell_address = f"'{sheet_name}'!{col_letter}{row_idx + 1}"
-    _sheets.write(CONTRACTORS_SHEET_ID, cell_address, [[str(telegram_id)]])
-    logger.info("Bound telegram_id %s to contractor %s", telegram_id, contractor_id)
+    if _write_cell(sheet_name, headers, row_idx, "telegram", str(telegram_id)):
+        logger.info("Bound telegram_id %s to contractor %s", telegram_id, contractor_id)
 
 
 def contractor_to_row(c: Contractor) -> list[str]:
@@ -249,35 +254,29 @@ def increment_invoice_number(contractor_id: str) -> int:
     if result is None:
         logger.error("Contractor %s not found in any sheet", contractor_id)
         return 1
-
-    sheet_name, rows, contractor_row_idx = result
+    sheet_name, rows, row_idx = result
     headers = [h.strip().lower() for h in rows[0]]
     try:
-        invoice_num_col_idx = headers.index("invoice_number")
+        col_idx = headers.index("invoice_number")
     except ValueError:
         logger.error("invoice_number column not found in sheet %s", sheet_name)
         return 1
-
-    current_val = rows[contractor_row_idx][invoice_num_col_idx] if invoice_num_col_idx < len(rows[contractor_row_idx]) else "0"
+    current_val = rows[row_idx][col_idx] if col_idx < len(rows[row_idx]) else "0"
     try:
         current_num = int(current_val) if current_val else 0
     except ValueError:
         current_num = 0
-
     new_num = current_num + 1
-
-    col_letter = _index_to_column_letter(invoice_num_col_idx)
-    cell_address = f"'{sheet_name}'!{col_letter}{contractor_row_idx + 1}"
-    _sheets.write(CONTRACTORS_SHEET_ID, cell_address, [[str(new_num)]])
-    logger.info(f"Updated {contractor_id} invoice_number to {new_num}")
-
+    _write_cell(sheet_name, headers, row_idx, "invoice_number", str(new_num))
+    logger.info("Updated %s invoice_number to %d", contractor_id, new_num)
     return new_num
 
 
 def pop_random_secret_code() -> str:
     """Pick a random secret code from the 'secret_codes' sheet and delete that row."""
     rows = _sheets.read(CONTRACTORS_SHEET_ID, "'secret_codes'!A:A")
-    codes = [(i, row[0].strip()) for i, row in enumerate(rows) if row and row[0].strip()]
+    # Skip header row (index 0)
+    codes = [(i, row[0].strip()) for i, row in enumerate(rows) if i > 0 and row and row[0].strip()]
     if not codes:
         logger.warning("No secret codes left in the sheet")
         return ""
@@ -288,12 +287,14 @@ def pop_random_secret_code() -> str:
     return code
 
 
-def _index_to_column_letter(idx: int) -> str:
-    """Convert 0-based column index to letter (0->A, 1->B, ..., 26->AA)."""
-    result = ""
-    idx += 1
-    while idx > 0:
-        idx -= 1
-        result = chr(65 + (idx % 26)) + result
-        idx //= 26
-    return result
+def update_contractor_fields(contractor_id: str, updates: dict[str, str]) -> int:
+    """Update specific fields for a contractor in their sheet. Returns number of fields updated."""
+    result = _find_contractor_in_sheets(contractor_id)
+    if result is None:
+        logger.error("Contractor %s not found in any sheet", contractor_id)
+        return 0
+    sheet_name, rows, row_idx = result
+    headers = [h.strip().lower() for h in rows[0]]
+    count = sum(1 for f, v in updates.items() if _write_cell(sheet_name, headers, row_idx, f, v))
+    logger.info("Updated %d fields for contractor %s", count, contractor_id)
+    return count

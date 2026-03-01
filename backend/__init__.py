@@ -13,6 +13,14 @@ from backend.infrastructure.repositories.contractor_repo import (  # noqa: F401
     next_contractor_id,
     pop_random_secret_code,
     save_contractor,
+    update_contractor_fields,
+)
+
+# --- Rules repository ---
+from backend.infrastructure.repositories.rules_repo import (  # noqa: F401
+    add_redirect_rule,
+    find_redirect_rules_by_target,
+    remove_redirect_rule,
 )
 
 # --- Invoice repository ---
@@ -97,3 +105,4 @@ from backend.domain.generate_batch_invoices import GenerateBatchInvoices, BatchR
 from backend.domain.parse_bank_statement import ParseBankStatement  # noqa: F401
 from backend.domain.compute_budget import ComputeBudget  # noqa: F401
 from backend.domain.support_email_service import SupportEmailService  # noqa: F401
+from backend.domain.article_proposal_service import ArticleProposalService  # noqa: F401

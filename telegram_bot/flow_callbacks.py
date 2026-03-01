@@ -10,11 +10,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
+import tempfile
 from decimal import Decimal
 from aiogram import types
 from aiogram.enums import ChatAction
 from aiogram.fsm.context import FSMContext
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
 from common.config import ADMIN_TELEGRAM_IDS, EMAIL_ADDRESS
@@ -26,9 +29,11 @@ from common.models import (
     Currency,
     GlobalContractor,
     InvoiceStatus,
+    RoleCode,
     SupportDraft,
 )
 from backend import (
+    add_redirect_rule,
     bind_telegram_id,
     create_and_save_invoice,
     export_pdf,
@@ -36,6 +41,7 @@ from backend import (
     find_contractor,
     find_contractor_by_id,
     find_contractor_by_telegram_id,
+    find_redirect_rules_by_target,
     fuzzy_find,
     GenerateBatchInvoices,
     load_invoices,
@@ -45,9 +51,11 @@ from backend import (
     pop_random_secret_code,
     prepare_existing_invoice,
     read_budget_amounts,
+    remove_redirect_rule,
     resolve_amount,
     save_contractor,
     translate_name_to_russian,
+    update_contractor_fields,
     update_invoice_status,
     update_legium_link,
     upload_invoice_pdf,
@@ -55,6 +63,10 @@ from backend import (
 )
 from telegram_bot import replies
 from telegram_bot.bot_helpers import bot, get_contractors, is_admin, prev_month
+from backend.domain.article_proposal_service import ArticleProposalService
+from backend.domain.compute_budget import ComputeBudget
+from backend.domain.parse_bank_statement import ParseBankStatement
+from backend.domain.support_email_service import SupportEmailService
 
 logger = logging.getLogger(__name__)
 
@@ -63,12 +75,32 @@ logger = logging.getLogger(__name__)
 #  /start
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+def _linked_menu_markup(contractor: Contractor) -> InlineKeyboardMarkup:
+    rows = [
+        [InlineKeyboardButton(text=replies.linked_menu.btn_contract, callback_data="menu:contract")],
+        [InlineKeyboardButton(text=replies.linked_menu.btn_update, callback_data="menu:update")],
+    ]
+    if contractor.role_code == RoleCode.REDAKTOR:
+        rows.append([InlineKeyboardButton(
+            text=replies.linked_menu.btn_editor_sources, callback_data="menu:editor",
+        )])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 async def handle_start(message: types.Message, state: FSMContext) -> None:
     await state.clear()
     if is_admin(message.from_user.id):
         await message.answer(replies.start.admin)
-    else:
-        await message.answer(replies.start.contractor)
+        return
+    contractors = await get_contractors()
+    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    if contractor:
+        await message.answer(
+            replies.linked_menu.prompt.format(name=contractor.display_name),
+            reply_markup=_linked_menu_markup(contractor),
+        )
+        return
+    await message.answer(replies.start.contractor)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -149,12 +181,12 @@ async def handle_data_input(message: types.Message, state: FSMContext) -> str | 
             val = collected.get(field, "")
             if val:
                 filled_lines.append(f"  ✓ {label}: {val}")
-        parts = ["Вот что я уже получил:\n" + "\n".join(filled_lines)]
+        parts = [replies.registration.progress_header.format(filled="\n".join(filled_lines))]
         if missing:
-            parts.append("Ещё нужно: " + ", ".join(missing.values()) + ".")
+            parts.append(replies.registration.still_needed.format(fields=", ".join(missing.values())))
         if warnings:
             parts.append("\n".join(f"  ⚠ {w}" for w in warnings))
-        parts.append("Пришлите исправленные/недостающие данные.")
+        parts.append(replies.registration.send_corrections)
         await message.answer("\n\n".join(parts))
         return None
 
@@ -185,17 +217,16 @@ async def handle_contractor_text(message: types.Message, state: FSMContext) -> s
     contractors = await get_contractors()
     telegram_id = message.from_user.id
 
-    # Already bound?
-    contractor = find_contractor_by_telegram_id(telegram_id, contractors)
-    if contractor:
-        delivered = await _deliver_existing_invoice(message, contractor)
-        if not delivered:
-            month = prev_month()
+    # Already bound? Show linked menu (admins use lookup instead)
+    if not is_admin(telegram_id):
+        contractor = find_contractor_by_telegram_id(telegram_id, contractors)
+        if contractor:
             await message.answer(
-                replies.lookup.no_invoices.format(name=contractor.display_name, month=month)
+                replies.linked_menu.prompt.format(name=contractor.display_name),
+                reply_markup=_linked_menu_markup(contractor),
             )
-        await state.clear()
-        return None
+            await state.clear()
+            return None
 
     query = message.text.strip()
 
@@ -211,7 +242,7 @@ async def handle_contractor_text(message: types.Message, state: FSMContext) -> s
             for c, _ in matches[:5]
         ]
         buttons.append([InlineKeyboardButton(
-            text="Я новый контрагент",
+            text=replies.lookup.new_contractor_btn,
             callback_data="dup:new",
         )])
         await message.answer(
@@ -226,7 +257,11 @@ async def handle_contractor_text(message: types.Message, state: FSMContext) -> s
 
 
 async def handle_non_document(message: types.Message, state: FSMContext) -> None:
-    """Catch photos/stickers/etc from Global contractors — remind them to send a PDF."""
+    """Catch photos/stickers/etc — remind user to send text or PDF as appropriate."""
+    current = await state.get_state()
+    if current is not None:
+        await message.answer(replies.generic.text_expected)
+        return
     contractors = await get_contractors()
     contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
     if isinstance(contractor, GlobalContractor):
@@ -274,9 +309,9 @@ async def handle_document(message: types.Message, state: FSMContext) -> None:
     for admin_id in ADMIN_TELEGRAM_IDS:
         if admin_id != message.from_user.id:
             try:
-                caption = f"Документ от {sender_info}:"
+                caption = replies.document.forwarded_to_admin.format(name=sender_info)
                 if drive_link:
-                    caption += f"\nСохранено на Drive: {drive_link}"
+                    caption += replies.document.forwarded_drive.format(link=drive_link)
                 await bot.send_message(admin_id, caption)
                 await bot.forward_message(admin_id, message.chat.id, message.message_id)
             except Exception:
@@ -322,7 +357,7 @@ async def cmd_generate(message: types.Message, state: FSMContext) -> None:
     budget_entry = budget_amounts.get(name_lower)
     if not budget_entry:
         await message.answer(
-            f"Контрагент {contractor.display_name} не найден в бюджетной таблице за {month}."
+            replies.admin.not_in_budget.format(name=contractor.display_name, month=month)
         )
         return
 
@@ -330,7 +365,7 @@ async def cmd_generate(message: types.Message, state: FSMContext) -> None:
     amount_int = eur if contractor.currency == Currency.EUR else rub
     if not amount_int:
         await message.answer(
-            f"Сумма для {contractor.display_name} за {month} не указана в бюджетной таблице."
+            replies.admin.zero_amount.format(name=contractor.display_name, month=month)
         )
         return
 
@@ -355,7 +390,7 @@ async def cmd_generate(message: types.Message, state: FSMContext) -> None:
             doc, caption=f"[DEBUG] {contractor.display_name} ({tg_info})",
         )
     else:
-        await message.answer_document(doc, caption=f"Документ для {contractor.display_name}")
+        await message.answer_document(doc, caption=replies.admin.generate_caption.format(name=contractor.display_name))
         if isinstance(contractor, GlobalContractor):
             await message.answer(replies.admin.proforma_ready)
         else:
@@ -397,7 +432,6 @@ async def cmd_budget(message: types.Message, state: FSMContext) -> None:
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
 
     try:
-        from backend.domain.compute_budget import ComputeBudget
         uc = ComputeBudget()
         url = await asyncio.to_thread(uc.execute, month)
         await message.answer(replies.admin.budget_done.format(url=url))
@@ -411,7 +445,8 @@ async def cmd_generate_invoices(message: types.Message, state: FSMContext) -> No
     debug = "debug" in message.text.lower().split()
 
     month = prev_month()
-    status_msg = await message.answer(f"Генерирую инвойсы за {month}...")
+    status_msg = await message.answer(replies.admin.batch_generating.format(month=month))
+    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
 
     contractors = await get_contractors()
 
@@ -424,23 +459,24 @@ async def cmd_generate_invoices(message: types.Message, state: FSMContext) -> No
         return
 
     if not batch_result.total:
-        await status_msg.edit_text(f"Нет новых счетов для генерации за {month}.")
+        await status_msg.edit_text(replies.admin.batch_no_new.format(month=month))
         return
 
     # Summary message
     prefix = "[DEBUG] " if debug else ""
     counts = batch_result.counts
-    parts = [f"{prefix}Генерация за {month} завершена."]
+    parts = [replies.admin.batch_done.format(prefix=prefix, month=month)]
     generated = counts["global"] + counts["samozanyaty"] + counts["ip"]
     if generated:
-        parts.append(
-            f"Сгенерировано: {counts['global']} global, "
-            f"{counts['samozanyaty']} самозанятых, {counts['ip']} ИП"
-        )
+        parts.append(replies.admin.batch_counts.format(
+            global_=counts["global"], samozanyaty=counts["samozanyaty"], ip=counts["ip"],
+        ))
     else:
-        parts.append("Новых счетов не сгенерировано.")
+        parts.append(replies.admin.batch_no_generated)
     if batch_result.errors:
-        parts.append("Ошибки:\n" + "\n".join(f"  - {e}" for e in batch_result.errors))
+        parts.append(replies.admin.batch_errors.format(
+            errors="\n".join(f"  - {e}" for e in batch_result.errors),
+        ))
     await message.answer("\n\n".join(parts))
 
     # Send PDFs to admin
@@ -529,15 +565,66 @@ async def cmd_send_global_invoices(message: types.Message, state: FSMContext) ->
         sent_count += 1
 
     prefix = "[DEBUG] " if debug else ""
-    parts = [f"{prefix}Отправлено {sent_count} глобальных счетов за {month}."]
+    parts = [replies.admin.send_global_done.format(prefix=prefix, count=sent_count, month=month)]
     if errors:
-        parts.append("Ошибки:\n" + "\n".join(f"  - {e}" for e in errors))
+        parts.append(replies.admin.batch_errors.format(
+            errors="\n".join(f"  - {e}" for e in errors),
+        ))
     await message.answer("\n\n".join(parts))
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  Private helpers
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+async def _start_invoice_flow(
+    message: types.Message, state: FSMContext, contractor: Contractor,
+) -> str | None:
+    """Fetch budget + articles and prompt for amount. Returns "invoice" or None."""
+    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    month = prev_month()
+    budget_amounts = await asyncio.to_thread(read_budget_amounts, month)
+    articles = await asyncio.to_thread(fetch_articles, contractor, month)
+    num_articles = len(articles)
+
+    default_amount_int, explanation = resolve_amount(
+        budget_amounts, contractor, num_articles,
+    )
+    if not default_amount_int:
+        return None
+
+    article_ids = [a.article_id for a in articles]
+    await state.update_data(
+        invoice_contractor_id=contractor.id,
+        invoice_month=month,
+        invoice_article_ids=article_ids,
+        invoice_default_amount=default_amount_int,
+    )
+    pub_word = plural_ru(num_articles, "публикация", "публикации", "публикаций") if num_articles else "0 публикаций"
+    await message.answer(
+        replies.invoice.amount_prompt.format(
+            pub_word=pub_word, month=month, explanation=explanation,
+        )
+    )
+    return "invoice"
+
+
+async def _notify_admins_rub_invoice(
+    pdf_bytes: bytes, filename: str, contractor: Contractor,
+    month: str, amount,
+) -> None:
+    for admin_id in ADMIN_TELEGRAM_IDS:
+        try:
+            admin_doc = BufferedInputFile(pdf_bytes, filename=filename)
+            caption = replies.invoice.legium_admin_caption.format(
+                name=contractor.display_name, type=contractor.type.value,
+                month=month, amount=amount,
+            )
+            sent = await bot.send_document(admin_id, admin_doc, caption=caption)
+            _admin_reply_map[(admin_id, sent.message_id)] = (contractor.telegram, contractor.id)
+        except Exception:
+            pass
+
 
 async def _deliver_existing_invoice(message: types.Message, contractor: Contractor) -> bool:
     """Check for a pre-generated invoice and deliver it to the contractor.
@@ -580,17 +667,7 @@ async def _deliver_existing_invoice(message: types.Message, contractor: Contract
                 message.chat.id, doc,
                 caption=replies.invoice.rub_invoice_caption,
             )
-            for admin_id in ADMIN_TELEGRAM_IDS:
-                try:
-                    admin_doc = BufferedInputFile(prepared.pdf_bytes, filename=filename)
-                    caption = replies.invoice.legium_admin_caption.format(
-                        name=contractor.display_name, type=contractor.type.value,
-                        month=month, amount=inv.amount,
-                    )
-                    sent = await bot.send_document(admin_id, admin_doc, caption=caption)
-                    _admin_reply_map[(admin_id, sent.message_id)] = (contractor.telegram, contractor.id)
-                except Exception:
-                    pass
+            await _notify_admins_rub_invoice(prepared.pdf_bytes, filename, contractor, month, inv.amount)
         else:
             await message.answer(replies.invoice.legium_already_sent)
 
@@ -603,7 +680,10 @@ async def handle_duplicate_callback(callback: CallbackQuery, state: FSMContext) 
     await callback.answer()
 
     if data_str == "dup:new":
-        await callback.message.delete()
+        try:
+            await callback.message.delete()
+        except TelegramBadRequest:
+            pass
         await state.set_state("ContractorStates:waiting_type")
         await callback.message.answer(replies.registration.type_prompt)
         return
@@ -615,10 +695,13 @@ async def handle_duplicate_callback(callback: CallbackQuery, state: FSMContext) 
         await callback.message.answer(replies.lookup.not_found)
         return
 
-    await callback.message.edit_text(
-        f"✓ {contractor.display_name}",
-        reply_markup=None,
-    )
+    try:
+        await callback.message.edit_text(
+            replies.lookup.selected.format(name=contractor.display_name),
+            reply_markup=None,
+        )
+    except TelegramBadRequest:
+        pass
     await bot.send_chat_action(callback.message.chat.id, ChatAction.TYPING)
 
     telegram_id = callback.from_user.id
@@ -636,6 +719,163 @@ async def handle_duplicate_callback(callback: CallbackQuery, state: FSMContext) 
     await callback.message.answer(
         replies.verification.code_prompt.format(name=contractor.display_name)
     )
+
+
+async def handle_linked_menu_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    """Handle inline button press from the linked user menu."""
+    await callback.answer()
+    contractors = await get_contractors()
+    contractor = find_contractor_by_telegram_id(callback.from_user.id, contractors)
+    if not contractor:
+        await callback.message.answer(replies.lookup.not_found)
+        return
+
+    action = callback.data.removeprefix("menu:")
+
+    if action == "contract":
+        await bot.send_chat_action(callback.message.chat.id, ChatAction.TYPING)
+        try:
+            delivered = await _deliver_existing_invoice(callback.message, contractor)
+        except Exception:
+            logger.exception("Invoice delivery failed for %s", contractor.display_name)
+            await callback.message.answer(replies.invoice.delivery_error)
+            return
+        if not delivered:
+            month = prev_month()
+            await callback.message.answer(
+                replies.lookup.no_invoices.format(name=contractor.display_name, month=month)
+            )
+    elif action == "update":
+        await state.set_state("ContractorStates:waiting_update_data")
+        await callback.message.answer(replies.linked_menu.update_prompt)
+    elif action == "editor":
+        await _show_editor_sources(callback, contractor)
+
+
+def _editor_sources_content(rules) -> tuple[str, InlineKeyboardMarkup]:
+    """Build text and keyboard for the editor sources list."""
+    rows: list[list[InlineKeyboardButton]] = []
+    if rules:
+        text = replies.editor_sources.header + "\n"
+        for r in rules:
+            text += f"\n  - {r.source_name}"
+            rows.append([
+                InlineKeyboardButton(
+                    text=f"{replies.editor_sources.btn_remove} {r.source_name}",
+                    callback_data=f"esrc:rm:{r.source_name}",
+                ),
+            ])
+    else:
+        text = replies.editor_sources.empty
+    rows.append([InlineKeyboardButton(text=replies.editor_sources.btn_add, callback_data="esrc:add")])
+    rows.append([InlineKeyboardButton(text=replies.editor_sources.btn_back, callback_data="esrc:back")])
+    return text, InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+async def _show_editor_sources(callback: CallbackQuery, contractor: Contractor) -> None:
+    """Render the editor sources list with inline buttons."""
+    rules = await asyncio.to_thread(find_redirect_rules_by_target, contractor.id)
+    text, markup = _editor_sources_content(rules)
+    try:
+        await callback.message.edit_text(text, reply_markup=markup)
+    except TelegramBadRequest:
+        pass
+
+
+async def handle_editor_source_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    """Handle editor source management callbacks (esrc: prefix)."""
+    contractors = await get_contractors()
+    contractor = find_contractor_by_telegram_id(callback.from_user.id, contractors)
+    if not contractor:
+        await callback.answer()
+        await callback.message.answer(replies.lookup.not_found)
+        return
+
+    data = callback.data.removeprefix("esrc:")
+
+    if data.startswith("rm:"):
+        source_name = data.removeprefix("rm:")
+        removed = await asyncio.to_thread(remove_redirect_rule, source_name, contractor.id)
+        # Show toast notification with removal confirmation
+        if removed:
+            await callback.answer(replies.editor_sources.removed.format(name=source_name))
+        else:
+            await callback.answer()
+        await _show_editor_sources(callback, contractor)
+
+    elif data == "add":
+        await callback.answer()
+        await state.set_state("ContractorStates:waiting_editor_source_name")
+        try:
+            await callback.message.edit_text(replies.editor_sources.add_prompt, reply_markup=None)
+        except TelegramBadRequest:
+            await callback.message.answer(replies.editor_sources.add_prompt)
+
+    elif data == "back":
+        await callback.answer()
+        try:
+            await callback.message.edit_text(
+                replies.linked_menu.prompt.format(name=contractor.display_name),
+                reply_markup=_linked_menu_markup(contractor),
+            )
+        except TelegramBadRequest:
+            pass
+
+
+async def handle_editor_source_name(message: types.Message, state: FSMContext) -> str | None:
+    """Handle text input for adding a new editor source. Returns 'done' or None."""
+    if message.text and message.text.strip().lower() == "отмена":
+        await state.clear()
+        await message.answer(replies.editor_sources.add_cancelled)
+        return "done"
+
+    contractors = await get_contractors()
+    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    if not contractor:
+        await message.answer(replies.lookup.not_found)
+        await state.clear()
+        return "done"
+
+    source_name = message.text.strip()
+    await asyncio.to_thread(add_redirect_rule, source_name, contractor.id)
+    await message.answer(replies.editor_sources.added.format(name=source_name))
+
+    # Show updated list as a new message (can't edit since user sent text)
+    rules = await asyncio.to_thread(find_redirect_rules_by_target, contractor.id)
+    text, markup = _editor_sources_content(rules)
+    await message.answer(text, reply_markup=markup)
+    return "done"
+
+
+async def handle_update_data(message: types.Message, state: FSMContext) -> str | None:
+    """Parse free-form update text and write changes to sheet. Returns 'done' or None."""
+    if message.text and message.text.strip().lower() == "отмена":
+        await state.clear()
+        await message.answer(replies.linked_menu.update_cancelled)
+        return "done"
+
+    contractors = await get_contractors()
+    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    if not contractor:
+        await message.answer(replies.lookup.not_found)
+        await state.clear()
+        return "done"
+
+    parsed = await _parse_with_llm(message.text.strip(), contractor.type)
+    if "parse_error" in parsed:
+        await message.answer(replies.registration.parse_error)
+        return None
+
+    parsed_updates = {k: v for k, v in parsed.items() if isinstance(v, str) and v.strip()}
+    parsed_updates.pop("comment", None)
+
+    if not parsed_updates:
+        await message.answer(replies.linked_menu.no_changes)
+        return None
+
+    await asyncio.to_thread(update_contractor_fields, contractor.id, parsed_updates)
+    await message.answer(replies.linked_menu.update_success)
+    return "done"
 
 
 async def handle_verification_code(message: types.Message, state: FSMContext) -> str | None:
@@ -663,43 +903,27 @@ async def handle_verification_code(message: types.Message, state: FSMContext) ->
             try:
                 await bot.send_message(
                     admin_id,
-                    f"Контрагент {contractor.display_name} привязался к Telegram.",
+                    replies.notifications.contractor_linked.format(name=contractor.display_name),
                 )
             except Exception:
                 pass
-        delivered = await _deliver_existing_invoice(message, contractor)
+        try:
+            delivered = await _deliver_existing_invoice(message, contractor)
+        except Exception:
+            logger.exception("Invoice delivery failed for %s", contractor.display_name)
+            delivered = False
         if delivered:
             await state.clear()
             return "verified"
 
         # No pre-generated invoice — check budget sheet and start amount flow
-        month = prev_month()
-        budget_amounts = await asyncio.to_thread(read_budget_amounts, month)
-        articles = await asyncio.to_thread(fetch_articles, contractor, month)
-        num_articles = len(articles)
-
-        default_amount_int, explanation = resolve_amount(
-            budget_amounts, contractor, num_articles,
-        )
-        if not default_amount_int:
-            await message.answer(replies.registration.no_articles.format(month=month))
+        await state.clear()
+        result = await _start_invoice_flow(message, state, contractor)
+        if not result:
+            await message.answer(replies.registration.no_articles.format(month=prev_month()))
             await state.clear()
             return "verified"
-
-        article_ids = [a.article_id for a in articles]
-        await state.set_data({
-            "invoice_contractor_id": contractor.id,
-            "invoice_month": month,
-            "invoice_article_ids": article_ids,
-            "invoice_default_amount": default_amount_int,
-        })
-        pub_word = plural_ru(num_articles, "публикация", "публикации", "публикаций") if num_articles else "0 публикаций"
-        await message.answer(
-            replies.invoice.amount_prompt.format(
-                pub_word=pub_word, month=month, explanation=explanation,
-            )
-        )
-        return "invoice"
+        return result
 
     attempts += 1
     if attempts >= 3:
@@ -732,44 +956,20 @@ async def _finish_registration(
     contractor, secret_code = await _save_new_contractor(collected, ctype, telegram_id)
     await _forward_to_admins(raw_text, ctype, collected)
 
-    text = (
-        "Ваши данные:\n" + summary + "\n\n"
-        "Вы добавлены в систему!"
-    )
+    text = replies.registration.complete_summary.format(summary=summary)
     if secret_code:
-        text += f"\n\nВаш секретный код: *{secret_code}*."
+        text += replies.registration.complete_secret.format(code=secret_code)
     await message.answer(text)
 
     if not contractor:
         return "complete"
 
     # Check budget sheet / articles → start invoice flow
-    month = prev_month()
-    budget_amounts = await asyncio.to_thread(read_budget_amounts, month)
-    articles = await asyncio.to_thread(fetch_articles, contractor, month)
-    num_articles = len(articles)
-
-    default_amount_int, explanation = resolve_amount(
-        budget_amounts, contractor, num_articles,
-    )
-    if not default_amount_int:
-        await message.answer(replies.registration.no_articles.format(month=month))
+    result = await _start_invoice_flow(message, state, contractor)
+    if not result:
+        await message.answer(replies.registration.no_articles.format(month=prev_month()))
         return "complete"
-
-    article_ids = [a.article_id for a in articles]
-    await state.update_data(
-        invoice_contractor_id=contractor.id,
-        invoice_month=month,
-        invoice_article_ids=article_ids,
-        invoice_default_amount=default_amount_int,
-    )
-    pub_word = plural_ru(num_articles, "публикация", "публикации", "публикаций") if num_articles else "0 публикаций"
-    await message.answer(
-        replies.invoice.amount_prompt.format(
-            pub_word=pub_word, month=month, explanation=explanation,
-        )
-    )
-    return "invoice"
+    return result
 
 
 async def handle_amount_input(message: types.Message, state: FSMContext) -> str | None:
@@ -829,17 +1029,7 @@ async def handle_amount_input(message: types.Message, state: FSMContext) -> str 
             message.chat.id, doc,
             caption=replies.invoice.rub_invoice_caption,
         )
-        for admin_id in ADMIN_TELEGRAM_IDS:
-            try:
-                admin_doc = BufferedInputFile(result.pdf_bytes, filename=filename)
-                caption = replies.invoice.legium_admin_caption.format(
-                    name=contractor.display_name, type=contractor.type.value,
-                    month=month, amount=invoice.amount,
-                )
-                sent = await bot.send_document(admin_id, admin_doc, caption=caption)
-                _admin_reply_map[(admin_id, sent.message_id)] = (contractor.telegram, contractor.id)
-            except Exception:
-                pass
+        await _notify_admins_rub_invoice(result.pdf_bytes, filename, contractor, month, invoice.amount)
 
     return "done"
 
@@ -884,10 +1074,10 @@ async def _forward_to_admins(raw_text: str, ctype: ContractorType, parsed: dict)
     """Forward registration data to all admin Telegram IDs."""
     for admin_id in ADMIN_TELEGRAM_IDS:
         try:
-            msg = f"Новая регистрация ({ctype.value}):\n\n{raw_text}"
+            msg = replies.notifications.new_registration.format(type=ctype.value, raw_text=raw_text)
             if parsed:
                 formatted = "\n".join(f"  {k}: {v}" for k, v in parsed.items() if v)
-                msg += f"\n\nРаспознанные данные:\n{formatted}"
+                msg += replies.notifications.new_registration_parsed.format(formatted=formatted)
             await bot.send_message(admin_id, msg)
         except Exception:
             pass
@@ -951,43 +1141,44 @@ async def cmd_upload_to_airtable(message: types.Message, state: FSMContext) -> N
     await message.answer(replies.admin.upload_processing.format(rate=rate))
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
 
-    import tempfile
     file = await bot.get_file(message.document.file_id)
     file_bytes = await bot.download_file(file.file_path)
 
+    tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
             tmp.write(file_bytes.read())
             tmp_path = tmp.name
 
-        from backend.domain.parse_bank_statement import ParseBankStatement
         uc = ParseBankStatement()
         expenses = await asyncio.to_thread(uc.execute, tmp_path, rate, True)
 
         review_count = sum(1 for e in expenses if e.comment == "NEEDS REVIEW")
         text = replies.admin.upload_done.format(count=len(expenses))
         if review_count:
-            text += f"\n⚠ {review_count} записей требуют проверки (NEEDS REVIEW)."
+            text += replies.admin.upload_needs_review.format(count=review_count)
         await message.answer(text)
     except Exception as e:
         logger.exception("Airtable upload failed")
         await message.answer(replies.admin.upload_error.format(error=e))
     finally:
-        import os
-        os.unlink(tmp_path)
+        if tmp_path:
+            os.unlink(tmp_path)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  Email support: background listener + callback handler
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-from backend.domain.support_email_service import SupportEmailService
-
 _email_service = SupportEmailService()
+_proposal_service = ArticleProposalService()
 
 
 async def email_listener_task() -> None:
     """Background task: listen for new emails and send drafts to admin."""
+    if not ADMIN_TELEGRAM_IDS:
+        logger.warning("No admin IDs configured, email listener disabled")
+        return
     admin_id = ADMIN_TELEGRAM_IDS[0]
     logger.info("Email listener started for %s", EMAIL_ADDRESS)
     while True:
@@ -998,6 +1189,14 @@ async def email_listener_task() -> None:
             drafts = await asyncio.to_thread(_email_service.fetch_new_drafts)
             for draft in drafts:
                 await _send_email_draft(admin_id, draft)
+            # Process non-support emails for article proposals
+            non_support = await asyncio.to_thread(_email_service.fetch_non_support)
+            if non_support:
+                forwarded = await asyncio.to_thread(_proposal_service.process_proposals, non_support)
+                for em in forwarded:
+                    await bot.send_message(admin_id, replies.email_support.proposal_forwarded.format(from_addr=em.from_addr, subject=em.subject))
+                for em in non_support:
+                    await asyncio.to_thread(_email_service.skip, em.uid)
         except Exception as e:
             logger.exception("Email listener error: %s", e)
             await asyncio.sleep(30)
@@ -1010,16 +1209,17 @@ async def _send_email_draft(admin_id: int, draft: SupportDraft) -> None:
     header = f"From: {em.from_addr}\n"
     if em.reply_to and em.reply_to != em.from_addr:
         header += f"Reply-To: {em.reply_to}\n"
+    draft_header = replies.email_support.draft_header if draft.can_answer else replies.email_support.draft_header_uncertain
     text = (
         f"{header}"
         f"Subject: {em.subject}\n\n"
         f"{body_preview}\n\n"
-        f"--- Draft reply (can_answer: {draft.can_answer}) ---\n"
+        f"{draft_header}\n"
         f"{draft.draft_reply}"
     )
     buttons = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="Send", callback_data=f"email:send:{em.uid}"),
-        InlineKeyboardButton(text="Skip", callback_data=f"email:skip:{em.uid}"),
+        InlineKeyboardButton(text=replies.email_support.btn_send, callback_data=f"email:send:{em.uid}"),
+        InlineKeyboardButton(text=replies.email_support.btn_skip, callback_data=f"email:skip:{em.uid}"),
     ]])
     await bot.send_message(admin_id, text, reply_markup=buttons)
 
@@ -1034,12 +1234,21 @@ async def handle_email_callback(callback: CallbackQuery) -> None:
 
     draft = _email_service.get_pending(uid)
     if not draft:
-        await callback.message.edit_text("(expired — email already handled)")
+        try:
+            await callback.message.edit_text(replies.email_support.expired)
+        except TelegramBadRequest:
+            pass
         return
 
     if action == "send":
         await asyncio.to_thread(_email_service.approve, uid)
-        await callback.message.edit_text(f"Reply sent to {draft.email.reply_to or draft.email.from_addr}")
+        try:
+            await callback.message.edit_text(replies.email_support.reply_sent.format(addr=draft.email.reply_to or draft.email.from_addr))
+        except TelegramBadRequest:
+            pass
     elif action == "skip":
         await asyncio.to_thread(_email_service.skip, uid)
-        await callback.message.edit_text(f"Skipped email from {draft.email.from_addr}")
+        try:
+            await callback.message.edit_text(replies.email_support.skipped.format(from_addr=draft.email.from_addr))
+        except TelegramBadRequest:
+            pass

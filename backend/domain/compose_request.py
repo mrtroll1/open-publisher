@@ -6,8 +6,10 @@ from common.prompt_loader import load_knowledge, load_template
 _MODELS = {
     "support_email": "gemini-2.5-flash",
     "support_triage": "gemini-2.5-flash",
+    "tech_search_terms": "gemini-2.5-flash",
     "contractor_parse": "gemini-2.5-flash",
     "translate_name": "gemini-2.5-flash",
+    "article_proposal_triage": "gemini-2.5-flash",
 }
 
 
@@ -49,6 +51,11 @@ def support_email_with_context(email_text: str, user_data: str) -> tuple[str, st
     return prompt, _MODELS["support_email"], ["reply"]
 
 
+def tech_search_terms(email_text: str) -> tuple[str, str, list[str]]:
+    prompt = load_template("tech-search-terms.md", {"EMAIL": email_text})
+    return prompt, _MODELS["tech_search_terms"], ["search_terms", "needs_code"]
+
+
 def contractor_parse(
     text: str, fields_csv: str, context: str = "",
 ) -> tuple[str, str, list[str]]:
@@ -62,6 +69,11 @@ def contractor_parse(
         prompt = knowledge + "\n\n" + prompt
     keys = [f.strip() for f in fields_csv.split(",")]
     return prompt, _MODELS["contractor_parse"], keys
+
+
+def article_proposal_triage(email_text: str) -> tuple[str, str, list[str]]:
+    prompt = load_template("article-proposal-triage.md", {"EMAIL": email_text})
+    return prompt, _MODELS["article_proposal_triage"], ["is_legit_proposal", "reason"]
 
 
 def translate_name(name_en: str) -> tuple[str, str, list[str]]:

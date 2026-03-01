@@ -120,6 +120,12 @@ PNL_API_USER = os.getenv("PNL_API_USER", "")
 PNL_API_PASSWORD = os.getenv("PNL_API_PASSWORD", "")
 EUR_RUB_CELL = os.getenv("EUR_RUB_CELL", "G2")
 
+# --- Repos ---
+REPOS_DIR = os.getenv("REPOS_DIR", "/opt/repos")
+REPUBLIC_REPO_URL = os.getenv("REPUBLIC_REPO_URL", "")
+REDEFINE_REPO_URL = os.getenv("REDEFINE_REPO_URL", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+
 # --- Product name (used in user-facing strings) ---
 PRODUCT_NAME = os.getenv("PRODUCT_NAME", "")
 

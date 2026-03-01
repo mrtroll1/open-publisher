@@ -335,7 +335,14 @@ def article_proposal_triage(email_text: str) -> tuple[str, str, list[str]]:
 
 ---
 
-### Feature 5: Repo Access for Tech Support
+### Feature 5: Repo Access for Tech Support ✅ (Session 6)
+
+- [x] Step 5.1: Add env vars
+- [x] Step 5.2: Create RepoGateway
+- [x] Step 5.3: Create LLM prompt for search terms
+- [x] Step 5.4: Integrate into SupportEmailService
+- [x] Step 5.5: Modify Docker setup
+- [ ] Step 5.6: Future — Claude Code subprocess (deferred)
 
 #### Step 5.1: Add env vars
 `common/config.py`:

@@ -10,6 +10,7 @@ from backend.domain.support_user_lookup import SupportUserLookup
 from backend.infrastructure.gateways.db_gateway import DbGateway
 from backend.infrastructure.gateways.email_gateway import EmailGateway
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
+from backend.infrastructure.gateways.repo_gateway import RepoGateway
 from common.config import SUPPORT_ADDRESSES
 from common.models import IncomingEmail, SupportDraft
 
@@ -23,6 +24,8 @@ class SupportEmailService:
         self._email_gw = EmailGateway()
         self._gemini = GeminiGateway()
         self._user_lookup = SupportUserLookup()
+        self._repo_gw = RepoGateway()
+        self._repo_gw.ensure_repos()
         self._db = DbGateway()
         self._db.init_schema()
         self._pending: dict[str, SupportDraft] = {}
@@ -119,6 +122,48 @@ class SupportEmailService:
             logger.error("Support triage/lookup failed: %s", e)
             return ""
 
+    def _fetch_code_context(self, email_text: str) -> str:
+        """Extract search terms via LLM, grep repos, return code snippets."""
+        try:
+            prompt, model, _ = compose_request.tech_search_terms(email_text)
+            result = self._gemini.call(prompt, model)
+            if not result.get("needs_code"):
+                return ""
+            terms = result.get("search_terms", [])
+            if not terms:
+                return ""
+
+            # Collect unique file matches across all search terms
+            seen_files: dict[str, tuple[str, int]] = {}  # rel_path -> (repo, line)
+            for term in terms:
+                for rel_path, lineno, _ in self._repo_gw.search_code(term):
+                    if rel_path not in seen_files:
+                        seen_files[rel_path] = (rel_path.split("/", 1)[0], lineno)
+
+            if not seen_files:
+                return ""
+
+            # Read top 5 files with snippets around match line
+            snippets = []
+            for rel_path, (repo, lineno) in list(seen_files.items())[:5]:
+                filepath = rel_path.split("/", 1)[1] if "/" in rel_path else rel_path
+                content = self._repo_gw.read_file(repo, filepath)
+                if not content:
+                    continue
+                lines = content.splitlines()
+                start = max(0, lineno - 25)
+                end = min(len(lines), lineno + 25)
+                snippet = "\n".join(lines[start:end])
+                snippets.append(f"### {rel_path} (lines {start + 1}-{end})\n```\n{snippet}\n```")
+
+            if not snippets:
+                return ""
+            logger.info("Code context: %d snippets from %d file matches", len(snippets), len(seen_files))
+            return "## Контекст из кода\n\n" + "\n\n".join(snippets)
+        except Exception as e:
+            logger.error("Code context fetch failed: %s", e)
+            return ""
+
     def _draft(self, email: IncomingEmail) -> SupportDraft:
         """Use compose_request + Gemini to draft a reply."""
         # Thread tracking
@@ -129,9 +174,10 @@ class SupportEmailService:
 
         email_text = f"From: {email.from_addr}\nSubject: {email.subject}\n\n{email.body}"
         user_data = self._fetch_user_data(email_text, email.reply_to or email.from_addr)
+        code_context = self._fetch_code_context(email_text)
 
         thread_context = self._format_thread(history) if len(history) > 1 else ""
-        context = "\n\n".join(filter(None, [user_data, thread_context]))
+        context = "\n\n".join(filter(None, [user_data, thread_context, code_context]))
 
         if context:
             prompt, model, _ = compose_request.support_email_with_context(email_text, context)

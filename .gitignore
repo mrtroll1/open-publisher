@@ -1,6 +1,6 @@
 config/*
 !config/example/
-docs/*
+docs
 __pycache__/
 *.pyc
 .claude/memory/

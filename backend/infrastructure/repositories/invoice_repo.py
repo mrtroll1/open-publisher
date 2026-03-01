@@ -86,58 +86,55 @@ def save_invoice(invoice: Invoice) -> None:
     logger.info("Saved invoice for %s (%s)", invoice.contractor_id, invoice.month)
 
 
-def update_invoice_status(contractor_id: str, month: str, status: InvoiceStatus) -> None:
-    """Update the status cell for a specific contractor/month invoice."""
+def _find_invoice_row(contractor_id: str, month: str) -> tuple[list[str], int] | None:
+    """Find invoice row by contractor_id + month. Returns (headers, row_index) or None."""
     rows = _sheets.read(CONTRACTORS_SHEET_ID, SHEET_RANGE)
     if not rows:
-        return
-
+        return None
     headers = [h.strip().lower() for h in rows[0]]
     try:
         cid_col = headers.index("contractor_id")
         month_col = headers.index("month")
-        status_col = headers.index("status")
     except ValueError:
         logger.error("Required columns not found in invoices sheet")
-        return
-
+        return None
     for idx, row in enumerate(rows[1:], start=1):
         padded = row + [""] * (len(headers) - len(row))
         if padded[cid_col] == contractor_id and padded[month_col] == month:
-            col_letter = index_to_column_letter(status_col)
-            cell = f"'{SHEET_NAME}'!{col_letter}{idx + 1}"
-            _sheets.write(CONTRACTORS_SHEET_ID, cell, [[status.value]])
-            logger.info("Updated invoice status for %s/%s to %s", contractor_id, month, status.value)
-            return
+            return headers, idx
+    return None
 
-    logger.warning("Invoice not found for %s/%s", contractor_id, month)
+
+def update_invoice_status(contractor_id: str, month: str, status: InvoiceStatus) -> None:
+    result = _find_invoice_row(contractor_id, month)
+    if result is None:
+        logger.warning("Invoice not found for %s/%s", contractor_id, month)
+        return
+    headers, row_idx = result
+    try:
+        status_col = headers.index("status")
+    except ValueError:
+        logger.error("status column not found in invoices sheet")
+        return
+    col_letter = index_to_column_letter(status_col)
+    cell = f"'{SHEET_NAME}'!{col_letter}{row_idx + 1}"
+    _sheets.write(CONTRACTORS_SHEET_ID, cell, [[status.value]])
+    logger.info("Updated invoice status for %s/%s to %s", contractor_id, month, status.value)
 
 
 def update_legium_link(contractor_id: str, month: str, url: str) -> None:
-    """Set the legium_link cell and mark status as SENT for a contractor/month invoice."""
-    rows = _sheets.read(CONTRACTORS_SHEET_ID, SHEET_RANGE)
-    if not rows:
+    result = _find_invoice_row(contractor_id, month)
+    if result is None:
+        logger.warning("Invoice not found for %s/%s", contractor_id, month)
         return
-
-    headers = [h.strip().lower() for h in rows[0]]
+    headers, row_idx = result
     try:
-        cid_col = headers.index("contractor_id")
-        month_col = headers.index("month")
         status_col = headers.index("status")
         link_col = headers.index("legium_link")
     except ValueError:
         logger.error("Required columns not found in invoices sheet")
         return
-
-    for idx, row in enumerate(rows[1:], start=1):
-        padded = row + [""] * (len(headers) - len(row))
-        if padded[cid_col] == contractor_id and padded[month_col] == month:
-            row_num = idx + 1
-            status_cell = f"'{SHEET_NAME}'!{index_to_column_letter(status_col)}{row_num}"
-            link_cell = f"'{SHEET_NAME}'!{index_to_column_letter(link_col)}{row_num}"
-            _sheets.write(CONTRACTORS_SHEET_ID, status_cell, [[InvoiceStatus.SENT.value]])
-            _sheets.write(CONTRACTORS_SHEET_ID, link_cell, [[url]])
-            logger.info("Set legium_link for %s/%s", contractor_id, month)
-            return
-
-    logger.warning("Invoice not found for %s/%s", contractor_id, month)
+    row_num = row_idx + 1
+    _sheets.write(CONTRACTORS_SHEET_ID, f"'{SHEET_NAME}'!{index_to_column_letter(status_col)}{row_num}", [[InvoiceStatus.SENT.value]])
+    _sheets.write(CONTRACTORS_SHEET_ID, f"'{SHEET_NAME}'!{index_to_column_letter(link_col)}{row_num}", [[url]])
+    logger.info("Set legium_link for %s/%s", contractor_id, month)

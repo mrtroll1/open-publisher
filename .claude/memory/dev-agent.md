@@ -344,6 +344,26 @@ _None yet._
 - The currency bug was incorrectly classified as "false positive" in session 8 ("rates are mutually exclusive per contractor"). While rates may typically be mutually exclusive in practice, the `or` logic was fragile and incorrect for edge cases
 - All 167 tests pass after fixes
 
+### Session 14 (2026-03-01) — Maintenance: Refactor (round 2)
+**Status:** Complete
+
+**What was done:**
+- Extracted `_write_cell()` helper in `contractor_repo.py` — encapsulates column lookup + cell address building + write pattern
+- Simplified `bind_telegram_id` — replaced 7-line manual column/cell/write block with single `_write_cell` call
+- Simplified `increment_invoice_number` — replaced manual cell write with `_write_cell`, kept read-current-value logic
+- Simplified `update_contractor_fields` — replaced 8-line for-loop with `sum()` expression over `_write_cell` calls
+- Extracted `_find_invoice_row()` helper in `invoice_repo.py` — encapsulates read rows + parse headers + find matching row
+- Simplified `update_invoice_status` — reduced from 25 to 15 lines
+- Simplified `update_legium_link` — reduced from 28 to 16 lines
+
+**Net result:** -17 lines, 5 duplicated code blocks eliminated across 2 files
+
+**Notes:**
+- All 167 tests pass
+- No function signatures or public behavior changed
+- `_write_cell` returns bool so callers can branch on success/failure
+- `_find_invoice_row` returns `(headers, row_idx)` tuple so callers can still resolve additional columns
+
 ## Next up
 
-- Maintenance mode continues. Full second cycle complete (tests, bugs, refactor, UX, prompts, tests, bugs). Next session: refactor (round 2).
+- Maintenance mode continues. Third cycle: next session should be UX polish (round 2) or prompts (round 2).

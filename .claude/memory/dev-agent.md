@@ -292,6 +292,32 @@ _None yet._
 - The SUBSCRIPTION_RSERVICE_URL bug was likely degrading support email quality since the LLM lacked the actual redefine.media URL for referencing subscription management links
 - All prompt improvements are backward-compatible — no code changes needed, only template/knowledge file edits
 
+### Session 12 (2026-03-01) — Maintenance: Write Tests (round 2)
+**Status:** Complete
+
+**What was done:**
+- Created `tests/test_resolve_amount.py` — 30 tests across 4 classes:
+  - `TestPluralRu` (18 parametrized): Russian plural forms for all corner cases (1, 2-4, 5+, 11-19 special, 21, 100, 101, 111)
+  - `TestFmt` (5 tests): thousand separator formatting
+  - `TestFormatBudgetExplanation` (7 tests): budget breakdown with/without bonus notes
+  - `TestResolveAmount` (7 tests): budget lookup, fallback rates, EUR/RUB handling
+- Created `tests/test_validate_contractor.py` — 30 tests across 4 classes:
+  - `TestDigitsOnly` (4 tests): digit extraction helper
+  - `TestValidateSamozanyaty` (19 tests): passport, INN, bank account, BIK, address, email validation
+  - `TestValidateIP` (4 tests): OGRNIP + inherited validations
+  - `TestValidateGlobal` (11 tests): SWIFT, IBAN, Latin address, email
+- Created `tests/test_contractor_repo.py` — 27 tests across 8 classes:
+  - `TestSimilarity` (5), `TestFuzzyFind` (7), `TestFindContractorById` (3), `TestFindContractorStrict` (3), `TestFindContractorByTelegramId` (2), `TestNextContractorId` (3), `TestContractorToRow` (4), `TestParseContractor` (8)
+- **Fixed pre-existing conftest.py issue**: Added `sys.modules.setdefault()` stubs for `googleapiclient` and `psycopg2` — tests now run locally without deployment dependencies
+
+**Net result:** 87 new tests (167 total), all passing in 0.29s
+
+**Notes:**
+- conftest.py now stubs `googleapiclient`, `googleapiclient.discovery`, `googleapiclient.http`, and `psycopg2` using MagicMock
+- Tests are pure-logic only — no network calls, no mocking of services
+- `_parse_contractor` always defaults missing fields to "" via `row.get(field, "")`, so Pydantic ValidationError never triggers for missing keys
+- Future: consider testing `parse_bank_statement.py` helpers (need to handle config dependency), service-layer code with mocked gateways
+
 ## Next up
 
-- Maintenance mode continues. All 5 maintenance priorities completed (tests, bugs, refactor, UX, prompts). Next sessions: cycle back through priorities — focus on areas that benefit most from another pass.
+- Maintenance mode continues. Second pass through priorities done: tests. Next sessions: continue cycling — spot bugs, refactor, UX, or prompts (in areas that benefit most from another pass).

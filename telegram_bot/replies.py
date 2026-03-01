@@ -43,6 +43,7 @@ class lookup:
         "Если это вы — нажмите на соответствующую кнопку."
     )
     fuzzy_suggestions = "Точного совпадения нет. Возможные варианты:\n{suggestions}"
+    new_contractor_btn = "Я новый контрагент"
 
 
 # ── Registration ─────────────────────────────────────────────────────
@@ -139,7 +140,7 @@ class linked_menu:
     btn_contract = "Подписать договор для выплат"
     btn_update = "Обновить мои платежные данные"
     btn_editor_sources = "Настроить, за кого я получаю деньги"
-    update_prompt = "Какие данные вы хотите обновить? Отправьте новые значения в свободной форме."
+    update_prompt = "Какие данные вы хотите обновить? Отправьте новые значения в свободной форме.\n\nОтправьте «отмена» для отмены."
     update_success = "Данные обновлены."
     no_changes = "Изменений не найдено."
 
@@ -150,7 +151,7 @@ class editor_sources:
     header = "Сейчас вы получаете деньги за:"
     empty = "У вас пока нет привязанных авторов."
     removed = "Автор «{name}» удалён из списка."
-    add_prompt = "Введите имя автора (как в бюджетной таблице):"
+    add_prompt = "Введите имя автора (как в бюджетной таблице):\nОтправьте «отмена» для отмены."
     added = "Автор «{name}» добавлен."
     btn_add = "Добавить автора"
     btn_remove = "❌"
@@ -170,6 +171,8 @@ class document:
         "Пожалуйста, отправьте подписанный документ в формате PDF.\n\n"
         f"Если возникли вопросы — напишите {ADMIN_TELEGRAM_TAG}."
     )
+    forwarded_to_admin = "Документ от {name}:"
+    forwarded_drive = "\nСохранено на Drive: {link}"
 
 
 # ── Admin commands ───────────────────────────────────────────────────
@@ -186,3 +189,28 @@ class admin:
     upload_processing = "Обрабатываю выписку (курс {rate} AED→RUB)..."
     upload_done = "Загружено {count} записей в Airtable."
     upload_error = "Ошибка загрузки: {error}"
+    batch_generating = "Генерирую инвойсы за {month}..."
+    batch_no_new = "Нет новых счетов для генерации за {month}."
+    not_in_budget = "Контрагент {name} не найден в бюджетной таблице за {month}."
+    zero_amount = "Сумма для {name} за {month} не указана в бюджетной таблице."
+
+
+# ── Notifications (admin-facing) ────────────────────────────────────
+
+class notifications:
+    contractor_linked = "Контрагент {name} привязался к Telegram."
+    new_registration = "Новая регистрация ({type}):\n\n{raw_text}"
+    new_registration_parsed = "\n\nРаспознанные данные:\n{formatted}"
+
+
+# ── Email support ───────────────────────────────────────────────────
+
+class email_support:
+    proposal_forwarded = "Переслано предложение статьи от {from_addr}: {subject}"
+    expired = "(истёк срок — письмо уже обработано)"
+    reply_sent = "Ответ отправлен на {addr}"
+    skipped = "Письмо от {from_addr} пропущено"
+    draft_header = "--- Черновик ответа ---"
+    draft_header_uncertain = "--- Черновик ответа (⚠ не уверен в ответе) ---"
+    btn_send = "Отправить"
+    btn_skip = "Пропустить"

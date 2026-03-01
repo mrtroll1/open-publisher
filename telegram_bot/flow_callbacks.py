@@ -239,7 +239,7 @@ async def handle_contractor_text(message: types.Message, state: FSMContext) -> s
             for c, _ in matches[:5]
         ]
         buttons.append([InlineKeyboardButton(
-            text="Я новый контрагент",
+            text=replies.lookup.new_contractor_btn,
             callback_data="dup:new",
         )])
         await message.answer(
@@ -302,9 +302,9 @@ async def handle_document(message: types.Message, state: FSMContext) -> None:
     for admin_id in ADMIN_TELEGRAM_IDS:
         if admin_id != message.from_user.id:
             try:
-                caption = f"Документ от {sender_info}:"
+                caption = replies.document.forwarded_to_admin.format(name=sender_info)
                 if drive_link:
-                    caption += f"\nСохранено на Drive: {drive_link}"
+                    caption += replies.document.forwarded_drive.format(link=drive_link)
                 await bot.send_message(admin_id, caption)
                 await bot.forward_message(admin_id, message.chat.id, message.message_id)
             except Exception:
@@ -350,7 +350,7 @@ async def cmd_generate(message: types.Message, state: FSMContext) -> None:
     budget_entry = budget_amounts.get(name_lower)
     if not budget_entry:
         await message.answer(
-            f"Контрагент {contractor.display_name} не найден в бюджетной таблице за {month}."
+            replies.admin.not_in_budget.format(name=contractor.display_name, month=month)
         )
         return
 
@@ -358,7 +358,7 @@ async def cmd_generate(message: types.Message, state: FSMContext) -> None:
     amount_int = eur if contractor.currency == Currency.EUR else rub
     if not amount_int:
         await message.answer(
-            f"Сумма для {contractor.display_name} за {month} не указана в бюджетной таблице."
+            replies.admin.zero_amount.format(name=contractor.display_name, month=month)
         )
         return
 
@@ -438,7 +438,7 @@ async def cmd_generate_invoices(message: types.Message, state: FSMContext) -> No
     debug = "debug" in message.text.lower().split()
 
     month = prev_month()
-    status_msg = await message.answer(f"Генерирую инвойсы за {month}...")
+    status_msg = await message.answer(replies.admin.batch_generating.format(month=month))
 
     contractors = await get_contractors()
 
@@ -451,7 +451,7 @@ async def cmd_generate_invoices(message: types.Message, state: FSMContext) -> No
         return
 
     if not batch_result.total:
-        await status_msg.edit_text(f"Нет новых счетов для генерации за {month}.")
+        await status_msg.edit_text(replies.admin.batch_no_new.format(month=month))
         return
 
     # Summary message
@@ -791,6 +791,11 @@ async def handle_editor_source_callback(callback: CallbackQuery, state: FSMConte
 
 async def handle_editor_source_name(message: types.Message, state: FSMContext) -> str | None:
     """Handle text input for adding a new editor source. Returns 'done' or None."""
+    if message.text.strip().lower() in ("отмена", "/cancel"):
+        await state.clear()
+        await message.answer("Добавление отменено.")
+        return "done"
+
     contractors = await get_contractors()
     contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
     if not contractor:
@@ -811,6 +816,11 @@ async def handle_editor_source_name(message: types.Message, state: FSMContext) -
 
 async def handle_update_data(message: types.Message, state: FSMContext) -> str | None:
     """Parse free-form update text and write changes to sheet. Returns 'done' or None."""
+    if message.text.strip().lower() in ("отмена", "/cancel"):
+        await state.clear()
+        await message.answer("Обновление отменено.")
+        return "done"
+
     contractors = await get_contractors()
     contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
     if not contractor:
@@ -860,7 +870,7 @@ async def handle_verification_code(message: types.Message, state: FSMContext) ->
             try:
                 await bot.send_message(
                     admin_id,
-                    f"Контрагент {contractor.display_name} привязался к Telegram.",
+                    replies.notifications.contractor_linked.format(name=contractor.display_name),
                 )
             except Exception:
                 pass
@@ -1030,10 +1040,10 @@ async def _forward_to_admins(raw_text: str, ctype: ContractorType, parsed: dict)
     """Forward registration data to all admin Telegram IDs."""
     for admin_id in ADMIN_TELEGRAM_IDS:
         try:
-            msg = f"Новая регистрация ({ctype.value}):\n\n{raw_text}"
+            msg = replies.notifications.new_registration.format(type=ctype.value, raw_text=raw_text)
             if parsed:
                 formatted = "\n".join(f"  {k}: {v}" for k, v in parsed.items() if v)
-                msg += f"\n\nРаспознанные данные:\n{formatted}"
+                msg += replies.notifications.new_registration_parsed.format(formatted=formatted)
             await bot.send_message(admin_id, msg)
         except Exception:
             pass
@@ -1153,7 +1163,7 @@ async def email_listener_task() -> None:
             if non_support:
                 forwarded = await asyncio.to_thread(_proposal_service.process_proposals, non_support)
                 for em in forwarded:
-                    await bot.send_message(admin_id, f"Forwarded article proposal from {em.from_addr}: {em.subject}")
+                    await bot.send_message(admin_id, replies.email_support.proposal_forwarded.format(from_addr=em.from_addr, subject=em.subject))
                 for em in non_support:
                     await asyncio.to_thread(_email_service.skip, em.uid)
         except Exception as e:
@@ -1168,16 +1178,17 @@ async def _send_email_draft(admin_id: int, draft: SupportDraft) -> None:
     header = f"From: {em.from_addr}\n"
     if em.reply_to and em.reply_to != em.from_addr:
         header += f"Reply-To: {em.reply_to}\n"
+    draft_header = replies.email_support.draft_header if draft.can_answer else replies.email_support.draft_header_uncertain
     text = (
         f"{header}"
         f"Subject: {em.subject}\n\n"
         f"{body_preview}\n\n"
-        f"--- Draft reply (can_answer: {draft.can_answer}) ---\n"
+        f"{draft_header}\n"
         f"{draft.draft_reply}"
     )
     buttons = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="Send", callback_data=f"email:send:{em.uid}"),
-        InlineKeyboardButton(text="Skip", callback_data=f"email:skip:{em.uid}"),
+        InlineKeyboardButton(text=replies.email_support.btn_send, callback_data=f"email:send:{em.uid}"),
+        InlineKeyboardButton(text=replies.email_support.btn_skip, callback_data=f"email:skip:{em.uid}"),
     ]])
     await bot.send_message(admin_id, text, reply_markup=buttons)
 
@@ -1192,12 +1203,12 @@ async def handle_email_callback(callback: CallbackQuery) -> None:
 
     draft = _email_service.get_pending(uid)
     if not draft:
-        await callback.message.edit_text("(expired — email already handled)")
+        await callback.message.edit_text(replies.email_support.expired)
         return
 
     if action == "send":
         await asyncio.to_thread(_email_service.approve, uid)
-        await callback.message.edit_text(f"Reply sent to {draft.email.reply_to or draft.email.from_addr}")
+        await callback.message.edit_text(replies.email_support.reply_sent.format(addr=draft.email.reply_to or draft.email.from_addr))
     elif action == "skip":
         await asyncio.to_thread(_email_service.skip, uid)
-        await callback.message.edit_text(f"Skipped email from {draft.email.from_addr}")
+        await callback.message.edit_text(replies.email_support.skipped.format(from_addr=draft.email.from_addr))

@@ -29,6 +29,7 @@ from telegram_bot.flow_callbacks import (
     handle_data_input,
     handle_amount_input,
     handle_update_data,
+    handle_editor_source_name,
     # Document upload
     handle_document,
     # Admin
@@ -123,6 +124,13 @@ contractor_flow = Flow(
         FlowState(
             name="waiting_update_data",
             handler=handle_update_data,
+            transitions={
+                "done": Transition(to="end"),
+            },
+        ),
+        FlowState(
+            name="waiting_editor_source_name",
+            handler=handle_editor_source_name,
             transitions={
                 "done": Transition(to="end"),
             },

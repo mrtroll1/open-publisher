@@ -167,7 +167,14 @@ Show menu for linked contractors instead of generic greeting.
 
 ## Phase 2: Editor Tools (Feature 2)
 
-### Feature 2: Editor Source Management
+### Feature 2: Editor Source Management ✅ (Session 3)
+
+- [x] Step 2.1: Add CRUD to rules_repo
+- [x] Step 2.2: Modify the linked user menu
+- [x] Step 2.3: Add editor source handlers
+- [x] Step 2.4: Add FSM state for new source
+- [x] Step 2.5: Add reply strings
+- [x] Step 2.6: Register callbacks
 
 #### Step 2.1: Add CRUD to rules_repo
 `backend/infrastructure/repositories/rules_repo.py`:

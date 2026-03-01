@@ -16,6 +16,13 @@ from backend.infrastructure.repositories.contractor_repo import (  # noqa: F401
     update_contractor_fields,
 )
 
+# --- Rules repository ---
+from backend.infrastructure.repositories.rules_repo import (  # noqa: F401
+    add_redirect_rule,
+    find_redirect_rules_by_target,
+    remove_redirect_rule,
+)
+
 # --- Invoice repository ---
 from backend.infrastructure.repositories.invoice_repo import (  # noqa: F401
     load_invoices,

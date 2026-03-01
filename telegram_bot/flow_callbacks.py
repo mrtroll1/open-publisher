@@ -26,9 +26,11 @@ from common.models import (
     Currency,
     GlobalContractor,
     InvoiceStatus,
+    RoleCode,
     SupportDraft,
 )
 from backend import (
+    add_redirect_rule,
     bind_telegram_id,
     create_and_save_invoice,
     export_pdf,
@@ -36,6 +38,7 @@ from backend import (
     find_contractor,
     find_contractor_by_id,
     find_contractor_by_telegram_id,
+    find_redirect_rules_by_target,
     fuzzy_find,
     GenerateBatchInvoices,
     load_invoices,
@@ -45,6 +48,7 @@ from backend import (
     pop_random_secret_code,
     prepare_existing_invoice,
     read_budget_amounts,
+    remove_redirect_rule,
     resolve_amount,
     save_contractor,
     translate_name_to_russian,
@@ -64,6 +68,18 @@ logger = logging.getLogger(__name__)
 #  /start
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+def _linked_menu_markup(contractor: Contractor) -> InlineKeyboardMarkup:
+    rows = [
+        [InlineKeyboardButton(text=replies.linked_menu.btn_contract, callback_data="menu:contract")],
+        [InlineKeyboardButton(text=replies.linked_menu.btn_update, callback_data="menu:update")],
+    ]
+    if contractor.role_code == RoleCode.REDAKTOR:
+        rows.append([InlineKeyboardButton(
+            text=replies.linked_menu.btn_editor_sources, callback_data="menu:editor",
+        )])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 async def handle_start(message: types.Message, state: FSMContext) -> None:
     await state.clear()
     if is_admin(message.from_user.id):
@@ -72,13 +88,9 @@ async def handle_start(message: types.Message, state: FSMContext) -> None:
     contractors = await get_contractors()
     contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
     if contractor:
-        buttons = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=replies.linked_menu.btn_contract, callback_data="menu:contract")],
-            [InlineKeyboardButton(text=replies.linked_menu.btn_update, callback_data="menu:update")],
-        ])
         await message.answer(
             replies.linked_menu.prompt.format(name=contractor.display_name),
-            reply_markup=buttons,
+            reply_markup=_linked_menu_markup(contractor),
         )
         return
     await message.answer(replies.start.contractor)
@@ -202,13 +214,9 @@ async def handle_contractor_text(message: types.Message, state: FSMContext) -> s
     if not is_admin(telegram_id):
         contractor = find_contractor_by_telegram_id(telegram_id, contractors)
         if contractor:
-            buttons = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text=replies.linked_menu.btn_contract, callback_data="menu:contract")],
-                [InlineKeyboardButton(text=replies.linked_menu.btn_update, callback_data="menu:update")],
-            ])
             await message.answer(
                 replies.linked_menu.prompt.format(name=contractor.display_name),
-                reply_markup=buttons,
+                reply_markup=_linked_menu_markup(contractor),
             )
             await state.clear()
             return None
@@ -675,6 +683,93 @@ async def handle_linked_menu_callback(callback: CallbackQuery, state: FSMContext
     elif action == "update":
         await state.set_state("ContractorStates:waiting_update_data")
         await callback.message.answer(replies.linked_menu.update_prompt)
+    elif action == "editor":
+        await _show_editor_sources(callback, contractor)
+
+
+def _editor_sources_content(rules) -> tuple[str, InlineKeyboardMarkup]:
+    """Build text and keyboard for the editor sources list."""
+    rows: list[list[InlineKeyboardButton]] = []
+    if rules:
+        text = replies.editor_sources.header + "\n"
+        for r in rules:
+            text += f"\n  - {r.source_name}"
+            rows.append([
+                InlineKeyboardButton(
+                    text=f"{replies.editor_sources.btn_remove} {r.source_name}",
+                    callback_data=f"esrc:rm:{r.source_name}",
+                ),
+            ])
+    else:
+        text = replies.editor_sources.empty
+    rows.append([InlineKeyboardButton(text=replies.editor_sources.btn_add, callback_data="esrc:add")])
+    rows.append([InlineKeyboardButton(text=replies.editor_sources.btn_back, callback_data="esrc:back")])
+    return text, InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+async def _show_editor_sources(callback: CallbackQuery, contractor: Contractor) -> None:
+    """Render the editor sources list with inline buttons."""
+    rules = await asyncio.to_thread(find_redirect_rules_by_target, contractor.id)
+    text, markup = _editor_sources_content(rules)
+    await callback.message.edit_text(text, reply_markup=markup)
+
+
+async def handle_editor_source_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    """Handle editor source management callbacks (esrc: prefix)."""
+    contractors = await get_contractors()
+    contractor = find_contractor_by_telegram_id(callback.from_user.id, contractors)
+    if not contractor:
+        await callback.answer()
+        await callback.message.answer(replies.lookup.not_found)
+        return
+
+    data = callback.data.removeprefix("esrc:")
+
+    if data == "list":
+        await callback.answer()
+        await _show_editor_sources(callback, contractor)
+
+    elif data.startswith("rm:"):
+        source_name = data.removeprefix("rm:")
+        removed = await asyncio.to_thread(remove_redirect_rule, source_name, contractor.id)
+        # Show toast notification with removal confirmation
+        if removed:
+            await callback.answer(replies.editor_sources.removed.format(name=source_name))
+        else:
+            await callback.answer()
+        await _show_editor_sources(callback, contractor)
+
+    elif data == "add":
+        await callback.answer()
+        await state.set_state("ContractorStates:waiting_editor_source_name")
+        await callback.message.edit_text(replies.editor_sources.add_prompt, reply_markup=None)
+
+    elif data == "back":
+        await callback.answer()
+        await callback.message.edit_text(
+            replies.linked_menu.prompt.format(name=contractor.display_name),
+            reply_markup=_linked_menu_markup(contractor),
+        )
+
+
+async def handle_editor_source_name(message: types.Message, state: FSMContext) -> str | None:
+    """Handle text input for adding a new editor source. Returns 'done' or None."""
+    contractors = await get_contractors()
+    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    if not contractor:
+        await message.answer(replies.lookup.not_found)
+        await state.clear()
+        return "done"
+
+    source_name = message.text.strip()
+    await asyncio.to_thread(add_redirect_rule, source_name, contractor.id)
+    await message.answer(replies.editor_sources.added.format(name=source_name))
+
+    # Show updated list as a new message (can't edit since user sent text)
+    rules = await asyncio.to_thread(find_redirect_rules_by_target, contractor.id)
+    text, markup = _editor_sources_content(rules)
+    await message.answer(text, reply_markup=markup)
+    return "done"
 
 
 async def handle_update_data(message: types.Message, state: FSMContext) -> str | None:

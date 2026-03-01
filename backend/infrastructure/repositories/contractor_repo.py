@@ -275,7 +275,8 @@ def increment_invoice_number(contractor_id: str) -> int:
 def pop_random_secret_code() -> str:
     """Pick a random secret code from the 'secret_codes' sheet and delete that row."""
     rows = _sheets.read(CONTRACTORS_SHEET_ID, "'secret_codes'!A:A")
-    codes = [(i, row[0].strip()) for i, row in enumerate(rows) if row and row[0].strip()]
+    # Skip header row (index 0)
+    codes = [(i, row[0].strip()) for i, row in enumerate(rows) if i > 0 and row and row[0].strip()]
     if not codes:
         logger.warning("No secret codes left in the sheet")
         return ""

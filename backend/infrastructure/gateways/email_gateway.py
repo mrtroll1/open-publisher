@@ -66,7 +66,10 @@ class EmailGateway:
         msg = MIMEText(body, "plain", "utf-8")
         msg["From"] = from_addr or EMAIL_ADDRESS
         msg["To"] = to
-        msg["Subject"] = f"Re: {subject}" if not subject.startswith("Re:") else subject
+        if subject.startswith("Re:") or subject.startswith("Fwd:") or subject.startswith("Fw:"):
+            msg["Subject"] = subject
+        else:
+            msg["Subject"] = f"Re: {subject}"
         if in_reply_to:
             msg["In-Reply-To"] = in_reply_to
             msg["References"] = in_reply_to

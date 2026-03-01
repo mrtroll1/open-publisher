@@ -444,6 +444,33 @@ _None yet._
 - No conftest.py changes needed — existing stubs sufficient
 - Pure-logic coverage now comprehensive. Remaining untested areas are service-layer code (requires mocked gateways) and email parsing
 
+### Session 18 (2026-03-01) — Maintenance: Spot Bugs (round 3)
+**Status:** Complete
+
+**What was done:**
+- Thorough code review across 30+ files in all layers (domain, infrastructure, telegram bot)
+- Found and fixed 3 confirmed bugs:
+
+1. **Forwarded article proposals get "Re:" prefix** (`email_gateway.py`):
+   - `send_reply()` only checked for `"Re:"` prefix before prepending it
+   - `ArticleProposalService._forward()` passes subjects like `"Fwd: Some Article"` which got mangled to `"Re: Fwd: Some Article"`
+   - **Fix**: Added `"Fwd:"` and `"Fw:"` prefix checks alongside `"Re:"`
+
+2. **`pop_random_secret_code()` could select header row** (`contractor_repo.py`):
+   - Function iterated over ALL rows from `secret_codes!A:A` including index 0 (header)
+   - Header text like "secret_code" could be randomly selected as a contractor's code, and cleared from the sheet
+   - **Fix**: Added `i > 0` filter to skip header row
+
+3. **Debug mode saved invoices to sheet, blocking real generation** (`generate_invoice.py`):
+   - Docstring stated "In debug mode, skips number increment and sheet save"
+   - But only number increment was skipped — `save_invoice()` was called unconditionally
+   - Running `/generate_invoices debug` would create records with `invoice_number=0`, which then prevented real generation (contractor already had an invoice entry)
+   - **Fix**: Wrapped `save_invoice()` in `if not debug:`
+
+**Notes:**
+- All 274 tests pass after fixes
+- Bug 3 (debug mode) is the most impactful — could silently block real invoice generation after a debug run
+
 ## Next up
 
-- Maintenance mode continues. Fourth cycle: next session should be spot bugs (round 3).
+- Maintenance mode continues. Fourth cycle: next session should be refactor (round 3).

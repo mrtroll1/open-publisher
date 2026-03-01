@@ -94,8 +94,9 @@ class GenerateInvoice:
             gdrive_link = ""
         invoice.gdrive_path = gdrive_link
 
-        # 5. Save to invoices sheet
-        save_invoice(invoice)
+        # 5. Save to invoices sheet (skip in debug)
+        if not debug:
+            save_invoice(invoice)
 
         return InvoiceResult(pdf_bytes=pdf_bytes, invoice=invoice)
 

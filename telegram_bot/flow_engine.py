@@ -8,11 +8,10 @@ from typing import Optional
 from aiogram import Dispatcher, F, Router, types
 from aiogram.enums import ChatAction
 from aiogram.filters import Command, CommandStart
-from aiogram.types import BotCommand, BotCommandScopeChat
+from aiogram.types import BotCommand
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 
-from common.config import ADMIN_TELEGRAM_IDS
 from telegram_bot.bot_helpers import is_admin
 from telegram_bot.flow_dsl import (
     AdminCommand, BotFlows, Flow, FlowState, InputType, Transition,
@@ -194,28 +193,10 @@ def _register_document_handler(router: Router, flow: Flow) -> None:
 # ── Public API ───────────────────────────────────────────────────────
 
 async def set_bot_commands(bot) -> None:
-    """Set scoped command menus: admin commands for admins, user commands for everyone else."""
-    # Default commands (visible to regular users)
+    """Set the bot's command menu."""
     await bot.set_my_commands([
         BotCommand(command="menu", description="Меню"),
-        BotCommand(command="sign_doc", description="Подписать договор для выплат"),
-        BotCommand(command="update_payment_data", description="Обновить платежные данные"),
-        BotCommand(command="manage_redirects", description="Настроить, за кого я получаю деньги"),
     ])
-    # Admin-specific commands (override default for each admin chat)
-    admin_commands = [
-        BotCommand(command="menu", description="Меню"),
-        BotCommand(command="generate", description="Сгенерировать документ"),
-        BotCommand(command="generate_invoices", description="Сгенерировать все счета"),
-        BotCommand(command="send_global_invoices", description="Отправить глобальные счета"),
-        BotCommand(command="budget", description="Расчёт бюджета"),
-        BotCommand(command="upload_to_airtable", description="Загрузить банковскую выписку"),
-    ]
-    for admin_id in ADMIN_TELEGRAM_IDS:
-        try:
-            await bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=admin_id))
-        except Exception:
-            logger.warning("Could not set admin commands for chat %s (not started?)", admin_id)
 
 
 def register_flows(dp: Dispatcher, bot_flows: BotFlows) -> None:

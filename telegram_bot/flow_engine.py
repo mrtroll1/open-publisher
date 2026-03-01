@@ -212,7 +212,10 @@ async def set_bot_commands(bot) -> None:
         BotCommand(command="upload_to_airtable", description="Загрузить банковскую выписку"),
     ]
     for admin_id in ADMIN_TELEGRAM_IDS:
-        await bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=admin_id))
+        try:
+            await bot.set_my_commands(admin_commands, scope=BotCommandScopeChat(chat_id=admin_id))
+        except Exception:
+            logger.warning("Could not set admin commands for chat %s (not started?)", admin_id)
 
 
 def register_flows(dp: Dispatcher, bot_flows: BotFlows) -> None:

@@ -511,6 +511,38 @@ _None yet._
 - Input matching patterns ("самозанятый", "ип", "отмена") were intentionally left inline — they're not user-facing messages
 - `invoice.delivery_error` uses f-string with `ADMIN_TELEGRAM_TAG` at class definition time (same pattern as other reply classes)
 
+### Session 21 (2026-03-01) — Maintenance: Improve Prompts (round 3)
+**Status:** Complete
+
+**What was done:**
+- Reviewed all 12 template and knowledge files for remaining improvements
+- Fixed 6 Russian typos/grammar errors across knowledge/base.md and knowledge/tech-support.md:
+  - "просиходит" → "происходит", "эти задач...из можно" → "этих задач...их можно"
+  - "Акканты" → "Аккаунты", "несвязаное" → "несвязанное", "читаешь" → "считаешь", "информации" → "информация"
+- Improved templates/support-email.md:
+  - Fixed "Быть внимателен" → "Будь внимателен" (imperative mood consistency)
+  - Added instruction to extract user's name from From header for personalized greetings
+- Improved templates/support-triage.md:
+  - Added forwarded email handling: use end-user's address, not intermediary forwarders
+- Improved templates/tech-search-terms.md:
+  - Made explicit: return empty search_terms list when needs_code=false
+- Improved templates/contractor-parse.md:
+  - Added reference to validation knowledge base ("Проверяй форматы полей по справочнику выше")
+  - Expanded comment trigger to include "несоответствие длины" (length mismatches)
+- Improved templates/article-proposal-triage.md:
+  - Added mass mailings from media/orgs/PR agencies as negative criterion
+  - Added multilingual note: same criteria regardless of email language
+- Expanded knowledge/payment-data-validation.md:
+  - Added missing fields: passport_date, passport_issued_by, bank_name (both Russian and global)
+  - Clarified INN length by entity type: 12 digits for individuals, 10 for IP/legal entities
+- Added refund handling section to knowledge/tech-support.md:
+  - LLM cannot process refunds, should not promise them, should escalate
+
+**Notes:**
+- All changes are content-only (templates + knowledge files), no code changes
+- All 274 tests pass
+- Files reviewed but not changed (already good): translate-name.md, knowledge/support-triage.md, knowledge/email-inbox.md, knowledge/contractors.md
+
 ## Next up
 
-- Maintenance mode continues. Fourth cycle: next session should be improve prompts (round 3).
+- Maintenance mode continues. Fourth cycle: next session should be write tests (round 4).

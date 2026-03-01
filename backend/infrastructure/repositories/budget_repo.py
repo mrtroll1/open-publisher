@@ -159,7 +159,7 @@ def redirect_in_budget(source_name: str, target: Contractor, month: str) -> None
     # Clear source row
     s_sheet_row = source_idx + 2
     _sheets.clear(sheet_id, f"A{s_sheet_row}:E{s_sheet_row}")
-    logger.info("Budget: moved %s (%d) → %s", source_name, source_amount, target.display_name)
+    logger.info("Budget: moved %s (%d) → %s", source_name, add_amount, target.display_name)
 
 
 def unredirect_in_budget(source_name: str, target: Contractor, month: str) -> None:

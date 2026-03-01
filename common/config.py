@@ -20,9 +20,7 @@ ADMIN_TELEGRAM_IDS = [
 ADMIN_TELEGRAM_TAG = os.environ["ADMIN_TELEGRAM_TAG"]
 
 # --- Google ---
-GOOGLE_SERVICE_ACCOUNT_FILE = os.getenv(
-    "GOOGLE_SERVICE_ACCOUNT_FILE", str(_CONFIG / "service_account.json")
-)
+GOOGLE_SERVICE_ACCOUNT_FILE = os.environ["GOOGLE_SERVICE_ACCOUNT_FILE"]
 GOOGLE_SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/documents",

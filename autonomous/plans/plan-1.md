@@ -229,7 +229,13 @@ dp.callback_query.register(handle_editor_source_callback, F.data.startswith("esr
 
 ## Phase 3: Data Pipeline (Feature 3)
 
-### Feature 3: Redefine PNL + Exchange Rate → Budget Sheet
+### Feature 3: Redefine PNL + Exchange Rate → Budget Sheet ✅ (Session 4)
+
+- [x] Step 3.1: Add env vars
+- [x] Step 3.2: Add PNL method to RedefineGateway
+- [x] Step 3.3: Create exchange rate gateway
+- [x] Step 3.4: Modify budget generation
+- [x] Step 3.5: Modify budget_repo.py
 
 #### Step 3.1: Add env vars
 `common/config.py`:

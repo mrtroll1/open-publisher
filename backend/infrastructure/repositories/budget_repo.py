@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from common.config import BUDGET_SHEETS_FOLDER_ID, BUDGET_TEMPLATE_SHEET_ID
+from common.config import BUDGET_SHEETS_FOLDER_ID, BUDGET_TEMPLATE_SHEET_ID, EUR_RUB_CELL
 from common.models import Contractor, Currency
 from backend.infrastructure.gateways.drive_gateway import DriveGateway
 from backend.infrastructure.gateways.sheets_gateway import SheetsGateway
@@ -94,6 +94,14 @@ def populate_sheet(sheet_id: str, rows: list[list[str]], header_label: str) -> N
     if rows:
         end_row = 1 + len(rows)
         _sheets.write(sheet_id, f"A2:E{end_row}", rows)
+
+
+def write_pnl_section(sheet_id: str, start_row: int, eur_rub_rate: float, pnl_rows: list[list[str]]) -> None:
+    if eur_rub_rate:
+        _sheets.write(sheet_id, EUR_RUB_CELL, [[eur_rub_rate]])
+    if pnl_rows:
+        end_row = start_row + len(pnl_rows) - 1
+        _sheets.write(sheet_id, f"A{start_row}:E{end_row}", pnl_rows)
 
 
 def sheet_url(sheet_id: str) -> str:

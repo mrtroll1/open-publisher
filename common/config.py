@@ -113,6 +113,12 @@ REPUBLIC_SUPPORT_API_KEY = os.getenv("REPUBLIC_SUPPORT_API_KEY", "")
 REDEFINE_API_URL = os.getenv("REDEFINE_API_URL", "")
 REDEFINE_SUPPORT_API_KEY = os.getenv("REDEFINE_SUPPORT_API_KEY", "")
 
+# --- Redefine PNL ---
+PNL_API_URL = os.getenv("PNL_API_URL", "")
+PNL_API_USER = os.getenv("PNL_API_USER", "")
+PNL_API_PASSWORD = os.getenv("PNL_API_PASSWORD", "")
+EUR_RUB_CELL = os.getenv("EUR_RUB_CELL", "G2")
+
 # --- Product name (used in user-facing strings) ---
 PRODUCT_NAME = os.getenv("PRODUCT_NAME", "")
 

@@ -5,12 +5,16 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from common.config import EUR_RUB_CELL
 from common.models import Contractor, Currency, RoleCode
+from backend.infrastructure.gateways.exchange_rate_gateway import fetch_eur_rub_rate
+from backend.infrastructure.gateways.redefine_gateway import RedefineGateway
 from backend.infrastructure.gateways.republic_gateway import RepublicGateway
 from backend.infrastructure.repositories.budget_repo import (
     create_sheet,
     populate_sheet,
     sheet_url,
+    write_pnl_section,
 )
 from backend.infrastructure.repositories.contractor_repo import (
     find_contractor,
@@ -97,6 +101,7 @@ class ComputeBudget:
 
     def __init__(self):
         self._content = RepublicGateway()
+        self._redefine = RedefineGateway()
 
     def execute(self, month: str) -> str:
         """Generate the payments sheet for the given month. Returns the sheet URL."""
@@ -105,8 +110,16 @@ class ComputeBudget:
 
         entries = self._build_entries(published_authors, contractors, month)
 
+        eur_rub_rate = fetch_eur_rub_rate()
+        pnl_data = self._redefine.get_pnl_stats(month)
+
         sheet_id = create_sheet(month)
         self._populate_sheet(sheet_id, entries, month)
+
+        # PNL section starts after main entries (row 2 + number of entries)
+        pnl_start_row = 2 + len(entries) + 1  # +1 for a blank separator row
+        pnl_rows = self._build_pnl_rows(pnl_data, eur_rub_rate)
+        write_pnl_section(sheet_id, pnl_start_row, eur_rub_rate, pnl_rows)
 
         url = sheet_url(sheet_id)
         logger.info("Budget sheet created: %s", url)
@@ -343,3 +356,27 @@ class ComputeBudget:
         target = _target_month_name(month)
         header = f"Editorial Expenses (бюджет на {target})"
         populate_sheet(sheet_id, rows, header)
+
+    @staticmethod
+    def _build_pnl_rows(pnl_data: dict, eur_rub_rate: float) -> list[list[str]]:
+        """Build PNL rows for the budget sheet.
+
+        Each row: [name, category, EUR formula, RUB amount, ""].
+        EUR column uses a formula dividing RUB by the EUR/RUB rate in EUR_RUB_CELL.
+        """
+        if not pnl_data or not eur_rub_rate:
+            return []
+        # Convert cell ref (e.g. "G2") to absolute ("$G$2") for formulas
+        col = "".join(c for c in EUR_RUB_CELL if c.isalpha())
+        row_num = "".join(c for c in EUR_RUB_CELL if c.isdigit())
+        abs_ref = f"${col}${row_num}"
+        rows: list[list[str]] = []
+        for item in pnl_data.get("items", []):
+            name = item.get("name", "")
+            category = item.get("category", "PNL")
+            rub_amount = item.get("amount", 0)
+            if not name or not rub_amount:
+                continue
+            eur_formula = f"=ROUND({rub_amount}/{abs_ref}, 0)"
+            rows.append([name, category, eur_formula, str(rub_amount), ""])
+        return rows

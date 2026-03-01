@@ -1,9 +1,26 @@
 services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: republic_agent
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-agent_dev_pass}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
   bot:
     build: .
     restart: unless-stopped
     env_file: config/.env
+    depends_on:
+      - db
     volumes:
       - ./config/service_account.json:/app/config/service_account.json:ro
       - ./config/business_config.json:/app/config/business_config.json:ro
       - ./config/tech_config.json:/app/config/tech_config.json:ro
+
+volumes:
+  pgdata:

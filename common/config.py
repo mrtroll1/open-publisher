@@ -81,6 +81,9 @@ CONTENT_API_URL = os.environ.get("CONTENT_API_URL", "")
 # --- Gemini (for new-contractor parsing) ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
+# --- Database ---
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://agent:agent_dev_pass@db:5432/republic_agent")
+
 # --- Email (support inbox via Gmail API) ---
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS", "")
 GMAIL_CLIENT_ID = os.getenv("GMAIL_CLIENT_ID", "")

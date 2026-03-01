@@ -122,4 +122,6 @@ class EmailGateway:
             body=body.strip(),
             date=msg.get("Date", ""),
             message_id=msg.get("Message-ID", ""),
+            in_reply_to=msg.get("In-Reply-To", "").strip(),
+            references=msg.get("References", "").strip(),
         )

@@ -300,6 +300,8 @@ class IncomingEmail(BaseModel):
     body: str
     date: str
     message_id: str = ""
+    in_reply_to: str = ""
+    references: str = ""
 
 
 class SupportDraft(BaseModel):

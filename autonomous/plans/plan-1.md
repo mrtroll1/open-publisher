@@ -31,9 +31,17 @@
 
 ## Phase 1: Foundation (Features 6 + 1)
 
-### Feature 6: Postgres + Email Thread Tracking
+### Feature 6: Postgres + Email Thread Tracking ✅ (Session 1)
 
 **Why first:** Establishes database infrastructure all other features may benefit from.
+
+- [x] Step 6.1: Add Postgres to docker-compose.yml
+- [x] Step 6.2: Add DATABASE_URL env var to config.py
+- [x] Step 6.3: Create db_gateway.py with thread tracking
+- [x] Step 6.4: Add in_reply_to and references to IncomingEmail
+- [x] Step 6.5: Parse In-Reply-To and References headers in email_gateway.py
+- [x] Step 6.6: Integrate thread tracking into SupportEmailService
+- [x] Step 6.7: Add psycopg2-binary to requirements.txt
 
 #### Step 6.1: Add Postgres to docker-compose.yml
 ```yaml

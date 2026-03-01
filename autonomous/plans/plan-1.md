@@ -107,7 +107,15 @@ class IncomingEmail(BaseModel):
 
 ---
 
-### Feature 1: Linked User Menu
+### Feature 1: Linked User Menu ✅ (Session 2)
+
+- [x] Step 1.1: Add reply strings
+- [x] Step 1.2: Add FSM states for update flow
+- [x] Step 1.3: Modify `handle_contractor_text`
+- [x] Step 1.4: Add `handle_linked_menu_callback`
+- [x] Step 1.5: Add `update_contractor_fields()`
+- [x] Step 1.6: Register callbacks
+- [x] Step 1.7: Modify `handle_start` for linked users
 
 #### Step 1.1: Add reply strings
 `telegram_bot/replies.py` — new class `linked_menu`:

@@ -13,6 +13,7 @@ from backend.infrastructure.repositories.contractor_repo import (  # noqa: F401
     next_contractor_id,
     pop_random_secret_code,
     save_contractor,
+    update_contractor_fields,
 )
 
 # --- Invoice repository ---

@@ -288,6 +288,30 @@ def pop_random_secret_code() -> str:
     return code
 
 
+def update_contractor_fields(contractor_id: str, updates: dict[str, str]) -> int:
+    """Update specific fields for a contractor in their sheet. Returns number of fields updated."""
+    result = _find_contractor_in_sheets(contractor_id)
+    if result is None:
+        logger.error("Contractor %s not found in any sheet", contractor_id)
+        return 0
+
+    sheet_name, rows, row_idx = result
+    headers = [h.strip().lower() for h in rows[0]]
+    count = 0
+    for field, value in updates.items():
+        try:
+            col_idx = headers.index(field)
+        except ValueError:
+            logger.warning("Column %s not found in sheet %s", field, sheet_name)
+            continue
+        col_letter = _index_to_column_letter(col_idx)
+        cell_address = f"'{sheet_name}'!{col_letter}{row_idx + 1}"
+        _sheets.write(CONTRACTORS_SHEET_ID, cell_address, [[value]])
+        count += 1
+    logger.info("Updated %d fields for contractor %s", count, contractor_id)
+    return count
+
+
 def _index_to_column_letter(idx: int) -> str:
     """Convert 0-based column index to letter (0->A, 1->B, ..., 26->AA)."""
     result = ""

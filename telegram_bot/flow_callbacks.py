@@ -48,6 +48,7 @@ from backend import (
     resolve_amount,
     save_contractor,
     translate_name_to_russian,
+    update_contractor_fields,
     update_invoice_status,
     update_legium_link,
     upload_invoice_pdf,
@@ -67,8 +68,20 @@ async def handle_start(message: types.Message, state: FSMContext) -> None:
     await state.clear()
     if is_admin(message.from_user.id):
         await message.answer(replies.start.admin)
-    else:
-        await message.answer(replies.start.contractor)
+        return
+    contractors = await get_contractors()
+    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    if contractor:
+        buttons = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=replies.linked_menu.btn_contract, callback_data="menu:contract")],
+            [InlineKeyboardButton(text=replies.linked_menu.btn_update, callback_data="menu:update")],
+        ])
+        await message.answer(
+            replies.linked_menu.prompt.format(name=contractor.display_name),
+            reply_markup=buttons,
+        )
+        return
+    await message.answer(replies.start.contractor)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -185,17 +198,20 @@ async def handle_contractor_text(message: types.Message, state: FSMContext) -> s
     contractors = await get_contractors()
     telegram_id = message.from_user.id
 
-    # Already bound?
-    contractor = find_contractor_by_telegram_id(telegram_id, contractors)
-    if contractor:
-        delivered = await _deliver_existing_invoice(message, contractor)
-        if not delivered:
-            month = prev_month()
+    # Already bound? Show linked menu (admins use lookup instead)
+    if not is_admin(telegram_id):
+        contractor = find_contractor_by_telegram_id(telegram_id, contractors)
+        if contractor:
+            buttons = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text=replies.linked_menu.btn_contract, callback_data="menu:contract")],
+                [InlineKeyboardButton(text=replies.linked_menu.btn_update, callback_data="menu:update")],
+            ])
             await message.answer(
-                replies.lookup.no_invoices.format(name=contractor.display_name, month=month)
+                replies.linked_menu.prompt.format(name=contractor.display_name),
+                reply_markup=buttons,
             )
-        await state.clear()
-        return None
+            await state.clear()
+            return None
 
     query = message.text.strip()
 
@@ -636,6 +652,55 @@ async def handle_duplicate_callback(callback: CallbackQuery, state: FSMContext) 
     await callback.message.answer(
         replies.verification.code_prompt.format(name=contractor.display_name)
     )
+
+
+async def handle_linked_menu_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    """Handle inline button press from the linked user menu."""
+    await callback.answer()
+    contractors = await get_contractors()
+    contractor = find_contractor_by_telegram_id(callback.from_user.id, contractors)
+    if not contractor:
+        await callback.message.answer(replies.lookup.not_found)
+        return
+
+    action = callback.data.removeprefix("menu:")
+
+    if action == "contract":
+        delivered = await _deliver_existing_invoice(callback.message, contractor)
+        if not delivered:
+            month = prev_month()
+            await callback.message.answer(
+                replies.lookup.no_invoices.format(name=contractor.display_name, month=month)
+            )
+    elif action == "update":
+        await state.set_state("ContractorStates:waiting_update_data")
+        await callback.message.answer(replies.linked_menu.update_prompt)
+
+
+async def handle_update_data(message: types.Message, state: FSMContext) -> str | None:
+    """Parse free-form update text and write changes to sheet. Returns 'done' or None."""
+    contractors = await get_contractors()
+    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    if not contractor:
+        await message.answer(replies.lookup.not_found)
+        await state.clear()
+        return "done"
+
+    parsed = await _parse_with_llm(message.text.strip(), contractor.type)
+    if "parse_error" in parsed:
+        await message.answer(replies.registration.parse_error)
+        return None
+
+    parsed_updates = {k: v for k, v in parsed.items() if isinstance(v, str) and v.strip()}
+    parsed_updates.pop("comment", None)
+
+    if not parsed_updates:
+        await message.answer(replies.linked_menu.no_changes)
+        return None
+
+    await asyncio.to_thread(update_contractor_fields, contractor.id, parsed_updates)
+    await message.answer(replies.linked_menu.update_success)
+    return "done"
 
 
 async def handle_verification_code(message: types.Message, state: FSMContext) -> str | None:

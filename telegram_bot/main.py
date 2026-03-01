@@ -10,7 +10,8 @@ from aiogram import Dispatcher, F
 from telegram_bot.bot_helpers import bot
 from telegram_bot.flow_engine import register_flows
 from telegram_bot.flow_callbacks import (
-    email_listener_task, handle_email_callback, handle_duplicate_callback, handle_non_document,
+    email_listener_task, handle_email_callback, handle_duplicate_callback,
+    handle_linked_menu_callback, handle_non_document,
 )
 from telegram_bot.flows import bot_flows
 
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 dp = Dispatcher()
 dp.callback_query.register(handle_email_callback, F.data.startswith("email:"))
 dp.callback_query.register(handle_duplicate_callback, F.data.startswith("dup:"))
+dp.callback_query.register(handle_linked_menu_callback, F.data.startswith("menu:"))
 register_flows(dp, bot_flows)
 
 # Catch photos/stickers/etc — must be after flows so it doesn't interfere

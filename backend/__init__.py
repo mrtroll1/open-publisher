@@ -78,6 +78,18 @@ def read_budget_amounts(month: str) -> dict:
     return read_all_amounts(month)
 
 
+def redirect_in_budget(source_name: str, target, month: str) -> None:
+    """Move source author's budget row into target contractor's row."""
+    from backend.infrastructure.repositories.budget_repo import redirect_in_budget as _impl
+    _impl(source_name, target, month)
+
+
+def unredirect_in_budget(source_name: str, target, month: str) -> None:
+    """Undo a redirect: restore source as standalone row."""
+    from backend.infrastructure.repositories.budget_repo import unredirect_in_budget as _impl
+    _impl(source_name, target, month)
+
+
 def create_and_save_invoice(contractor, month, amount, articles, invoice_date=None, debug=False):
     """Full invoice flow: increment number, generate PDF, upload, save.
 

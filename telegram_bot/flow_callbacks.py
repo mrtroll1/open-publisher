@@ -38,6 +38,8 @@ from backend import (
     create_and_save_invoice,
     delete_invoice,
     export_pdf,
+    redirect_in_budget,
+    unredirect_in_budget,
     fetch_articles,
     find_contractor,
     find_contractor_by_id,
@@ -809,7 +811,9 @@ async def handle_editor_source_callback(callback: CallbackQuery, state: FSMConte
         source_name = data.removeprefix("rm:")
         removed = await asyncio.to_thread(remove_redirect_rule, source_name, contractor.id)
         if removed:
-            await asyncio.to_thread(delete_invoice, contractor.id, prev_month())
+            month = prev_month()
+            await asyncio.to_thread(delete_invoice, contractor.id, month)
+            await asyncio.to_thread(unredirect_in_budget, source_name, contractor, month)
             await callback.answer(replies.editor_sources.removed.format(name=source_name))
         else:
             await callback.answer()
@@ -849,8 +853,10 @@ async def handle_editor_source_name(message: types.Message, state: FSMContext) -
         return "done"
 
     source_name = message.text.strip()
+    month = prev_month()
     await asyncio.to_thread(add_redirect_rule, source_name, contractor.id)
-    await asyncio.to_thread(delete_invoice, contractor.id, prev_month())
+    await asyncio.to_thread(delete_invoice, contractor.id, month)
+    await asyncio.to_thread(redirect_in_budget, source_name, contractor, month)
     await message.answer(replies.editor_sources.added.format(name=source_name))
 
     # Show updated list as a new message (can't edit since user sent text)

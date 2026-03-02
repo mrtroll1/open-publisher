@@ -522,7 +522,7 @@ def _answer_tech_question(question: str, verbose: bool) -> str:
     try:
         repo_gw = RepoGateway()
         prompt, model, _ = compose_request.tech_search_terms(question)
-        result = gemini.call(prompt, model)
+        result = gemini.call(prompt, model, task="TECH_SEARCH_TERMS")
         if result.get("needs_code") and result.get("search_terms"):
             seen_files: dict[str, tuple[str, int]] = {}
             for term in result["search_terms"]:
@@ -602,7 +602,8 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
         reply_markup = None
         try:
             from backend.infrastructure.gateways.db_gateway import DbGateway
-            task_id = DbGateway().create_code_task(
+            task_id = await asyncio.to_thread(
+                DbGateway().create_code_task,
                 requested_by=str(message.from_user.id),
                 input_text=text,
                 output_text=answer,
@@ -1435,7 +1436,7 @@ async def _finish_registration(
     validation_id = collected.get("_validation_id")
     if validation_id:
         try:
-            DbGateway().finalize_payment_validation(validation_id)
+            await asyncio.to_thread(DbGateway().finalize_payment_validation, validation_id)
         except Exception:
             logger.warning("Failed to finalize payment validation %s", validation_id, exc_info=True)
 
@@ -1594,7 +1595,8 @@ async def _parse_with_llm(
 
     if "parse_error" not in result:
         try:
-            vid = DbGateway().log_payment_validation(
+            vid = await asyncio.to_thread(
+                DbGateway().log_payment_validation,
                 contractor_id="", contractor_type=ctype.value,
                 input_text=text, parsed_json=json.dumps(result, ensure_ascii=False),
             )
@@ -1786,7 +1788,7 @@ async def handle_editorial_callback(callback: CallbackQuery) -> None:
         except TelegramBadRequest:
             pass
     elif action == "skip":
-        _inbox.skip_editorial(uid)
+        await asyncio.to_thread(_inbox.skip_editorial, uid)
         try:
             await callback.message.edit_text(replies.editorial.skipped.format(from_addr=item.email.from_addr))
         except TelegramBadRequest:
@@ -1801,7 +1803,7 @@ async def handle_code_rate_callback(callback: CallbackQuery) -> None:
     _, task_id, rating = parts
     try:
         from backend.infrastructure.gateways.db_gateway import DbGateway
-        DbGateway().rate_code_task(task_id, int(rating))
+        await asyncio.to_thread(DbGateway().rate_code_task, task_id, int(rating))
     except Exception:
         logger.exception("Failed to save code task rating")
     await callback.answer("Оценка сохранена!")

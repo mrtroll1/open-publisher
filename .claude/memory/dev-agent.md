@@ -874,7 +874,47 @@ Phase 5.4 — Remaining tests:
 - Rating buttons use compact single-row layout: "1" through "5"
 - Callback data format: `code_rate:{uuid}:{1-5}` — fits within Telegram's 64-byte limit
 
+### Session 31 (2026-03-02) — Maintenance: Spot Bugs (Plan 2 review)
+**Status:** Complete
+
+**What was done:**
+- Thorough code review across all 15 files modified during Plan 2 (phases 1-5)
+- Found and fixed 6 issues in `telegram_bot/flow_callbacks.py`:
+
+1. **CONFIRMED BUG — `skip_editorial` called synchronously** (line ~1791):
+   - `_inbox.skip_editorial(uid)` called without `await asyncio.to_thread()`, blocking the event loop during DB write
+   - **Fix**: Wrapped in `await asyncio.to_thread(_inbox.skip_editorial, uid)`
+
+2. **CONFIRMED BUG — `rate_code_task` called synchronously** (line ~1806):
+   - `DbGateway().rate_code_task(...)` in `handle_code_rate_callback` blocked the event loop
+   - **Fix**: Wrapped in `await asyncio.to_thread(DbGateway().rate_code_task, task_id, int(rating))`
+
+3. **CONFIRMED BUG — `create_code_task` called synchronously** (line ~605):
+   - DB insert in `cmd_code` handler blocked the event loop
+   - **Fix**: Wrapped in `await asyncio.to_thread(DbGateway().create_code_task, ...)`
+
+4. **CONFIRMED BUG — `finalize_payment_validation` called synchronously** (line ~1439):
+   - DB update in `_finish_registration` blocked the event loop
+   - **Fix**: Wrapped in `await asyncio.to_thread(DbGateway().finalize_payment_validation, validation_id)`
+
+5. **CONFIRMED BUG — `log_payment_validation` called synchronously** (line ~1598):
+   - DB insert in `_parse_with_llm` blocked the event loop
+   - **Fix**: Wrapped in `await asyncio.to_thread(DbGateway().log_payment_validation, ...)`
+
+6. **OVERSIGHT — Missing `task` parameter in `_answer_tech_question`** (line ~525):
+   - `gemini.call(prompt, model)` for tech search terms lacked `task="TECH_SEARCH_TERMS"` — call worked but wasn't logged to `llm_classifications` table
+   - **Fix**: Added `task="TECH_SEARCH_TERMS"` to match `tech_support_handler.py`
+
+**Non-bug observations (not fixed):**
+- `gemini_gateway.py` creates new `DbGateway()` per classification log — wasteful but not a correctness bug
+- `is_reply_to_bot` checks `is_bot` on any bot, not specifically this bot — unlikely issue in practice
+- Group configs list comprehension pattern is valid Python, just unusual
+
+**Notes:**
+- All 639 tests pass after fixes
+- The common pattern was: Plan 2 DB logging code was added to async handlers but called synchronously, unlike existing DB calls which were properly wrapped in `asyncio.to_thread()`
+
 ## Next up
 
 - Plan 2 is complete through Phase 5. Phase 6 (LLM domain structure refactor) is optional/stretch.
-- Enter maintenance mode: write tests, spot bugs, refactor, polish UX, improve prompts.
+- Continue maintenance mode: write tests, refactor, polish UX, improve prompts.

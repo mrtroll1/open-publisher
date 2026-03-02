@@ -9,7 +9,8 @@ _MODELS = {
     "tech_search_terms": "gemini-2.5-flash",
     "contractor_parse": "gemini-2.5-flash",
     "translate_name": "gemini-2.5-flash",
-    "article_proposal_triage": "gemini-2.5-flash",
+    "inbox_classify": "gemini-2.5-flash",
+    "editorial_assess": "gemini-2.5-flash",
 }
 
 
@@ -71,9 +72,14 @@ def contractor_parse(
     return prompt, _MODELS["contractor_parse"], keys
 
 
-def article_proposal_triage(email_text: str) -> tuple[str, str, list[str]]:
-    prompt = load_template("article-proposal-triage.md", {"EMAIL": email_text})
-    return prompt, _MODELS["article_proposal_triage"], ["is_legit_proposal", "reason"]
+def inbox_classify(email_text: str) -> tuple[str, str, list[str]]:
+    prompt = load_template("inbox-classify.md", {"EMAIL": email_text})
+    return prompt, _MODELS["inbox_classify"], ["category", "reason"]
+
+
+def editorial_assess(email_text: str) -> tuple[str, str, list[str]]:
+    prompt = load_template("editorial-assess.md", {"EMAIL": email_text})
+    return prompt, _MODELS["editorial_assess"], ["forward", "reply"]
 
 
 def translate_name(name_en: str) -> tuple[str, str, list[str]]:

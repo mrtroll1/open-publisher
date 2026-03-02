@@ -1,8 +1,8 @@
-"""Tests for SupportEmailService._format_thread() — pure string formatting."""
+"""Tests for TechSupportHandler._format_thread() — pure string formatting."""
 
 import pytest
 
-from backend.domain.support_email_service import SupportEmailService
+from backend.domain.tech_support_handler import TechSupportHandler
 
 
 # ===================================================================
@@ -19,7 +19,7 @@ class TestFormatThread:
             "subject": "Help me",
             "body": "I need help.",
         }]
-        result = SupportEmailService._format_thread(history)
+        result = TechSupportHandler._format_thread(history)
         assert "входящее" in result
         assert "user@test.com" in result
         assert "Help me" in result
@@ -33,7 +33,7 @@ class TestFormatThread:
             "subject": "Re: Help me",
             "body": "Here is how to fix it.",
         }]
-        result = SupportEmailService._format_thread(history)
+        result = TechSupportHandler._format_thread(history)
         assert "исходящее" in result
         assert "support@test.com" in result
 
@@ -61,7 +61,7 @@ class TestFormatThread:
                 "body": "Follow-up",
             },
         ]
-        result = SupportEmailService._format_thread(history)
+        result = TechSupportHandler._format_thread(history)
         assert result.count("входящее") == 2
         assert result.count("исходящее") == 1
         assert "First message" in result
@@ -69,11 +69,11 @@ class TestFormatThread:
         assert "Follow-up" in result
 
     def test_header_present(self):
-        result = SupportEmailService._format_thread([])
+        result = TechSupportHandler._format_thread([])
         assert "## История переписки" in result
 
     def test_empty_history(self):
-        result = SupportEmailService._format_thread([])
+        result = TechSupportHandler._format_thread([])
         assert "## История переписки" in result
         # Should just be the header line
         lines = result.strip().split("\n")
@@ -87,5 +87,5 @@ class TestFormatThread:
             "subject": "S",
             "body": "",
         }]
-        result = SupportEmailService._format_thread(history)
+        result = TechSupportHandler._format_thread(history)
         assert "a@b.c" in result

@@ -372,17 +372,15 @@ class ComputeBudget:
         """
         if not pnl_data or not eur_rub_rate:
             return []
-        # Convert cell ref (e.g. "G2") to absolute ("$G$2") for formulas
         col = "".join(c for c in EUR_RUB_CELL if c.isalpha())
         row_num = "".join(c for c in EUR_RUB_CELL if c.isdigit())
         abs_ref = f"${col}${row_num}"
+        units = ", ".join(pnl_data.get("units", []))
         rows: list[list[str]] = []
-        for item in pnl_data.get("items", []):
-            name = item.get("name", "")
-            category = item.get("category", "PNL")
-            rub_amount = item.get("amount", 0)
-            if not name or not rub_amount:
+        for label, key in [("Revenue", "revenue"), ("Expenses", "expenses")]:
+            amount = pnl_data.get(key, 0)
+            if not amount:
                 continue
-            eur_formula = f"=ROUND({rub_amount}/{abs_ref}, 0)"
-            rows.append([name, category, eur_formula, str(rub_amount), ""])
+            eur_formula = f"=ROUND({amount}/{abs_ref}, 0)"
+            rows.append([label, f"PNL ({units})", eur_formula, str(amount), ""])
         return rows

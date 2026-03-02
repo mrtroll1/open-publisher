@@ -133,44 +133,37 @@ class TestBuildPnlRows:
         assert ComputeBudget._build_pnl_rows(None, 90.0) == []
 
     def test_zero_eur_rub_rate(self):
-        data = {"items": [{"name": "X", "amount": 1000}]}
+        data = {"revenue": 100000, "expenses": 50000, "units": ["republic"]}
         assert ComputeBudget._build_pnl_rows(data, 0) == []
 
-    def test_valid_items(self):
-        data = {"items": [
-            {"name": "Hosting", "category": "Infra", "amount": 9000},
-            {"name": "SaaS", "category": "Tools", "amount": 4500},
-        ]}
+    def test_revenue_and_expenses(self):
+        data = {
+            "month": "2026-03",
+            "units": ["republic", "backoffice-republic"],
+            "revenue": 123456.78,
+            "expenses": 98765.43,
+        }
         rows = ComputeBudget._build_pnl_rows(data, 90.0)
         assert len(rows) == 2
-        assert rows[0] == ["Hosting", "Infra", "=ROUND(9000/$G$2, 0)", "9000", ""]
-        assert rows[1] == ["SaaS", "Tools", "=ROUND(4500/$G$2, 0)", "4500", ""]
+        assert rows[0][0] == "Revenue"
+        assert "PNL (republic, backoffice-republic)" in rows[0][1]
+        assert rows[0][3] == "123456.78"
+        assert rows[1][0] == "Expenses"
+        assert rows[1][3] == "98765.43"
 
-    def test_item_zero_amount_skipped(self):
-        data = {"items": [
-            {"name": "Free", "amount": 0},
-            {"name": "Paid", "amount": 500},
-        ]}
+    def test_zero_amount_skipped(self):
+        data = {"revenue": 0, "expenses": 5000, "units": ["republic"]}
         rows = ComputeBudget._build_pnl_rows(data, 90.0)
         assert len(rows) == 1
-        assert rows[0][0] == "Paid"
+        assert rows[0][0] == "Expenses"
 
-    def test_item_empty_name_skipped(self):
-        data = {"items": [
-            {"name": "", "amount": 1000},
-            {"name": "Valid", "amount": 2000},
-        ]}
+    def test_units_in_category(self):
+        data = {"revenue": 1000, "expenses": 0, "units": ["republic"]}
         rows = ComputeBudget._build_pnl_rows(data, 90.0)
-        assert len(rows) == 1
-        assert rows[0][0] == "Valid"
+        assert rows[0][1] == "PNL (republic)"
 
-    def test_default_category(self):
-        data = {"items": [{"name": "Thing", "amount": 100}]}
-        rows = ComputeBudget._build_pnl_rows(data, 90.0)
-        assert rows[0][1] == "PNL"
-
-    def test_rub_amount_as_string(self):
-        data = {"items": [{"name": "X", "amount": 12345}]}
+    def test_amount_as_string(self):
+        data = {"revenue": 12345, "expenses": 0, "units": []}
         rows = ComputeBudget._build_pnl_rows(data, 90.0)
         assert rows[0][3] == "12345"
 

@@ -10,14 +10,16 @@ from aiogram import Dispatcher, F
 from telegram_bot.bot_helpers import bot
 from telegram_bot.flow_engine import register_flows, set_bot_commands
 from telegram_bot.flow_callbacks import (
-    email_listener_task, handle_email_callback, handle_duplicate_callback,
-    handle_editor_source_callback, handle_linked_menu_callback, handle_non_document,
+    email_listener_task, handle_support_callback, handle_editorial_callback,
+    handle_duplicate_callback, handle_editor_source_callback,
+    handle_linked_menu_callback, handle_non_document,
 )
 from telegram_bot.flows import bot_flows
 
 logger = logging.getLogger(__name__)
 dp = Dispatcher()
-dp.callback_query.register(handle_email_callback, F.data.startswith("email:"))
+dp.callback_query.register(handle_support_callback, F.data.startswith("support:"))
+dp.callback_query.register(handle_editorial_callback, F.data.startswith("editorial:"))
 dp.callback_query.register(handle_duplicate_callback, F.data.startswith("dup:"))
 dp.callback_query.register(handle_editor_source_callback, F.data.startswith("esrc:"))
 dp.callback_query.register(handle_linked_menu_callback, F.data.startswith("menu:"))

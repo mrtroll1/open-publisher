@@ -246,16 +246,25 @@ class notifications:
     new_registration_parsed = "\n\nРаспознанные данные:\n{formatted}"
 
 
-# ── Email support ───────────────────────────────────────────────────
+# ── Tech support ────────────────────────────────────────────────────
 
-class email_support:
-    proposal_forwarded = "Переслано предложение статьи от {from_addr}: {subject}"
+class tech_support:
     expired = "(истёк срок — письмо уже обработано)"
     reply_sent = "Ответ отправлен на {addr}"
     skipped = "Письмо от {from_addr} пропущено"
     draft_header = "--- Черновик ответа ---"
     draft_header_uncertain = "--- Черновик ответа (⚠ не уверен в ответе) ---"
     btn_send = "Отправить"
+    btn_skip = "Пропустить"
+
+
+# ── Editorial ──────────────────────────────────────────────────────
+
+class editorial:
+    expired = "(истёк срок — письмо уже обработано)"
+    forwarded = "Переслано в редакцию от {from_addr}: {subject}"
+    skipped = "Письмо от {from_addr} пропущено"
+    btn_forward = "Переслать"
     btn_skip = "Пропустить"
 
 

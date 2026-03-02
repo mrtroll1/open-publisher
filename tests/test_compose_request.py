@@ -4,8 +4,9 @@ import pytest
 
 from backend.domain.compose_request import (
     _MODELS,
-    article_proposal_triage,
     contractor_parse,
+    editorial_assess,
+    inbox_classify,
     support_email,
     support_email_with_context,
     support_triage,
@@ -23,7 +24,8 @@ class TestModels:
     def test_all_expected_keys_present(self):
         expected = {
             "support_email", "support_triage", "tech_search_terms",
-            "contractor_parse", "translate_name", "article_proposal_triage",
+            "contractor_parse", "translate_name", "inbox_classify",
+            "editorial_assess",
         }
         assert set(_MODELS.keys()) == expected
 
@@ -69,11 +71,17 @@ class TestReturnStructure:
         assert model == _MODELS["translate_name"]
         assert keys == ["translated_name"]
 
-    def test_article_proposal_triage_returns_tuple(self):
-        prompt, model, keys = article_proposal_triage("article proposal")
+    def test_inbox_classify_returns_tuple(self):
+        prompt, model, keys = inbox_classify("test email")
         assert isinstance(prompt, str)
-        assert model == _MODELS["article_proposal_triage"]
-        assert keys == ["is_legit_proposal", "reason"]
+        assert model == _MODELS["inbox_classify"]
+        assert keys == ["category", "reason"]
+
+    def test_editorial_assess_returns_tuple(self):
+        prompt, model, keys = editorial_assess("editorial email")
+        assert isinstance(prompt, str)
+        assert model == _MODELS["editorial_assess"]
+        assert keys == ["forward", "reply"]
 
 
 # ===================================================================

@@ -315,6 +315,20 @@ class SupportDraft(BaseModel):
     draft_reply: str
 
 
+class EditorialItem(BaseModel):
+    """An editorial email assessed for forwarding."""
+    email: IncomingEmail
+    reply_to_sender: str = ""
+
+
+class PendingItem(BaseModel):
+    """Result of InboxService.process() — a classified item pending approval."""
+    category: str  # "tech_support" | "editorial"
+    uid: str
+    draft: Optional[SupportDraft] = None
+    editorial: Optional[EditorialItem] = None
+
+
 class AirtableExpense(BaseModel):
     """A row to be pushed to the Airtable expenses table."""
     id: Optional[int] = None

@@ -27,6 +27,7 @@ from common.models import (
     Contractor,
     ContractorType,
     Currency,
+    EditorialItem,
     GlobalContractor,
     InvoiceStatus,
     RoleCode,
@@ -66,10 +67,9 @@ from backend import (
 )
 from telegram_bot import replies
 from telegram_bot.bot_helpers import bot, get_contractors, is_admin, prev_month
-from backend.domain.article_proposal_service import ArticleProposalService
 from backend.domain.compute_budget import ComputeBudget
+from backend.domain.inbox_service import InboxService
 from backend.domain.parse_bank_statement import ParseBankStatement
-from backend.domain.support_email_service import SupportEmailService
 
 logger = logging.getLogger(__name__)
 
@@ -1317,15 +1317,14 @@ async def cmd_upload_to_airtable(message: types.Message, state: FSMContext) -> N
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  Email support: background listener + callback handler
+#  Inbox: background listener + callback handlers
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-_email_service = SupportEmailService()
-_proposal_service = ArticleProposalService()
+_inbox = InboxService()
 
 
 async def email_listener_task() -> None:
-    """Background task: listen for new emails and send drafts to admin."""
+    """Background task: listen for new emails, classify, and send to admin."""
     if not ADMIN_TELEGRAM_IDS:
         logger.warning("No admin IDs configured, email listener disabled")
         return
@@ -1333,33 +1332,30 @@ async def email_listener_task() -> None:
     logger.info("Email listener started for %s", EMAIL_ADDRESS)
     while True:
         try:
-            has_new = await asyncio.to_thread(_email_service.wait_for_mail, 300)
+            has_new = await asyncio.to_thread(_inbox.idle_wait, 300)
             if not has_new:
                 continue
-            drafts = await asyncio.to_thread(_email_service.fetch_new_drafts)
-            for draft in drafts:
-                await _send_email_draft(admin_id, draft)
-            # Process non-support emails for article proposals
-            non_support = await asyncio.to_thread(_email_service.fetch_non_support)
-            if non_support:
-                forwarded = await asyncio.to_thread(_proposal_service.process_proposals, non_support)
-                for em in forwarded:
-                    await bot.send_message(admin_id, replies.email_support.proposal_forwarded.format(from_addr=em.from_addr, subject=em.subject))
-                for em in non_support:
-                    await asyncio.to_thread(_email_service.skip, em.uid)
+            emails = await asyncio.to_thread(_inbox.fetch_unread)
+            for em in emails:
+                result = await asyncio.to_thread(_inbox.process, em)
+                if not result:
+                    continue
+                if result.category == "tech_support":
+                    await _send_support_draft(admin_id, result.draft)
+                elif result.category == "editorial":
+                    await _send_editorial(admin_id, result.editorial)
         except Exception as e:
             logger.exception("Email listener error: %s", e)
             await asyncio.sleep(30)
 
 
-async def _send_email_draft(admin_id: int, draft: SupportDraft) -> None:
+async def _send_support_draft(admin_id: int, draft: SupportDraft) -> None:
     em = draft.email
-    sender = em.reply_to or em.from_addr
     body_preview = em.body[:500] + ("..." if len(em.body) > 500 else "")
     header = f"From: {em.from_addr}\n"
     if em.reply_to and em.reply_to != em.from_addr:
         header += f"Reply-To: {em.reply_to}\n"
-    draft_header = replies.email_support.draft_header if draft.can_answer else replies.email_support.draft_header_uncertain
+    draft_header = replies.tech_support.draft_header if draft.can_answer else replies.tech_support.draft_header_uncertain
     text = (
         f"{header}"
         f"Subject: {em.subject}\n\n"
@@ -1368,37 +1364,85 @@ async def _send_email_draft(admin_id: int, draft: SupportDraft) -> None:
         f"{draft.draft_reply}"
     )
     buttons = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text=replies.email_support.btn_send, callback_data=f"email:send:{em.uid}"),
-        InlineKeyboardButton(text=replies.email_support.btn_skip, callback_data=f"email:skip:{em.uid}"),
+        InlineKeyboardButton(text=replies.tech_support.btn_send, callback_data=f"support:send:{em.uid}"),
+        InlineKeyboardButton(text=replies.tech_support.btn_skip, callback_data=f"support:skip:{em.uid}"),
     ]])
     await bot.send_message(admin_id, text, reply_markup=buttons)
 
 
-async def handle_email_callback(callback: CallbackQuery) -> None:
-    """Handle send/skip button presses for email drafts."""
+async def _send_editorial(admin_id: int, item: EditorialItem) -> None:
+    em = item.email
+    body_preview = em.body[:500] + ("..." if len(em.body) > 500 else "")
+    text = (
+        f"Письмо в редакцию\n"
+        f"From: {em.from_addr}\n"
+        f"Subject: {em.subject}\n\n"
+        f"{body_preview}"
+    )
+    if item.reply_to_sender:
+        text += f"\n\n--- Автоответ ---\n{item.reply_to_sender}"
+    buttons = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=replies.editorial.btn_forward, callback_data=f"editorial:fwd:{em.uid}"),
+        InlineKeyboardButton(text=replies.editorial.btn_skip, callback_data=f"editorial:skip:{em.uid}"),
+    ]])
+    await bot.send_message(admin_id, text, reply_markup=buttons)
+
+
+async def handle_support_callback(callback: CallbackQuery) -> None:
+    """Handle send/skip button presses for tech support drafts."""
     await callback.answer()
     parts = callback.data.split(":")
     if len(parts) != 3:
         return
     _, action, uid = parts
 
-    draft = _email_service.get_pending(uid)
+    draft = _inbox.get_pending_support(uid)
     if not draft:
         try:
-            await callback.message.edit_text(replies.email_support.expired)
+            await callback.message.edit_text(replies.tech_support.expired)
         except TelegramBadRequest:
             pass
         return
 
     if action == "send":
-        await asyncio.to_thread(_email_service.approve, uid)
+        await asyncio.to_thread(_inbox.approve_support, uid)
         try:
-            await callback.message.edit_text(replies.email_support.reply_sent.format(addr=draft.email.reply_to or draft.email.from_addr))
+            await callback.message.edit_text(replies.tech_support.reply_sent.format(addr=draft.email.reply_to or draft.email.from_addr))
         except TelegramBadRequest:
             pass
     elif action == "skip":
-        await asyncio.to_thread(_email_service.skip, uid)
+        await asyncio.to_thread(_inbox.skip_support, uid)
         try:
-            await callback.message.edit_text(replies.email_support.skipped.format(from_addr=draft.email.from_addr))
+            await callback.message.edit_text(replies.tech_support.skipped.format(from_addr=draft.email.from_addr))
+        except TelegramBadRequest:
+            pass
+
+
+async def handle_editorial_callback(callback: CallbackQuery) -> None:
+    """Handle forward/skip button presses for editorial items."""
+    await callback.answer()
+    parts = callback.data.split(":")
+    if len(parts) != 3:
+        return
+    _, action, uid = parts
+
+    item = _inbox.get_pending_editorial(uid)
+    if not item:
+        try:
+            await callback.message.edit_text(replies.editorial.expired)
+        except TelegramBadRequest:
+            pass
+        return
+
+    if action == "fwd":
+        await asyncio.to_thread(_inbox.approve_editorial, uid)
+        try:
+            await callback.message.edit_text(replies.editorial.forwarded.format(from_addr=item.email.from_addr, subject=item.email.subject))
+        except TelegramBadRequest:
+            pass
+    elif action == "skip":
+        _inbox.skip_editorial(uid)
+        try:
+            await callback.message.edit_text(replies.editorial.skipped.format(from_addr=item.email.from_addr))
         except TelegramBadRequest:
             pass

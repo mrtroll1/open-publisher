@@ -9,9 +9,6 @@ import requests
 from common.config import (
     REDEFINE_API_URL,
     REDEFINE_SUPPORT_API_KEY,
-    PNL_API_URL,
-    PNL_API_USER,
-    PNL_API_PASSWORD,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,14 +73,14 @@ class RedefineGateway:
             return []
 
     def get_pnl_stats(self, month: str) -> dict:
-        if not PNL_API_URL:
-            logger.warning("PNL_API_URL not configured")
+        if not REDEFINE_API_URL:
+            logger.warning("REDEFINE_API_URL not configured")
             return {}
         try:
-            resp = requests.get(
-                f"{PNL_API_URL}/stats",
-                params={"month": month},
-                auth=(PNL_API_USER, PNL_API_PASSWORD),
+            resp = requests.post(
+                f"{REDEFINE_API_URL}/s2s/pnl-by-month",
+                json={"month": month},
+                headers=self._headers,
                 timeout=15,
             )
             resp.raise_for_status()

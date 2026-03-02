@@ -112,11 +112,8 @@ REPUBLIC_SUPPORT_API_KEY = os.getenv("REPUBLIC_SUPPORT_API_KEY", "")
 REDEFINE_API_URL = os.getenv("REDEFINE_API_URL", "")
 REDEFINE_SUPPORT_API_KEY = os.getenv("REDEFINE_SUPPORT_API_KEY", "")
 
-# --- Redefine PNL ---
-PNL_API_URL = os.getenv("PNL_API_URL", "")
-PNL_API_USER = os.getenv("PNL_API_USER", "")
-PNL_API_PASSWORD = os.getenv("PNL_API_PASSWORD", "")
-EUR_RUB_CELL = os.getenv("EUR_RUB_CELL", "G2")
+# --- PNL (uses Redefine API) ---
+EUR_RUB_CELL = os.getenv("EUR_RUB_CELL", "")
 
 # --- Repos ---
 REPOS_DIR = os.getenv("REPOS_DIR", "/opt/repos")

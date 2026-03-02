@@ -63,7 +63,7 @@ def translate_name_to_russian(name_en: str) -> str:
     """Translate a name to Russian."""
     from backend.domain import compose_request
     prompt, model, _ = compose_request.translate_name(name_en)
-    result = _gemini.call(prompt, model)
+    result = _gemini.call(prompt, model, task="TRANSLATE_NAME")
     return result.get("translated_name", "")
 
 

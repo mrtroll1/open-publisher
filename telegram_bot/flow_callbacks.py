@@ -76,6 +76,7 @@ from backend.domain.inbox_service import InboxService
 from backend.domain.parse_bank_statement import ParseBankStatement
 from backend.domain.code_runner import run_claude_code
 from backend.domain.command_classifier import CommandClassifier
+from backend.infrastructure.gateways.db_gateway import DbGateway
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.gateways.repo_gateway import RepoGateway
 from telegram_bot.flow_dsl import GroupChatConfig
@@ -1415,6 +1416,13 @@ async def _finish_registration(
     contractor, secret_code = await _save_new_contractor(collected, ctype, telegram_id)
     await _forward_to_admins(raw_text, ctype, collected)
 
+    validation_id = collected.get("_validation_id")
+    if validation_id:
+        try:
+            DbGateway().finalize_payment_validation(validation_id)
+        except Exception:
+            logger.warning("Failed to finalize payment validation %s", validation_id, exc_info=True)
+
     text = replies.registration.complete_summary.format(summary=summary)
     if secret_code:
         text += replies.registration.complete_secret.format(code=secret_code)
@@ -1566,7 +1574,19 @@ async def _parse_with_llm(
                 + "\n".join(f"- {w}" for w in warnings)
             )
 
-    return await asyncio.to_thread(parse_contractor_data, text, fields, context)
+    result = await asyncio.to_thread(parse_contractor_data, text, fields, context)
+
+    if "parse_error" not in result:
+        try:
+            vid = DbGateway().log_payment_validation(
+                contractor_id="", contractor_type=ctype.value,
+                input_text=text, parsed_json=json.dumps(result, ensure_ascii=False),
+            )
+            result["_validation_id"] = vid
+        except Exception:
+            logger.warning("Failed to log payment validation", exc_info=True)
+
+    return result
 
 
 async def _translate_name_to_russian(name_en: str) -> str:

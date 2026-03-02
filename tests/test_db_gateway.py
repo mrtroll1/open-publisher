@@ -173,3 +173,109 @@ class TestGetThreadMessageIds:
         result = gw.get_thread_message_ids("thread-empty")
 
         assert result == []
+
+
+# ===================================================================
+#  log_classification
+# ===================================================================
+
+class TestLogClassification:
+
+    def test_inserts_correct_data(self):
+        gw, cur = _make_gw()
+
+        gw.log_classification(
+            task="INBOX_CLASSIFY", model="gemini-2.5-flash",
+            input_text="some prompt", output_json='{"category": "tech_support"}',
+            latency_ms=150,
+        )
+
+        sql, params = cur.execute.call_args[0]
+        assert "INSERT INTO llm_classifications" in sql
+        assert params == (
+            "INBOX_CLASSIFY", "gemini-2.5-flash",
+            "some prompt", '{"category": "tech_support"}', 150,
+        )
+
+    def test_zero_latency(self):
+        gw, cur = _make_gw()
+
+        gw.log_classification(
+            task="COMMAND_CLASSIFY", model="gemini-2.5-flash",
+            input_text="prompt", output_json='{}', latency_ms=0,
+        )
+
+        _, params = cur.execute.call_args[0]
+        assert params[4] == 0
+
+
+# ===================================================================
+#  log_payment_validation
+# ===================================================================
+
+class TestLogPaymentValidation:
+
+    def test_inserts_and_returns_id(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = ("val-abc-123",)
+
+        result = gw.log_payment_validation(
+            contractor_id="", contractor_type="IP",
+            input_text="ИП Иванов, ИНН 1234567890",
+            parsed_json='{"name": "Иванов"}',
+        )
+
+        assert result == "val-abc-123"
+        sql, params = cur.execute.call_args[0]
+        assert "INSERT INTO payment_validations" in sql
+        assert "RETURNING id" in sql
+        assert params == ("", "IP", "ИП Иванов, ИНН 1234567890", '{"name": "Иванов"}', [], False)
+
+    def test_with_warnings_and_is_final(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = ("val-def-456",)
+
+        result = gw.log_payment_validation(
+            contractor_id="C-001", contractor_type="SELF_EMPLOYED",
+            input_text="test data",
+            parsed_json='{"field": "value"}',
+            warnings=["ИНН должен содержать 12 цифр"],
+            is_final=True,
+        )
+
+        assert result == "val-def-456"
+        _, params = cur.execute.call_args[0]
+        assert params == (
+            "C-001", "SELF_EMPLOYED", "test data", '{"field": "value"}',
+            ["ИНН должен содержать 12 цифр"], True,
+        )
+
+    def test_default_warnings_empty_list(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = ("val-xyz",)
+
+        gw.log_payment_validation(
+            contractor_id="", contractor_type="IP",
+            input_text="text", parsed_json="{}",
+        )
+
+        _, params = cur.execute.call_args[0]
+        assert params[4] == []  # warnings default to empty list
+        assert params[5] is False  # is_final default
+
+
+# ===================================================================
+#  finalize_payment_validation
+# ===================================================================
+
+class TestFinalizePaymentValidation:
+
+    def test_updates_is_final(self):
+        gw, cur = _make_gw()
+
+        gw.finalize_payment_validation("val-abc-123")
+
+        sql, params = cur.execute.call_args[0]
+        assert "UPDATE payment_validations" in sql
+        assert "SET is_final = TRUE" in sql
+        assert params == ("val-abc-123",)

@@ -87,7 +87,7 @@ class TechSupportHandler:
     def _fetch_user_data(self, email_text: str, fallback_email: str) -> str:
         try:
             prompt, model, _ = compose_request.support_triage(email_text)
-            result = self._gemini.call(prompt, model)
+            result = self._gemini.call(prompt, model, task="SUPPORT_TRIAGE")
             needs = result.get("needs", [])
             lookup_email = result.get("lookup_email") or fallback_email
             logger.info("Support triage: needs=%s, lookup_email=%s", needs, lookup_email)
@@ -103,7 +103,7 @@ class TechSupportHandler:
     def _fetch_code_context(self, email_text: str) -> str:
         try:
             prompt, model, _ = compose_request.tech_search_terms(email_text)
-            result = self._gemini.call(prompt, model)
+            result = self._gemini.call(prompt, model, task="TECH_SEARCH_TERMS")
             if not result.get("needs_code"):
                 return ""
             terms = result.get("search_terms", [])

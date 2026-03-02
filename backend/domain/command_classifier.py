@@ -24,7 +24,7 @@ class CommandClassifier:
             f"- **{name}** — {desc}" for name, desc in available_commands.items()
         )
         prompt, model, _ = compose_request.classify_command(text, commands_description)
-        result = self._gemini.call(prompt, model)
+        result = self._gemini.call(prompt, model, task="COMMAND_CLASSIFY")
         command = result.get("command")
         if not command or command not in available_commands:
             return None

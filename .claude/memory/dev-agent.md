@@ -806,6 +806,48 @@ Phase 4.3 — Tests:
 - Lookup shows bank data as "заполнены"/"не заполнены" — no raw bank details exposed
 - Both commands are available in editorial groupchat
 
+### Session 29 (2026-03-02) — Plan 2 Phase 5.1 + 5.2: LLM Classification Logging + Payment Validations
+**Status:** Complete (all Phase 5.1 and 5.2 items)
+
+**What was done:**
+
+Phase 5.1 — `llm_classifications` table:
+- Added `llm_classifications` table to `_SCHEMA_SQL` (UUID PK, task, model, input_text, output_json, latency_ms)
+- Added `DbGateway.log_classification()` method
+- Extended `GeminiGateway.call()` with optional `task` parameter:
+  - When `task` is provided: measures latency via `time.time()`, logs to DB via `DbGateway().log_classification()`
+  - DB logging wrapped in try/except — never blocks the LLM call
+  - `DbGateway` imported lazily inside the `if task:` block to keep module decoupled
+- Updated 6 callers with `task=` parameter:
+  - `InboxService._llm_classify()` → `task="INBOX_CLASSIFY"`
+  - `InboxService._handle_editorial()` → `task="EDITORIAL_ASSESS"`
+  - `TechSupportHandler._fetch_user_data()` → `task="SUPPORT_TRIAGE"`
+  - `TechSupportHandler._fetch_code_context()` → `task="TECH_SEARCH_TERMS"`
+  - `CommandClassifier.classify()` → `task="COMMAND_CLASSIFY"`
+  - `translate_name_to_russian()` in `backend/__init__.py` → `task="TRANSLATE_NAME"`
+
+Phase 5.2 — `payment_validations` table:
+- Added `payment_validations` table to `_SCHEMA_SQL` (UUID PK, contractor_id, contractor_type, input_text, parsed_json, validation_warnings TEXT[], is_final)
+- Added `DbGateway.log_payment_validation()` — returns generated UUID
+- Added `DbGateway.finalize_payment_validation()` — sets `is_final=TRUE`
+- Wired into `_parse_with_llm()` in `flow_callbacks.py`:
+  - After successful parse (no `parse_error`), logs via `DbGateway().log_payment_validation()`
+  - Stashes validation ID in `result["_validation_id"]` for downstream use
+  - Wrapped in try/except to never break user flow
+- Wired into `_finish_registration()`:
+  - Checks `collected.get("_validation_id")` and calls `finalize_payment_validation()`
+  - Also wrapped in try/except
+
+Tests:
+- Extended `tests/test_db_gateway.py` with 6 new tests (log_classification, log_payment_validation, finalize)
+- Created `tests/test_gemini_gateway.py` with 4 new tests (task logs to DB, no-task doesn't log, default model, DB failure doesn't raise)
+- Total: 632 tests, all passing in 1.34s
+
+**Notes:**
+- `GeminiGateway` creates a new `DbGateway()` per logged call — lightweight since `DbGateway` auto-reconnects
+- `_validation_id` key in result dict is ignored by downstream processing (unknown keys silently pass through)
+- `parse_contractor_data()` is called from `backend/__init__.py`, not directly — the DB logging happens in the Telegram-side `_parse_with_llm` wrapper
+
 ## Next up
 
-- Plan 2 Phase 5.1: `llm_classifications` table (unified classifier logging)
+- Plan 2 Phase 5.3: `code_tasks` table + rating (inline keyboard, callback handler)

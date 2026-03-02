@@ -250,7 +250,7 @@ Currently `skip_support()` pops from memory dict — the draft vanishes.
 
 ### 5.1 `llm_classifications` table (unified classifier logging)
 
-- [ ] Add table to `_SCHEMA_SQL`:
+- [x] Add table to `_SCHEMA_SQL`:
   ```sql
   CREATE TABLE IF NOT EXISTS llm_classifications (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -262,21 +262,21 @@ Currently `skip_support()` pops from memory dict — the draft vanishes.
       latency_ms INT DEFAULT 0
   );
   ```
-- [ ] Add `log_classification(task, model, input_text, output_json, latency_ms)` to `DbGateway`
-- [ ] Add optional `task` parameter to `GeminiGateway.call()`
-- [ ] When `task` is provided, measure latency and call `log_classification`
-- [ ] Update caller: `InboxService._llm_classify()` — pass `task="INBOX_CLASSIFY"`
-- [ ] Update caller: `InboxService._handle_editorial()` — pass `task="EDITORIAL_ASSESS"`
-- [ ] Update caller: `TechSupportHandler._fetch_user_data()` — pass `task="SUPPORT_TRIAGE"`
-- [ ] Update caller: `TechSupportHandler._fetch_code_context()` — pass `task="TECH_SEARCH_TERMS"`
-- [ ] Update caller: `CommandClassifier.classify()` — pass `task="COMMAND_CLASSIFY"`
-- [ ] Update caller: `compose_request.translate_name()` callsite — pass `task="TRANSLATE_NAME"`
+- [x] Add `log_classification(task, model, input_text, output_json, latency_ms)` to `DbGateway`
+- [x] Add optional `task` parameter to `GeminiGateway.call()`
+- [x] When `task` is provided, measure latency and call `log_classification`
+- [x] Update caller: `InboxService._llm_classify()` — pass `task="INBOX_CLASSIFY"`
+- [x] Update caller: `InboxService._handle_editorial()` — pass `task="EDITORIAL_ASSESS"`
+- [x] Update caller: `TechSupportHandler._fetch_user_data()` — pass `task="SUPPORT_TRIAGE"`
+- [x] Update caller: `TechSupportHandler._fetch_code_context()` — pass `task="TECH_SEARCH_TERMS"`
+- [x] Update caller: `CommandClassifier.classify()` — pass `task="COMMAND_CLASSIFY"`
+- [x] Update caller: `compose_request.translate_name()` callsite — pass `task="TRANSLATE_NAME"`
 
 **Files**: `backend/infrastructure/gateways/db_gateway.py`, `backend/infrastructure/gateways/gemini_gateway.py`, `backend/domain/inbox_service.py`, `backend/domain/tech_support_handler.py`, `backend/domain/command_classifier.py`
 
 ### 5.2 `payment_validations` table
 
-- [ ] Add table to `_SCHEMA_SQL`:
+- [x] Add table to `_SCHEMA_SQL`:
   ```sql
   CREATE TABLE IF NOT EXISTS payment_validations (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -289,9 +289,9 @@ Currently `skip_support()` pops from memory dict — the draft vanishes.
       is_final BOOLEAN DEFAULT FALSE
   );
   ```
-- [ ] Add `log_payment_validation(contractor_id, type, input, parsed, warnings, is_final)` to `DbGateway`
-- [ ] Call `log_payment_validation` from `_parse_with_llm()` in `flow_callbacks.py`
-- [ ] Set `is_final=True` when `_finish_registration()` completes successfully
+- [x] Add `log_payment_validation(contractor_id, type, input, parsed, warnings, is_final)` to `DbGateway`
+- [x] Call `log_payment_validation` from `_parse_with_llm()` in `flow_callbacks.py`
+- [x] Set `is_final=True` when `_finish_registration()` completes successfully
 
 **Files**: `backend/infrastructure/gateways/db_gateway.py`, `telegram_bot/flow_callbacks.py`
 
@@ -321,10 +321,10 @@ Currently `skip_support()` pops from memory dict — the draft vanishes.
 
 ### 5.4 Tests for Phase 5
 
-- [ ] Test `log_classification` writes correct data
-- [ ] Test `GeminiGateway.call()` with `task` param logs to DB
-- [ ] Test `GeminiGateway.call()` without `task` param does NOT log
-- [ ] Test `log_payment_validation` writes correct data
+- [x] Test `log_classification` writes correct data
+- [x] Test `GeminiGateway.call()` with `task` param logs to DB
+- [x] Test `GeminiGateway.call()` without `task` param does NOT log
+- [x] Test `log_payment_validation` writes correct data
 - [ ] Test `create_code_task` and `rate_code_task` CRUD
 - [ ] Test code rating callback handler
 - [ ] Run full test suite, verify no regressions

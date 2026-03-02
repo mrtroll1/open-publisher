@@ -46,7 +46,7 @@ class InboxService:
 
     def _llm_classify(self, email: IncomingEmail) -> str:
         prompt, model, _ = compose_request.inbox_classify(email.as_text())
-        result = self._gemini.call(prompt, model)
+        result = self._gemini.call(prompt, model, task="INBOX_CLASSIFY")
         category = result.get("category", "ignore")
         logger.info("LLM classified email from %s as %s", email.from_addr, category)
         return category
@@ -67,7 +67,7 @@ class InboxService:
         if not CHIEF_EDITOR_EMAIL:
             return None
         prompt, model, _ = compose_request.editorial_assess(email.as_text())
-        result = self._gemini.call(prompt, model)
+        result = self._gemini.call(prompt, model, task="EDITORIAL_ASSESS")
         if not result.get("forward", False):
             return None
         item = EditorialItem(email=email, reply_to_sender=result.get("reply", ""))

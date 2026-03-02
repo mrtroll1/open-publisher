@@ -153,45 +153,45 @@ Currently `skip_support()` pops from memory dict — the draft vanishes.
 
 ### 3.1 Command classifier (Gemini-based)
 
-- [ ] Create `templates/classify-command.md` — input: user text + available commands with descriptions, output: `{"command": "..." | null, "args": "..."}`
-- [ ] Add `classify_command(text, commands_description)` to `compose_request.py`
-- [ ] Create `backend/domain/command_classifier.py`:
-  - [ ] `ClassifiedCommand` dataclass (`command: str`, `args: str`)
-  - [ ] `CommandClassifier.classify(text, available_commands) -> ClassifiedCommand | None`
-- [ ] Re-export from `backend/__init__.py`
+- [x] Create `templates/classify-command.md` — input: user text + available commands with descriptions, output: `{"command": "..." | null, "args": "..."}`
+- [x] Add `classify_command(text, commands_description)` to `compose_request.py`
+- [x] Create `backend/domain/command_classifier.py`:
+  - [x] `ClassifiedCommand` dataclass (`command: str`, `args: str`)
+  - [x] `CommandClassifier.classify(text, available_commands) -> ClassifiedCommand | None`
+- [x] Re-export from `backend/__init__.py`
 
 **Files**: `templates/classify-command.md` (new), `backend/domain/compose_request.py`, `backend/domain/command_classifier.py` (new), `backend/__init__.py`
 
 ### 3.2 Groupchat configuration
 
-- [ ] Add `GroupChatConfig` dataclass to `flow_dsl.py` (`chat_id: int`, `allowed_commands: list[str]`, `natural_language: bool = True`)
-- [ ] Add `group_configs: list[GroupChatConfig]` to `BotFlows`
-- [ ] Add `EDITORIAL_CHAT_ID` to `common/config.py`
-- [ ] Add `BOT_USERNAME` to `common/config.py`
-- [ ] Define editorial groupchat config in `flows.py` with `allowed_commands=["health", "tech_support", "code"]`
+- [x] Add `GroupChatConfig` dataclass to `flow_dsl.py` (`chat_id: int`, `allowed_commands: list[str]`, `natural_language: bool = True`)
+- [x] Add `group_configs: list[GroupChatConfig]` to `BotFlows`
+- [x] Add `EDITORIAL_CHAT_ID` to `common/config.py`
+- [x] Add `BOT_USERNAME` to `common/config.py`
+- [x] Define editorial groupchat config in `flows.py` with `allowed_commands=["health", "tech_support", "code"]`
 
 **Files**: `telegram_bot/flow_dsl.py`, `telegram_bot/flows.py`, `common/config.py`
 
 ### 3.3 Groupchat message handler
 
-- [ ] Add bot mention detection helper: extract clean text, check if bot is @mentioned or replied to
-- [ ] Add group message handler in `flow_callbacks.py`:
-  - [ ] Check `message.chat.type` in `("group", "supergroup")`
-  - [ ] Find `GroupChatConfig` for `chat_id`, skip if not configured
-  - [ ] If explicit command: check if in `allowed_commands`, execute
-  - [ ] If mentions bot: run `CommandClassifier` with group's `allowed_commands`
-  - [ ] If classified: execute the command
-  - [ ] If not classified: ignore
-- [ ] Build command dispatch map (command name → handler function) for reuse
+- [x] Add bot mention detection helper: extract clean text, check if bot is @mentioned or replied to
+- [x] Add group message handler in `flow_callbacks.py`:
+  - [x] Check `message.chat.type` in `("group", "supergroup")`
+  - [x] Find `GroupChatConfig` for `chat_id`, skip if not configured
+  - [x] If explicit command: check if in `allowed_commands`, execute
+  - [x] If mentions bot: run `CommandClassifier` with group's `allowed_commands`
+  - [x] If classified: execute the command
+  - [x] If not classified: ignore
+- [x] Build command dispatch map (command name → handler function) for reuse
 
 **Files**: `telegram_bot/flow_callbacks.py`
 
 ### 3.4 Register group handler in flow engine
 
-- [ ] Add group-aware router registration in `flow_engine.py`
-- [ ] Register group handler with appropriate filters (`F.chat.type.in_({"group", "supergroup"})`)
-- [ ] Ensure group handler does NOT interfere with existing private chat handlers
-- [ ] Register new callback handlers in `main.py` if needed
+- [x] Add group-aware router registration in `flow_engine.py`
+- [x] Register group handler with appropriate filters (`F.chat.type.in_({"group", "supergroup"})`)
+- [x] Ensure group handler does NOT interfere with existing private chat handlers
+- [x] No changes to `main.py` needed — flow engine handles all registration
 
 **Files**: `telegram_bot/flow_engine.py`, `telegram_bot/main.py`
 

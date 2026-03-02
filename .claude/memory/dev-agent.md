@@ -698,6 +698,52 @@ _None yet._
 - Claude CLI needs `ANTHROPIC_API_KEY` in environment (already in config.py)
 - Dockerfile now has a second `RUN` layer for Node.js/Claude CLI (~200MB addition)
 
+### Session 27 (2026-03-02) — Plan 2 Phase 3.1-3.4: NL Bot + Groupchat Support
+**Status:** Complete (Phase 3.1, 3.2, 3.3, 3.4 — all items)
+
+**What was done:**
+
+Phase 3.1 — Command classifier:
+- Created `templates/classify-command.md` — Russian-language LLM prompt with `{{COMMANDS}}` and `{{TEXT}}` placeholders, returns JSON `{"command": "..." | null, "args": "..."}`
+- Added `classify_command(text, commands_description)` to `compose_request.py` (returns prompt + model + response keys)
+- Added `"classify_command": "gemini-2.5-flash"` to `_MODELS` dict
+- Created `backend/domain/command_classifier.py`:
+  - `ClassifiedCommand` dataclass (`command: str`, `args: str`)
+  - `CommandClassifier` class with `classify(text, available_commands) -> ClassifiedCommand | None`
+  - Formats commands dict into markdown list, calls compose function + Gemini, validates result against available commands
+- Re-exported `CommandClassifier` from `backend/__init__.py`
+
+Phase 3.2 — Groupchat configuration:
+- Added `GroupChatConfig` dataclass to `flow_dsl.py` (`chat_id`, `allowed_commands`, `natural_language=True`)
+- Added `group_configs: list[GroupChatConfig]` field to `BotFlows`
+- Added `EDITORIAL_CHAT_ID` (int, default 0) and `BOT_USERNAME` (str) to `common/config.py`
+- Defined editorial groupchat config in `flows.py` with `allowed_commands=["health", "tech_support", "code"]`, filtered when `EDITORIAL_CHAT_ID` is 0
+- Added new env vars to `config/example/.env`
+
+Phase 3.3 — Group message handler:
+- Added `_extract_bot_mention(text, bot_username) -> str | None` helper
+- Added `_GROUP_COMMAND_HANDLERS` dict (health → cmd_health, tech_support → cmd_tech_support, code → cmd_code)
+- Added `_COMMAND_DESCRIPTIONS` dict with Russian descriptions
+- Added `_dispatch_group_command(command, args_text, message, state)` — temporarily sets `message.text` to `/{command} {args}` for handler compatibility
+- Added `handle_group_message(message, state, group_config)`:
+  - Explicit commands: parses command name (strips @bot suffix), checks allowed_commands, dispatches
+  - Natural language: detects @mention or reply-to-bot, runs CommandClassifier via asyncio.to_thread(), dispatches classified command
+
+Phase 3.4 — Flow engine wiring:
+- Added group router registration at the TOP of `register_flows()` — before /start, /menu, admin commands, and flow routers
+- Router filters on `F.chat.type.in_({"group", "supergroup"})` and `F.text`
+- Handler looks up `GroupChatConfig` by `message.chat.id`, ignores unconfigured groups
+- No changes to `main.py` needed
+
+**Notes:**
+- Group router is registered FIRST so it intercepts all text messages in configured groups before admin/private handlers
+- Commands in groups don't require `is_admin()` — they just need to be in the group's `allowed_commands` list
+- Unconfigured groups: handler returns without consuming message, so it falls through normally
+- `_dispatch_group_command` temporarily modifies `message.text` for handler compatibility (restored in finally block)
+- `handle_group_message` detects reply-to-bot via `message.reply_to_message.from_user.is_bot`
+- All 555 tests pass
+- Updated `test_compose_request.py` to include `classify_command` in expected model keys
+
 ## Next up
 
-- Plan 2 Phase 3: Natural Language Bot + Groupchat Support (Phase 3.1 first)
+- Plan 2 Phase 3.5: Tests for Phase 3 (command classifier, group handler, mention extraction)

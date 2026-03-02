@@ -168,6 +168,10 @@ _tech = _load_tech_config()
 
 SUPPORT_ADDRESSES: list[str] = _tech.get("support_addresses", [])
 
+# --- Groupchat ---
+EDITORIAL_CHAT_ID = int(os.getenv("EDITORIAL_CHAT_ID", "0"))
+BOT_USERNAME = os.getenv("BOT_USERNAME", "")
+
 # --- Healthcheck ---
 HEALTHCHECK_DOMAINS = [
     d.strip() for d in os.getenv("HEALTHCHECK_DOMAINS", "republicmag.io,redefine.media").split(",") if d.strip()

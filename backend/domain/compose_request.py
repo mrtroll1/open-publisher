@@ -12,6 +12,7 @@ _MODELS = {
     "inbox_classify": "gemini-2.5-flash",
     "editorial_assess": "gemini-2.5-flash",
     "tech_support_question": "gemini-2.5-flash",
+    "classify_command": "gemini-2.5-flash",
 }
 
 
@@ -107,3 +108,11 @@ def tech_support_question(
         "VERBOSE": verbose_text,
     })
     return prompt, _MODELS["tech_support_question"], ["answer"]
+
+
+def classify_command(text: str, commands_description: str) -> tuple[str, str, list[str]]:
+    prompt = load_template("classify-command.md", {
+        "COMMANDS": commands_description,
+        "TEXT": text,
+    })
+    return prompt, _MODELS["classify_command"], ["command", "args"]

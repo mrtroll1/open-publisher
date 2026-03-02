@@ -20,7 +20,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
-from common.config import ADMIN_TELEGRAM_IDS, EMAIL_ADDRESS
+from typing import Callable
+
+from common.config import ADMIN_TELEGRAM_IDS, BOT_USERNAME, EMAIL_ADDRESS
 
 from common.models import (
     CONTRACTOR_CLASS_BY_TYPE,
@@ -73,8 +75,10 @@ from backend.domain.healthcheck import run_healthchecks, format_healthcheck_resu
 from backend.domain.inbox_service import InboxService
 from backend.domain.parse_bank_statement import ParseBankStatement
 from backend.domain.code_runner import run_claude_code
+from backend.domain.command_classifier import CommandClassifier
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.gateways.repo_gateway import RepoGateway
+from telegram_bot.flow_dsl import GroupChatConfig
 
 logger = logging.getLogger(__name__)
 
@@ -597,6 +601,107 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
     except Exception as e:
         logger.exception("Claude Code execution failed")
         await message.answer(f"Ошибка: {e}")
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  GROUP CHAT HANDLER
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+_GROUP_COMMAND_HANDLERS: dict[str, Callable] = {
+    "health": cmd_health,
+    "tech_support": cmd_tech_support,
+    "code": cmd_code,
+}
+
+_COMMAND_DESCRIPTIONS: dict[str, str] = {
+    "health": "Проверка доступности сайтов и подов",
+    "tech_support": "Задать вопрос по техподдержке",
+    "code": "Запустить Claude Code",
+}
+
+
+def _extract_bot_mention(text: str, bot_username: str) -> str | None:
+    prefix = f"@{bot_username}"
+    if text.startswith(prefix + " ") or text.startswith(prefix + "\n"):
+        return text[len(prefix):].strip()
+    return None
+
+
+async def _dispatch_group_command(
+    command: str, args_text: str, message: types.Message, state: FSMContext,
+) -> None:
+    handler = _GROUP_COMMAND_HANDLERS.get(command)
+    if not handler:
+        return
+    original_text = message.text
+    if args_text:
+        message.text = f"/{command} {args_text}"
+    else:
+        message.text = f"/{command}"
+    try:
+        await handler(message, state)
+    finally:
+        message.text = original_text
+
+
+async def handle_group_message(
+    message: types.Message, state: FSMContext, group_config: GroupChatConfig,
+) -> None:
+    text = message.text or ""
+
+    # Explicit command (e.g. /health, /tech_support@bot_username)
+    if text.startswith("/"):
+        raw_cmd = text.split()[0].lstrip("/")
+        # Strip @bot_username suffix from command
+        if "@" in raw_cmd:
+            raw_cmd = raw_cmd.split("@", 1)[0]
+        if raw_cmd not in group_config.allowed_commands:
+            return
+        args = text.split(maxsplit=1)
+        args_text = args[1] if len(args) > 1 else ""
+        await _dispatch_group_command(raw_cmd, args_text, message, state)
+        return
+
+    # Natural language: @mention or reply to bot message
+    if not group_config.natural_language:
+        return
+
+    clean_text = _extract_bot_mention(text, BOT_USERNAME)
+    is_reply_to_bot = (
+        message.reply_to_message
+        and message.reply_to_message.from_user
+        and message.reply_to_message.from_user.is_bot
+    )
+
+    if clean_text is None and not is_reply_to_bot:
+        return
+
+    if clean_text is None:
+        clean_text = text
+
+    available_commands = {
+        cmd: _COMMAND_DESCRIPTIONS[cmd]
+        for cmd in group_config.allowed_commands
+        if cmd in _COMMAND_DESCRIPTIONS
+    }
+    if not available_commands:
+        return
+
+    try:
+        classifier = CommandClassifier(GeminiGateway())
+        classified = await asyncio.to_thread(
+            classifier.classify, clean_text, available_commands,
+        )
+    except Exception:
+        logger.exception("Command classification failed in group chat")
+        return
+
+    if not classified:
+        return
+
+    await _dispatch_group_command(
+        classified.command, classified.args or clean_text, message, state,
+    )
 
 
 async def cmd_budget(message: types.Message, state: FSMContext) -> None:

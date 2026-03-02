@@ -4,6 +4,7 @@ import pytest
 
 from backend.domain.compose_request import (
     _MODELS,
+    classify_command,
     contractor_parse,
     editorial_assess,
     inbox_classify,
@@ -26,7 +27,7 @@ class TestModels:
         expected = {
             "support_email", "support_triage", "tech_search_terms",
             "contractor_parse", "translate_name", "inbox_classify",
-            "editorial_assess", "tech_support_question",
+            "editorial_assess", "tech_support_question", "classify_command",
         }
         assert set(_MODELS.keys()) == expected
 

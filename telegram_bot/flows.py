@@ -16,9 +16,11 @@ from telegram_bot.flow_dsl import (
     BotFlows,
     Flow,
     FlowState,
+    GroupChatConfig,
     InputType,
     Transition,
 )
+from common.config import EDITORIAL_CHAT_ID
 from telegram_bot import replies
 from telegram_bot.flow_callbacks import (
     handle_start,
@@ -242,6 +244,20 @@ admin_commands = [
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  GROUPCHAT CONFIGS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+group_configs = [
+    gc for gc in [
+        GroupChatConfig(
+            chat_id=EDITORIAL_CHAT_ID,
+            allowed_commands=["health", "tech_support", "code"],
+        ) if EDITORIAL_CHAT_ID else None,
+    ] if gc is not None
+]
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  ASSEMBLE
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -256,4 +272,5 @@ bot_flows = BotFlows(
         "update_payment_data": handle_update_payment_data,
         "manage_redirects": handle_manage_redirects,
     },
+    group_configs=group_configs,
 )

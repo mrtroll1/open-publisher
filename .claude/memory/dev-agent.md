@@ -940,7 +940,39 @@ Phase 5.4 — Remaining tests:
 - Tests verify both success paths and error/edge cases
 - `_parse_with_llm` tests validate the payment validation logging integration
 
+### Session 33 (2026-03-02) — Maintenance: Write Tests (round 5 — service-layer integration)
+**Status:** Complete
+
+**What was done:**
+- Evaluated Phase 6 (LLM domain structure refactor): deferred as premature abstraction that conflicts with project's minimalism philosophy. Noted in plan.
+- Added 32 new service-layer integration tests with mocked dependencies across 3 files:
+
+**`tests/test_inbox_service.py`** — 11 new tests across 4 classes:
+  - `TestInboxServiceProcess` (3): process() routing to support/editorial/ignore
+  - `TestInboxServiceClassify` (3): direct address match vs LLM fallback
+  - `TestHandleSupport` (2): SupportDraft creation with decision_id, duplicate UID handling
+  - `TestHandleEditorial` (3): editorial assessment routing, forward=false, no chief editor guard
+  - Consolidated `_make_service` and `_make_service_full` helpers into one
+
+**`tests/test_tech_support_handler.py`** — 12 new tests across 4 classes:
+  - `TestDraftReply` (3): full flow (thread→triage→user data→LLM→SupportDraft), thread history, can_answer=false
+  - `TestSaveOutbound` (2): outbound message saving with field mapping, no-op for unknown UID
+  - `TestDiscard` (3): rejected draft saving, cleanup without draft, no-op for unknown UID
+  - `TestFetchUserData` (4): LLM triage→user lookup, fallback email, empty needs, exception handling
+
+**`tests/test_support_user_lookup.py`** — 9 new tests in 1 class:
+  - `TestFetchAndFormat` (9): per-need section fetching (subscriptions, payments, account, audit_log, redefine), multiple needs, empty needs, gateway exceptions, fallback redefine_user_id
+
+**Net result:** 32 new tests (739 total), all passing in 1.52s
+
+**Notes:**
+- Review agent cleaned up unused imports (MagicMock, ANY, pytest, PendingItem) and removed 1 redundant test
+- First comprehensive end-to-end tests for InboxService.process(), TechSupportHandler.draft_reply(), and SupportUserLookup.fetch_and_format()
+- These tests mock all 4+ dependencies per service and verify return values, not just mock calls
+- `_test_ternary.py` stray empty file in project root — needs manual deletion (rm blocked by security policy)
+
 ## Next up
 
-- Plan 2 is complete through Phase 5. Phase 6 (LLM domain structure refactor) is optional/stretch.
+- Plan 2 is complete through Phase 5. Phase 6 deferred (see plan notes).
 - Continue maintenance mode: spot bugs, refactor, polish UX, improve prompts.
+- Remaining high-value test gaps: generate_invoice.py, generate_batch_invoices.py, prepare_invoice.py (all require DocsGateway/DriveGateway mocking)

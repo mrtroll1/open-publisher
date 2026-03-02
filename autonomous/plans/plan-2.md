@@ -336,6 +336,8 @@ Currently `skip_support()` pops from memory dict — the draft vanishes.
 ## Phase 6: Domain Structure for LLM Decisions (Future Ambition)
 
 > **Prerequisite**: All phases 1-5 complete and passing tests. This is optional/stretch.
+>
+> **Evaluation (Session 11)**: Deferred. After analyzing the current LLM code patterns (compose → gemini.call → extract), the proposed class hierarchy (LLMTask protocol + 3 base classes + tracker + 9 subclasses) would add ~14 files of indirection without changing behavior. The current pattern is clean and consistent. Each LLM category is already tracked in its own table (llm_classifications, email_decisions, payment_validations, code_tasks). This conflicts with the project's "clean & minimalistic" philosophy and "don't create abstractions for one-time operations" principle. Revisit only if a concrete need emerges (e.g., adding a new LLM provider, needing unified retry logic).
 
 ### 6.1 Analysis of LLM decision landscape
 

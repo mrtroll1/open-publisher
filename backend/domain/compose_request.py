@@ -1,6 +1,7 @@
 """Compose LLM requests: template + knowledge → (prompt, model, response_keys)."""
 
-from common.config import SUBSCRIPTION_SERVICE_URL
+from __future__ import annotations
+
 from common.prompt_loader import load_knowledge, load_template
 
 _MODELS = {
@@ -13,14 +14,22 @@ _MODELS = {
     "editorial_assess": "gemini-2.5-flash",
     "tech_support_question": "gemini-2.5-flash",
     "classify_command": "gemini-2.5-flash",
+    "conversation_reply": "gemini-2.5-flash",
 }
+
+_retriever: KnowledgeRetriever | None = None
+
+
+def _get_retriever() -> KnowledgeRetriever:
+    global _retriever
+    if _retriever is None:
+        from backend.domain.knowledge_retriever import KnowledgeRetriever
+        _retriever = KnowledgeRetriever()
+    return _retriever
 
 
 def support_triage(email_text: str) -> tuple[str, str, list[str]]:
-    knowledge = load_knowledge(
-        "support-triage.md",
-        replacements={"SUBSCRIPTION_SERVICE_URL": SUBSCRIPTION_SERVICE_URL},
-    )
+    knowledge = _get_retriever().retrieve_full_scope("support_triage")
     prompt = load_template("support-triage.md", {
         "KNOWLEDGE": knowledge,
         "EMAIL": email_text,
@@ -29,10 +38,8 @@ def support_triage(email_text: str) -> tuple[str, str, list[str]]:
 
 
 def support_email(email_text: str, user_data: str = "") -> tuple[str, str, list[str]]:
-    knowledge = load_knowledge(
-        "base.md", "email-inbox.md", "tech-support.md",
-        replacements={"SUBSCRIPTION_SERVICE_URL": SUBSCRIPTION_SERVICE_URL},
-    )
+    r = _get_retriever()
+    knowledge = r.get_core() + "\n\n" + r.retrieve(email_text, "tech_support", 5)
     prompt = load_template("support-email.md", {
         "KNOWLEDGE": knowledge,
         "USER_DATA": user_data,
@@ -49,7 +56,8 @@ def tech_search_terms(text: str) -> tuple[str, str, list[str]]:
 def contractor_parse(
     text: str, fields_csv: str, context: str = "",
 ) -> tuple[str, str, list[str]]:
-    knowledge = load_knowledge("base.md", "payment-data-validation.md")
+    r = _get_retriever()
+    knowledge = r.get_core() + "\n\n" + r.retrieve_full_scope("contractor")
     prompt = load_template("contractor-parse.md", {
         "FIELDS": fields_csv,
         "CONTEXT": context,
@@ -79,10 +87,8 @@ def translate_name(name_en: str) -> tuple[str, str, list[str]]:
 def tech_support_question(
     question: str, code_context: str = "", verbose: bool = False,
 ) -> tuple[str, str, list[str]]:
-    knowledge = load_knowledge(
-        "base.md", "tech-support.md",
-        replacements={"SUBSCRIPTION_SERVICE_URL": SUBSCRIPTION_SERVICE_URL},
-    )
+    r = _get_retriever()
+    knowledge = r.get_core() + "\n\n" + r.retrieve(question, "tech_support", 5)
     verbose_text = (
         "Можешь дать развёрнутый ответ."
         if verbose
@@ -103,3 +109,21 @@ def classify_command(text: str, commands_description: str) -> tuple[str, str, li
         "TEXT": text,
     })
     return prompt, _MODELS["classify_command"], ["command", "args"]
+
+
+def conversation_reply(
+    message: str, conversation_history: str, knowledge_context: str,
+    verbose: bool = False,
+) -> tuple[str, str, list[str]]:
+    verbose_text = (
+        "Можешь дать развёрнутый ответ."
+        if verbose
+        else "Отвечай кратко и по делу."
+    )
+    prompt = load_template("conversation.md", {
+        "VERBOSE": verbose_text,
+        "KNOWLEDGE": knowledge_context,
+        "CONVERSATION": conversation_history,
+        "MESSAGE": message,
+    })
+    return prompt, _MODELS["conversation_reply"], ["reply"]

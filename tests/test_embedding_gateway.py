@@ -1,14 +1,21 @@
 """Tests for EmbeddingGateway."""
 
 import sys
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
-# Stub google.genai before importing the gateway
-_mock_genai = MagicMock()
-sys.modules.setdefault("google.genai", _mock_genai)
-sys.modules.setdefault("google.genai.types", _mock_genai.types)
+import pytest
 
 from backend.infrastructure.gateways.embedding_gateway import EmbeddingGateway
+
+_mock_genai = MagicMock()
+
+
+@pytest.fixture(autouse=True)
+def _patch_genai():
+    """Ensure our mock is active in sys.modules for each test."""
+    _mock_genai.reset_mock()
+    with patch.dict(sys.modules, {"google.genai": _mock_genai, "google.genai.types": _mock_genai.types}):
+        yield
 
 
 def _make_embedding(values: list[float]):

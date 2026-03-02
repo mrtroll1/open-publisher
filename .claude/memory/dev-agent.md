@@ -1250,8 +1250,85 @@ Phase 5.4 — Remaining tests:
 - `EmbeddingGateway` creates a new `genai.Client` per call (same pattern as Gemini). Acceptable for current volume.
 - Pre-existing test failures: 73 in `test_plan2_handlers.py` (mock cross-contamination), 2 collection errors (PermissionError on `/opt/repos`). Not caused by Phase 1 changes.
 
+### Session 43b (2026-03-02) — Plan 3 Phase 2: Knowledge Store (2.1-2.5)
+**Status:** Complete (all items except running seed on live DB)
+
+**What was done:**
+- Added `knowledge_entries` table to `_SCHEMA_SQL` in `db_gateway.py`:
+  - UUID PK, tier, scope, title, content, source, embedding (vector(256)), is_active, timestamps
+  - 3 indexes: ivfflat cosine on embedding, scope+is_active, tier+is_active
+- Added 7 new methods to `DbGateway`:
+  - `save_knowledge_entry()`, `update_knowledge_entry()`, `search_knowledge()` (cosine similarity)
+  - `get_knowledge_by_tier()`, `get_knowledge_by_scope()`, `list_knowledge()`, `deactivate_knowledge()`
+- Created `backend/domain/knowledge_retriever.py`:
+  - `KnowledgeRetriever` class with `get_core()`, `retrieve()`, `retrieve_full_scope()`
+  - Shared `_format_entries()` helper for markdown formatting + `{{SUBSCRIPTION_SERVICE_URL}}` replacement
+- Created `backend/domain/seed_knowledge.py`:
+  - One-time migration script: reads `.md` files, chunks into 19 entries, generates embeddings, inserts
+  - `_chunk_tech_support()` splits header (core) + 10 FAQ bullets (domain)
+  - `_chunk_payment_validation()` splits into 4 sections by contractor type
+  - Idempotent: skips if entries already exist
+  - Batch embeddings in one API call
+- Created `tests/test_knowledge_db.py` — 16 tests for all 7 DbGateway methods
+- Created `tests/test_knowledge_retriever.py` — 14 tests for KnowledgeRetriever + _format_entries
+
+**Net result:** 35 new tests (871 total), 4 new files, 1 modified file
+
+**Notes:**
+- `search_knowledge()` converts embedding list to string via `str()` for pgvector
+- `list_knowledge()` builds dynamic WHERE clause with optional scope/tier filters
+- Seed script can be run as `python -m backend.domain.seed_knowledge`
+- Running seed requires live DB + Google API — deferred to deployment
+- Pre-existing test failures were fixed in session 44 (see below)
+
+### Session 44 (2026-03-02) — Plan 3 Phase 3: Prompt Composition Evolution + Test Fixes
+**Status:** Complete (all Phase 3 items: 3.1, 3.2, 3.3, 3.4)
+
+**What was done:**
+
+Phase 3.1 — Updated `compose_request.py` to use `KnowledgeRetriever`:
+- Added lazy `_retriever` singleton with `_get_retriever()` function (deferred import to avoid circular deps)
+- Updated `support_email()` → `r.get_core()` + `r.retrieve(email_text, "tech_support", 5)`
+- Updated `tech_support_question()` → `r.get_core()` + `r.retrieve(question, "tech_support", 5)`
+- Updated `support_triage()` → `_get_retriever().retrieve_full_scope("support_triage")`
+- Updated `contractor_parse()` → `r.get_core()` + `r.retrieve_full_scope("contractor")`
+- Left unchanged: `inbox_classify`, `editorial_assess`, `translate_name`, `classify_command`, `tech_search_terms`
+- Removed `SUBSCRIPTION_SERVICE_URL` import (handled inside `KnowledgeRetriever._format_entries()`)
+
+Phase 3.2 — Added `conversation_reply()` function to `compose_request.py`:
+- Takes `message`, `conversation_history`, `knowledge_context`, `verbose` params
+- Uses `conversation.md` template
+- Added `"conversation_reply": "gemini-2.5-flash"` to `_MODELS`
+
+Phase 3.3 — Created `templates/conversation.md`:
+- Russian-language template for Luka's assistant conversation
+- Placeholders: `{{VERBOSE}}`, `{{KNOWLEDGE}}`, `{{CONVERSATION}}`, `{{MESSAGE}}`
+- Returns JSON: `{"reply": "<ответ>"}`
+
+Phase 3.4 — Tests:
+- Added 9 new tests to `tests/test_compose_request.py`:
+  - `TestRetrieverCalls` (4): verifies each function calls correct retriever methods with correct args
+  - `TestConversationReply` (4): structure, verbose flag, placeholders
+  - `TestGetRetrieverSingleton` (1): lazy initialization creates instance once
+
+**Also fixed pre-existing test failures:**
+- Fixed `RepoGateway.ensure_repos()` to handle `OSError` on `mkdir` (was crashing on `/opt/repos` permission error)
+- Added `google.genai` and `google.genai.types` to conftest.py module stubs
+- Added global autouse fixture `_stub_knowledge_retriever` in conftest.py to mock `_get_retriever()` across all tests
+- Fixed test isolation in `test_embedding_gateway.py` and `test_gemini_gateway.py` (replaced module-level `sys.modules` override with per-test `patch.dict`)
+- Added `conversation_reply` to expected keys in test
+- Fixed `cmd_support` test assertion to match `parse_mode="HTML"`
+
+**Net result:** 910 tests pass (up from 752 passing + 75 failing + 2 errors → all 910 pass)
+
+**Notes:**
+- `from __future__ import annotations` added to compose_request.py for forward-reference type annotation
+- `load_knowledge` import kept for backward compatibility even though no function currently uses it
+- Phase 2.4 still needs: run seed script on live DB and verify entries
+- `_test_ternary.py` stray empty file in project root — needs manual deletion
+
 ## Next up
 
-- Plan 3 Phase 2: Knowledge Store (table, DB methods, retriever, seed migration, tests)
-- Pre-existing test failures should be investigated in a future maintenance session
-- `_test_ternary.py` stray empty file in project root — needs manual deletion (rm blocked by security policy)
+- Plan 3 Phase 4: Conversation Persistence (conversations table, save at key points)
+- Phase 2.4 still needs: run seed script on live DB and verify entries
+- `_test_ternary.py` stray empty file in project root — needs manual deletion

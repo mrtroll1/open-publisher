@@ -3,11 +3,19 @@
 import sys
 from unittest.mock import MagicMock, patch
 
-# Ensure google.genai is stubbed before importing GeminiGateway
-_mock_genai = MagicMock()
-sys.modules.setdefault("google.genai", _mock_genai)
+import pytest
 
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
+
+_mock_genai = MagicMock()
+
+
+@pytest.fixture(autouse=True)
+def _patch_genai():
+    """Ensure our mock is active in sys.modules for each test."""
+    _mock_genai.reset_mock()
+    with patch.dict(sys.modules, {"google.genai": _mock_genai}):
+        yield
 
 
 def _setup_genai_response(response_text: str = '{"result": "ok"}'):

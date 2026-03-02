@@ -31,7 +31,11 @@ class RepoGateway:
     def ensure_repos(self) -> None:
         if not self._repo_urls:
             return
-        self._repos_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            self._repos_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            logger.warning("Cannot create repos dir %s: %s", self._repos_dir, e)
+            return
         for name, url in self._repo_urls.items():
             path = self._repo_path(name)
             try:

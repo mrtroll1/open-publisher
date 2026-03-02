@@ -388,7 +388,7 @@ class TestCmdSupport:
         asyncio.run(cmd_support(msg, state))
 
         mock_answer.assert_called_once_with("как работает подписка?", False, False)
-        msg.answer.assert_awaited_once_with("Ответ на вопрос")
+        msg.answer.assert_awaited_once_with("Ответ на вопрос", parse_mode="HTML")
 
     def test_no_question_shows_usage(self):
         from telegram_bot.flow_callbacks import cmd_support

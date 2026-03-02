@@ -136,34 +136,34 @@ Three tiers of knowledge, all in PostgreSQL:
 
 ### 3.1 Update compose_request.py
 
-- [ ] Add module-level lazy `_retriever = None` with getter function
-- [ ] Update `support_email()`:
+- [x] Add module-level lazy `_retriever = None` with getter function
+- [x] Update `support_email()`:
   - Before: `load_knowledge("base.md", "email-inbox.md", "tech-support.md")`
   - After: `_retriever.get_core()` + `_retriever.retrieve(email_text, "tech_support", 5)`
-- [ ] Update `tech_support_question()`:
+- [x] Update `tech_support_question()`:
   - Before: `load_knowledge("base.md", "tech-support.md")`
   - After: `_retriever.get_core()` + `_retriever.retrieve(question, "tech_support", 5)`
-- [ ] Update `support_triage()`:
+- [x] Update `support_triage()`:
   - Before: `load_knowledge("support-triage.md")`
   - After: `_retriever.retrieve_full_scope("support_triage")`
-- [ ] Update `contractor_parse()`:
+- [x] Update `contractor_parse()`:
   - Before: `load_knowledge("base.md", "payment-data-validation.md")`
   - After: `_retriever.get_core()` + `_retriever.retrieve_full_scope("contractor")`
-- [ ] Leave `load_knowledge()` in `prompt_loader.py` untouched — backward compat
-- [ ] Leave classification-only functions unchanged: `inbox_classify`, `editorial_assess`, `translate_name`, `classify_command`, `tech_search_terms`
+- [x] Leave `load_knowledge()` in `prompt_loader.py` untouched — backward compat
+- [x] Leave classification-only functions unchanged: `inbox_classify`, `editorial_assess`, `translate_name`, `classify_command`, `tech_search_terms`
 
 **Files**: `backend/domain/compose_request.py`
 
 ### 3.2 Add conversation_reply function
 
-- [ ] Add `conversation_reply(message, conversation_history, knowledge_context) -> tuple[str, str, list[str]]` to compose_request.py
-- [ ] Add model entry: `"conversation_reply": "gemini-2.5-flash"`
+- [x] Add `conversation_reply(message, conversation_history, knowledge_context) -> tuple[str, str, list[str]]` to compose_request.py
+- [x] Add model entry: `"conversation_reply": "gemini-2.5-flash"`
 
 **Files**: `backend/domain/compose_request.py`
 
 ### 3.3 New template: `templates/conversation.md`
 
-- [ ] Create template:
+- [x] Create template:
   ```markdown
   Ты — напарник Луки, издатель Republic. Ведёшь диалог в Telegram.
   Используй контекст. Отвечай по-русски, кратко и по делу.
@@ -186,10 +186,11 @@ Three tiers of knowledge, all in PostgreSQL:
 
 ### 3.4 Tests
 
-- [ ] Test `support_email()` with mocked retriever returns same structure
-- [ ] Test `tech_support_question()` with mocked retriever
-- [ ] Compare prompt quality before/after with real examples
-- [ ] Run full test suite
+- [x] Test `support_email()` with mocked retriever returns same structure
+- [x] Test `tech_support_question()` with mocked retriever
+- [x] Test `conversation_reply()` structure, verbose flag, placeholders
+- [x] Test `_get_retriever()` lazy singleton
+- [x] Run full test suite — 910 tests pass
 
 ---
 

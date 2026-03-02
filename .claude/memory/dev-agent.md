@@ -1203,12 +1203,38 @@ Phase 5.4 — Remaining tests:
 - All tests use `unittest.mock.patch` for external deps (requests, subprocess, pyairtable, file I/O)
 - `test_repo_gateway.py` uses pytest `tmp_path` fixture for filesystem tests
 
+### Session 42 (2026-03-02) — Maintenance: Spot Bugs (round 7) + Improve Prompts (round 4)
+**Status:** Complete
+
+**Spot Bugs (round 7):**
+- Thorough code review across all 40+ Python source files
+- **Zero confirmed bugs found** — codebase is clean after 7 rounds of review
+- Two theoretical edge cases documented (DbGateway thread-safety with shared connection, empty BOT_USERNAME in _extract_bot_mention) — neither manifests in production
+- Verified all asyncio.to_thread() calls, all imports, all function signatures, all SQL parameterization, all PII handling
+
+**Improve Prompts (round 4):**
+- Improved 6 template files and 3 knowledge files:
+  - `support-triage.md`: added multi-issue handling (include all relevant needs categories)
+  - `support-email.md`: added user data interpretation guidance + thread dedup instruction
+  - `inbox-classify.md`: added Redefine mention, service notifications to ignore, tech_support priority rule
+  - `editorial-assess.md`: added signature instruction (was missing vs support-email)
+  - `tech-support-question.md`: added empty code context handling + anti-hallucination guard
+  - `classify-command.md`: clarified examples section, added "greeting → null" example
+  - `knowledge/tech-support.md`: added Apple App Store / Google Play edge case, specific transaction detail instruction
+  - `knowledge/support-triage.md`: added multi-category guidance
+  - `knowledge/email-inbox.md`: clarified Redefine definition, formatting fixes
+
+**Notes:**
+- All 866 tests pass
+- Bug-spotting has diminishing returns — 7 rounds with zero new bugs in the latest round
+- Prompt improvements are small and targeted — major gaps were addressed in earlier rounds
+
 ## Next up
 
 - Plan 2 is complete through Phase 5. Phase 6 deferred (see plan notes).
-- Continue maintenance mode: improve prompts, polish UX, write tests, or spot bugs.
+- Continue maintenance mode: polish UX, write tests, or spot bugs.
 - Refactoring opportunities are mostly exhausted after 5 rounds (-329 lines total, 28 helpers extracted).
-- Test coverage is now very comprehensive (866 tests). Remaining untested: 3 thin gateway wrappers (drive, sheets, redefine).
+- Bug-spotting opportunities are mostly exhausted after 7 rounds (zero bugs in round 7).
+- Prompt improvements have gone through 4 rounds — major template/knowledge issues are resolved.
+- Test coverage is very comprehensive (866 tests). Remaining untested: 3 thin gateway wrappers (drive, sheets, redefine).
 - `_test_ternary.py` stray empty file in project root — needs manual deletion (rm blocked by security policy)
-- Airtable gateway now fully correct — parent field included, no spurious quoting
-- Bank statement categorization is now fully tested (was the biggest gap)

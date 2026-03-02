@@ -19,6 +19,8 @@ from telegram_bot.flow_callbacks import (
     _GROUP_COMMAND_HANDLERS,
     _COMMAND_DESCRIPTIONS,
     _ROLE_LABELS,
+    _save_turn,
+    _send_html,
     handle_code_rate_callback,
 )
 from telegram_bot import replies
@@ -445,3 +447,111 @@ class TestHandleCodeRateCallback:
 
         cb.answer.assert_awaited_once_with("Оценка сохранена!")
         cb.message.edit_reply_markup.assert_awaited_once_with(reply_markup=None)
+
+
+# ===================================================================
+#  _save_turn()
+# ===================================================================
+
+def _make_message(chat_id=100, chat_type="private", user_id=42, message_id=10):
+    msg = MagicMock()
+    msg.chat.id = chat_id
+    msg.chat.type = chat_type
+    msg.from_user.id = user_id
+    msg.message_id = message_id
+    return msg
+
+
+def _make_sent(message_id=11):
+    sent = MagicMock()
+    sent.message_id = message_id
+    return sent
+
+
+class TestSaveTurn:
+
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_save_turn_saves_both_turns(self, mock_db):
+        mock_db.save_conversation.return_value = "user-uuid"
+        msg = _make_message()
+        sent = _make_sent()
+
+        asyncio.run(_save_turn(msg, sent, "hello", "hi back", {"command": "code"}))
+
+        assert mock_db.save_conversation.call_count == 2
+
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_save_turn_links_reply_to_id(self, mock_db):
+        mock_db.save_conversation.return_value = "user-turn-uuid"
+        msg = _make_message()
+        sent = _make_sent()
+
+        asyncio.run(_save_turn(msg, sent, "hello", "hi back", {}))
+
+        calls = mock_db.save_conversation.call_args_list
+        # First call (user turn) has no reply_to_id
+        user_call_kwargs = calls[0][1]
+        assert user_call_kwargs.get("reply_to_id") is None
+        # Second call (assistant turn) links to user turn UUID
+        assistant_call_kwargs = calls[1][1]
+        assert assistant_call_kwargs["reply_to_id"] == "user-turn-uuid"
+
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_save_turn_channel_detection_dm(self, mock_db):
+        mock_db.save_conversation.return_value = "uuid"
+        msg = _make_message(chat_type="private")
+        sent = _make_sent()
+
+        asyncio.run(_save_turn(msg, sent, "q", "a", {}))
+
+        user_call_kwargs = mock_db.save_conversation.call_args_list[0][1]
+        assert user_call_kwargs["metadata"]["channel"] == "dm"
+
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_save_turn_channel_detection_group(self, mock_db):
+        mock_db.save_conversation.return_value = "uuid"
+        msg = _make_message(chat_type="group")
+        sent = _make_sent()
+
+        asyncio.run(_save_turn(msg, sent, "q", "a", {}))
+
+        user_call_kwargs = mock_db.save_conversation.call_args_list[0][1]
+        assert user_call_kwargs["metadata"]["channel"] == "group"
+
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_save_turn_db_error_silenced(self, mock_db):
+        mock_db.save_conversation.side_effect = RuntimeError("db down")
+        msg = _make_message()
+        sent = _make_sent()
+
+        # Should not raise
+        asyncio.run(_save_turn(msg, sent, "q", "a", {}))
+
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_save_turn_metadata_merged_with_channel(self, mock_db):
+        mock_db.save_conversation.return_value = "uuid"
+        msg = _make_message(chat_type="supergroup")
+        sent = _make_sent()
+
+        asyncio.run(_save_turn(msg, sent, "q", "a", {"command": "support"}))
+
+        user_call_kwargs = mock_db.save_conversation.call_args_list[0][1]
+        meta = user_call_kwargs["metadata"]
+        assert meta["command"] == "support"
+        assert meta["channel"] == "group"
+
+
+# ===================================================================
+#  _send_html()
+# ===================================================================
+
+class TestSendHtml:
+
+    def test_send_html_returns_message(self):
+        fake_response = MagicMock()
+        msg = AsyncMock()
+        msg.answer.return_value = fake_response
+
+        result = asyncio.run(_send_html(msg, "hello"))
+
+        assert result is fake_response

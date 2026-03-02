@@ -1,3 +1,4 @@
+import json
 from unittest.mock import MagicMock
 
 import pytest
@@ -328,3 +329,127 @@ class TestCodeTasksCRUD:
         assert "SET rating" in sql
         assert "rated_at = NOW()" in sql
         assert params == (5, "task-uuid-123")
+
+
+# ===================================================================
+#  conversations CRUD
+# ===================================================================
+
+class TestConversationsCRUD:
+
+    def test_save_conversation_returns_uuid(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = ("conv-uuid-111",)
+
+        result = gw.save_conversation(
+            chat_id=100, user_id=42, role="user", content="hello",
+        )
+
+        assert result == "conv-uuid-111"
+        sql, params = cur.execute.call_args[0]
+        assert "INSERT INTO conversations" in sql
+        assert "RETURNING id" in sql
+        assert params == (100, 42, "user", "hello", None, None, "{}")
+
+    def test_save_conversation_with_metadata(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = ("conv-uuid-222",)
+
+        meta = {"command": "code", "channel": "dm"}
+        result = gw.save_conversation(
+            chat_id=100, user_id=42, role="assistant", content="reply",
+            metadata=meta,
+        )
+
+        assert result == "conv-uuid-222"
+        _, params = cur.execute.call_args[0]
+        assert params[6] == json.dumps(meta)
+
+    def test_save_conversation_defaults(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = ("conv-uuid-333",)
+
+        gw.save_conversation(chat_id=1, user_id=2, role="user", content="hi")
+
+        _, params = cur.execute.call_args[0]
+        assert params[4] is None  # reply_to_id
+        assert params[5] is None  # message_id
+        assert params[6] == "{}"  # metadata defaults to empty dict JSON
+
+    def test_get_conversation_by_message_id_found(self):
+        gw, cur = _make_gw()
+        cur.description = [
+            ("id",), ("chat_id",), ("user_id",), ("role",), ("content",),
+            ("reply_to_id",), ("message_id",), ("metadata",), ("created_at",),
+        ]
+        cur.fetchone.return_value = (
+            "conv-uuid-444", 100, 42, "user", "hello",
+            None, 999, {}, "2026-03-01",
+        )
+
+        result = gw.get_conversation_by_message_id(chat_id=100, message_id=999)
+
+        assert result is not None
+        assert result["id"] == "conv-uuid-444"
+        assert result["chat_id"] == 100
+        assert result["role"] == "user"
+        assert result["content"] == "hello"
+        sql, params = cur.execute.call_args[0]
+        assert "WHERE chat_id = %s AND message_id = %s" in sql
+        assert params == (100, 999)
+
+    def test_get_conversation_by_message_id_not_found(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = None
+
+        result = gw.get_conversation_by_message_id(chat_id=100, message_id=999)
+
+        assert result is None
+
+    def test_get_reply_chain(self):
+        gw, cur = _make_gw()
+        cur.description = [
+            ("id",), ("chat_id",), ("user_id",), ("role",), ("content",),
+            ("reply_to_id",), ("message_id",), ("metadata",), ("created_at",),
+        ]
+        # Walk starts from id-3 → id-2 → id-1 (no reply_to)
+        rows = [
+            ("id-3", 100, 42, "assistant", "c", "id-2", 3, {}, "t3"),
+            ("id-2", 100, 42, "user", "b", "id-1", 2, {}, "t2"),
+            ("id-1", 100, 42, "user", "a", None, 1, {}, "t1"),
+        ]
+        cur.fetchone.side_effect = list(rows)
+
+        result = gw.get_reply_chain("id-3", depth=10)
+
+        # Chronological order (reversed from walk)
+        assert len(result) == 3
+        assert result[0]["id"] == "id-1"
+        assert result[1]["id"] == "id-2"
+        assert result[2]["id"] == "id-3"
+
+    def test_get_reply_chain_empty(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = None
+
+        result = gw.get_reply_chain("nonexistent")
+
+        assert result == []
+
+    def test_get_reply_chain_depth_limit(self):
+        gw, cur = _make_gw()
+        cur.description = [
+            ("id",), ("chat_id",), ("user_id",), ("role",), ("content",),
+            ("reply_to_id",), ("message_id",), ("metadata",), ("created_at",),
+        ]
+        # Chain of 5 records, but depth=2 should stop after 2
+        cur.fetchone.side_effect = [
+            ("id-5", 100, 42, "assistant", "e", "id-4", 5, {}, "t5"),
+            ("id-4", 100, 42, "user", "d", "id-3", 4, {}, "t4"),
+        ]
+
+        result = gw.get_reply_chain("id-5", depth=2)
+
+        assert len(result) == 2
+        assert result[0]["id"] == "id-4"
+        assert result[1]["id"] == "id-5"

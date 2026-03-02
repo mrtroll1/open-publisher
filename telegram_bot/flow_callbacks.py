@@ -97,12 +97,36 @@ async def _safe_edit_text(message, text: str, **kwargs) -> None:
         pass
 
 
-async def _send_html(message: types.Message, text: str, **kwargs) -> None:
+async def _send_html(message: types.Message, text: str, **kwargs) -> types.Message:
     """Send with markdown→HTML conversion; fall back to plain text on parse error."""
     try:
-        await message.answer(md_to_tg_html(text), parse_mode="HTML", **kwargs)
+        return await message.answer(md_to_tg_html(text), parse_mode="HTML", **kwargs)
     except TelegramBadRequest:
-        await message.answer(text, **kwargs)
+        return await message.answer(text, **kwargs)
+
+
+async def _save_turn(
+    message: types.Message, sent: types.Message,
+    user_text: str, bot_text: str, metadata: dict,
+) -> None:
+    """Save user+assistant conversation turn to DB. Never raises."""
+    try:
+        channel = "group" if message.chat.type in ("group", "supergroup") else "dm"
+        meta = {**metadata, "channel": channel}
+        user_entry_id = await asyncio.to_thread(
+            _db.save_conversation,
+            chat_id=message.chat.id, user_id=message.from_user.id,
+            role="user", content=user_text,
+            message_id=message.message_id, metadata=meta,
+        )
+        await asyncio.to_thread(
+            _db.save_conversation,
+            chat_id=message.chat.id, user_id=message.from_user.id,
+            role="assistant", content=bot_text,
+            reply_to_id=user_entry_id, message_id=sent.message_id, metadata=meta,
+        )
+    except Exception:
+        logger.exception("Failed to save conversation turn")
 
 
 def _parse_flags(text: str) -> tuple[bool, bool, str]:
@@ -615,7 +639,8 @@ async def cmd_support(message: types.Message, state: FSMContext) -> None:
         answer = await asyncio.to_thread(_answer_tech_question, text, verbose, expert)
         if len(answer) > 4000:
             answer = answer[:4000] + "..."
-        await _send_html(message, answer)
+        sent = await _send_html(message, answer)
+        await _save_turn(message, sent, text, answer, {"command": "tech_support"})
     except Exception as e:
         logger.exception("Support question failed")
         await message.answer(replies.admin.support_error)
@@ -652,7 +677,8 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
             ]])
         except Exception:
             logger.exception("Failed to save code task to DB")
-        await _send_html(message, answer, reply_markup=reply_markup)
+        sent = await _send_html(message, answer, reply_markup=reply_markup)
+        await _save_turn(message, sent, text, answer, {"command": "code"})
     except Exception as e:
         logger.exception("Claude Code execution failed")
         await message.answer(replies.admin.code_error)
@@ -789,7 +815,8 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
 
     if not result.classified:
         reply = result.reply or "Не удалось определить команду."
-        await _send_html(message, reply)
+        sent = await _send_html(message, reply)
+        await _save_turn(message, sent, text, reply, {"command": "nl_fallback"})
         return
 
     cmd = result.classified.command
@@ -900,7 +927,9 @@ async def handle_group_message(
 
     if not result.classified:
         if result.reply:
-            await _send_html(message, result.reply)
+            sent = await _send_html(message, result.reply)
+            await _save_turn(message, sent, clean_text, result.reply,
+                             {"command": "nl_fallback"})
         return
 
     await _dispatch_group_command(

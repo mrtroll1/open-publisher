@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import uuid
@@ -99,6 +100,21 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_scope
     ON knowledge_entries(scope, is_active);
 CREATE INDEX IF NOT EXISTS idx_knowledge_tier
     ON knowledge_entries(tier, is_active);
+
+CREATE TABLE IF NOT EXISTS conversations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    chat_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    reply_to_id UUID REFERENCES conversations(id),
+    message_id BIGINT,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_conv_chat ON conversations(chat_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_conv_msg ON conversations(chat_id, message_id);
+CREATE INDEX IF NOT EXISTS idx_conv_reply ON conversations(reply_to_id);
 """
 
 _RE_PREFIX = re.compile(r"^(Re|Fwd|Fw)\s*:\s*", re.IGNORECASE)
@@ -426,6 +442,62 @@ class DbGateway:
                 "UPDATE knowledge_entries SET is_active = FALSE, updated_at = NOW() WHERE id = %s",
                 (entry_id,),
             )
+
+    # --- conversations ---
+
+    def save_conversation(self, chat_id: int, user_id: int, role: str, content: str,
+                          reply_to_id: str | None = None, message_id: int | None = None,
+                          metadata: dict | None = None) -> str:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO conversations
+                   (chat_id, user_id, role, content, reply_to_id, message_id, metadata)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)
+                   RETURNING id""",
+                (chat_id, user_id, role, content, reply_to_id, message_id,
+                 json.dumps(metadata or {})),
+            )
+            return str(cur.fetchone()[0])
+
+    def get_conversation_by_message_id(self, chat_id: int, message_id: int) -> dict | None:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM conversations WHERE chat_id = %s AND message_id = %s",
+                (chat_id, message_id),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            cols = [desc[0] for desc in cur.description]
+            result = dict(zip(cols, row))
+            result["id"] = str(result["id"])
+            if result.get("reply_to_id"):
+                result["reply_to_id"] = str(result["reply_to_id"])
+            return result
+
+    def get_reply_chain(self, conversation_id: str, depth: int = 10) -> list[dict]:
+        conn = self._get_conn()
+        chain: list[dict] = []
+        current_id = conversation_id
+        with conn.cursor() as cur:
+            for _ in range(depth):
+                cur.execute("SELECT * FROM conversations WHERE id = %s", (current_id,))
+                row = cur.fetchone()
+                if not row:
+                    break
+                cols = [desc[0] for desc in cur.description]
+                rec = dict(zip(cols, row))
+                rec["id"] = str(rec["id"])
+                if rec.get("reply_to_id"):
+                    rec["reply_to_id"] = str(rec["reply_to_id"])
+                chain.append(rec)
+                if not rec.get("reply_to_id"):
+                    break
+                current_id = rec["reply_to_id"]
+        chain.reverse()
+        return chain
 
     def close(self):
         if self._conn and not self._conn.closed:

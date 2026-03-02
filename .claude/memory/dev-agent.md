@@ -1327,8 +1327,44 @@ Phase 3.4 — Tests:
 - Phase 2.4 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion
 
+### Session 45 (2026-03-02) — Plan 3 Phase 4: Conversation Persistence
+**Status:** Complete (all items: 4.1, 4.2, 4.3, 4.4)
+
+**What was done:**
+- Added `conversations` table to `_SCHEMA_SQL` in `db_gateway.py`:
+  - UUID PK, chat_id (BIGINT), user_id (BIGINT), role, content, reply_to_id (self-ref FK), message_id (BIGINT), metadata (JSONB), created_at
+  - 3 indexes: chat+created_at, chat+message_id, reply_to_id
+- Added 3 new methods to `DbGateway`:
+  - `save_conversation()` — INSERT RETURNING id, uses `json.dumps` for JSONB metadata
+  - `get_conversation_by_message_id()` — SELECT by chat_id+message_id, returns dict with UUID conversion
+  - `get_reply_chain()` — walks reply_to_id chain upward, collects records, reverses for chronological order
+- Added `import json` to db_gateway.py
+- Modified `_send_html` in `flow_callbacks.py` to return `types.Message` (was returning None)
+- Created `_save_turn()` async helper in `flow_callbacks.py`:
+  - Saves user message + assistant reply as two conversation entries with reply_to_id linking
+  - Auto-detects channel type (group/dm) from chat.type
+  - Merges channel into metadata dict
+  - Wrapped in try/except with logger.exception (never breaks user flow)
+  - Uses `asyncio.to_thread()` for async safety
+- Wired `_save_turn` into 4 handlers:
+  - `cmd_support` (tech_support command) — metadata `{"command": "tech_support"}`
+  - `cmd_code` — metadata `{"command": "code"}`
+  - `cmd_nl` fallback — metadata `{"command": "nl_fallback"}`
+  - `handle_group_message` NL fallback — metadata `{"command": "nl_fallback"}`
+- Added 15 tests:
+  - 8 in `test_db_gateway.py` (TestConversationsCRUD): CRUD ops, reply chain walking, depth limits
+  - 6 in `test_flow_callbacks_helpers.py` (TestSaveTurn): both turns saved, reply_to linking, channel detection, error silencing
+  - 1 in `test_flow_callbacks_helpers.py` (TestSendHtml): return type verification
+
+**Net result:** 15 new tests (925 total), all passing
+
+**Notes:**
+- `_save_turn` reuses module-level `_db` (DbGateway) instance — no new connections per call
+- Individual handlers (cmd_support, cmd_code) detect channel type themselves via `_save_turn`, so group message handler doesn't need separate saving logic
+- `get_reply_chain` uses `cur.description` for column names, matching the `get_conversation_by_message_id` pattern
+
 ## Next up
 
-- Plan 3 Phase 4: Conversation Persistence (conversations table, save at key points)
+- Plan 3 Phase 5: Conversation NL Reply (reply-to-bot routing, _handle_nl_reply, group chat integration)
 - Phase 2.4 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

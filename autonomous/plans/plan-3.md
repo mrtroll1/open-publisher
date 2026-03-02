@@ -198,7 +198,7 @@ Three tiers of knowledge, all in PostgreSQL:
 
 ### 4.1 New table: `conversations`
 
-- [ ] Add to `_SCHEMA_SQL` in `db_gateway.py`:
+- [x] Add to `_SCHEMA_SQL` in `db_gateway.py`:
   ```sql
   CREATE TABLE IF NOT EXISTS conversations (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -218,26 +218,27 @@ Three tiers of knowledge, all in PostgreSQL:
 
 ### 4.2 DbGateway methods
 
-- [ ] `save_conversation(chat_id, user_id, role, content, reply_to_id=None, message_id=None, metadata=None) -> str` — returns UUID
-- [ ] `get_conversation_by_message_id(chat_id, message_id) -> dict | None`
-- [ ] `get_reply_chain(conversation_id, depth=10) -> list[dict]` — walk reply_to_id chain upward, return chronological order
+- [x] `save_conversation(chat_id, user_id, role, content, reply_to_id=None, message_id=None, metadata=None) -> str` — returns UUID
+- [x] `get_conversation_by_message_id(chat_id, message_id) -> dict | None`
+- [x] `get_reply_chain(conversation_id, depth=10) -> list[dict]` — walk reply_to_id chain upward, return chronological order
 
 **Files**: `backend/infrastructure/gateways/db_gateway.py`
 
 ### 4.3 Save conversations at key points
 
-- [ ] Update `_send_html` to return `types.Message` (already done — verify)
-- [ ] In `cmd_support`: after sending answer, save both user question + bot answer to `conversations` table
-- [ ] In `cmd_nl` (not classified path): after sending reply, save user text + bot reply
-- [ ] In `cmd_code`: after sending answer, save user text + bot answer
-- [ ] In `handle_group_message` (NL path): after sending reply, save user text + bot reply
+- [x] Update `_send_html` to return `types.Message`
+- [x] In `cmd_support`: after sending answer, save both user question + bot answer to `conversations` table
+- [x] In `cmd_nl` (not classified path): after sending reply, save user text + bot reply
+- [x] In `cmd_code`: after sending answer, save user text + bot answer
+- [x] In `handle_group_message` (NL path): after sending reply, save user text + bot reply
 
 **Files**: `telegram_bot/flow_callbacks.py`
 
 ### 4.4 Tests
 
-- [ ] Test `save_conversation` + `get_conversation_by_message_id` + `get_reply_chain`
-- [ ] Run tests
+- [x] Test `save_conversation` + `get_conversation_by_message_id` + `get_reply_chain` — 8 tests in TestConversationsCRUD
+- [x] Test `_save_turn` helper — 6 tests in TestSaveTurn + 1 TestSendHtml
+- [x] Run tests — 925 total, all passing
 
 ---
 

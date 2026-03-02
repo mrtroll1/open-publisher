@@ -30,19 +30,15 @@ class AirtableGateway:
 
         records = []
         for exp in expenses:
-            contractor = f'"{exp.contractor}"' if "," in exp.contractor else exp.contractor
-            unit = f'"{exp.unit}"' if "," in exp.unit else exp.unit
-            entity = f'"{exp.entity}"' if "," in exp.entity else exp.entity
-            group = f'"{exp.group}"' if "," in exp.group else exp.group
-
             fields = {
                 "payed": exp.payed,
                 "amount rub": float(exp.amount_rub),
-                "contractor": contractor,
-                "unit": unit,
-                "entity": entity,
+                "contractor": exp.contractor,
+                "unit": exp.unit,
+                "entity": exp.entity,
                 "description": exp.description,
-                "group": group,
+                "group": exp.group,
+                "parent": exp.parent,
                 "crated": today,
             }
             if exp.splited:

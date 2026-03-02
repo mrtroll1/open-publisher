@@ -202,6 +202,26 @@ async def set_bot_commands(bot) -> None:
 def register_flows(dp: Dispatcher, bot_flows: BotFlows) -> None:
     """Register all flows and commands from a BotFlows declaration."""
 
+    # Group chat handlers — must be FIRST to intercept group messages
+    if bot_flows.group_configs:
+        from telegram_bot.flow_callbacks import handle_group_message
+
+        group_router = Router(name="group")
+        _config_by_chat = {gc.chat_id: gc for gc in bot_flows.group_configs}
+
+        async def _group_handler(message: types.Message, state: FSMContext):
+            config = _config_by_chat.get(message.chat.id)
+            if not config:
+                return
+            await handle_group_message(message, state, config)
+
+        group_router.message.register(
+            _group_handler,
+            F.chat.type.in_({"group", "supergroup"}),
+            F.text,
+        )
+        dp.include_router(group_router)
+
     # /start
     if bot_flows.start_handler:
         handler = bot_flows.start_handler

@@ -1,11 +1,13 @@
 """Tests for telegram_bot/flow_engine.py — pure helper functions."""
 
 import pytest
+from unittest.mock import MagicMock, patch
 
+from aiogram import Dispatcher
 from aiogram.fsm.state import StatesGroup, State
 
-from telegram_bot.flow_engine import _build_states_group, _resolve_transition
-from telegram_bot.flow_dsl import Flow, FlowState, Transition
+from telegram_bot.flow_engine import _build_states_group, _resolve_transition, register_flows
+from telegram_bot.flow_dsl import BotFlows, Flow, FlowState, GroupChatConfig, Transition
 
 
 # ===================================================================
@@ -106,3 +108,36 @@ class TestResolveTransition:
     def test_empty_transitions(self):
         fs = FlowState(name="test", transitions={})
         assert _resolve_transition(fs, "any") is None
+
+
+# ===================================================================
+#  register_flows() — group config wiring
+# ===================================================================
+
+class TestRegisterFlowsGroupConfig:
+
+    def test_group_router_included_when_configs_present(self):
+        dp = Dispatcher()
+        gc = GroupChatConfig(chat_id=-100111, allowed_commands=["health"])
+        bf = BotFlows(group_configs=[gc])
+
+        initial_router_count = len(dp.sub_routers)
+        register_flows(dp, bf)
+        assert len(dp.sub_routers) > initial_router_count
+
+    def test_no_group_router_when_configs_empty(self):
+        dp = Dispatcher()
+        bf = BotFlows(group_configs=[])
+
+        register_flows(dp, bf)
+        router_names = [r.name for r in dp.sub_routers]
+        assert "group" not in router_names
+
+    def test_group_router_named_group(self):
+        dp = Dispatcher()
+        gc = GroupChatConfig(chat_id=-100111, allowed_commands=["health"])
+        bf = BotFlows(group_configs=[gc])
+
+        register_flows(dp, bf)
+        router_names = [r.name for r in dp.sub_routers]
+        assert "group" in router_names

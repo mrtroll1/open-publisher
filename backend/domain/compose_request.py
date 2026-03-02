@@ -11,6 +11,8 @@ _MODELS = {
     "translate_name": "gemini-2.5-flash",
     "inbox_classify": "gemini-2.5-flash",
     "editorial_assess": "gemini-2.5-flash",
+    "tech_support_question": "gemini-2.5-flash",
+    "classify_command": "gemini-2.5-flash",
 }
 
 
@@ -26,20 +28,7 @@ def support_triage(email_text: str) -> tuple[str, str, list[str]]:
     return prompt, _MODELS["support_triage"], ["needs", "lookup_email"]
 
 
-def support_email(email_text: str) -> tuple[str, str, list[str]]:
-    knowledge = load_knowledge(
-        "base.md", "email-inbox.md", "tech-support.md",
-        replacements={"SUBSCRIPTION_SERVICE_URL": SUBSCRIPTION_SERVICE_URL},
-    )
-    prompt = load_template("support-email.md", {
-        "KNOWLEDGE": knowledge,
-        "USER_DATA": "",
-        "EMAIL": email_text,
-    })
-    return prompt, _MODELS["support_email"], ["reply"]
-
-
-def support_email_with_context(email_text: str, user_data: str) -> tuple[str, str, list[str]]:
+def support_email(email_text: str, user_data: str = "") -> tuple[str, str, list[str]]:
     knowledge = load_knowledge(
         "base.md", "email-inbox.md", "tech-support.md",
         replacements={"SUBSCRIPTION_SERVICE_URL": SUBSCRIPTION_SERVICE_URL},
@@ -85,3 +74,32 @@ def editorial_assess(email_text: str) -> tuple[str, str, list[str]]:
 def translate_name(name_en: str) -> tuple[str, str, list[str]]:
     prompt = load_template("translate-name.md", {"NAME": name_en})
     return prompt, _MODELS["translate_name"], ["translated_name"]
+
+
+def tech_support_question(
+    question: str, code_context: str = "", verbose: bool = False,
+) -> tuple[str, str, list[str]]:
+    knowledge = load_knowledge(
+        "base.md", "tech-support.md",
+        replacements={"SUBSCRIPTION_SERVICE_URL": SUBSCRIPTION_SERVICE_URL},
+    )
+    verbose_text = (
+        "Можешь дать развёрнутый ответ."
+        if verbose
+        else "Отвечай кратко, 1-3 абзаца."
+    )
+    prompt = load_template("tech-support-question.md", {
+        "KNOWLEDGE": knowledge,
+        "QUESTION": question,
+        "CODE_CONTEXT": code_context,
+        "VERBOSE": verbose_text,
+    })
+    return prompt, _MODELS["tech_support_question"], ["answer"]
+
+
+def classify_command(text: str, commands_description: str) -> tuple[str, str, list[str]]:
+    prompt = load_template("classify-command.md", {
+        "COMMANDS": commands_description,
+        "TEXT": text,
+    })
+    return prompt, _MODELS["classify_command"], ["command", "args"]

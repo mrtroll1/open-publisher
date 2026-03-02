@@ -21,8 +21,7 @@ class TechSupportHandler:
     def __init__(self):
         self._gemini = GeminiGateway()
         self._user_lookup = SupportUserLookup()
-        self._repo_gw = RepoGateway()
-        self._repo_gw.ensure_repos()
+        RepoGateway().ensure_repos()
         self._db = DbGateway()
         self._db.init_schema()
         self._uid_thread: dict[str, str] = {}
@@ -36,15 +35,11 @@ class TechSupportHandler:
 
         email_text = email.as_text()
         user_data = self._fetch_user_data(email_text, email.reply_to or email.from_addr)
-        code_context = self._fetch_code_context(email_text)
 
         thread_context = self._format_thread(history) if len(history) > 1 else ""
-        context = "\n\n".join(filter(None, [user_data, thread_context, code_context]))
+        context = "\n\n".join(filter(None, [user_data, thread_context]))
 
-        if context:
-            prompt, model, _ = compose_request.support_email_with_context(email_text, context)
-        else:
-            prompt, model, _ = compose_request.support_email(email_text)
+        prompt, model, _ = compose_request.support_email(email_text, context)
         result = self._gemini.call(prompt, model)
         can_answer = result.get("can_answer", False)
         logger.info("Drafted support response for %s (uid=%s, can_answer=%s)", email.from_addr, email.uid, can_answer)
@@ -55,27 +50,34 @@ class TechSupportHandler:
         thread_id = self._uid_thread.pop(uid, None)
         if not thread_id:
             return
+        msg = self._build_thread_message(draft, f"outbound-{uuid.uuid4().hex}")
+        self._db.save_message(thread_id, msg, "outbound")
+
+    def discard(self, uid: str, draft: SupportDraft | None = None) -> None:
+        """Clean up thread tracking for a skipped email."""
+        thread_id = self._uid_thread.pop(uid, None)
+        if draft and thread_id:
+            msg = self._build_thread_message(draft, f"draft-rejected-{uuid.uuid4().hex}")
+            self._db.save_message(thread_id, msg, "draft_rejected")
+
+    @staticmethod
+    def _build_thread_message(draft: SupportDraft, tag: str) -> IncomingEmail:
         em = draft.email
-        outbound = IncomingEmail(
+        return IncomingEmail(
             uid="",
             from_addr=em.to_addr,
             to_addr=em.reply_to or em.from_addr,
             subject=em.subject,
             body=draft.draft_reply,
             date="",
-            message_id=f"<outbound-{uuid.uuid4().hex}>",
+            message_id=f"<{tag}>",
             in_reply_to=em.message_id,
         )
-        self._db.save_message(thread_id, outbound, "outbound")
-
-    def discard(self, uid: str) -> None:
-        """Clean up thread tracking for a skipped email."""
-        self._uid_thread.pop(uid, None)
 
     def _fetch_user_data(self, email_text: str, fallback_email: str) -> str:
         try:
             prompt, model, _ = compose_request.support_triage(email_text)
-            result = self._gemini.call(prompt, model)
+            result = self._gemini.call(prompt, model, task="SUPPORT_TRIAGE")
             needs = result.get("needs", [])
             lookup_email = result.get("lookup_email") or fallback_email
             logger.info("Support triage: needs=%s, lookup_email=%s", needs, lookup_email)
@@ -86,45 +88,6 @@ class TechSupportHandler:
             return user_data
         except Exception as e:
             logger.error("Support triage/lookup failed: %s", e)
-            return ""
-
-    def _fetch_code_context(self, email_text: str) -> str:
-        try:
-            prompt, model, _ = compose_request.tech_search_terms(email_text)
-            result = self._gemini.call(prompt, model)
-            if not result.get("needs_code"):
-                return ""
-            terms = result.get("search_terms", [])
-            if not terms:
-                return ""
-
-            seen_files: dict[str, tuple[str, int]] = {}
-            for term in terms:
-                for rel_path, lineno, _ in self._repo_gw.search_code(term):
-                    if rel_path not in seen_files:
-                        seen_files[rel_path] = (rel_path.split("/", 1)[0], lineno)
-
-            if not seen_files:
-                return ""
-
-            snippets = []
-            for rel_path, (repo, lineno) in list(seen_files.items())[:5]:
-                filepath = rel_path.split("/", 1)[1] if "/" in rel_path else rel_path
-                content = self._repo_gw.read_file(repo, filepath)
-                if not content:
-                    continue
-                lines = content.splitlines()
-                start = max(0, lineno - 25)
-                end = min(len(lines), lineno + 25)
-                snippet = "\n".join(lines[start:end])
-                snippets.append(f"### {rel_path} (lines {start + 1}-{end})\n```\n{snippet}\n```")
-
-            if not snippets:
-                return ""
-            logger.info("Code context: %d snippets from %d file matches", len(snippets), len(seen_files))
-            return "## Контекст из кода\n\n" + "\n\n".join(snippets)
-        except Exception as e:
-            logger.error("Code context fetch failed: %s", e)
             return ""
 
     @staticmethod

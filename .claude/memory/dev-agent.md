@@ -571,6 +571,670 @@ _None yet._
 - Coverage now extends to prompt loading, email parsing, flow DSL, flow engine, compose functions, support formatting, bot helpers, and model properties
 - Remaining untested: service-layer orchestration code (requires full mocking of gateways)
 
+### Session 23 (2026-03-02) — Plan 2 Phase 1.1-1.4: Email Decision Tracking (DB + Models + Wiring)
+**Status:** Complete (Phase 1.1, 1.2, 1.3, 1.4 — all items)
+
+**What was done:**
+- Added `email_decisions` table to `_SCHEMA_SQL` in `db_gateway.py` (UUID PK, task, channel, input_message_ids TEXT[], output, status, decided_by, decided_at)
+- Added 5 new methods to `DbGateway`:
+  - `create_email_decision(task, channel, input_message_ids, output="") -> str`
+  - `update_email_decision(decision_id, status, decided_by=None)`
+  - `update_email_decision_output(decision_id, output)`
+  - `get_email_decision(decision_id) -> dict | None`
+  - `get_thread_message_ids(thread_id) -> list[str]`
+- Modified `TechSupportHandler.discard(uid, draft=None)` to save rejected drafts to `email_messages` with `direction='draft_rejected'` when draft is provided
+- Added `self._db = DbGateway()` to `InboxService.__init__()`
+- Wired decision tracking into all InboxService flows:
+  - `_handle_support()`: creates PENDING SUPPORT_ANSWER decision, sets `draft.decision_id`
+  - `_handle_editorial()`: creates PENDING ARTICLE_APPROVAL decision, sets `item.decision_id`
+  - `approve_support()`: updates decision output + status APPROVED
+  - `skip_support()`: updates decision REJECTED, passes draft to discard for storage
+  - `approve_editorial()`: updates decision APPROVED
+  - `skip_editorial()`: updates decision REJECTED
+- Added `decision_id: str = ""` to `SupportDraft` and `EditorialItem` in `common/models.py`
+- All 503 tests pass
+
+**Notes:**
+- `InboxService` creates its own `DbGateway` instance (separate from `TechSupportHandler`'s) — schema init is idempotent via CREATE IF NOT EXISTS
+- `input_message_ids` for decisions uses `[email.message_id]` — the single inbound email that triggered the decision
+- Decision output is set at approval time (captures any admin edits via `update_and_approve_support`)
+- Rejected drafts saved with `direction='draft_rejected'` and `message_id=<draft-rejected-{uuid}>` prefix
+
+### Session 24 (2026-03-02) — Plan 2 Phase 1.5: Tests for Email Decision Tracking
+**Status:** Complete (all 7 items)
+
+**What was done:**
+- Extended `tests/test_db_gateway.py` with 9 new tests:
+  - `_make_gw()` helper creates DbGateway with properly mocked psycopg2 connection/cursor
+  - `TestEmailDecisionsCRUD` (7 tests): create, update, update_output, get (found + not found), default values
+  - `TestGetThreadMessageIds` (2 tests): returns list of message_ids, empty thread
+- Created `tests/test_inbox_service.py` with 14 new tests:
+  - `_make_service()` helper patches all 4 InboxService dependencies (TechSupportHandler, GeminiGateway, EmailGateway, DbGateway)
+  - `TestApproveSupportDecision` (4 tests): updates decision APPROVED, skips DB when no decision_id, sends email, handles nonexistent uid
+  - `TestSkipSupportDecision` (4 tests): updates decision REJECTED, calls discard with draft, skips DB when no decision_id, discards even for unknown uid
+  - `TestApproveEditorialDecision` (3 tests): updates decision APPROVED, skips DB when no decision_id, handles nonexistent uid
+  - `TestSkipEditorialDecision` (3 tests): updates decision REJECTED, skips DB when no decision_id, no DB call for unknown uid
+
+**Net result:** 23 new tests (526 total), all passing in ~11s
+
+**Notes:**
+- Phase 1 is now fully complete (1.1-1.5 all checked off)
+- These are the first service-layer tests with mocked dependencies — established `_make_service()` pattern for future InboxService testing
+- `_make_gw()` pattern useful for testing any future DbGateway methods
+
+### Session 24b (2026-03-02) — Plan 2 Phase 2.1: /health command
+**Status:** Complete (all 10 items)
+
+**What was done:**
+- Added `HEALTHCHECK_DOMAINS` (list from comma-separated env var, default `republicmag.io,redefine.media`) and `KUBECTL_ENABLED` (bool, default False) to `common/config.py`
+- Created `backend/domain/healthcheck.py`:
+  - `HealthResult` dataclass (name, status, details)
+  - `run_healthchecks()` — HTTP GET against each domain (timeout 5s), optional kubectl pod checks
+  - `_kubectl_checks()` — parses `kubectl get pods --no-headers` output, checks Running status + readiness
+  - `format_healthcheck_results()` — checkmark/cross icons per result, or "No checks configured" fallback
+- Added `cmd_health` handler in `flow_callbacks.py` — typing indicator + `asyncio.to_thread(run_healthchecks)` + formatted reply
+- Registered `/health` as AdminCommand in `flows.py` (description: "Проверка доступности сайтов и подов")
+- Re-exported `run_healthchecks` and `format_healthcheck_results` from `backend/__init__.py`
+
+**Notes:**
+- `run_healthchecks()` is sync (uses requests + subprocess), wrapped in `asyncio.to_thread()` in the handler
+- HTTP status < 400 = ok, >= 400 = error
+- kubectl readiness check: `ready.split("/")[0] == ready.split("/")[1]` (e.g. "1/1" is ok, "0/1" is error)
+- All 526 tests pass
+
+### Session 25 (2026-03-02) — Plan 2 Phase 2.2 + 2.4: /tech_support command + remove code context from email pipeline
+**Status:** Complete (all items in 2.2 and 2.4)
+
+**What was done:**
+- Created `templates/tech-support-question.md` — Russian-language prompt template with KNOWLEDGE, QUESTION, CODE_CONTEXT, VERBOSE placeholders. Instructs JSON output `{"answer": "..."}` for GeminiGateway compatibility.
+- Added `tech_support_question()` compose function to `compose_request.py`:
+  - Loads `base.md` + `tech-support.md` knowledge with SUBSCRIPTION_SERVICE_URL replacement
+  - Verbose text: "Можешь дать развёрнутый ответ." vs "Отвечай кратко, 1-3 абзаца."
+  - Added `"tech_support_question"` to `_MODELS` dict
+- Added `_answer_tech_question(question, verbose)` sync helper in `flow_callbacks.py`:
+  - Creates GeminiGateway instance
+  - Optionally fetches code context: calls `tech_search_terms()` to determine if code search needed, then greps repos and extracts snippets (same pattern as `TechSupportHandler._fetch_code_context`)
+  - Calls `tech_support_question()` compose function, then Gemini
+  - Returns answer string
+- Added `cmd_tech_support(message, state)` async handler:
+  - Parses question text and `-v`/`verbose` flag
+  - Shows TYPING indicator, calls helper via `asyncio.to_thread`
+  - Truncates to 4000 chars, handles errors
+- Registered `/tech_support` as AdminCommand in `flows.py` (description: "Задать вопрос по техподдержке")
+- **Phase 2.4**: Removed `code_context = self._fetch_code_context(email_text)` from `TechSupportHandler.draft_reply()`. Kept `_fetch_code_context()` method and RepoGateway intact (pattern reused by `/tech_support`).
+- Updated `test_compose_request.py` to include new `tech_support_question` model key
+
+**Notes:**
+- New imports added to `flow_callbacks.py`: `compose_request`, `GeminiGateway`, `RepoGateway` (all at top level)
+- `/tech_support` code context fetch is wrapped in try/except — silently continues without code if repos aren't available
+- All 526 tests pass
+
+### Session 26 (2026-03-02) — Plan 2 Phase 2.3 + 2.5: /code command + Phase 2 tests
+**Status:** Complete (all Phase 2 items done)
+
+**What was done:**
+- Created `backend/domain/code_runner.py`:
+  - `run_claude_code(prompt, verbose=False) -> str` — runs Claude CLI as subprocess
+  - `subprocess.run(["claude", "-p", prompt, "--max-turns", "5"], cwd=REPOS_DIR, timeout=300)`
+  - When not verbose, prepends `_CONCISE_PREFIX` (Russian instruction for Telegram-friendly output)
+  - Truncates output to 4000 chars
+  - Handles TimeoutExpired, FileNotFoundError, generic exceptions — returns error strings, never raises
+- Added `cmd_code` handler in `flow_callbacks.py` (same pattern as `cmd_tech_support`)
+- Registered `/code` as AdminCommand in `flows.py`
+- Updated `Dockerfile`: added Node.js 20 + `@anthropic-ai/claude-code` installation
+- Re-exported `run_claude_code` from `backend/__init__.py`
+
+**Phase 2.5 Tests:**
+- Created `tests/test_healthcheck.py` — 15 tests (HTTP up/down/exception, multiple domains, kubectl running/error/disabled, format output)
+- Created `tests/test_code_runner.py` — 9 tests (success, verbose flag, concise prefix, truncation, stderr fallback, empty output, timeout, file not found, exception)
+- Extended `tests/test_compose_request.py` — 4 tests for `tech_support_question` (tuple structure, question in prompt, verbose text, code context)
+- Extended `tests/test_tech_support_handler.py` — 1 test confirming `_fetch_code_context` is NOT called from `draft_reply()`
+
+**Net result:** 29 new tests (555 total), all passing in ~1.3s
+
+**Notes:**
+- Phase 2 is now fully complete (2.1-2.5 all checked off)
+- `/code` command imports `run_claude_code` directly in `flow_callbacks.py` (not through `backend/__init__`)
+- Claude CLI needs `ANTHROPIC_API_KEY` in environment (already in config.py)
+- Dockerfile now has a second `RUN` layer for Node.js/Claude CLI (~200MB addition)
+
+### Session 27 (2026-03-02) — Plan 2 Phase 3.1-3.4: NL Bot + Groupchat Support
+**Status:** Complete (Phase 3.1, 3.2, 3.3, 3.4 — all items)
+
+**What was done:**
+
+Phase 3.1 — Command classifier:
+- Created `templates/classify-command.md` — Russian-language LLM prompt with `{{COMMANDS}}` and `{{TEXT}}` placeholders, returns JSON `{"command": "..." | null, "args": "..."}`
+- Added `classify_command(text, commands_description)` to `compose_request.py` (returns prompt + model + response keys)
+- Added `"classify_command": "gemini-2.5-flash"` to `_MODELS` dict
+- Created `backend/domain/command_classifier.py`:
+  - `ClassifiedCommand` dataclass (`command: str`, `args: str`)
+  - `CommandClassifier` class with `classify(text, available_commands) -> ClassifiedCommand | None`
+  - Formats commands dict into markdown list, calls compose function + Gemini, validates result against available commands
+- Re-exported `CommandClassifier` from `backend/__init__.py`
+
+Phase 3.2 — Groupchat configuration:
+- Added `GroupChatConfig` dataclass to `flow_dsl.py` (`chat_id`, `allowed_commands`, `natural_language=True`)
+- Added `group_configs: list[GroupChatConfig]` field to `BotFlows`
+- Added `EDITORIAL_CHAT_ID` (int, default 0) and `BOT_USERNAME` (str) to `common/config.py`
+- Defined editorial groupchat config in `flows.py` with `allowed_commands=["health", "tech_support", "code"]`, filtered when `EDITORIAL_CHAT_ID` is 0
+- Added new env vars to `config/example/.env`
+
+Phase 3.3 — Group message handler:
+- Added `_extract_bot_mention(text, bot_username) -> str | None` helper
+- Added `_GROUP_COMMAND_HANDLERS` dict (health → cmd_health, tech_support → cmd_tech_support, code → cmd_code)
+- Added `_COMMAND_DESCRIPTIONS` dict with Russian descriptions
+- Added `_dispatch_group_command(command, args_text, message, state)` — temporarily sets `message.text` to `/{command} {args}` for handler compatibility
+- Added `handle_group_message(message, state, group_config)`:
+  - Explicit commands: parses command name (strips @bot suffix), checks allowed_commands, dispatches
+  - Natural language: detects @mention or reply-to-bot, runs CommandClassifier via asyncio.to_thread(), dispatches classified command
+
+Phase 3.4 — Flow engine wiring:
+- Added group router registration at the TOP of `register_flows()` — before /start, /menu, admin commands, and flow routers
+- Router filters on `F.chat.type.in_({"group", "supergroup"})` and `F.text`
+- Handler looks up `GroupChatConfig` by `message.chat.id`, ignores unconfigured groups
+- No changes to `main.py` needed
+
+**Notes:**
+- Group router is registered FIRST so it intercepts all text messages in configured groups before admin/private handlers
+- Commands in groups don't require `is_admin()` — they just need to be in the group's `allowed_commands` list
+- Unconfigured groups: handler returns without consuming message, so it falls through normally
+- `_dispatch_group_command` temporarily modifies `message.text` for handler compatibility (restored in finally block)
+- `handle_group_message` detects reply-to-bot via `message.reply_to_message.from_user.is_bot`
+- All 555 tests pass
+- Updated `test_compose_request.py` to include `classify_command` in expected model keys
+
+### Session 28 (2026-03-02) — Plan 2 Phase 3.5: Tests for Phase 3
+**Status:** Complete (all 6 items)
+
+**What was done:**
+- Created `tests/test_command_classifier.py` — 18 tests across 3 classes:
+  - `TestClassifiedCommand` (2): dataclass field storage
+  - `TestCommandClassifier` (11): Russian NL inputs → correct commands (health, tech_support, code), None for irrelevant/invalid/unknown commands, Gemini call verification, args handling
+  - `TestClassifyCommandCompose` (5): compose function structure, model, keys, prompt content
+- Extended `tests/test_flow_callbacks_helpers.py` — 21 new tests across 3 classes:
+  - `TestExtractBotMention` (8): @username extraction with space/newline separators, no mention, wrong username, mention in middle, multiline
+  - `TestGroupCommandHandlers` (5): handler dict contents, callability, expected commands
+  - `TestCommandDescriptions` (4): description presence, non-empty strings, expected commands
+- Extended `tests/test_flow_dsl.py` — 9 new tests across 2 classes:
+  - `TestGroupChatConfig` (5): defaults, custom commands, NL override, chat_id filtering
+  - `TestBotFlowsGroupConfigs` (2): default empty, stored configs retrievable
+- Extended `tests/test_flow_engine.py` — 3 new tests:
+  - `TestRegisterFlowsGroupConfig` (3): group router added when configs present, absent when empty, named "group"
+- Extended `tests/test_flows_structure.py` — 1 new test: group_configs is a list
+
+**Net result:** 46 new tests (601 total), all passing in 1.45s
+
+**Notes:**
+- Phase 3 is now fully complete (3.1-3.5 all checked off)
+- CommandClassifier tests mock GeminiGateway.call() to return specific JSON responses
+- `_extract_bot_mention` tested as pure function (no mocking needed)
+- Flow engine group registration tests mock Dispatcher and verify router naming
+
+### Session 28b (2026-03-02) — Plan 2 Phase 4.1-4.3: /articles + /lookup commands + tests
+**Status:** Complete (all Phase 4 items done)
+
+**What was done:**
+
+Phase 4.1 — /articles command:
+- Added `_ROLE_LABELS` and `_TYPE_LABELS` dicts in `flow_callbacks.py` — maps enums to Russian labels
+- Created `cmd_articles` handler: parses `<name> [YYYY-MM]`, fuzzy-finds contractor, fetches articles via `asyncio.to_thread(fetch_articles)`, formats as display_name + role + month + count + article ID list
+- Registered `/articles` as AdminCommand in `flows.py`
+
+Phase 4.2 — /lookup command:
+- Created `cmd_lookup` handler: parses `<name>`, fuzzy-finds contractor, shows display_name, type, role, mags, email, telegram status, invoice_number, bank data presence (without exposing sensitive fields)
+- Registered `/lookup` as AdminCommand in `flows.py`
+
+Both commands:
+- Added to `_GROUP_COMMAND_HANDLERS` and `_COMMAND_DESCRIPTIONS` dicts
+- Added to editorial groupchat's `allowed_commands` list
+- Follow same fuzzy-find + suggestions pattern as `cmd_generate`
+
+Phase 4.3 — Tests:
+- Extended `tests/test_flow_callbacks_helpers.py` with 21 new tests across 5 classes:
+  - `TestRoleLabels` (4): enum → label mappings
+  - `TestTypeLabels` (4): enum → label mappings
+  - `TestArticlesFormatting` (3): output format assembly
+  - `TestLookupNoSensitiveData` (6): verifies passport, INN, bank_account, BIK, SWIFT, etc. are absent from output
+  - `TestFuzzySuggestionFormatting` (4): suggestion list format
+
+**Net result:** 622 total tests, all passing in 1.38s
+
+**Notes:**
+- Phase 4 is now fully complete (4.1-4.3 all checked off)
+- Lookup uses same fuzzy_find threshold=0.4 as cmd_generate for suggestions
+- Lookup shows bank data as "заполнены"/"не заполнены" — no raw bank details exposed
+- Both commands are available in editorial groupchat
+
+### Session 29 (2026-03-02) — Plan 2 Phase 5.1 + 5.2: LLM Classification Logging + Payment Validations
+**Status:** Complete (all Phase 5.1 and 5.2 items)
+
+**What was done:**
+
+Phase 5.1 — `llm_classifications` table:
+- Added `llm_classifications` table to `_SCHEMA_SQL` (UUID PK, task, model, input_text, output_json, latency_ms)
+- Added `DbGateway.log_classification()` method
+- Extended `GeminiGateway.call()` with optional `task` parameter:
+  - When `task` is provided: measures latency via `time.time()`, logs to DB via `DbGateway().log_classification()`
+  - DB logging wrapped in try/except — never blocks the LLM call
+  - `DbGateway` imported lazily inside the `if task:` block to keep module decoupled
+- Updated 6 callers with `task=` parameter:
+  - `InboxService._llm_classify()` → `task="INBOX_CLASSIFY"`
+  - `InboxService._handle_editorial()` → `task="EDITORIAL_ASSESS"`
+  - `TechSupportHandler._fetch_user_data()` → `task="SUPPORT_TRIAGE"`
+  - `TechSupportHandler._fetch_code_context()` → `task="TECH_SEARCH_TERMS"`
+  - `CommandClassifier.classify()` → `task="COMMAND_CLASSIFY"`
+  - `translate_name_to_russian()` in `backend/__init__.py` → `task="TRANSLATE_NAME"`
+
+Phase 5.2 — `payment_validations` table:
+- Added `payment_validations` table to `_SCHEMA_SQL` (UUID PK, contractor_id, contractor_type, input_text, parsed_json, validation_warnings TEXT[], is_final)
+- Added `DbGateway.log_payment_validation()` — returns generated UUID
+- Added `DbGateway.finalize_payment_validation()` — sets `is_final=TRUE`
+- Wired into `_parse_with_llm()` in `flow_callbacks.py`:
+  - After successful parse (no `parse_error`), logs via `DbGateway().log_payment_validation()`
+  - Stashes validation ID in `result["_validation_id"]` for downstream use
+  - Wrapped in try/except to never break user flow
+- Wired into `_finish_registration()`:
+  - Checks `collected.get("_validation_id")` and calls `finalize_payment_validation()`
+  - Also wrapped in try/except
+
+Tests:
+- Extended `tests/test_db_gateway.py` with 6 new tests (log_classification, log_payment_validation, finalize)
+- Created `tests/test_gemini_gateway.py` with 4 new tests (task logs to DB, no-task doesn't log, default model, DB failure doesn't raise)
+- Total: 632 tests, all passing in 1.34s
+
+**Notes:**
+- `GeminiGateway` creates a new `DbGateway()` per logged call — lightweight since `DbGateway` auto-reconnects
+- `_validation_id` key in result dict is ignored by downstream processing (unknown keys silently pass through)
+- `parse_contractor_data()` is called from `backend/__init__.py`, not directly — the DB logging happens in the Telegram-side `_parse_with_llm` wrapper
+
+### Session 30 (2026-03-02) — Plan 2 Phase 5.3 + 5.4: code_tasks table + rating + remaining tests
+**Status:** Complete (all Phase 5 items done)
+
+**What was done:**
+
+Phase 5.3 — `code_tasks` table + rating:
+- Added `code_tasks` table to `_SCHEMA_SQL` (UUID PK, requested_by, input_text, output_text, verbose, rating, rated_at)
+- Added `DbGateway.create_code_task()` — INSERT with RETURNING id
+- Added `DbGateway.rate_code_task()` — UPDATE rating + rated_at=NOW()
+- Modified `cmd_code` handler: after Claude returns, saves task to DB (try/except), shows 1-5 rating inline keyboard
+- Created `handle_code_rate_callback` — parses `code_rate:{task_id}:{rating}`, calls rate_code_task, removes keyboard
+- Registered `handle_code_rate_callback` in `main.py` with `F.data.startswith("code_rate:")`
+
+Phase 5.4 — Remaining tests:
+- Added `TestCodeTasksCRUD` (3 tests) to `test_db_gateway.py`: create, create verbose, rate
+- Added `TestHandleCodeRateCallback` (4 tests) to `test_flow_callbacks_helpers.py`: valid rating, invalid format (too few/many parts), DB error graceful degradation
+
+**Net result:** 7 new tests (639 total), all passing in 1.35s
+
+**Notes:**
+- Phase 5 is now fully complete (5.1-5.4 all checked off)
+- Plan 2 Phases 1-5 are all done. Phase 6 (domain refactor) is optional/stretch.
+- DB logging in cmd_code is wrapped in try/except — never breaks user experience
+- Rating buttons use compact single-row layout: "1" through "5"
+- Callback data format: `code_rate:{uuid}:{1-5}` — fits within Telegram's 64-byte limit
+
+### Session 31 (2026-03-02) — Maintenance: Spot Bugs (Plan 2 review)
+**Status:** Complete
+
+**What was done:**
+- Thorough code review across all 15 files modified during Plan 2 (phases 1-5)
+- Found and fixed 6 issues in `telegram_bot/flow_callbacks.py`:
+
+1. **CONFIRMED BUG — `skip_editorial` called synchronously** (line ~1791):
+   - `_inbox.skip_editorial(uid)` called without `await asyncio.to_thread()`, blocking the event loop during DB write
+   - **Fix**: Wrapped in `await asyncio.to_thread(_inbox.skip_editorial, uid)`
+
+2. **CONFIRMED BUG — `rate_code_task` called synchronously** (line ~1806):
+   - `DbGateway().rate_code_task(...)` in `handle_code_rate_callback` blocked the event loop
+   - **Fix**: Wrapped in `await asyncio.to_thread(DbGateway().rate_code_task, task_id, int(rating))`
+
+3. **CONFIRMED BUG — `create_code_task` called synchronously** (line ~605):
+   - DB insert in `cmd_code` handler blocked the event loop
+   - **Fix**: Wrapped in `await asyncio.to_thread(DbGateway().create_code_task, ...)`
+
+4. **CONFIRMED BUG — `finalize_payment_validation` called synchronously** (line ~1439):
+   - DB update in `_finish_registration` blocked the event loop
+   - **Fix**: Wrapped in `await asyncio.to_thread(DbGateway().finalize_payment_validation, validation_id)`
+
+5. **CONFIRMED BUG — `log_payment_validation` called synchronously** (line ~1598):
+   - DB insert in `_parse_with_llm` blocked the event loop
+   - **Fix**: Wrapped in `await asyncio.to_thread(DbGateway().log_payment_validation, ...)`
+
+6. **OVERSIGHT — Missing `task` parameter in `_answer_tech_question`** (line ~525):
+   - `gemini.call(prompt, model)` for tech search terms lacked `task="TECH_SEARCH_TERMS"` — call worked but wasn't logged to `llm_classifications` table
+   - **Fix**: Added `task="TECH_SEARCH_TERMS"` to match `tech_support_handler.py`
+
+**Non-bug observations (not fixed):**
+- `gemini_gateway.py` creates new `DbGateway()` per classification log — wasteful but not a correctness bug
+- `is_reply_to_bot` checks `is_bot` on any bot, not specifically this bot — unlikely issue in practice
+- Group configs list comprehension pattern is valid Python, just unusual
+
+**Notes:**
+- All 639 tests pass after fixes
+- The common pattern was: Plan 2 DB logging code was added to async handlers but called synchronously, unlike existing DB calls which were properly wrapped in `asyncio.to_thread()`
+
+### Session 32 (2026-03-02) — Maintenance: Write Tests (Plan 2 handlers)
+**Status:** Complete
+
+**What was done:**
+- Created `tests/test_plan2_handlers.py` — 68 tests across 11 classes covering Plan 2 handler and service-layer code with mocked dependencies:
+  - `TestHandleGroupMessageExplicitCommands` (5): explicit command dispatch, @bot suffix stripping, allowed_commands filtering
+  - `TestHandleGroupMessageNaturalLanguage` (8): @mention triggers classifier, NL disabled ignores mentions, classification errors silenced, reply-to-bot detection
+  - `TestCmdHealth` (2): healthcheck dispatch and reply
+  - `TestCmdTechSupport` (8): question parsing, verbose flags, truncation, error handling
+  - `TestAnswerTechQuestion` (7): two-step Gemini flow (search terms + answer), code context integration, repo failure graceful degradation, 5-file limit
+  - `TestCmdCode` (10): run + DB save + rating keyboard, verbose flags, DB failure graceful, error messages
+  - `TestCmdArticles` (6): contractor lookup, month param, fuzzy suggestions, no-articles message
+  - `TestCmdLookup` (9): full output format, sensitive data exclusion, telegram/bank status, fuzzy suggestions
+  - `TestParseWithLlm` (8): validation logging to DB, parse_error skip, DB failure graceful, contractor_type mapping
+  - `TestDispatchGroupCommand` (4): text rewriting for handler compatibility, text restoration in finally block
+  - Plus a few inline helper tests
+
+**Net result:** 68 new tests (707 total), all passing in 1.48s
+
+**Notes:**
+- First comprehensive handler-level test coverage for Plan 2 commands
+- Uses `unittest.mock.patch` for all external deps (Gemini, DB, Telegram, RepoGateway)
+- `AsyncMock` for async Telegram message methods, `MagicMock` for sync gateways
+- Tests verify both success paths and error/edge cases
+- `_parse_with_llm` tests validate the payment validation logging integration
+
+### Session 33 (2026-03-02) — Maintenance: Write Tests (round 5 — service-layer integration)
+**Status:** Complete
+
+**What was done:**
+- Evaluated Phase 6 (LLM domain structure refactor): deferred as premature abstraction that conflicts with project's minimalism philosophy. Noted in plan.
+- Added 32 new service-layer integration tests with mocked dependencies across 3 files:
+
+**`tests/test_inbox_service.py`** — 11 new tests across 4 classes:
+  - `TestInboxServiceProcess` (3): process() routing to support/editorial/ignore
+  - `TestInboxServiceClassify` (3): direct address match vs LLM fallback
+  - `TestHandleSupport` (2): SupportDraft creation with decision_id, duplicate UID handling
+  - `TestHandleEditorial` (3): editorial assessment routing, forward=false, no chief editor guard
+  - Consolidated `_make_service` and `_make_service_full` helpers into one
+
+**`tests/test_tech_support_handler.py`** — 12 new tests across 4 classes:
+  - `TestDraftReply` (3): full flow (thread→triage→user data→LLM→SupportDraft), thread history, can_answer=false
+  - `TestSaveOutbound` (2): outbound message saving with field mapping, no-op for unknown UID
+  - `TestDiscard` (3): rejected draft saving, cleanup without draft, no-op for unknown UID
+  - `TestFetchUserData` (4): LLM triage→user lookup, fallback email, empty needs, exception handling
+
+**`tests/test_support_user_lookup.py`** — 9 new tests in 1 class:
+  - `TestFetchAndFormat` (9): per-need section fetching (subscriptions, payments, account, audit_log, redefine), multiple needs, empty needs, gateway exceptions, fallback redefine_user_id
+
+**Net result:** 32 new tests (739 total), all passing in 1.52s
+
+**Notes:**
+- Review agent cleaned up unused imports (MagicMock, ANY, pytest, PendingItem) and removed 1 redundant test
+- First comprehensive end-to-end tests for InboxService.process(), TechSupportHandler.draft_reply(), and SupportUserLookup.fetch_and_format()
+- These tests mock all 4+ dependencies per service and verify return values, not just mock calls
+- `_test_ternary.py` stray empty file in project root — needs manual deletion (rm blocked by security policy)
+
+### Session 34 (2026-03-02) — Maintenance: Refactor (round 4)
+**Status:** Complete
+
+**What was done:**
+- Refactoring pass across Plan 2 code, net -109 lines (104 added, 213 removed)
+- Extracted 3 helpers in `flow_callbacks.py`:
+  - `_safe_edit_text()` — replaces 8 duplicated try/except TelegramBadRequest blocks
+  - `_parse_verbose_flag()` — shared verbose/`-v` parsing for `cmd_tech_support` and `cmd_code`
+  - `_find_contractor_or_suggest()` — shared contractor lookup+fuzzy suggestions for `cmd_generate`, `cmd_articles`, `cmd_lookup`
+- Removed 2 redundant inline `DbGateway` imports in `flow_callbacks.py` (already imported at top level)
+- Removed dead `_fetch_code_context()` method (38 lines) from `tech_support_handler.py` — was no longer called after Plan 2 removed its invocation from `draft_reply()`
+- Removed `self._repo_gw` instance storage from `TechSupportHandler.__init__()` (only `ensure_repos()` needed, called directly)
+- Added `fetch_snippets()` method to `RepoGateway` — extracted snippet-building logic that was duplicated between `_answer_tech_question` in `flow_callbacks.py` and the now-removed `_fetch_code_context`
+- Updated test mock paths in `test_flow_callbacks_helpers.py` and `test_plan2_handlers.py` to match import changes
+- Removed 1 test (`TestDraftReplyNoCodeContext`) that tested the removed dead code
+
+**Net result:** 738 tests pass (1 test removed with dead code), -109 lines
+
+**Notes:**
+- `RepoGateway.fetch_snippets()` is the natural home for snippet logic — operates on repo data via `search_code()` and `read_file()`
+- `_find_contractor_or_suggest()` is async because `get_contractors()` is async
+- All refactors preserve existing public behavior and function signatures
+
+### Session 35 (2026-03-02) — Maintenance: Polish UX (bot reply texts)
+**Status:** Complete
+
+**What was done:**
+- Reviewed all user-facing Telegram bot text for typos, grammar, inconsistency, and UX issues
+- Fixed 5 grammar/punctuation issues in `replies.py`:
+  - `wrong_code`: added trailing period
+  - `invoice_ready`: fixed grammatical gender ("готова" → "готов" for masculine "счёт-оферта"), capitalized "Легиум"
+  - `add_prompt`: removed stray space before `\n`, replaced colon with period
+  - `amount_prompt`/`amount_invalid`: replaced formal "иную" with natural "другую", added guillemets around «ок»
+  - `no_changes`: improved from "Изменений не найдено" to actionable "Не удалось распознать изменения. Попробуйте ещё раз или отправьте «отмена»."
+- Centralized 10 hardcoded Russian strings from `flow_callbacks.py` to `replies.py`:
+  - `admin.articles_usage`, `admin.lookup_usage`, `admin.tech_support_usage`, `admin.tech_support_no_question`, `admin.tech_support_error`, `admin.code_usage`, `admin.code_no_query`, `admin.code_error`, `admin.orphans_none`, `admin.orphans_found`
+- Stopped exposing raw Python exceptions to users in `cmd_tech_support` and `cmd_code` — now show friendly error messages
+- Added missing TYPING chat action in `handle_manage_redirects` (was loading sheet data without feedback)
+- Updated 2 test assertions in `test_plan2_handlers.py` to match new error text
+
+**Net result:** 738 tests pass, +11 lines net
+
+**Notes:**
+- Remaining hardcoded strings in `flow_callbacks.py` are mostly dynamic format strings that are hard to template (contractor-specific output). Not worth centralizing.
+- `_test_ternary.py` stray file still needs manual deletion (rm blocked by security policy)
+
+### Session 36 (2026-03-02) — Maintenance: Write Tests (round 6 — invoice generation)
+**Status:** Complete
+
+**What was done:**
+- Created 3 new test files covering the invoice generation pipeline with mocked gateways:
+
+**`tests/test_generate_invoice.py`** — 9 classes, 21 tests:
+  - `TestGenerateGlobalInvoice` (5): template selection (regular/photo), replacement keys, articles table with English headers
+  - `TestGenerateIPInvoice` (5): invoice number increment, template selection, RUB-specific replacements (OGRNIP, passport), Russian headers
+  - `TestGenerateSamozanyatyInvoice` (4): invoice number increment, template selection, INN/address replacements
+  - `TestDebugMode` (3): skips increment+save, still generates PDF, Global never increments
+  - `TestDriveUploadFailure` (1): gdrive_path="" on error, PDF still returned
+  - `TestInvoiceDateDefault` (1): defaults to date.today()
+  - `TestArticleIdsInInvoice` (2): populated IDs, empty articles
+  - `TestInvoiceStatus` (1): always DRAFT
+
+**`tests/test_generate_batch_invoices.py`** — 6 classes, 14 tests:
+  - `TestBatchFiltering` (5): already-generated, no budget, zero amount, EUR/RUB currency selection, empty budget raises
+  - `TestBatchSuccess` (3): counts by type, empty list, tuple structure
+  - `TestBatchErrors` (2): article fetch error, generation error — both logged and continue
+  - `TestBatchProgress` (3): callback per contractor, callback on error, None callback ok
+  - `TestBatchDebugMode` (1): debug flag passthrough
+
+**`tests/test_prepare_invoice.py`** — 1 class, 6 tests:
+  - Found with doc_id, not found, no doc_id, PDF export fails, correct ID matching, first-match on duplicates
+
+**Net result:** 41 new tests (780 total), all passing in 1.57s
+
+**Notes:**
+- Uses `__new__` pattern to construct instances with mocked gateways (bypassing __init__)
+- Factory helpers (_global, _samoz, _ip, _invoice) match existing patterns in test_compute_budget.py
+- These were the last high-value untested pure-domain modules
+- Invoice generation is now comprehensively tested: single, batch, and re-export
+
+### Session 37 (2026-03-02) — Maintenance: Spot Bugs (round 5)
+**Status:** Complete
+
+**What was done:**
+- Thorough code review of all Plan 2 files (flow_callbacks.py, gemini_gateway.py, db_gateway.py, etc.)
+- Found and fixed 3 confirmed bugs:
+
+1. **DB Connection Leak from throw-away `DbGateway()` instances**:
+   - 5 call sites in `flow_callbacks.py` and 1 in `gemini_gateway.py` created new `DbGateway()` per call
+   - Each instance opens a Postgres connection that was never closed → connection exhaustion over time
+   - **Fix**: Created module-level `_db = DbGateway()` in `flow_callbacks.py`, reuse single instance. In `gemini_gateway.py`, added lazily-initialized `self._db` attribute.
+
+2. **`_validation_id` leaking into Google Sheets writes** (`handle_update_data`):
+   - Internal UUID tracking key passed through `parsed_updates` filter → written to Google Sheet as if it were contractor data
+   - **Fix**: Added `not k.startswith("_")` filter to `parsed_updates` comprehension
+
+3. **`_validation_id` leaking into LLM context and admin notifications**:
+   - In `_parse_with_llm`: UUID included in `filled` dict sent to LLM as "already collected" context
+   - In `_forward_to_admins`: UUID shown to admin in registration notification
+   - **Fix**: Filter `_`-prefixed keys from `filled` context dict and admin notification formatting; pop `_validation_id` from `parsed` in `handle_data_input` and re-add to `collected` separately
+
+- Removed stray `_test_ternary.py` file from git tracking (rm blocked, but git clean will handle)
+- Updated test mocks to match module-level `_db` pattern
+
+**Notes:**
+- All 780 tests pass
+- The DB connection leak was potentially the most impactful — could exhaust Postgres connections during batch invoice operations
+- `_validation_id` leak was a PII-adjacent issue (internal UUIDs exposed to admin users)
+
+### Session 38 (2026-03-02) — Maintenance: Refactor (round 5)
+**Status:** Complete
+
+**What was done:**
+- Refactoring pass across 7 source files, net -84 lines (89 added, 173 removed)
+- Merged `support_email()` and `support_email_with_context()` into single function with `user_data=""` default parameter in `compose_request.py`
+- Extracted `_build_thread_message()` static method in `tech_support_handler.py` — deduplicated IncomingEmail construction in `save_outbound()` and `discard()`
+- Extracted `_check_email()` helper in `validate_contractor.py` — deduplicated email regex validation for samozanyaty and global branches
+- Removed no-op `_format_date()` function from `parse_bank_statement.py` — validated ISO date format but always returned input unchanged
+- Extracted `_quote_csv()` helper in `airtable_gateway.py` — consolidated 4 identical comma-quoting blocks
+- Extracted `_deliver_or_start_invoice()` in `flow_callbacks.py` — deduplicated invoice delivery logic between `handle_sign_doc()` and `handle_linked_menu_callback()`
+- Removed `_translate_name_to_russian()` one-liner wrapper in `flow_callbacks.py` — inlined `asyncio.to_thread(translate_name_to_russian, name_en)`
+- Removed unused `_TYPE_LABELS` dict — `ContractorType.value` already provides the same strings
+- Consolidated triplicated progress callback in `generate_batch_invoices.py` into a `finally` block
+- Updated 4 test files to match refactored code (removed 7 tests for dead code)
+
+**Net result:** 773 tests pass (7 removed with dead code), -84 lines
+
+**Notes:**
+- All refactors preserve existing public behavior and function signatures
+- `support_email(email_text, user_data="")` is backward-compatible — existing callers without context still work
+- `_build_thread_message()` is a static method since it doesn't need `self`
+
+### Session 39 (2026-03-02) — Maintenance: Spot Bugs (round 6)
+**Status:** Complete
+
+**What was done:**
+- Thorough code review of all files, focusing on recent refactoring (session 38) and less-reviewed areas
+- Found and fixed 2 confirmed bugs in `backend/infrastructure/gateways/airtable_gateway.py`:
+
+1. **Missing `parent` field in Airtable upload**:
+   - Every `AirtableExpense` record has a `parent` field (e.g., "staff", "goods and services", "expenses") but `upload_expenses()` never included it in the JSON payload
+   - All uploaded expense records were missing their category in Airtable
+   - **Fix**: Added `"parent": exp.parent` to the `fields` dict
+
+2. **Spurious CSV quoting in Airtable API calls**:
+   - `_quote_csv()` wrapped values containing commas in literal double quotes
+   - Designed for CSV output but data is sent via pyairtable's JSON API
+   - Contractor names, unit names, entity names, group names with commas had spurious `"..."` wrapping
+   - **Fix**: Removed `_quote_csv()` entirely, pass raw string values to API
+
+- Cross-file consistency checks all passed:
+  - `support_email()` callers correct after merge
+  - `_build_thread_message()` constructs messages correctly
+  - `_deliver_or_start_invoice()` handles both caller scenarios
+  - `_check_email()` called correctly in both places
+- Reviewed 20+ files across all layers — no other bugs found
+
+**Notes:**
+- All 773 tests pass after fixes
+- The Airtable bugs were introduced during refactoring round 5 when `_quote_csv()` was extracted — the quoting was wrong from the start but only became visible during refactoring review
+- The `parent` field omission was likely present since the original `parse_bank_statement` feature was implemented
+
+### Session 40 (2026-03-02) — Maintenance: Write Tests (round 7 — bank statement categorization)
+**Status:** Complete
+
+**What was done:**
+- Extended `tests/test_parse_bank_statement.py` with 32 new tests across 14 classes covering all 16 code paths in `_categorize_transactions()`:
+  - `TestCategorizeIncomeSkip` (2): Stripe/NETWORK INTERNATIONAL payout skip, case-insensitive
+  - `TestCategorizeOwnerTransfer` (2): owner keyword match creates expense, non-match skipped
+  - `TestCategorizeOtherPositiveTransfers` (2): unknown sender skip, no "From" pattern skip
+  - `TestCategorizeFeesSwift` (2): single SWIFT fee aggregated, uppercase SWIFT in description
+  - `TestCategorizeFeesFx` (1): FX fee creates 2 split expenses (50/50 units)
+  - `TestCategorizeFeesSubscription` (1): subscription fee → Wio Bank expense, entity.split("-")[0] for unit
+  - `TestCategorizeFeesUnknown` (1): unknown fee type skipped
+  - `TestCategorizeOutgoingTransfers` (3): known person classification, unknown person defaults, no "To" pattern
+  - `TestCategorizeCardKnownServiceNoSplit` (1): SERVICE_MAP match → single expense
+  - `TestCategorizeCardKnownServiceSplit` (1): split=True → 2 expenses per unit
+  - `TestCategorizeCardUnknownService` (1): unknown → 2 expenses with "NEEDS REVIEW"
+  - `TestCategorizeInvalidAmount` (2): non-numeric and empty amounts skipped
+  - `TestCategorizeEmptyRows` (4): empty dict, missing fields, zero amount, unknown txn type
+  - `TestCategorizeMixedScenario` (1): 7 mixed rows → 6 correct expenses
+  - `TestCategorizeSwiftAggregation` (1): 3 SWIFT fees → 1 aggregated with sum and latest date
+  - `TestCategorizeFxAggregation` (1): 2 FX fees → 2 split aggregated with sum and latest date
+  - `TestCategorizeEdgeCases` (6): empty list, positive card, whitespace, entity split, abs values
+
+- Uses `_apply_patches` decorator to mock all 7 config values deterministically
+- Uses `_row()` helper for concise CSV row construction
+
+**Net result:** 32 new tests (805 total), all passing in 1.60s
+
+**Notes:**
+- `_categorize_transactions` is now comprehensively tested — every branch and aggregation path covered
+- Tests are fully deterministic via config mocking, independent of business_config.json
+- File went from 36 tests (helpers only) to 68 tests (helpers + full categorization engine)
+
+### Session 41 (2026-03-02) — Maintenance: Write Tests (round 8 — gateway layer)
+**Status:** Complete
+
+**What was done:**
+- Created 5 new test files covering previously untested gateway modules:
+
+**`tests/test_repo_gateway.py`** — 23 tests across 4 classes:
+  - `TestSearchCode` (8): grep output parsing, 20-result limit, nonexistent repo skip, single-repo filter, no-repos noop, malformed lines, timeout
+  - `TestReadFile` (6): content read, max_lines truncation, path traversal blocked, nonexistent file/repo
+  - `TestFetchSnippets` (5): snippet assembly, deduplication, max_files limit, empty results, line range calculation
+  - `TestEnsureRepos` (4): clone vs pull branching, no-URLs noop, exception handling
+
+**`tests/test_republic_gateway.py`** — 16 tests across 3 classes:
+  - `TestApiGet` (9): $data vs data key, retry on 5xx with recovery, exhausted retries, timeout/connection retry, 4xx error, empty data
+  - `TestFetchArticles` (4): mag-based vs author-based routing, deduplication, empty names
+  - `TestFetchPublishedAuthors` (3): response parsing, malformed row skip, API error
+
+**`tests/test_airtable_gateway.py`** — 7 tests:
+  - Field mapping, conditional fields (splited/comment), 10-record batching, partial batch failure, no-token/no-base guard, empty list
+
+**`tests/test_exchange_rate_gateway.py`** — 6 tests:
+  - Successful parse, missing RUB/rates key, HTTP error, connection error, timeout
+
+**`tests/test_email_gateway.py`** — 9 tests:
+  - Re: prefix handling, Fwd:/Fw: preserved, In-Reply-To/References headers, custom/default from_addr, To header
+
+- Updated `conftest.py`: added `"pyairtable"` to stubbed modules
+- Removed unused `_extract_sent_message()` helper from test_email_gateway.py
+
+**Net result:** 61 new tests (866 total), all passing in 1.48s
+
+**Notes:**
+- Gateway layer coverage went from 3/11 (27%) to 8/11 (73%)
+- Still untested: `drive_gateway.py`, `sheets_gateway.py`, `redefine_gateway.py` — thin wrappers with minimal logic
+- All tests use `unittest.mock.patch` for external deps (requests, subprocess, pyairtable, file I/O)
+- `test_repo_gateway.py` uses pytest `tmp_path` fixture for filesystem tests
+
+### Session 42 (2026-03-02) — Maintenance: Spot Bugs (round 7) + Improve Prompts (round 4)
+**Status:** Complete
+
+**Spot Bugs (round 7):**
+- Thorough code review across all 40+ Python source files
+- **Zero confirmed bugs found** — codebase is clean after 7 rounds of review
+- Two theoretical edge cases documented (DbGateway thread-safety with shared connection, empty BOT_USERNAME in _extract_bot_mention) — neither manifests in production
+- Verified all asyncio.to_thread() calls, all imports, all function signatures, all SQL parameterization, all PII handling
+
+**Improve Prompts (round 4):**
+- Improved 6 template files and 3 knowledge files:
+  - `support-triage.md`: added multi-issue handling (include all relevant needs categories)
+  - `support-email.md`: added user data interpretation guidance + thread dedup instruction
+  - `inbox-classify.md`: added Redefine mention, service notifications to ignore, tech_support priority rule
+  - `editorial-assess.md`: added signature instruction (was missing vs support-email)
+  - `tech-support-question.md`: added empty code context handling + anti-hallucination guard
+  - `classify-command.md`: clarified examples section, added "greeting → null" example
+  - `knowledge/tech-support.md`: added Apple App Store / Google Play edge case, specific transaction detail instruction
+  - `knowledge/support-triage.md`: added multi-category guidance
+  - `knowledge/email-inbox.md`: clarified Redefine definition, formatting fixes
+
+**Notes:**
+- All 866 tests pass
+- Bug-spotting has diminishing returns — 7 rounds with zero new bugs in the latest round
+- Prompt improvements are small and targeted — major gaps were addressed in earlier rounds
+
 ## Next up
 
-- Maintenance mode continues. Fourth cycle: next session should be spot bugs (round 4).
+- Plan 2 is complete through Phase 5. Phase 6 deferred (see plan notes).
+- Continue maintenance mode: polish UX, write tests, or spot bugs.
+- Refactoring opportunities are mostly exhausted after 5 rounds (-329 lines total, 28 helpers extracted).
+- Bug-spotting opportunities are mostly exhausted after 7 rounds (zero bugs in round 7).
+- Prompt improvements have gone through 4 rounds — major template/knowledge issues are resolved.
+- Test coverage is very comprehensive (866 tests). Remaining untested: 3 thin gateway wrappers (drive, sheets, redefine).
+- `_test_ternary.py` stray empty file in project root — needs manual deletion (rm blocked by security policy)

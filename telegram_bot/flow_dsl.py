@@ -83,6 +83,13 @@ class Flow:
 
 
 @dataclass
+class GroupChatConfig:
+    chat_id: int
+    allowed_commands: list[str] = field(default_factory=list)
+    natural_language: bool = True
+
+
+@dataclass
 class AdminCommand:
     """A stateless admin command — no FSM, just command -> handler.
 
@@ -106,3 +113,4 @@ class BotFlows:
     menu_handler: Optional[HandlerFn] = None
     reply_handler: Optional[HandlerFn] = None
     command_handlers: dict[str, HandlerFn] = field(default_factory=dict)
+    group_configs: list[GroupChatConfig] = field(default_factory=list)

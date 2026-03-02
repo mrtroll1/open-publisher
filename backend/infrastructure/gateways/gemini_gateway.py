@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 
 from common.config import GEMINI_API_KEY
 
@@ -15,18 +16,36 @@ class GeminiGateway:
 
     def __init__(self, model: str = "gemini-2.5-flash"):
         self._model = model
+        self._db = None
 
-    def call(self, prompt: str, model: str | None = None) -> dict:
+    def call(self, prompt: str, model: str | None = None, task: str | None = None) -> dict:
         """Send a prompt and return parsed JSON from the response."""
         from google import genai
 
+        model_used = model or self._model
         client = genai.Client(api_key=GEMINI_API_KEY)
+
+        if task:
+            t0 = time.time()
+
         response = client.models.generate_content(
-            model=model or self._model,
+            model=model_used,
             contents=prompt,
         )
         raw = response.text.strip()
-        return self._extract_json(raw)
+        result = self._extract_json(raw)
+
+        if task:
+            latency_ms = int((time.time() - t0) * 1000)
+            try:
+                if self._db is None:
+                    from backend.infrastructure.gateways.db_gateway import DbGateway
+                    self._db = DbGateway()
+                self._db.log_classification(task, model_used, prompt, json.dumps(result), latency_ms)
+            except Exception:
+                logger.warning("Failed to log classification for task=%s", task, exc_info=True)
+
+        return result
 
     @staticmethod
     def _extract_json(raw: str) -> dict:

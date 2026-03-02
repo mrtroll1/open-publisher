@@ -4,13 +4,14 @@ import pytest
 
 from backend.domain.compose_request import (
     _MODELS,
+    classify_command,
     contractor_parse,
     editorial_assess,
     inbox_classify,
     support_email,
-    support_email_with_context,
     support_triage,
     tech_search_terms,
+    tech_support_question,
     translate_name,
 )
 
@@ -25,7 +26,7 @@ class TestModels:
         expected = {
             "support_email", "support_triage", "tech_search_terms",
             "contractor_parse", "translate_name", "inbox_classify",
-            "editorial_assess",
+            "editorial_assess", "tech_support_question", "classify_command",
         }
         assert set(_MODELS.keys()) == expected
 
@@ -54,7 +55,7 @@ class TestReturnStructure:
         assert keys == ["reply"]
 
     def test_support_email_with_context_returns_tuple(self):
-        prompt, model, keys = support_email_with_context("test email", "user data")
+        prompt, model, keys = support_email("test email", "user data")
         assert isinstance(prompt, str)
         assert model == _MODELS["support_email"]
         assert keys == ["reply"]
@@ -126,7 +127,7 @@ class TestPromptContent:
         assert "Dear support, I have a problem." in prompt
 
     def test_support_email_with_context_contains_user_data(self):
-        prompt, _, _ = support_email_with_context("email text", "## User Info\n- ID: 123")
+        prompt, _, _ = support_email("email text", "## User Info\n- ID: 123")
         assert "## User Info" in prompt
 
     def test_translate_name_contains_name(self):
@@ -136,3 +137,29 @@ class TestPromptContent:
     def test_support_triage_contains_email(self):
         prompt, _, _ = support_triage("The user has billing issues")
         assert "The user has billing issues" in prompt
+
+
+# ===================================================================
+#  tech_support_question()
+# ===================================================================
+
+class TestTechSupportQuestion:
+
+    def test_returns_tuple(self):
+        prompt, model, keys = tech_support_question("how to deploy?")
+        assert isinstance(prompt, str)
+        assert isinstance(model, str)
+        assert isinstance(keys, list)
+        assert keys == ["answer"]
+
+    def test_prompt_contains_question(self):
+        prompt, _, _ = tech_support_question("how to restart nginx?")
+        assert "how to restart nginx?" in prompt
+
+    def test_verbose_text_included(self):
+        prompt_verbose, _, _ = tech_support_question("q", verbose=True)
+        assert "развёрнутый" in prompt_verbose
+
+    def test_code_context_included(self):
+        prompt, _, _ = tech_support_question("q", code_context="def foo(): pass")
+        assert "def foo(): pass" in prompt

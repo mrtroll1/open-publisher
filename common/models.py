@@ -313,12 +313,14 @@ class SupportDraft(BaseModel):
     email: IncomingEmail
     can_answer: bool
     draft_reply: str
+    decision_id: str = ""
 
 
 class EditorialItem(BaseModel):
     """An editorial email assessed for forwarding."""
     email: IncomingEmail
     reply_to_sender: str = ""
+    decision_id: str = ""
 
 
 class PendingItem(BaseModel):

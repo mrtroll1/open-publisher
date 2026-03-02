@@ -12,7 +12,7 @@ from telegram_bot.flow_engine import register_flows, set_bot_commands
 from telegram_bot.flow_callbacks import (
     email_listener_task, handle_support_callback, handle_editorial_callback,
     handle_duplicate_callback, handle_editor_source_callback,
-    handle_linked_menu_callback, handle_non_document,
+    handle_linked_menu_callback, handle_code_rate_callback, handle_non_document,
 )
 from telegram_bot.flows import bot_flows
 
@@ -23,6 +23,7 @@ dp.callback_query.register(handle_editorial_callback, F.data.startswith("editori
 dp.callback_query.register(handle_duplicate_callback, F.data.startswith("dup:"))
 dp.callback_query.register(handle_editor_source_callback, F.data.startswith("esrc:"))
 dp.callback_query.register(handle_linked_menu_callback, F.data.startswith("menu:"))
+dp.callback_query.register(handle_code_rate_callback, F.data.startswith("code_rate:"))
 register_flows(dp, bot_flows)
 
 # Catch photos/stickers/etc — must be after flows so it doesn't interfere

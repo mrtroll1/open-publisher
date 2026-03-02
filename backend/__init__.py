@@ -63,7 +63,7 @@ def translate_name_to_russian(name_en: str) -> str:
     """Translate a name to Russian."""
     from backend.domain import compose_request
     prompt, model, _ = compose_request.translate_name(name_en)
-    result = _gemini.call(prompt, model)
+    result = _gemini.call(prompt, model, task="TRANSLATE_NAME")
     return result.get("translated_name", "")
 
 
@@ -119,3 +119,6 @@ from backend.domain.parse_bank_statement import ParseBankStatement  # noqa: F401
 from backend.domain.compute_budget import ComputeBudget  # noqa: F401
 from backend.domain.inbox_service import InboxService  # noqa: F401
 from backend.domain.tech_support_handler import TechSupportHandler  # noqa: F401
+from backend.domain.code_runner import run_claude_code  # noqa: F401
+from backend.domain.healthcheck import run_healthchecks, format_healthcheck_results  # noqa: F401
+from backend.domain.command_classifier import CommandClassifier  # noqa: F401

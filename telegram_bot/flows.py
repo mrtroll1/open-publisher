@@ -16,9 +16,11 @@ from telegram_bot.flow_dsl import (
     BotFlows,
     Flow,
     FlowState,
+    GroupChatConfig,
     InputType,
     Transition,
 )
+from common.config import EDITORIAL_CHAT_ID
 from telegram_bot import replies
 from telegram_bot.flow_callbacks import (
     handle_start,
@@ -38,7 +40,12 @@ from telegram_bot.flow_callbacks import (
     handle_document,
     # Admin
     handle_admin_reply,
+    cmd_articles,
     cmd_generate,
+    cmd_health,
+    cmd_lookup,
+    cmd_tech_support,
+    cmd_code,
     cmd_budget,
     cmd_generate_invoices,
     cmd_send_global_invoices,
@@ -206,6 +213,18 @@ admin_commands = [
         usage="/orphan_contractors",
     ),
     AdminCommand(
+        command="articles",
+        description="Статьи контрагента за месяц",
+        handler=cmd_articles,
+        usage="/articles <имя> [YYYY-MM]",
+    ),
+    AdminCommand(
+        command="lookup",
+        description="Информация о контрагенте",
+        handler=cmd_lookup,
+        usage="/lookup <имя>",
+    ),
+    AdminCommand(
         command="budget",
         description="Расчёт бюджета (в разработке)",
         handler=cmd_budget,
@@ -217,6 +236,38 @@ admin_commands = [
         handler=cmd_upload_to_airtable,
         usage="/upload_to_airtable <курс AED→RUB>",
     ),
+    AdminCommand(
+        command="health",
+        description="Проверка доступности сайтов и подов",
+        handler=cmd_health,
+        usage="/health",
+    ),
+    AdminCommand(
+        command="tech_support",
+        description="Задать вопрос по техподдержке",
+        handler=cmd_tech_support,
+        usage="/tech_support [-v] <вопрос>",
+    ),
+    AdminCommand(
+        command="code",
+        description="Запустить Claude Code",
+        handler=cmd_code,
+        usage="/code [-v] <запрос>",
+    ),
+]
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  GROUPCHAT CONFIGS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+group_configs = [
+    gc for gc in [
+        GroupChatConfig(
+            chat_id=EDITORIAL_CHAT_ID,
+            allowed_commands=["health", "tech_support", "code", "articles", "lookup"],
+        ) if EDITORIAL_CHAT_ID else None,
+    ] if gc is not None
 ]
 
 
@@ -235,4 +286,5 @@ bot_flows = BotFlows(
         "update_payment_data": handle_update_payment_data,
         "manage_redirects": handle_manage_redirects,
     },
+    group_configs=group_configs,
 )

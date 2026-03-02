@@ -804,13 +804,13 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
         await message.answer(f"Команда {cmd} не найдена.")
         return
 
-    # Rewrite message.text so the handler parses it correctly
+    # Temporarily rewrite .text (Message is a frozen Pydantic model)
     original_text = message.text
-    message.text = f"/{cmd} {cmd_args}" if cmd_args else f"/{cmd}"
+    object.__setattr__(message, "text", f"/{cmd} {cmd_args}" if cmd_args else f"/{cmd}")
     try:
         await handler(message, state)
     finally:
-        message.text = original_text
+        object.__setattr__(message, "text", original_text)
 
 
 def _extract_bot_mention(text: str, bot_username: str) -> str | None:
@@ -830,14 +830,12 @@ async def _dispatch_group_command(
     if not handler:
         return
     original_text = message.text
-    if args_text:
-        message.text = f"/{command} {args_text}"
-    else:
-        message.text = f"/{command}"
+    new_text = f"/{command} {args_text}" if args_text else f"/{command}"
+    object.__setattr__(message, "text", new_text)
     try:
         await handler(message, state)
     finally:
-        message.text = original_text
+        object.__setattr__(message, "text", original_text)
 
 
 async def handle_group_message(

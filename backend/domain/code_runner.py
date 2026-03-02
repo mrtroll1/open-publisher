@@ -25,6 +25,9 @@ def run_claude_code(prompt: str, verbose: bool = False) -> str:
             cwd=REPOS_DIR,
             timeout=300,
         )
+        if result.returncode != 0:
+            logger.error("Claude Code exit=%d stdout=%s stderr=%s",
+                         result.returncode, result.stdout[:500], result.stderr[:500])
         output = result.stdout.strip()
         if not output and result.stderr.strip():
             output = f"stderr: {result.stderr.strip()}"

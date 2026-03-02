@@ -1410,8 +1410,50 @@ Phase 5.4 — Tests:
 - `handle_admin_reply` is registered for admin users only — no separate admin check in `_handle_nl_reply`
 - Group chat NL reply works for both @mention and reply-to-bot scenarios
 
+### Session 47 (2026-03-03) — Plan 3 Phase 6: Learning from Admin Feedback
+**Status:** Complete (all items: 6.1, 6.2, 6.3, 6.4)
+
+**What was done:**
+
+Phase 6.1 — Track draft messages:
+- Added `_support_draft_map: dict[tuple[int, int], str] = {}` in `flow_callbacks.py` (same pattern as `_admin_reply_map`)
+- Modified `_send_support_draft` to capture `sent` message and register `(admin_id, sent.message_id) → em.uid`
+
+Phase 6.2 — Handle admin replies to drafts:
+- Replaced Phase 6 placeholder in `handle_admin_reply` routing chain with actual `_support_draft_map` check (priority 2, after Legium forwarding, before NL fallback)
+- Added `_GREETING_PREFIXES` tuple for greeting detection (Russian + English, case-insensitive)
+- Created `_handle_draft_reply(message, uid)`:
+  - Gets pending draft, replies with "expired" if not found
+  - Classifies reply: greeting prefix → replacement, otherwise → teaching feedback
+  - Replacement: calls `_inbox.update_and_approve_support(uid, message.text)`, replies with `replacement_sent`
+  - Teaching: calls `_inbox.skip_support(uid)`, stores feedback via `retriever.store_feedback(text, "tech_support")`, replies with `feedback_noted`
+  - Knowledge storage wrapped in try/except — never breaks the handler
+
+Phase 6.3 — Store feedback as knowledge:
+- Added `store_feedback(text, scope) -> str` to `KnowledgeRetriever`:
+  - Embeds text, truncates to 60 chars for title
+  - Saves with `tier="domain"`, `source="admin_feedback"`
+
+Phase 6.4 — Tests:
+- 6 tests in `TestHandleDraftReply`: replacement path, teaching feedback path, expired draft, case-insensitive greetings, storage failure handling, from_addr fallback
+- 1 test in `TestSendSupportDraftMap`: map population after send
+- 2 tests in `TestAdminReplySupportDraftRouting`: routing, Legium priority
+- 2 tests in `TestStoreFeedback`: happy path, title truncation
+
+**Review fixes applied:**
+- Added `"hi,"` prefix (comma variant) alongside `"hi "` (space variant) to handle "Hi, ..." pattern
+- Cleaned up docstring to remove internal phase references
+
+**Net result:** 11 new tests (951 total), all passing
+
+**Notes:**
+- `inbox_service.py` was NOT modified — `update_and_approve_support` already existed
+- Reply strings added to `replies.py`: `replacement_sent`, `feedback_noted`
+- Map cleanup happens after `_handle_draft_reply` returns (even on error, map entry persists so admin can retry)
+- Send/Skip buttons still work — both paths check `get_pending_support`, which consumes the draft
+
 ## Next up
 
-- Plan 3 Phase 6: Learning from Admin Feedback (draft tracking, reply handling, knowledge storage)
+- Plan 3 Phase 7: Admin Teaching (/teach, NL teaching, /knowledge, /forget, /kedit)
 - Phase 2.4 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

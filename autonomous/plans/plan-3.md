@@ -291,26 +291,26 @@ Three tiers of knowledge, all in PostgreSQL:
 
 ### 6.1 Track draft messages
 
-- [ ] Add `_support_draft_map: dict[tuple[int, int], str]` mapping `(chat_id, message_id) → uid`
-- [ ] In `_send_support_draft`: after `bot.send_message`, register in `_support_draft_map`
+- [x] Add `_support_draft_map: dict[tuple[int, int], str]` mapping `(chat_id, message_id) → uid`
+- [x] In `_send_support_draft`: after `bot.send_message`, register in `_support_draft_map`
 
 **Files**: `telegram_bot/flow_callbacks.py`
 
 ### 6.2 Handle admin replies to drafts
 
-- [ ] In `handle_admin_reply` routing chain (Phase 5.1), check `_support_draft_map` before NL fallback
-- [ ] Classify admin reply:
+- [x] In `handle_admin_reply` routing chain (Phase 5.1), check `_support_draft_map` before NL fallback
+- [x] Classify admin reply:
   - If starts with greeting (Здравствуйте, Добрый день, Hello, Dear) → replacement draft: send this text instead
   - Otherwise → teaching feedback: store as knowledge + skip original
-- [ ] For replacement: call `_inbox.update_and_approve_support(uid, new_reply_text)` or equivalent
-- [ ] For teaching: store via `KnowledgeRetriever.store_feedback(text, scope="tech_support")`
-- [ ] In both cases, remove from `_support_draft_map`
+- [x] For replacement: call `_inbox.update_and_approve_support(uid, new_reply_text)` or equivalent
+- [x] For teaching: store via `KnowledgeRetriever.store_feedback(text, scope="tech_support")`
+- [x] In both cases, remove from `_support_draft_map`
 
 **Files**: `telegram_bot/flow_callbacks.py`, `backend/domain/inbox_service.py` (minor)
 
 ### 6.3 Store feedback as knowledge
 
-- [ ] Add `store_feedback(text, scope, metadata=None)` to `KnowledgeRetriever`:
+- [x] Add `store_feedback(text, scope)` to `KnowledgeRetriever`:
   - Generate embedding
   - Save as `knowledge_entries` with `tier='domain'`, `source='admin_feedback'`
 
@@ -318,10 +318,10 @@ Three tiers of knowledge, all in PostgreSQL:
 
 ### 6.4 Tests
 
-- [ ] Test replacement draft path
-- [ ] Test teaching feedback path → verify knowledge_entries created
-- [ ] Test that Send/Skip buttons still work alongside reply path
-- [ ] Run tests
+- [x] Test replacement draft path
+- [x] Test teaching feedback path → verify knowledge_entries created
+- [x] Test that Send/Skip buttons still work alongside reply path
+- [x] Run tests — 951 tests pass
 
 ---
 

@@ -9,21 +9,26 @@ from common.models import (
     ArticleEntry,
     ContractorType,
     GlobalContractor,
+    IncomingEmail,
     IPContractor,
     RoleCode,
     SamozanyatyContractor,
+    SupportDraft,
 )
 from telegram_bot.flow_callbacks import (
     _admin_reply_map,
     _dup_button_label,
     _extract_bot_mention,
     _format_reply_chain,
+    _GREETING_PREFIXES,
     _GROUP_COMMAND_HANDLERS,
     _COMMAND_DESCRIPTIONS,
+    _handle_draft_reply,
     _handle_nl_reply,
     _ROLE_LABELS,
     _save_turn,
     _send_html,
+    _support_draft_map,
     handle_admin_reply,
     handle_code_rate_callback,
 )
@@ -910,3 +915,204 @@ class TestAdminReplyRouting:
 
         # Should not raise
         asyncio.run(handle_admin_reply(msg, state))
+
+
+# ===================================================================
+#  _handle_draft_reply()
+# ===================================================================
+
+def _make_draft(uid="uid-1", from_addr="user@example.com", reply_to="") -> SupportDraft:
+    email = IncomingEmail(
+        uid=uid, from_addr=from_addr, to_addr="support@republic.ru",
+        reply_to=reply_to, subject="Help", body="I need help", date="2026-03-01",
+    )
+    return SupportDraft(email=email, can_answer=True, draft_reply="Draft text")
+
+
+class TestHandleDraftReply:
+
+    @patch("telegram_bot.flow_callbacks._get_retriever")
+    @patch("telegram_bot.flow_callbacks._inbox")
+    def test_replacement_path(self, mock_inbox, mock_get_retriever):
+        draft = _make_draft(reply_to="user@example.com")
+        mock_inbox.get_pending_support.return_value = draft
+
+        msg = AsyncMock()
+        msg.text = "Здравствуйте, вот ваш ответ."
+        msg.message_id = 10
+
+        asyncio.run(_handle_draft_reply(msg, "uid-1"))
+
+        mock_inbox.update_and_approve_support.assert_called_once_with("uid-1", msg.text)
+        msg.reply.assert_awaited_once()
+        reply_text = msg.reply.call_args[0][0]
+        assert "user@example.com" in reply_text
+        assert reply_text == replies.tech_support.replacement_sent.format(addr="user@example.com")
+
+    @patch("telegram_bot.flow_callbacks._get_retriever")
+    @patch("telegram_bot.flow_callbacks._inbox")
+    def test_teaching_feedback_path(self, mock_inbox, mock_get_retriever):
+        draft = _make_draft()
+        mock_inbox.get_pending_support.return_value = draft
+
+        retriever = MagicMock()
+        mock_get_retriever.return_value = retriever
+
+        msg = AsyncMock()
+        msg.text = "Не отвечай на такие письма"
+        msg.message_id = 10
+
+        asyncio.run(_handle_draft_reply(msg, "uid-1"))
+
+        mock_inbox.skip_support.assert_called_once_with("uid-1")
+        retriever.store_feedback.assert_called_once_with(
+            "Не отвечай на такие письма", scope="tech_support",
+        )
+        msg.reply.assert_awaited_once_with(replies.tech_support.feedback_noted)
+
+    @patch("telegram_bot.flow_callbacks._inbox")
+    def test_expired_draft(self, mock_inbox):
+        mock_inbox.get_pending_support.return_value = None
+
+        msg = AsyncMock()
+        msg.text = "Some reply"
+
+        asyncio.run(_handle_draft_reply(msg, "uid-gone"))
+
+        msg.reply.assert_awaited_once_with(replies.tech_support.expired)
+        mock_inbox.update_and_approve_support.assert_not_called()
+        mock_inbox.skip_support.assert_not_called()
+
+    @patch("telegram_bot.flow_callbacks._get_retriever")
+    @patch("telegram_bot.flow_callbacks._inbox")
+    def test_greeting_prefixes_case_insensitive(self, mock_inbox, mock_get_retriever):
+        draft = _make_draft(reply_to="addr@test.com")
+        mock_inbox.get_pending_support.return_value = draft
+
+        for greeting in ("ДОБРЫЙ ДЕНЬ, текст", "Hello, how are you", "dear sender, info", "Hi, вот ответ"):
+            mock_inbox.reset_mock()
+            msg = AsyncMock()
+            msg.text = greeting
+            msg.message_id = 10
+
+            asyncio.run(_handle_draft_reply(msg, "uid-1"))
+
+            mock_inbox.update_and_approve_support.assert_called_once(), \
+                f"Expected replacement path for greeting: {greeting!r}"
+
+    @patch("telegram_bot.flow_callbacks._get_retriever")
+    @patch("telegram_bot.flow_callbacks._inbox")
+    def test_store_feedback_failure_still_replies(self, mock_inbox, mock_get_retriever):
+        draft = _make_draft()
+        mock_inbox.get_pending_support.return_value = draft
+
+        retriever = MagicMock()
+        retriever.store_feedback.side_effect = RuntimeError("embedding service down")
+        mock_get_retriever.return_value = retriever
+
+        msg = AsyncMock()
+        msg.text = "Не отвечай на это"
+        msg.message_id = 10
+
+        asyncio.run(_handle_draft_reply(msg, "uid-1"))
+
+        mock_inbox.skip_support.assert_called_once_with("uid-1")
+        msg.reply.assert_awaited_once_with(replies.tech_support.feedback_noted)
+
+    @patch("telegram_bot.flow_callbacks._get_retriever")
+    @patch("telegram_bot.flow_callbacks._inbox")
+    def test_replacement_uses_from_addr_when_no_reply_to(self, mock_inbox, mock_get_retriever):
+        draft = _make_draft(from_addr="fallback@test.com", reply_to="")
+        mock_inbox.get_pending_support.return_value = draft
+
+        msg = AsyncMock()
+        msg.text = "Привет, вот ответ"
+        msg.message_id = 10
+
+        asyncio.run(_handle_draft_reply(msg, "uid-1"))
+
+        reply_text = msg.reply.call_args[0][0]
+        assert "fallback@test.com" in reply_text
+
+
+# ===================================================================
+#  _send_support_draft registers in _support_draft_map
+# ===================================================================
+
+class TestSendSupportDraftMap:
+
+    @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
+    def test_send_support_draft_populates_map(self, mock_bot):
+        from telegram_bot.flow_callbacks import _send_support_draft
+
+        draft = _make_draft(uid="email-uid-42")
+
+        sent = AsyncMock()
+        sent.message_id = 99
+        mock_bot.send_message.return_value = sent
+
+        admin_id = 777
+        asyncio.run(_send_support_draft(admin_id, draft))
+
+        assert _support_draft_map.get((777, 99)) == "email-uid-42"
+
+        # Clean up
+        _support_draft_map.pop((777, 99), None)
+
+
+# ===================================================================
+#  handle_admin_reply routing — support draft priority
+# ===================================================================
+
+class TestAdminReplySupportDraftRouting:
+
+    @patch("telegram_bot.flow_callbacks._handle_nl_reply")
+    @patch("telegram_bot.flow_callbacks._handle_draft_reply")
+    def test_support_draft_route(self, mock_draft_reply, mock_nl_reply):
+        msg = AsyncMock()
+        msg.chat.id = 300
+        msg.text = "Здравствуйте, вот ответ"
+
+        reply = MagicMock()
+        reply.message_id = 70
+        msg.reply_to_message = reply
+
+        state = _make_state()
+
+        _support_draft_map[(300, 70)] = "uid-42"
+
+        asyncio.run(handle_admin_reply(msg, state))
+
+        mock_draft_reply.assert_awaited_once_with(msg, "uid-42")
+        mock_nl_reply.assert_not_awaited()
+        # Map entry cleaned up
+        assert (300, 70) not in _support_draft_map
+
+    @patch("telegram_bot.flow_callbacks._handle_nl_reply")
+    @patch("telegram_bot.flow_callbacks._handle_draft_reply")
+    def test_legium_still_has_priority_over_support_draft(self, mock_draft_reply, mock_nl_reply):
+        msg = AsyncMock()
+        msg.chat.id = 400
+        msg.text = "https://legium.io/doc/999"
+        msg.from_user.id = 1
+
+        reply = MagicMock()
+        reply.message_id = 80
+        msg.reply_to_message = reply
+
+        state = _make_state()
+
+        # Both maps have an entry for the same key
+        _admin_reply_map[(400, 80)] = ("", "contractor-1")
+        _support_draft_map[(400, 80)] = "uid-99"
+
+        with patch("telegram_bot.flow_callbacks.update_legium_link"):
+            asyncio.run(handle_admin_reply(msg, state))
+
+        # Legium handled it, draft reply was NOT called
+        mock_draft_reply.assert_not_awaited()
+        mock_nl_reply.assert_not_awaited()
+
+        # Clean up
+        _admin_reply_map.pop((400, 80), None)
+        _support_draft_map.pop((400, 80), None)

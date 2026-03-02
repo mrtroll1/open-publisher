@@ -376,6 +376,10 @@ async def handle_data_input(message: types.Message, state: FSMContext) -> str | 
 # so admin can reply to a notification and the reply gets forwarded.
 _admin_reply_map: dict[tuple[int, int], tuple[str, str]] = {}
 
+# Maps (admin_chat_id, bot_message_id) -> email uid
+# so admin can reply to a support draft message.
+_support_draft_map: dict[tuple[int, int], str] = {}
+
 async def handle_contractor_text(message: types.Message, state: FSMContext) -> str | None:
     """Catch-all: lookup contractor by telegram or name/alias.
     Returns 'register' or None.
@@ -564,7 +568,7 @@ async def cmd_generate(message: types.Message, state: FSMContext) -> None:
 
 
 async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
-    """Routing chain for admin replies: Legium forwarding → (Phase 6: support draft) → NL reply."""
+    """Routing chain for admin replies: Legium forwarding → support draft → NL reply."""
     reply = message.reply_to_message
     if not reply:
         return
@@ -602,10 +606,44 @@ async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
             await message.answer(replies.invoice.legium_send_error.format(error=e))
         return
 
-    # 2. (Phase 6 placeholder: _support_draft_map check will go here)
+    # 2. Support draft reply
+    uid = _support_draft_map.get(key)
+    if uid:
+        await _handle_draft_reply(message, uid)
+        del _support_draft_map[key]
+        return
 
     # 3. NL conversation fallback
     await _handle_nl_reply(message, state)
+
+
+_GREETING_PREFIXES = (
+    "здравствуйте", "добрый день", "добрый вечер", "доброе утро",
+    "hello", "dear", "привет", "уважаем", "hi,", "hi ",
+)
+
+
+async def _handle_draft_reply(message: types.Message, uid: str) -> None:
+    draft = _inbox.get_pending_support(uid)
+    if not draft:
+        await message.reply(replies.tech_support.expired)
+        return
+
+    text = message.text.strip()
+    is_replacement = text.lower().startswith(_GREETING_PREFIXES)
+
+    if is_replacement:
+        await asyncio.to_thread(_inbox.update_and_approve_support, uid, message.text)
+        addr = draft.email.reply_to or draft.email.from_addr
+        await message.reply(replies.tech_support.replacement_sent.format(addr=addr))
+    else:
+        await asyncio.to_thread(_inbox.skip_support, uid)
+        try:
+            retriever = _get_retriever()
+            await asyncio.to_thread(retriever.store_feedback, text, scope="tech_support")
+        except Exception:
+            logger.exception("Failed to store support feedback")
+        await message.reply(replies.tech_support.feedback_noted)
 
 
 def _format_reply_chain(chain: list[dict]) -> str:
@@ -1888,7 +1926,8 @@ async def _send_support_draft(admin_id: int, draft: SupportDraft) -> None:
         InlineKeyboardButton(text=replies.tech_support.btn_send, callback_data=f"support:send:{em.uid}"),
         InlineKeyboardButton(text=replies.tech_support.btn_skip, callback_data=f"support:skip:{em.uid}"),
     ]])
-    await bot.send_message(admin_id, text, reply_markup=buttons)
+    sent = await bot.send_message(admin_id, text, reply_markup=buttons)
+    _support_draft_map[(admin_id, sent.message_id)] = em.uid
 
 
 async def _send_editorial(admin_id: int, item: EditorialItem) -> None:

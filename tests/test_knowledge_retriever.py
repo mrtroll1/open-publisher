@@ -157,3 +157,40 @@ class TestRetrieveFullScope:
         result = kr.retrieve_full_scope("subscriptions")
 
         assert result == "## Plans\nWe have plans"
+
+
+# ===================================================================
+#  store_feedback
+# ===================================================================
+
+class TestStoreFeedback:
+
+    def test_happy_path(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.1, 0.2, 0.3]
+        mock_db.save_knowledge_entry.return_value = "new-uuid-123"
+
+        result = kr.store_feedback("Don't reply to spam", scope="tech_support")
+
+        assert result == "new-uuid-123"
+        mock_embed.embed_one.assert_called_once_with("Don't reply to spam")
+        mock_db.save_knowledge_entry.assert_called_once_with(
+            tier="domain",
+            scope="tech_support",
+            title="Don't reply to spam",
+            content="Don't reply to spam",
+            source="admin_feedback",
+            embedding=[0.1, 0.2, 0.3],
+        )
+
+    def test_title_truncated_at_60_chars(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.5]
+        mock_db.save_knowledge_entry.return_value = "uuid"
+
+        long_text = "A" * 100
+        kr.store_feedback(long_text, scope="tech_support")
+
+        call_kwargs = mock_db.save_knowledge_entry.call_args[1]
+        assert len(call_kwargs["title"]) == 60
+        assert call_kwargs["content"] == long_text

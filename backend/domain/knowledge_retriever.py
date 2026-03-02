@@ -34,3 +34,15 @@ class KnowledgeRetriever:
     def retrieve_full_scope(self, scope: str) -> str:
         entries = self._db.get_knowledge_by_scope(scope)
         return _format_entries(entries)
+
+    def store_feedback(self, text: str, scope: str) -> str:
+        embedding = self._embed.embed_one(text)
+        title = text[:60].strip()
+        return self._db.save_knowledge_entry(
+            tier="domain",
+            scope=scope,
+            title=title,
+            content=text,
+            source="admin_feedback",
+            embedding=embedding,
+        )

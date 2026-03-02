@@ -31,27 +31,27 @@ Three tiers of knowledge, all in PostgreSQL:
 
 ### 1.1 Enable pgvector extension
 
-- [ ] Add `CREATE EXTENSION IF NOT EXISTS vector;` to `_SCHEMA_SQL` in `db_gateway.py`, before table definitions
+- [x] Add `CREATE EXTENSION IF NOT EXISTS vector;` to `_SCHEMA_SQL` in `db_gateway.py`, before table definitions
 
 **Files**: `backend/infrastructure/gateways/db_gateway.py`
 
 ### 1.2 Create embedding gateway
 
-- [ ] Create `backend/infrastructure/gateways/embedding_gateway.py`:
+- [x] Create `backend/infrastructure/gateways/embedding_gateway.py`:
   ```python
   class EmbeddingGateway:
       def embed_texts(self, texts: list[str]) -> list[list[float]]: ...
       def embed_one(self, text: str) -> list[float]: ...
   ```
-- [ ] Use `google-genai` client with `text-embedding-004`, 256 dimensions
-- [ ] The `google-genai` package is already in `requirements.txt` — no new dependency
+- [x] Use `google-genai` client with `text-embedding-004`, 256 dimensions
+- [x] The `google-genai` package is already in `requirements.txt` — no new dependency
 
 **Files**: `backend/infrastructure/gateways/embedding_gateway.py` (new)
 
 ### 1.3 Tests
 
-- [ ] Create `tests/test_embedding_gateway.py` — mock the genai client, verify correct API call format and dimension config
-- [ ] Run tests to confirm
+- [x] Create `tests/test_embedding_gateway.py` — mock the genai client, verify correct API call format and dimension config
+- [x] Run tests to confirm
 
 ---
 

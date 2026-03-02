@@ -1229,12 +1229,29 @@ Phase 5.4 — Remaining tests:
 - Bug-spotting has diminishing returns — 7 rounds with zero new bugs in the latest round
 - Prompt improvements are small and targeted — major gaps were addressed in earlier rounds
 
+### Session 43 (2026-03-02) — Plan 3 Phase 1: Embeddings Infrastructure
+**Status:** Complete (all 3 items: 1.1, 1.2, 1.3)
+
+**What was done:**
+- Added `CREATE EXTENSION IF NOT EXISTS vector;` at the top of `_SCHEMA_SQL` in `db_gateway.py` (before all table definitions)
+- Created `backend/infrastructure/gateways/embedding_gateway.py`:
+  - `EmbeddingGateway` class with `embed_texts()` and `embed_one()` methods
+  - Uses `google-genai` client with `text-embedding-004` model, 256 dimensions
+  - Follows same lazy-import pattern as `GeminiGateway` (imports `google.genai` inside method)
+  - Uses `GEMINI_API_KEY` from `common.config`
+  - Constructor accepts optional `model` and `dimensions` params for flexibility
+- Created `tests/test_embedding_gateway.py` — 5 tests across 2 classes:
+  - `TestEmbedOne` (2): float list return type + correct model/dimensionality
+  - `TestEmbedTexts` (3): correct count, all texts forwarded, custom model/dimensions
+
+**Net result:** 5 new tests (871 total), all passing
+
+**Notes:**
+- `EmbeddingGateway` creates a new `genai.Client` per call (same pattern as Gemini). Acceptable for current volume.
+- Pre-existing test failures: 73 in `test_plan2_handlers.py` (mock cross-contamination), 2 collection errors (PermissionError on `/opt/repos`). Not caused by Phase 1 changes.
+
 ## Next up
 
-- Plan 2 is complete through Phase 5. Phase 6 deferred (see plan notes).
-- Continue maintenance mode: polish UX, write tests, or spot bugs.
-- Refactoring opportunities are mostly exhausted after 5 rounds (-329 lines total, 28 helpers extracted).
-- Bug-spotting opportunities are mostly exhausted after 7 rounds (zero bugs in round 7).
-- Prompt improvements have gone through 4 rounds — major template/knowledge issues are resolved.
-- Test coverage is very comprehensive (866 tests). Remaining untested: 3 thin gateway wrappers (drive, sheets, redefine).
+- Plan 3 Phase 2: Knowledge Store (table, DB methods, retriever, seed migration, tests)
+- Pre-existing test failures should be investigated in a future maintenance session
 - `_test_ternary.py` stray empty file in project root — needs manual deletion (rm blocked by security policy)

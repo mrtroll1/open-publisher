@@ -14,6 +14,8 @@ from common.models import IncomingEmail
 logger = logging.getLogger(__name__)
 
 _SCHEMA_SQL = """
+CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE TABLE IF NOT EXISTS email_threads (
     thread_id TEXT PRIMARY KEY,
     subject TEXT,

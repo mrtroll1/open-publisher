@@ -67,10 +67,13 @@ from backend import (
 )
 from telegram_bot import replies
 from telegram_bot.bot_helpers import bot, get_contractors, is_admin, prev_month
+from backend.domain import compose_request
 from backend.domain.compute_budget import ComputeBudget
 from backend.domain.healthcheck import run_healthchecks, format_healthcheck_results
 from backend.domain.inbox_service import InboxService
 from backend.domain.parse_bank_statement import ParseBankStatement
+from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
+from backend.infrastructure.gateways.repo_gateway import RepoGateway
 
 logger = logging.getLogger(__name__)
 
@@ -503,6 +506,71 @@ async def cmd_health(message: types.Message, state: FSMContext) -> None:
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
     results = await asyncio.to_thread(run_healthchecks)
     await message.answer(format_healthcheck_results(results))
+
+
+def _answer_tech_question(question: str, verbose: bool) -> str:
+    gemini = GeminiGateway()
+
+    # Try to get code context
+    code_context = ""
+    try:
+        repo_gw = RepoGateway()
+        prompt, model, _ = compose_request.tech_search_terms(question)
+        result = gemini.call(prompt, model)
+        if result.get("needs_code") and result.get("search_terms"):
+            seen_files: dict[str, tuple[str, int]] = {}
+            for term in result["search_terms"]:
+                for rel_path, lineno, _ in repo_gw.search_code(term):
+                    if rel_path not in seen_files:
+                        seen_files[rel_path] = (rel_path.split("/", 1)[0], lineno)
+
+            snippets = []
+            for rel_path, (repo, lineno) in list(seen_files.items())[:5]:
+                filepath = rel_path.split("/", 1)[1] if "/" in rel_path else rel_path
+                content = repo_gw.read_file(repo, filepath)
+                if not content:
+                    continue
+                lines = content.splitlines()
+                start = max(0, lineno - 25)
+                end = min(len(lines), lineno + 25)
+                snippet = "\n".join(lines[start:end])
+                snippets.append(f"### {rel_path} (lines {start + 1}-{end})\n```\n{snippet}\n```")
+
+            if snippets:
+                code_context = "## Контекст из кода\n\n" + "\n\n".join(snippets)
+    except Exception as e:
+        logger.warning("Code context fetch for /tech_support failed: %s", e)
+
+    prompt, model, _ = compose_request.tech_support_question(question, code_context, verbose)
+    result = gemini.call(prompt, model)
+    return result.get("answer", str(result))
+
+
+async def cmd_tech_support(message: types.Message, state: FSMContext) -> None:
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2 or not args[1].strip():
+        await message.answer("Использование: /tech_support <вопрос>\nФлаги: -v для подробного ответа")
+        return
+
+    text = args[1].strip()
+    verbose = False
+    if text.startswith("-v ") or text.startswith("verbose "):
+        verbose = True
+        text = text.split(None, 1)[1] if " " in text else ""
+        if not text:
+            await message.answer("Укажите вопрос после флага -v")
+            return
+
+    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+
+    try:
+        answer = await asyncio.to_thread(_answer_tech_question, text, verbose)
+        if len(answer) > 4000:
+            answer = answer[:4000] + "..."
+        await message.answer(answer)
+    except Exception as e:
+        logger.exception("Tech support question failed")
+        await message.answer(f"Ошибка: {e}")
 
 
 async def cmd_budget(message: types.Message, state: FSMContext) -> None:

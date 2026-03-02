@@ -11,6 +11,7 @@ _MODELS = {
     "translate_name": "gemini-2.5-flash",
     "inbox_classify": "gemini-2.5-flash",
     "editorial_assess": "gemini-2.5-flash",
+    "tech_support_question": "gemini-2.5-flash",
 }
 
 
@@ -85,3 +86,24 @@ def editorial_assess(email_text: str) -> tuple[str, str, list[str]]:
 def translate_name(name_en: str) -> tuple[str, str, list[str]]:
     prompt = load_template("translate-name.md", {"NAME": name_en})
     return prompt, _MODELS["translate_name"], ["translated_name"]
+
+
+def tech_support_question(
+    question: str, code_context: str = "", verbose: bool = False,
+) -> tuple[str, str, list[str]]:
+    knowledge = load_knowledge(
+        "base.md", "tech-support.md",
+        replacements={"SUBSCRIPTION_SERVICE_URL": SUBSCRIPTION_SERVICE_URL},
+    )
+    verbose_text = (
+        "Можешь дать развёрнутый ответ."
+        if verbose
+        else "Отвечай кратко, 1-3 абзаца."
+    )
+    prompt = load_template("tech-support-question.md", {
+        "KNOWLEDGE": knowledge,
+        "QUESTION": question,
+        "CODE_CONTEXT": code_context,
+        "VERBOSE": verbose_text,
+    })
+    return prompt, _MODELS["tech_support_question"], ["answer"]

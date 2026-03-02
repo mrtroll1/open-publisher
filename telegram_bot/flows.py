@@ -40,6 +40,7 @@ from telegram_bot.flow_callbacks import (
     handle_admin_reply,
     cmd_generate,
     cmd_health,
+    cmd_tech_support,
     cmd_budget,
     cmd_generate_invoices,
     cmd_send_global_invoices,
@@ -223,6 +224,12 @@ admin_commands = [
         description="Проверка доступности сайтов и подов",
         handler=cmd_health,
         usage="/health",
+    ),
+    AdminCommand(
+        command="tech_support",
+        description="Задать вопрос по техподдержке",
+        handler=cmd_tech_support,
+        usage="/tech_support [-v] <вопрос>",
     ),
 ]
 

@@ -25,7 +25,7 @@ class TestModels:
         expected = {
             "support_email", "support_triage", "tech_search_terms",
             "contractor_parse", "translate_name", "inbox_classify",
-            "editorial_assess",
+            "editorial_assess", "tech_support_question",
         }
         assert set(_MODELS.keys()) == expected
 

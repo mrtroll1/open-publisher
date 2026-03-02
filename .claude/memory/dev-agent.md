@@ -642,6 +642,33 @@ _None yet._
 - kubectl readiness check: `ready.split("/")[0] == ready.split("/")[1]` (e.g. "1/1" is ok, "0/1" is error)
 - All 526 tests pass
 
+### Session 25 (2026-03-02) — Plan 2 Phase 2.2 + 2.4: /tech_support command + remove code context from email pipeline
+**Status:** Complete (all items in 2.2 and 2.4)
+
+**What was done:**
+- Created `templates/tech-support-question.md` — Russian-language prompt template with KNOWLEDGE, QUESTION, CODE_CONTEXT, VERBOSE placeholders. Instructs JSON output `{"answer": "..."}` for GeminiGateway compatibility.
+- Added `tech_support_question()` compose function to `compose_request.py`:
+  - Loads `base.md` + `tech-support.md` knowledge with SUBSCRIPTION_SERVICE_URL replacement
+  - Verbose text: "Можешь дать развёрнутый ответ." vs "Отвечай кратко, 1-3 абзаца."
+  - Added `"tech_support_question"` to `_MODELS` dict
+- Added `_answer_tech_question(question, verbose)` sync helper in `flow_callbacks.py`:
+  - Creates GeminiGateway instance
+  - Optionally fetches code context: calls `tech_search_terms()` to determine if code search needed, then greps repos and extracts snippets (same pattern as `TechSupportHandler._fetch_code_context`)
+  - Calls `tech_support_question()` compose function, then Gemini
+  - Returns answer string
+- Added `cmd_tech_support(message, state)` async handler:
+  - Parses question text and `-v`/`verbose` flag
+  - Shows TYPING indicator, calls helper via `asyncio.to_thread`
+  - Truncates to 4000 chars, handles errors
+- Registered `/tech_support` as AdminCommand in `flows.py` (description: "Задать вопрос по техподдержке")
+- **Phase 2.4**: Removed `code_context = self._fetch_code_context(email_text)` from `TechSupportHandler.draft_reply()`. Kept `_fetch_code_context()` method and RepoGateway intact (pattern reused by `/tech_support`).
+- Updated `test_compose_request.py` to include new `tech_support_question` model key
+
+**Notes:**
+- New imports added to `flow_callbacks.py`: `compose_request`, `GeminiGateway`, `RepoGateway` (all at top level)
+- `/tech_support` code context fetch is wrapped in try/except — silently continues without code if repos aren't available
+- All 526 tests pass
+
 ## Next up
 
-- Plan 2 Phase 2.2: /tech_support command (next session)
+- Plan 2 Phase 2.3: /code command (next session)

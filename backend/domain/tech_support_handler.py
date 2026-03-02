@@ -36,10 +36,9 @@ class TechSupportHandler:
 
         email_text = email.as_text()
         user_data = self._fetch_user_data(email_text, email.reply_to or email.from_addr)
-        code_context = self._fetch_code_context(email_text)
 
         thread_context = self._format_thread(history) if len(history) > 1 else ""
-        context = "\n\n".join(filter(None, [user_data, thread_context, code_context]))
+        context = "\n\n".join(filter(None, [user_data, thread_context]))
 
         if context:
             prompt, model, _ = compose_request.support_email_with_context(email_text, context)

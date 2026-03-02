@@ -99,14 +99,14 @@ Currently `skip_support()` pops from memory dict — the draft vanishes.
 
 ### 2.2 /tech_support command
 
-- [ ] Create `templates/tech-support-question.md` — takes question + knowledge + optional code context, instructs concise Telegram-friendly output
-- [ ] Add `tech_support_question(question, code_context="", verbose=False)` to `compose_request.py`
-- [ ] Add `cmd_tech_support` handler in `flow_callbacks.py`:
-  - [ ] Extract text after `/tech_support`
-  - [ ] Parse verbose flag (`-v` or `verbose` prefix)
-  - [ ] Optionally fetch code context from repos via `RepoGateway`
-  - [ ] Call Gemini, reply in Telegram
-- [ ] Register `/tech_support` as `AdminCommand` in `flows.py`
+- [x] Create `templates/tech-support-question.md` — takes question + knowledge + optional code context, instructs concise Telegram-friendly output
+- [x] Add `tech_support_question(question, code_context="", verbose=False)` to `compose_request.py`
+- [x] Add `cmd_tech_support` handler in `flow_callbacks.py`:
+  - [x] Extract text after `/tech_support`
+  - [x] Parse verbose flag (`-v` or `verbose` prefix)
+  - [x] Optionally fetch code context from repos via `RepoGateway`
+  - [x] Call Gemini, reply in Telegram
+- [x] Register `/tech_support` as `AdminCommand` in `flows.py`
 
 **Files**: `templates/tech-support-question.md` (new), `backend/domain/compose_request.py`, `telegram_bot/flow_callbacks.py`, `telegram_bot/flows.py`
 
@@ -128,9 +128,9 @@ Currently `skip_support()` pops from memory dict — the draft vanishes.
 
 ### 2.4 Remove code context from email tech support pipeline
 
-- [ ] Remove `_fetch_code_context()` call from `draft_reply()` in `TechSupportHandler`
-- [ ] Remove `code_context` variable and its inclusion in the LLM prompt within `draft_reply()`
-- [ ] Keep `_fetch_code_context()` method and `RepoGateway` intact (reused by /tech_support)
+- [x] Remove `_fetch_code_context()` call from `draft_reply()` in `TechSupportHandler`
+- [x] Remove `code_context` variable and its inclusion in the LLM prompt within `draft_reply()`
+- [x] Keep `_fetch_code_context()` method and `RepoGateway` intact (reused by /tech_support)
 
 **Files**: `backend/domain/tech_support_handler.py`
 

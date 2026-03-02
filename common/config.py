@@ -73,8 +73,8 @@ AIRTABLE_TABLE_NAME = os.getenv("AIRTABLE_TABLE_NAME", "expenses")
 # --- Special Rules Sheet ---
 SPECIAL_RULES_SHEET_ID = os.getenv("SPECIAL_RULES_SHEET_ID")
 
-# --- Content API ---
-CONTENT_API_URL = os.environ.get("CONTENT_API_URL", "")
+# --- Republic API ---
+REPUBLIC_API_URL = os.environ.get("REPUBLIC_API_URL", "")
 
 # --- Gemini (for new-contractor parsing) ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
@@ -107,7 +107,6 @@ def get_gmail_creds():
 SUBSCRIPTION_SERVICE_URL = os.getenv("SUBSCRIPTION_SERVICE_URL", "")
 
 # --- Support APIs (user data lookup) ---
-REPUBLIC_API_URL = os.getenv("REPUBLIC_API_URL", "")
 REPUBLIC_SUPPORT_API_KEY = os.getenv("REPUBLIC_SUPPORT_API_KEY", "")
 REDEFINE_API_URL = os.getenv("REDEFINE_API_URL", "")
 REDEFINE_SUPPORT_API_KEY = os.getenv("REDEFINE_SUPPORT_API_KEY", "")

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 
+from urllib.parse import quote
+
 import requests
 
 from common.config import (
@@ -25,7 +27,7 @@ class RedefineGateway:
         """Look up a Redefine customer by email."""
         try:
             resp = requests.get(
-                f"{_BASE}/customer-by-email/{email}",
+                f"{_BASE}/customer-by-email/{quote(email, safe='')}",
                 headers=self._headers,
                 timeout=10,
             )

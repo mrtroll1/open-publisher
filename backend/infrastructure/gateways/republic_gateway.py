@@ -7,7 +7,7 @@ import time
 
 import requests
 
-from common.config import CONTENT_API_URL, REPUBLIC_API_URL, REPUBLIC_SUPPORT_API_KEY
+from common.config import REPUBLIC_API_URL, REPUBLIC_SUPPORT_API_KEY
 from common.models import ArticleEntry, Contractor
 
 logger = logging.getLogger(__name__)
@@ -75,7 +75,7 @@ class RepublicGateway:
         mag_aliases = [a.strip() for a in contractor.mags.split(",") if a.strip()]
 
         if mag_aliases:
-            url = f"{CONTENT_API_URL}/posts/by-magazine"
+            url = f"{REPUBLIC_API_URL}/posts/by-magazine"
             params = {"magazines": ",".join(mag_aliases), "month": month}
             label = f"{contractor.display_name} (mags: {mag_aliases})"
             post_ids = self._api_get(url, params, label)
@@ -88,7 +88,7 @@ class RepublicGateway:
                 return []
             seen = set()
             post_ids = []
-            url = f"{CONTENT_API_URL}/posts/by-author"
+            url = f"{REPUBLIC_API_URL}/posts/by-author"
             for name in names:
                 params = {"author": name, "month": month}
                 label = f"{contractor.display_name} (author: {name})"
@@ -105,7 +105,7 @@ class RepublicGateway:
 
     def fetch_articles_by_name(self, author: str, month: str) -> list[int]:
         """Check if an author name has any articles for the given month."""
-        url = f"{CONTENT_API_URL}/posts/by-author"
+        url = f"{REPUBLIC_API_URL}/posts/by-author"
         return self._api_get(url, {"author": author, "month": month}, author)
 
     def fetch_published_authors(self, month: str) -> list[dict[str, str | int]]:
@@ -114,7 +114,7 @@ class RepublicGateway:
         Returns list of {"author": "Name", "post_count": N} dicts,
         ordered by post_count descending.
         """
-        url = f"{CONTENT_API_URL}/posts/authors"
+        url = f"{REPUBLIC_API_URL}/posts/authors"
         try:
             resp = requests.get(
                 url, params={"month": month}, timeout=15,

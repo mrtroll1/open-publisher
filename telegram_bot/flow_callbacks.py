@@ -162,13 +162,10 @@ async def handle_menu(message: types.Message, state: FSMContext) -> None:
     await message.answer(replies.start.contractor)
 
 
-async def handle_sign_doc(message: types.Message, state: FSMContext) -> None:
-    await state.clear()
-    contractors = await get_contractors()
-    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
-    if not contractor:
-        await message.answer(replies.start.contractor)
-        return
+async def _deliver_or_start_invoice(
+    message: types.Message, state: FSMContext, contractor: Contractor,
+) -> None:
+    """Try delivering an existing invoice, or start the invoice flow."""
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
     try:
         delivered = await _deliver_existing_invoice(message, contractor)
@@ -184,6 +181,16 @@ async def handle_sign_doc(message: types.Message, state: FSMContext) -> None:
             await message.answer(
                 replies.registration.no_articles.format(month=prev_month())
             )
+
+
+async def handle_sign_doc(message: types.Message, state: FSMContext) -> None:
+    await state.clear()
+    contractors = await get_contractors()
+    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    if not contractor:
+        await message.answer(replies.start.contractor)
+        return
+    await _deliver_or_start_invoice(message, state, contractor)
 
 
 async def handle_update_payment_data(message: types.Message, state: FSMContext) -> None:
@@ -305,7 +312,7 @@ async def handle_data_input(message: types.Message, state: FSMContext) -> str | 
     if ctype == ContractorType.GLOBAL:
         name_en = collected.get("name_en", "")
         if name_en:
-            name_ru = await _translate_name_to_russian(name_en)
+            name_ru = await asyncio.to_thread(translate_name_to_russian, name_en)
             if name_ru:
                 aliases = collected.get("aliases", [])
                 if name_ru not in aliases:
@@ -630,13 +637,6 @@ _ROLE_LABELS = {
     RoleCode.KORREKTOR: "корректор",
 }
 
-_TYPE_LABELS = {
-    ContractorType.SAMOZANYATY: "самозанятый",
-    ContractorType.IP: "ИП",
-    ContractorType.GLOBAL: "global",
-}
-
-
 async def cmd_articles(message: types.Message, state: FSMContext) -> None:
     args = message.text.split(maxsplit=2)
     if len(args) < 2:
@@ -680,7 +680,7 @@ async def cmd_lookup(message: types.Message, state: FSMContext) -> None:
     if not contractor:
         return
 
-    type_label = _TYPE_LABELS.get(contractor.type, contractor.type.value)
+    type_label = contractor.type.value
     role_label = _ROLE_LABELS.get(contractor.role_code, contractor.role_code.value)
     tg_status = "привязан" if contractor.telegram else "не привязан"
 
@@ -1194,21 +1194,7 @@ async def handle_linked_menu_callback(callback: CallbackQuery, state: FSMContext
     action = callback.data.removeprefix("menu:")
 
     if action == "contract":
-        await bot.send_chat_action(callback.message.chat.id, ChatAction.TYPING)
-        try:
-            delivered = await _deliver_existing_invoice(callback.message, contractor)
-        except Exception:
-            logger.exception("Invoice delivery failed for %s", contractor.display_name)
-            await callback.message.answer(replies.invoice.delivery_error)
-            return
-        if not delivered:
-            result = await _start_invoice_flow(callback.message, state, contractor)
-            if result == "invoice":
-                await state.set_state("ContractorStates:waiting_amount")
-            else:
-                await callback.message.answer(
-                    replies.registration.no_articles.format(month=prev_month())
-                )
+        await _deliver_or_start_invoice(callback.message, state, contractor)
     elif action == "update":
         await state.set_state("ContractorStates:waiting_update_data")
         await callback.message.answer(replies.linked_menu.update_prompt)
@@ -1581,11 +1567,6 @@ async def _parse_with_llm(
             logger.warning("Failed to log payment validation", exc_info=True)
 
     return result
-
-
-async def _translate_name_to_russian(name_en: str) -> str:
-    """Translate a name to Russian via LLM."""
-    return await asyncio.to_thread(translate_name_to_russian, name_en)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

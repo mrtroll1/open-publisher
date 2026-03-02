@@ -78,39 +78,35 @@ class GenerateBatchInvoices:
         done = 0
 
         for contractor, amount_int in to_generate:
-            amount = Decimal(str(amount_int))
-
             try:
-                articles = self._content.fetch_articles(contractor, month)
-            except Exception as e:
-                result.errors.append(f"{contractor.display_name}: ошибка API ({e})")
+                amount = Decimal(str(amount_int))
+
+                try:
+                    articles = self._content.fetch_articles(contractor, month)
+                except Exception as e:
+                    result.errors.append(f"{contractor.display_name}: ошибка API ({e})")
+                    continue
+
+                try:
+                    inv_result = self._gen.create_and_save(
+                        contractor, month, amount, articles, debug=debug,
+                    )
+                except Exception as e:
+                    result.errors.append(f"{contractor.display_name}: ошибка генерации ({e})")
+                    logger.exception("Generate failed for %s", contractor.display_name)
+                    continue
+
+                if isinstance(contractor, GlobalContractor):
+                    result.counts["global"] += 1
+                elif isinstance(contractor, SamozanyatyContractor):
+                    result.counts["samozanyaty"] += 1
+                elif isinstance(contractor, IPContractor):
+                    result.counts["ip"] += 1
+
+                result.generated.append((inv_result.pdf_bytes, contractor, inv_result.invoice))
+            finally:
                 done += 1
                 if on_progress:
                     on_progress(done, result.total)
-                continue
-
-            try:
-                inv_result = self._gen.create_and_save(
-                    contractor, month, amount, articles, debug=debug,
-                )
-            except Exception as e:
-                result.errors.append(f"{contractor.display_name}: ошибка генерации ({e})")
-                logger.exception("Generate failed for %s", contractor.display_name)
-                done += 1
-                if on_progress:
-                    on_progress(done, result.total)
-                continue
-
-            if isinstance(contractor, GlobalContractor):
-                result.counts["global"] += 1
-            elif isinstance(contractor, SamozanyatyContractor):
-                result.counts["samozanyaty"] += 1
-            elif isinstance(contractor, IPContractor):
-                result.counts["ip"] += 1
-
-            result.generated.append((inv_result.pdf_bytes, contractor, inv_result.invoice))
-            done += 1
-            if on_progress:
-                on_progress(done, result.total)
 
         return result

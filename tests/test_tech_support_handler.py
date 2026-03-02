@@ -159,7 +159,7 @@ class TestDraftReply:
 
         result = handler.draft_reply(email)
 
-        # With history > 1, support_email_with_context should be called (thread context included)
+        # With history > 1, support_email should be called with context
         # The second gemini.call gets the prompt with context
         assert mock_gemini.call.call_count == 2
         assert result.draft_reply == "Got it"

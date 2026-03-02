@@ -9,7 +9,6 @@ from backend.domain.compose_request import (
     editorial_assess,
     inbox_classify,
     support_email,
-    support_email_with_context,
     support_triage,
     tech_search_terms,
     tech_support_question,
@@ -56,7 +55,7 @@ class TestReturnStructure:
         assert keys == ["reply"]
 
     def test_support_email_with_context_returns_tuple(self):
-        prompt, model, keys = support_email_with_context("test email", "user data")
+        prompt, model, keys = support_email("test email", "user data")
         assert isinstance(prompt, str)
         assert model == _MODELS["support_email"]
         assert keys == ["reply"]
@@ -128,7 +127,7 @@ class TestPromptContent:
         assert "Dear support, I have a problem." in prompt
 
     def test_support_email_with_context_contains_user_data(self):
-        prompt, _, _ = support_email_with_context("email text", "## User Info\n- ID: 123")
+        prompt, _, _ = support_email("email text", "## User Info\n- ID: 123")
         assert "## User Info" in prompt
 
     def test_translate_name_contains_name(self):

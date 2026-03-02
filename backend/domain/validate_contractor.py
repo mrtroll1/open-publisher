@@ -11,6 +11,11 @@ def _digits_only(val: str) -> str:
     return re.sub(r"\D", "", val)
 
 
+def _check_email(email: str, warnings: list[str]) -> None:
+    if email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email.strip()):
+        warnings.append(f"Формат email выглядит некорректно (сейчас: {email})")
+
+
 def validate_fields(collected: dict, ctype: ContractorType) -> list[str]:
     """Validate collected fields with regex checks. Returns list of warning strings."""
     warnings: list[str] = []
@@ -56,9 +61,7 @@ def validate_fields(collected: dict, ctype: ContractorType) -> list[str]:
             if addr_issues:
                 warnings.append(f"В адресе, возможно, не хватает: {', '.join(addr_issues)}")
 
-        email = collected.get("email", "")
-        if email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email.strip()):
-            warnings.append(f"Формат email выглядит некорректно (сейчас: {email})")
+        _check_email(collected.get("email", ""), warnings)
 
     if ctype == ContractorType.IP:
         ogrnip = collected.get("ogrnip", "")
@@ -77,9 +80,7 @@ def validate_fields(collected: dict, ctype: ContractorType) -> list[str]:
             if not re.match(r"^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$", account.strip().upper().replace(" ", "")):
                 warnings.append(f"Формат IBAN выглядит некорректно (сейчас: {account})")
 
-        email = collected.get("email", "")
-        if email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email.strip()):
-            warnings.append(f"Формат email выглядит некорректно (сейчас: {email})")
+        _check_email(collected.get("email", ""), warnings)
 
         address = collected.get("address", "")
         if address:

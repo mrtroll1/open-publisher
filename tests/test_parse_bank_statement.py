@@ -5,7 +5,6 @@ from unittest.mock import patch
 from backend.domain.parse_bank_statement import (
     _bo,
     _classify_person,
-    _format_date,
     _is_owner,
     _match_service,
     _month_label,
@@ -53,30 +52,6 @@ class TestToRub:
     def test_parametrized(self, aed, rate, expected):
         assert _to_rub(aed, rate) == expected
 
-
-# ===================================================================
-#  _format_date
-# ===================================================================
-
-class TestFormatDate:
-
-    def test_valid_iso_date(self):
-        assert _format_date("2025-01-15") == "2025-01-15"
-
-    def test_another_valid_date(self):
-        assert _format_date("2024-12-31") == "2024-12-31"
-
-    def test_invalid_format_returned_as_is(self):
-        assert _format_date("15-01-2025") == "15-01-2025"
-
-    def test_not_a_date_returned_as_is(self):
-        assert _format_date("not-a-date") == "not-a-date"
-
-    def test_empty_string(self):
-        assert _format_date("") == ""
-
-    def test_partial_date(self):
-        assert _format_date("2025-01") == "2025-01"
 
 
 # ===================================================================

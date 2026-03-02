@@ -28,20 +28,7 @@ def support_triage(email_text: str) -> tuple[str, str, list[str]]:
     return prompt, _MODELS["support_triage"], ["needs", "lookup_email"]
 
 
-def support_email(email_text: str) -> tuple[str, str, list[str]]:
-    knowledge = load_knowledge(
-        "base.md", "email-inbox.md", "tech-support.md",
-        replacements={"SUBSCRIPTION_SERVICE_URL": SUBSCRIPTION_SERVICE_URL},
-    )
-    prompt = load_template("support-email.md", {
-        "KNOWLEDGE": knowledge,
-        "USER_DATA": "",
-        "EMAIL": email_text,
-    })
-    return prompt, _MODELS["support_email"], ["reply"]
-
-
-def support_email_with_context(email_text: str, user_data: str) -> tuple[str, str, list[str]]:
+def support_email(email_text: str, user_data: str = "") -> tuple[str, str, list[str]]:
     knowledge = load_knowledge(
         "base.md", "email-inbox.md", "tech-support.md",
         replacements={"SUBSCRIPTION_SERVICE_URL": SUBSCRIPTION_SERVICE_URL},

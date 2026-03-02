@@ -19,7 +19,6 @@ from telegram_bot.flow_callbacks import (
     _GROUP_COMMAND_HANDLERS,
     _COMMAND_DESCRIPTIONS,
     _ROLE_LABELS,
-    _TYPE_LABELS,
     handle_code_rate_callback,
 )
 from telegram_bot import replies
@@ -208,16 +207,13 @@ class TestRoleLabels:
 class TestTypeLabels:
 
     def test_samozanyaty(self):
-        assert _TYPE_LABELS[ContractorType.SAMOZANYATY] == "самозанятый"
+        assert ContractorType.SAMOZANYATY.value == "самозанятый"
 
     def test_ip(self):
-        assert _TYPE_LABELS[ContractorType.IP] == "ИП"
+        assert ContractorType.IP.value == "ИП"
 
     def test_global(self):
-        assert _TYPE_LABELS[ContractorType.GLOBAL] == "global"
-
-    def test_covers_all_types(self):
-        assert set(_TYPE_LABELS.keys()) == set(ContractorType)
+        assert ContractorType.GLOBAL.value == "global"
 
 
 # ===================================================================
@@ -271,7 +267,7 @@ class TestArticlesFormatting:
 class TestLookupNoSensitiveData:
 
     def _build_lookup_output(self, contractor) -> str:
-        type_label = _TYPE_LABELS.get(contractor.type, contractor.type.value)
+        type_label = contractor.type.value
         role_label = _ROLE_LABELS.get(contractor.role_code, contractor.role_code.value)
         tg_status = "привязан" if contractor.telegram else "не привязан"
         has_bank = bool(contractor.bank_name and contractor.bank_account)

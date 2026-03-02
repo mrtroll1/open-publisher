@@ -69,15 +69,6 @@ def _to_rub(aed_amount: Decimal, rate: float) -> float:
     return float(round(float(aed_amount) * rate, 2))
 
 
-def _format_date(date_str: str) -> str:
-    """Keep date as ISO format 'YYYY-MM-DD' for Airtable."""
-    try:
-        datetime.strptime(date_str, "%Y-%m-%d")
-        return date_str
-    except ValueError:
-        return date_str
-
-
 def _month_label(date_str: str) -> str:
     """Extract month name from date string."""
     try:
@@ -145,7 +136,7 @@ def _categorize_transactions(rows: list[dict[str, str]], aed_to_rub: float) -> l
                 if _is_owner(sender):
                     rub = _to_rub(abs(amount), aed_to_rub)
                     expenses.append(AirtableExpense(
-                        payed=_format_date(date_str),
+                        payed=date_str,
                         amount_rub=rub,
                         contractor=OWNER_NAME,
                         unit=_bo(UNIT_PRIMARY),
@@ -168,7 +159,7 @@ def _categorize_transactions(rows: list[dict[str, str]], aed_to_rub: float) -> l
             if "Subscription fee" in description:
                 rub = _to_rub(abs(amount), aed_to_rub)
                 expenses.append(AirtableExpense(
-                    payed=_format_date(date_str),
+                    payed=date_str,
                     amount_rub=rub,
                     contractor="Wio Bank",
                     unit=DEFAULT_ENTITY.split("-")[0] if DEFAULT_ENTITY else "",
@@ -188,7 +179,7 @@ def _categorize_transactions(rows: list[dict[str, str]], aed_to_rub: float) -> l
                 rub = _to_rub(abs(amount), aed_to_rub)
                 group, parent, unit, desc = _classify_person(name)
                 expenses.append(AirtableExpense(
-                    payed=_format_date(date_str),
+                    payed=date_str,
                     amount_rub=rub,
                     contractor=name,
                     unit=unit,
@@ -208,7 +199,7 @@ def _categorize_transactions(rows: list[dict[str, str]], aed_to_rub: float) -> l
                     rub_half = _to_rub(half, aed_to_rub)
                     for unit_name in (UNIT_SECONDARY, UNIT_PRIMARY):
                         expenses.append(AirtableExpense(
-                            payed=_format_date(date_str),
+                            payed=date_str,
                             amount_rub=rub_half,
                             contractor=service["contractor"],
                             unit=_bo(unit_name),
@@ -221,7 +212,7 @@ def _categorize_transactions(rows: list[dict[str, str]], aed_to_rub: float) -> l
                 else:
                     rub = _to_rub(abs(amount), aed_to_rub)
                     expenses.append(AirtableExpense(
-                        payed=_format_date(date_str),
+                        payed=date_str,
                         amount_rub=rub,
                         contractor=service["contractor"],
                         unit=service["unit"],
@@ -235,7 +226,7 @@ def _categorize_transactions(rows: list[dict[str, str]], aed_to_rub: float) -> l
                 rub_half = _to_rub(half, aed_to_rub)
                 for unit_name in (UNIT_SECONDARY, UNIT_PRIMARY):
                     expenses.append(AirtableExpense(
-                        payed=_format_date(date_str),
+                        payed=date_str,
                         amount_rub=rub_half,
                         contractor=description,
                         unit=_bo(unit_name),
@@ -254,7 +245,7 @@ def _categorize_transactions(rows: list[dict[str, str]], aed_to_rub: float) -> l
         rub = _to_rub(total_swift, aed_to_rub)
         last_date = max(f["date"] for f in swift_fees)
         expenses.append(AirtableExpense(
-            payed=_format_date(last_date),
+            payed=last_date,
             amount_rub=rub,
             contractor="Wio Bank",
             unit=_bo(UNIT_PRIMARY),
@@ -272,7 +263,7 @@ def _categorize_transactions(rows: list[dict[str, str]], aed_to_rub: float) -> l
         last_date = max(f["date"] for f in fx_fees)
         for unit_name in (UNIT_SECONDARY, UNIT_PRIMARY):
             expenses.append(AirtableExpense(
-                payed=_format_date(last_date),
+                payed=last_date,
                 amount_rub=rub_half,
                 contractor="Wio Bank",
                 unit=_bo(unit_name),

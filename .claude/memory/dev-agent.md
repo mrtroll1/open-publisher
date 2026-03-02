@@ -914,7 +914,33 @@ Phase 5.4 — Remaining tests:
 - All 639 tests pass after fixes
 - The common pattern was: Plan 2 DB logging code was added to async handlers but called synchronously, unlike existing DB calls which were properly wrapped in `asyncio.to_thread()`
 
+### Session 32 (2026-03-02) — Maintenance: Write Tests (Plan 2 handlers)
+**Status:** Complete
+
+**What was done:**
+- Created `tests/test_plan2_handlers.py` — 68 tests across 11 classes covering Plan 2 handler and service-layer code with mocked dependencies:
+  - `TestHandleGroupMessageExplicitCommands` (5): explicit command dispatch, @bot suffix stripping, allowed_commands filtering
+  - `TestHandleGroupMessageNaturalLanguage` (8): @mention triggers classifier, NL disabled ignores mentions, classification errors silenced, reply-to-bot detection
+  - `TestCmdHealth` (2): healthcheck dispatch and reply
+  - `TestCmdTechSupport` (8): question parsing, verbose flags, truncation, error handling
+  - `TestAnswerTechQuestion` (7): two-step Gemini flow (search terms + answer), code context integration, repo failure graceful degradation, 5-file limit
+  - `TestCmdCode` (10): run + DB save + rating keyboard, verbose flags, DB failure graceful, error messages
+  - `TestCmdArticles` (6): contractor lookup, month param, fuzzy suggestions, no-articles message
+  - `TestCmdLookup` (9): full output format, sensitive data exclusion, telegram/bank status, fuzzy suggestions
+  - `TestParseWithLlm` (8): validation logging to DB, parse_error skip, DB failure graceful, contractor_type mapping
+  - `TestDispatchGroupCommand` (4): text rewriting for handler compatibility, text restoration in finally block
+  - Plus a few inline helper tests
+
+**Net result:** 68 new tests (707 total), all passing in 1.48s
+
+**Notes:**
+- First comprehensive handler-level test coverage for Plan 2 commands
+- Uses `unittest.mock.patch` for all external deps (Gemini, DB, Telegram, RepoGateway)
+- `AsyncMock` for async Telegram message methods, `MagicMock` for sync gateways
+- Tests verify both success paths and error/edge cases
+- `_parse_with_llm` tests validate the payment validation logging integration
+
 ## Next up
 
 - Plan 2 is complete through Phase 5. Phase 6 (LLM domain structure refactor) is optional/stretch.
-- Continue maintenance mode: write tests, refactor, polish UX, improve prompts.
+- Continue maintenance mode: spot bugs, refactor, polish UX, improve prompts.

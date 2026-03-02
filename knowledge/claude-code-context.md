@@ -7,11 +7,11 @@ Redefine — сервис подписок (redefine.media).
 
 ### Republic
 - `republic/` — много легаси-кода + CMS
-- `republic_api/` — основной бэкенд
+- `republic-api/` — основной бэкенд
 - `nuxt/` — фронтенд (Nuxt)
 
 ### Redefine
-- `redefine_back/` — основной бэкенд
+- `redefine-back/` — основной бэкенд
 - `payment/` — микросервис платежей и чеков
 
 ## Правила работы

@@ -2,10 +2,10 @@ services:
   db:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
+    env_file: config/.env
     environment:
       POSTGRES_DB: republic_agent
       POSTGRES_USER: agent
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-agent_dev_pass}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:

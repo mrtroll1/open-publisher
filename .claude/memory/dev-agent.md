@@ -1017,9 +1017,43 @@ Phase 5.4 — Remaining tests:
 - Remaining hardcoded strings in `flow_callbacks.py` are mostly dynamic format strings that are hard to template (contractor-specific output). Not worth centralizing.
 - `_test_ternary.py` stray file still needs manual deletion (rm blocked by security policy)
 
+### Session 36 (2026-03-02) — Maintenance: Write Tests (round 6 — invoice generation)
+**Status:** Complete
+
+**What was done:**
+- Created 3 new test files covering the invoice generation pipeline with mocked gateways:
+
+**`tests/test_generate_invoice.py`** — 9 classes, 21 tests:
+  - `TestGenerateGlobalInvoice` (5): template selection (regular/photo), replacement keys, articles table with English headers
+  - `TestGenerateIPInvoice` (5): invoice number increment, template selection, RUB-specific replacements (OGRNIP, passport), Russian headers
+  - `TestGenerateSamozanyatyInvoice` (4): invoice number increment, template selection, INN/address replacements
+  - `TestDebugMode` (3): skips increment+save, still generates PDF, Global never increments
+  - `TestDriveUploadFailure` (1): gdrive_path="" on error, PDF still returned
+  - `TestInvoiceDateDefault` (1): defaults to date.today()
+  - `TestArticleIdsInInvoice` (2): populated IDs, empty articles
+  - `TestInvoiceStatus` (1): always DRAFT
+
+**`tests/test_generate_batch_invoices.py`** — 6 classes, 14 tests:
+  - `TestBatchFiltering` (5): already-generated, no budget, zero amount, EUR/RUB currency selection, empty budget raises
+  - `TestBatchSuccess` (3): counts by type, empty list, tuple structure
+  - `TestBatchErrors` (2): article fetch error, generation error — both logged and continue
+  - `TestBatchProgress` (3): callback per contractor, callback on error, None callback ok
+  - `TestBatchDebugMode` (1): debug flag passthrough
+
+**`tests/test_prepare_invoice.py`** — 1 class, 6 tests:
+  - Found with doc_id, not found, no doc_id, PDF export fails, correct ID matching, first-match on duplicates
+
+**Net result:** 41 new tests (780 total), all passing in 1.57s
+
+**Notes:**
+- Uses `__new__` pattern to construct instances with mocked gateways (bypassing __init__)
+- Factory helpers (_global, _samoz, _ip, _invoice) match existing patterns in test_compute_budget.py
+- These were the last high-value untested pure-domain modules
+- Invoice generation is now comprehensively tested: single, batch, and re-export
+
 ## Next up
 
 - Plan 2 is complete through Phase 5. Phase 6 deferred (see plan notes).
-- Continue maintenance mode: improve prompts, then more tests or spot bugs round 2.
-- Remaining high-value test gaps: generate_invoice.py, generate_batch_invoices.py, prepare_invoice.py (all require DocsGateway/DriveGateway mocking)
+- Continue maintenance mode: spot bugs, refactor, or improve prompts.
+- Test coverage is now strong across all layers. Remaining untested: low-value thin wrappers (gateways to external APIs).
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

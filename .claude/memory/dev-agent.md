@@ -600,6 +600,48 @@ _None yet._
 - Decision output is set at approval time (captures any admin edits via `update_and_approve_support`)
 - Rejected drafts saved with `direction='draft_rejected'` and `message_id=<draft-rejected-{uuid}>` prefix
 
+### Session 24 (2026-03-02) — Plan 2 Phase 1.5: Tests for Email Decision Tracking
+**Status:** Complete (all 7 items)
+
+**What was done:**
+- Extended `tests/test_db_gateway.py` with 9 new tests:
+  - `_make_gw()` helper creates DbGateway with properly mocked psycopg2 connection/cursor
+  - `TestEmailDecisionsCRUD` (7 tests): create, update, update_output, get (found + not found), default values
+  - `TestGetThreadMessageIds` (2 tests): returns list of message_ids, empty thread
+- Created `tests/test_inbox_service.py` with 14 new tests:
+  - `_make_service()` helper patches all 4 InboxService dependencies (TechSupportHandler, GeminiGateway, EmailGateway, DbGateway)
+  - `TestApproveSupportDecision` (4 tests): updates decision APPROVED, skips DB when no decision_id, sends email, handles nonexistent uid
+  - `TestSkipSupportDecision` (4 tests): updates decision REJECTED, calls discard with draft, skips DB when no decision_id, discards even for unknown uid
+  - `TestApproveEditorialDecision` (3 tests): updates decision APPROVED, skips DB when no decision_id, handles nonexistent uid
+  - `TestSkipEditorialDecision` (3 tests): updates decision REJECTED, skips DB when no decision_id, no DB call for unknown uid
+
+**Net result:** 23 new tests (526 total), all passing in ~11s
+
+**Notes:**
+- Phase 1 is now fully complete (1.1-1.5 all checked off)
+- These are the first service-layer tests with mocked dependencies — established `_make_service()` pattern for future InboxService testing
+- `_make_gw()` pattern useful for testing any future DbGateway methods
+
+### Session 24b (2026-03-02) — Plan 2 Phase 2.1: /health command
+**Status:** Complete (all 10 items)
+
+**What was done:**
+- Added `HEALTHCHECK_DOMAINS` (list from comma-separated env var, default `republicmag.io,redefine.media`) and `KUBECTL_ENABLED` (bool, default False) to `common/config.py`
+- Created `backend/domain/healthcheck.py`:
+  - `HealthResult` dataclass (name, status, details)
+  - `run_healthchecks()` — HTTP GET against each domain (timeout 5s), optional kubectl pod checks
+  - `_kubectl_checks()` — parses `kubectl get pods --no-headers` output, checks Running status + readiness
+  - `format_healthcheck_results()` — checkmark/cross icons per result, or "No checks configured" fallback
+- Added `cmd_health` handler in `flow_callbacks.py` — typing indicator + `asyncio.to_thread(run_healthchecks)` + formatted reply
+- Registered `/health` as AdminCommand in `flows.py` (description: "Проверка доступности сайтов и подов")
+- Re-exported `run_healthchecks` and `format_healthcheck_results` from `backend/__init__.py`
+
+**Notes:**
+- `run_healthchecks()` is sync (uses requests + subprocess), wrapped in `asyncio.to_thread()` in the handler
+- HTTP status < 400 = ok, >= 400 = error
+- kubectl readiness check: `ready.split("/")[0] == ready.split("/")[1]` (e.g. "1/1" is ok, "0/1" is error)
+- All 526 tests pass
+
 ## Next up
 
-- Plan 2 Phase 1.5: Tests for the decision tracking code (next session)
+- Plan 2 Phase 2.2: /tech_support command (next session)

@@ -68,6 +68,7 @@ from backend import (
 from telegram_bot import replies
 from telegram_bot.bot_helpers import bot, get_contractors, is_admin, prev_month
 from backend.domain.compute_budget import ComputeBudget
+from backend.domain.healthcheck import run_healthchecks, format_healthcheck_results
 from backend.domain.inbox_service import InboxService
 from backend.domain.parse_bank_statement import ParseBankStatement
 
@@ -496,6 +497,12 @@ async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
         del _admin_reply_map[key]
     except Exception as e:
         await message.answer(replies.invoice.legium_send_error.format(error=e))
+
+
+async def cmd_health(message: types.Message, state: FSMContext) -> None:
+    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    results = await asyncio.to_thread(run_healthchecks)
+    await message.answer(format_healthcheck_results(results))
 
 
 async def cmd_budget(message: types.Message, state: FSMContext) -> None:

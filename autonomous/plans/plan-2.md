@@ -68,13 +68,13 @@ Currently `skip_support()` pops from memory dict — the draft vanishes.
 
 ### 1.5 Tests for Phase 1
 
-- [ ] Test `email_decisions` CRUD in `test_db_gateway.py`
-- [ ] Test `get_thread_message_ids` in `test_db_gateway.py`
-- [ ] Test that `approve_support` creates APPROVED decision record
-- [ ] Test that `skip_support` creates REJECTED decision + saves draft to email_messages
-- [ ] Test that `approve_editorial` creates APPROVED decision record
-- [ ] Test that `skip_editorial` creates REJECTED decision record
-- [ ] Run full test suite, verify no regressions
+- [x] Test `email_decisions` CRUD in `test_db_gateway.py`
+- [x] Test `get_thread_message_ids` in `test_db_gateway.py`
+- [x] Test that `approve_support` creates APPROVED decision record
+- [x] Test that `skip_support` creates REJECTED decision + saves draft to email_messages
+- [x] Test that `approve_editorial` creates APPROVED decision record
+- [x] Test that `skip_editorial` creates REJECTED decision record
+- [x] Run full test suite, verify no regressions
 
 **Files**: `tests/test_db_gateway.py` (extend), `tests/test_inbox_service.py` (new or extend `test_tech_support_handler.py`)
 
@@ -84,16 +84,16 @@ Currently `skip_support()` pops from memory dict — the draft vanishes.
 
 ### 2.1 /health command
 
-- [ ] Add `HEALTHCHECK_DOMAINS` to `common/config.py` (from env, comma-separated, default `"republicmag.io,redefine.media"`)
-- [ ] Add `KUBECTL_ENABLED` bool to `common/config.py` (default `False`)
-- [ ] Create `backend/domain/healthcheck.py` with `HealthResult` dataclass (`name`, `status`, `details`)
-- [ ] Implement HTTP domain checks (`requests.get(url, timeout=5)`, catch exceptions)
-- [ ] Implement kubectl checks (`subprocess.run(["kubectl", ...], capture_output=True, timeout=10)`) gated by `KUBECTL_ENABLED`
-- [ ] Implement `run_healthchecks() -> list[HealthResult]`
-- [ ] Implement `format_healthcheck_results(results) -> str` for Telegram output
-- [ ] Add `cmd_health` handler in `flow_callbacks.py`
-- [ ] Register `/health` as `AdminCommand` in `flows.py`
-- [ ] Re-export from `backend/__init__.py`
+- [x] Add `HEALTHCHECK_DOMAINS` to `common/config.py` (from env, comma-separated, default `"republicmag.io,redefine.media"`)
+- [x] Add `KUBECTL_ENABLED` bool to `common/config.py` (default `False`)
+- [x] Create `backend/domain/healthcheck.py` with `HealthResult` dataclass (`name`, `status`, `details`)
+- [x] Implement HTTP domain checks (`requests.get(url, timeout=5)`, catch exceptions)
+- [x] Implement kubectl checks (`subprocess.run(["kubectl", ...], capture_output=True, timeout=10)`) gated by `KUBECTL_ENABLED`
+- [x] Implement `run_healthchecks() -> list[HealthResult]`
+- [x] Implement `format_healthcheck_results(results) -> str` for Telegram output
+- [x] Add `cmd_health` handler in `flow_callbacks.py`
+- [x] Register `/health` as `AdminCommand` in `flows.py`
+- [x] Re-export from `backend/__init__.py`
 
 **Files**: `backend/domain/healthcheck.py` (new), `telegram_bot/flow_callbacks.py`, `telegram_bot/flows.py`, `common/config.py`, `backend/__init__.py`
 

@@ -167,3 +167,9 @@ def _load_tech_config() -> dict:
 _tech = _load_tech_config()
 
 SUPPORT_ADDRESSES: list[str] = _tech.get("support_addresses", [])
+
+# --- Healthcheck ---
+HEALTHCHECK_DOMAINS = [
+    d.strip() for d in os.getenv("HEALTHCHECK_DOMAINS", "republicmag.io,redefine.media").split(",") if d.strip()
+]
+KUBECTL_ENABLED = os.getenv("KUBECTL_ENABLED", "").lower() in ("1", "true", "yes")

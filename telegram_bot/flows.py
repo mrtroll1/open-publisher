@@ -39,6 +39,7 @@ from telegram_bot.flow_callbacks import (
     # Admin
     handle_admin_reply,
     cmd_generate,
+    cmd_health,
     cmd_budget,
     cmd_generate_invoices,
     cmd_send_global_invoices,
@@ -216,6 +217,12 @@ admin_commands = [
         description="Загрузить банковскую выписку в Airtable",
         handler=cmd_upload_to_airtable,
         usage="/upload_to_airtable <курс AED→RUB>",
+    ),
+    AdminCommand(
+        command="health",
+        description="Проверка доступности сайтов и подов",
+        handler=cmd_health,
+        usage="/health",
     ),
 ]
 

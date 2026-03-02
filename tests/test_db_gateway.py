@@ -1,6 +1,8 @@
+from unittest.mock import MagicMock
+
 import pytest
 
-from backend.infrastructure.gateways.db_gateway import _normalize_subject
+from backend.infrastructure.gateways.db_gateway import DbGateway, _normalize_subject
 
 
 @pytest.mark.parametrize(
@@ -44,3 +46,130 @@ from backend.infrastructure.gateways.db_gateway import _normalize_subject
 )
 def test_normalize_subject(raw: str, expected: str) -> None:
     assert _normalize_subject(raw) == expected
+
+
+# ===================================================================
+#  email_decisions CRUD
+# ===================================================================
+
+def _make_gw() -> tuple[DbGateway, MagicMock]:
+    """Create a DbGateway with a mocked connection/cursor."""
+    gw = DbGateway()
+    mock_cursor = MagicMock()
+    mock_ctx = MagicMock()
+    mock_ctx.__enter__ = MagicMock(return_value=mock_cursor)
+    mock_ctx.__exit__ = MagicMock(return_value=False)
+    mock_conn = MagicMock()
+    mock_conn.closed = False
+    mock_conn.cursor.return_value = mock_ctx
+    gw._conn = mock_conn
+    return gw, mock_cursor
+
+
+class TestEmailDecisionsCRUD:
+
+    def test_create_email_decision(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = ("abc-123",)
+
+        result = gw.create_email_decision(
+            task="SUPPORT_ANSWER", channel="EMAIL",
+            input_message_ids=["<msg1>", "<msg2>"], output="draft text",
+        )
+
+        assert result == "abc-123"
+        sql, params = cur.execute.call_args[0]
+        assert "INSERT INTO email_decisions" in sql
+        assert "RETURNING id" in sql
+        assert params == ("SUPPORT_ANSWER", "EMAIL", ["<msg1>", "<msg2>"], "draft text")
+
+    def test_create_email_decision_default_output(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = ("def-456",)
+
+        result = gw.create_email_decision(
+            task="ARTICLE_APPROVAL", channel="EMAIL",
+            input_message_ids=["<msg1>"],
+        )
+
+        assert result == "def-456"
+        _, params = cur.execute.call_args[0]
+        assert params[3] == ""  # default output
+
+    def test_update_email_decision(self):
+        gw, cur = _make_gw()
+
+        gw.update_email_decision("abc-123", "APPROVED", decided_by="admin")
+
+        sql, params = cur.execute.call_args[0]
+        assert "UPDATE email_decisions" in sql
+        assert "SET status" in sql
+        assert params == ("APPROVED", "admin", "abc-123")
+
+    def test_update_email_decision_no_decided_by(self):
+        gw, cur = _make_gw()
+
+        gw.update_email_decision("abc-123", "REJECTED")
+
+        _, params = cur.execute.call_args[0]
+        assert params == ("REJECTED", "", "abc-123")
+
+    def test_update_email_decision_output(self):
+        gw, cur = _make_gw()
+
+        gw.update_email_decision_output("abc-123", "new draft text")
+
+        sql, params = cur.execute.call_args[0]
+        assert "UPDATE email_decisions SET output" in sql
+        assert params == ("new draft text", "abc-123")
+
+    def test_get_email_decision_found(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = (
+            "abc-123", "2026-01-01", "SUPPORT_ANSWER", "EMAIL",
+            ["<msg1>"], "reply text", "APPROVED", "admin", "2026-01-02",
+        )
+
+        result = gw.get_email_decision("abc-123")
+
+        assert result is not None
+        assert result["id"] == "abc-123"
+        assert result["task"] == "SUPPORT_ANSWER"
+        assert result["status"] == "APPROVED"
+        assert result["output"] == "reply text"
+        assert result["decided_by"] == "admin"
+
+    def test_get_email_decision_not_found(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = None
+
+        result = gw.get_email_decision("nonexistent")
+
+        assert result is None
+
+
+# ===================================================================
+#  get_thread_message_ids
+# ===================================================================
+
+class TestGetThreadMessageIds:
+
+    def test_returns_message_ids(self):
+        gw, cur = _make_gw()
+        cur.fetchall.return_value = [("<msg1>",), ("<msg2>",), ("<msg3>",)]
+
+        result = gw.get_thread_message_ids("thread-abc")
+
+        assert result == ["<msg1>", "<msg2>", "<msg3>"]
+        sql, params = cur.execute.call_args[0]
+        assert "SELECT message_id FROM email_messages" in sql
+        assert "WHERE thread_id" in sql
+        assert params == ("thread-abc",)
+
+    def test_empty_thread(self):
+        gw, cur = _make_gw()
+        cur.fetchall.return_value = []
+
+        result = gw.get_thread_message_ids("thread-empty")
+
+        assert result == []

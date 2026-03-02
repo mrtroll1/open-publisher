@@ -14,13 +14,17 @@ from common.models import (
     SamozanyatyContractor,
 )
 from telegram_bot.flow_callbacks import (
+    _admin_reply_map,
     _dup_button_label,
     _extract_bot_mention,
+    _format_reply_chain,
     _GROUP_COMMAND_HANDLERS,
     _COMMAND_DESCRIPTIONS,
+    _handle_nl_reply,
     _ROLE_LABELS,
     _save_turn,
     _send_html,
+    handle_admin_reply,
     handle_code_rate_callback,
 )
 from telegram_bot import replies
@@ -497,6 +501,22 @@ class TestSaveTurn:
         assert assistant_call_kwargs["reply_to_id"] == "user-turn-uuid"
 
     @patch("telegram_bot.flow_callbacks._db")
+    def test_save_turn_with_parent_id_links_user_entry(self, mock_db):
+        mock_db.save_conversation.return_value = "user-turn-uuid"
+        msg = _make_message()
+        sent = _make_sent()
+
+        asyncio.run(_save_turn(msg, sent, "hello", "hi back", {}, parent_id="prev-assistant-uuid"))
+
+        calls = mock_db.save_conversation.call_args_list
+        # First call (user turn) links to parent conversation entry
+        user_call_kwargs = calls[0][1]
+        assert user_call_kwargs["reply_to_id"] == "prev-assistant-uuid"
+        # Second call (assistant turn) links to user turn UUID
+        assistant_call_kwargs = calls[1][1]
+        assert assistant_call_kwargs["reply_to_id"] == "user-turn-uuid"
+
+    @patch("telegram_bot.flow_callbacks._db")
     def test_save_turn_channel_detection_dm(self, mock_db):
         mock_db.save_conversation.return_value = "uuid"
         msg = _make_message(chat_type="private")
@@ -555,3 +575,338 @@ class TestSendHtml:
         result = asyncio.run(_send_html(msg, "hello"))
 
         assert result is fake_response
+
+
+# ===================================================================
+#  _format_reply_chain()
+# ===================================================================
+
+class TestFormatReplyChain:
+
+    def test_single_entry(self):
+        chain = [{"role": "assistant", "content": "Привет!"}]
+        assert _format_reply_chain(chain) == "assistant: Привет!"
+
+    def test_multi_turn(self):
+        chain = [
+            {"role": "user", "content": "Привет"},
+            {"role": "assistant", "content": "Здравствуйте!"},
+            {"role": "user", "content": "Как дела?"},
+        ]
+        expected = "user: Привет\nassistant: Здравствуйте!\nuser: Как дела?"
+        assert _format_reply_chain(chain) == expected
+
+    def test_empty_chain(self):
+        assert _format_reply_chain([]) == ""
+
+
+# ===================================================================
+#  _handle_nl_reply()
+# ===================================================================
+
+def _make_nl_message(
+    chat_id=100, user_id=42, message_id=10, text="Какой курс?",
+    reply_message_id=9, reply_text="Предыдущий ответ бота",
+    reply_from_bot=True, chat_type="private",
+):
+    msg = AsyncMock()
+    msg.chat.id = chat_id
+    msg.chat.type = chat_type
+    msg.from_user.id = user_id
+    msg.message_id = message_id
+    msg.text = text
+
+    reply = MagicMock()
+    reply.message_id = reply_message_id
+    reply.text = reply_text
+    reply.from_user = MagicMock()
+    reply.from_user.is_bot = reply_from_bot
+    msg.reply_to_message = reply
+    return msg
+
+
+def _make_state(active=False):
+    state = AsyncMock()
+    state.get_state.return_value = "SomeState:step" if active else None
+    return state
+
+
+class TestHandleNlReply:
+
+    @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
+    @patch("telegram_bot.flow_callbacks._send_html")
+    @patch("telegram_bot.flow_callbacks._save_turn")
+    @patch("telegram_bot.flow_callbacks.GeminiGateway")
+    @patch("telegram_bot.flow_callbacks._get_retriever")
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_happy_path_with_db_conversation(
+        self, mock_db, mock_get_retriever, mock_gemini_cls,
+        mock_save_turn, mock_send_html, mock_bot,
+    ):
+        msg = _make_nl_message()
+        state = _make_state()
+
+        # DB returns a conversation entry
+        mock_db.get_conversation_by_message_id.return_value = {
+            "id": "conv-uuid-1",
+            "role": "assistant",
+            "content": "Предыдущий ответ",
+        }
+        mock_db.get_reply_chain.return_value = [
+            {"role": "user", "content": "Первый вопрос"},
+            {"role": "assistant", "content": "Предыдущий ответ"},
+        ]
+
+        # Retriever
+        retriever = MagicMock()
+        retriever.get_core.return_value = "core knowledge"
+        retriever.retrieve.return_value = "relevant knowledge"
+        mock_get_retriever.return_value = retriever
+
+        # Gemini
+        mock_gemini = MagicMock()
+        mock_gemini.call.return_value = {"reply": "Ответ бота"}
+        mock_gemini_cls.return_value = mock_gemini
+
+        # Send
+        sent_msg = MagicMock()
+        sent_msg.message_id = 11
+        mock_send_html.return_value = sent_msg
+
+        result = asyncio.run(_handle_nl_reply(msg, state))
+
+        assert result is True
+        mock_db.get_conversation_by_message_id.assert_called_once_with(100, 9)
+        mock_db.get_reply_chain.assert_called_once_with("conv-uuid-1", depth=10)
+        mock_gemini.call.assert_called_once()
+        mock_send_html.assert_awaited_once()
+        # Verify reply_to_message_id kwarg
+        send_kwargs = mock_send_html.call_args
+        assert send_kwargs[1]["reply_to_message_id"] == 10
+        mock_save_turn.assert_awaited_once()
+        # Verify parent_id is passed to link conversation chain
+        save_kwargs = mock_save_turn.call_args[1]
+        assert save_kwargs["parent_id"] == "conv-uuid-1"
+
+    @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
+    @patch("telegram_bot.flow_callbacks._send_html")
+    @patch("telegram_bot.flow_callbacks._save_turn")
+    @patch("telegram_bot.flow_callbacks.GeminiGateway")
+    @patch("telegram_bot.flow_callbacks._get_retriever")
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_no_db_record_bootstraps_from_reply_text(
+        self, mock_db, mock_get_retriever, mock_gemini_cls,
+        mock_save_turn, mock_send_html, mock_bot,
+    ):
+        msg = _make_nl_message(text="Расскажи подробнее", reply_text="Вот информация")
+        state = _make_state()
+
+        mock_db.get_conversation_by_message_id.return_value = None
+
+        retriever = MagicMock()
+        retriever.get_core.return_value = ""
+        retriever.retrieve.return_value = "knowledge"
+        mock_get_retriever.return_value = retriever
+
+        mock_gemini = MagicMock()
+        mock_gemini.call.return_value = {"reply": "Подробности"}
+        mock_gemini_cls.return_value = mock_gemini
+
+        sent_msg = MagicMock()
+        mock_send_html.return_value = sent_msg
+
+        result = asyncio.run(_handle_nl_reply(msg, state))
+
+        assert result is True
+        mock_db.get_reply_chain.assert_not_called()
+        # Verify the history was bootstrapped
+        call_args = mock_gemini.call.call_args[0]
+        prompt = call_args[0]
+        assert "assistant: Вот информация" in prompt
+        assert "user: Расскажи подробнее" in prompt
+        # No DB record → parent_id is None
+        save_kwargs = mock_save_turn.call_args[1]
+        assert save_kwargs["parent_id"] is None
+
+    @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
+    @patch("telegram_bot.flow_callbacks.GeminiGateway")
+    @patch("telegram_bot.flow_callbacks._get_retriever")
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_llm_error_returns_false(
+        self, mock_db, mock_get_retriever, mock_gemini_cls, mock_bot,
+    ):
+        msg = _make_nl_message()
+        state = _make_state()
+
+        mock_db.get_conversation_by_message_id.return_value = None
+
+        retriever = MagicMock()
+        retriever.get_core.return_value = ""
+        retriever.retrieve.return_value = ""
+        mock_get_retriever.return_value = retriever
+
+        mock_gemini = MagicMock()
+        mock_gemini.call.side_effect = RuntimeError("Gemini down")
+        mock_gemini_cls.return_value = mock_gemini
+
+        result = asyncio.run(_handle_nl_reply(msg, state))
+
+        assert result is False
+
+    def test_fsm_state_active_returns_false(self):
+        msg = _make_nl_message()
+        state = _make_state(active=True)
+
+        result = asyncio.run(_handle_nl_reply(msg, state))
+
+        assert result is False
+
+    def test_no_reply_returns_false(self):
+        msg = AsyncMock()
+        msg.reply_to_message = None
+        state = _make_state()
+
+        result = asyncio.run(_handle_nl_reply(msg, state))
+
+        assert result is False
+
+    def test_reply_not_from_bot_returns_false(self):
+        msg = _make_nl_message(reply_from_bot=False)
+        state = _make_state()
+
+        result = asyncio.run(_handle_nl_reply(msg, state))
+
+        assert result is False
+
+    @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
+    @patch("telegram_bot.flow_callbacks._send_html")
+    @patch("telegram_bot.flow_callbacks._save_turn")
+    @patch("telegram_bot.flow_callbacks.GeminiGateway")
+    @patch("telegram_bot.flow_callbacks._get_retriever")
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_reply_chain_formatting_in_history(
+        self, mock_db, mock_get_retriever, mock_gemini_cls,
+        mock_save_turn, mock_send_html, mock_bot,
+    ):
+        msg = _make_nl_message(text="Третий вопрос")
+        state = _make_state()
+
+        mock_db.get_conversation_by_message_id.return_value = {"id": "conv-3"}
+        mock_db.get_reply_chain.return_value = [
+            {"role": "user", "content": "Первый вопрос"},
+            {"role": "assistant", "content": "Первый ответ"},
+            {"role": "user", "content": "Второй вопрос"},
+            {"role": "assistant", "content": "Второй ответ"},
+        ]
+
+        retriever = MagicMock()
+        retriever.get_core.return_value = ""
+        retriever.retrieve.return_value = ""
+        mock_get_retriever.return_value = retriever
+
+        mock_gemini = MagicMock()
+        mock_gemini.call.return_value = {"reply": "Третий ответ"}
+        mock_gemini_cls.return_value = mock_gemini
+
+        sent_msg = MagicMock()
+        mock_send_html.return_value = sent_msg
+
+        asyncio.run(_handle_nl_reply(msg, state))
+
+        prompt = mock_gemini.call.call_args[0][0]
+        assert "user: Первый вопрос" in prompt
+        assert "assistant: Первый ответ" in prompt
+        assert "user: Второй вопрос" in prompt
+        assert "assistant: Второй ответ" in prompt
+        assert "user: Третий вопрос" in prompt
+
+    @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
+    @patch("telegram_bot.flow_callbacks._send_html")
+    @patch("telegram_bot.flow_callbacks._save_turn")
+    @patch("telegram_bot.flow_callbacks.GeminiGateway")
+    @patch("telegram_bot.flow_callbacks._get_retriever")
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_long_answer_truncated(
+        self, mock_db, mock_get_retriever, mock_gemini_cls,
+        mock_save_turn, mock_send_html, mock_bot,
+    ):
+        msg = _make_nl_message()
+        state = _make_state()
+
+        mock_db.get_conversation_by_message_id.return_value = None
+
+        retriever = MagicMock()
+        retriever.get_core.return_value = ""
+        retriever.retrieve.return_value = ""
+        mock_get_retriever.return_value = retriever
+
+        long_answer = "x" * 5000
+        mock_gemini = MagicMock()
+        mock_gemini.call.return_value = {"reply": long_answer}
+        mock_gemini_cls.return_value = mock_gemini
+
+        sent_msg = MagicMock()
+        mock_send_html.return_value = sent_msg
+
+        asyncio.run(_handle_nl_reply(msg, state))
+
+        # Check the text sent is truncated to 4000
+        sent_text = mock_send_html.call_args[0][1]
+        assert len(sent_text) == 4000
+
+
+# ===================================================================
+#  handle_admin_reply routing — legium forwarding priority
+# ===================================================================
+
+class TestAdminReplyRouting:
+
+    @patch("telegram_bot.flow_callbacks._handle_nl_reply")
+    def test_legium_forwarding_takes_priority(self, mock_nl_reply):
+        """When _admin_reply_map has an entry, legium forwarding runs, NL reply is NOT called."""
+        msg = AsyncMock()
+        msg.chat.id = 100
+        msg.text = "https://legium.io/doc/123"
+        msg.from_user.id = 1
+
+        reply = MagicMock()
+        reply.message_id = 50
+        msg.reply_to_message = reply
+
+        state = _make_state()
+
+        # Register in admin_reply_map
+        _admin_reply_map[(100, 50)] = ("", "contractor-1")
+
+        with patch("telegram_bot.flow_callbacks.update_legium_link"):
+            asyncio.run(handle_admin_reply(msg, state))
+
+        mock_nl_reply.assert_not_awaited()
+
+        # Clean up
+        _admin_reply_map.pop((100, 50), None)
+
+    @patch("telegram_bot.flow_callbacks._handle_nl_reply")
+    def test_nl_reply_called_when_no_legium_entry(self, mock_nl_reply):
+        """When _admin_reply_map has no entry, NL reply fallback is called."""
+        msg = AsyncMock()
+        msg.chat.id = 200
+        msg.text = "Какой вопрос"
+
+        reply = MagicMock()
+        reply.message_id = 60
+        msg.reply_to_message = reply
+
+        state = _make_state()
+
+        asyncio.run(handle_admin_reply(msg, state))
+
+        mock_nl_reply.assert_awaited_once_with(msg, state)
+
+    def test_no_reply_message_returns_early(self):
+        msg = AsyncMock()
+        msg.reply_to_message = None
+        state = _make_state()
+
+        # Should not raise
+        asyncio.run(handle_admin_reply(msg, state))

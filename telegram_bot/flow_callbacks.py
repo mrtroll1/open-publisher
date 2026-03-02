@@ -70,6 +70,7 @@ from backend import (
 from telegram_bot import replies
 from telegram_bot.bot_helpers import bot, get_contractors, is_admin, md_to_tg_html, prev_month
 from backend.domain import compose_request
+from backend.domain.compose_request import _get_retriever
 from backend.domain.compute_budget import ComputeBudget
 from backend.domain.healthcheck import run_healthchecks, format_healthcheck_results
 from backend.domain.inbox_service import InboxService
@@ -108,8 +109,14 @@ async def _send_html(message: types.Message, text: str, **kwargs) -> types.Messa
 async def _save_turn(
     message: types.Message, sent: types.Message,
     user_text: str, bot_text: str, metadata: dict,
+    parent_id: str | None = None,
 ) -> None:
-    """Save user+assistant conversation turn to DB. Never raises."""
+    """Save user+assistant conversation turn to DB. Never raises.
+
+    Args:
+        parent_id: conversation entry id of the message being replied to.
+                   Links the user entry into an existing reply chain.
+    """
     try:
         channel = "group" if message.chat.type in ("group", "supergroup") else "dm"
         meta = {**metadata, "channel": channel}
@@ -117,6 +124,7 @@ async def _save_turn(
             _db.save_conversation,
             chat_id=message.chat.id, user_id=message.from_user.id,
             role="user", content=user_text,
+            reply_to_id=parent_id,
             message_id=message.message_id, metadata=meta,
         )
         await asyncio.to_thread(
@@ -556,41 +564,118 @@ async def cmd_generate(message: types.Message, state: FSMContext) -> None:
 
 
 async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
-    """Forward admin's reply (Legium link) to the contractor and mark invoice as SENT."""
+    """Routing chain for admin replies: Legium forwarding → (Phase 6: support draft) → NL reply."""
     reply = message.reply_to_message
     if not reply:
         return
+
+    # 1. Legium forwarding (existing behavior)
     key = (message.chat.id, reply.message_id)
     entry = _admin_reply_map.get(key)
-    if not entry:
-        return
-    contractor_tg, contractor_id = entry
-    try:
-        url = message.text.strip()
-        month = prev_month()
-        if contractor_tg:
-            caption = replies.invoice.legium_link.format(url=url)
-            contractors = await get_contractors()
-            contractor = find_contractor_by_id(contractor_id, contractors)
-            prepared = await asyncio.to_thread(prepare_existing_invoice, contractor, month) if contractor else None
-            if prepared:
-                filename = f"{contractor.display_name}+Unsigned.pdf"
-                doc = BufferedInputFile(prepared.pdf_bytes, filename=filename)
-                await bot.send_document(int(contractor_tg), doc, caption=caption)
+    if entry:
+        contractor_tg, contractor_id = entry
+        try:
+            url = message.text.strip()
+            month = prev_month()
+            if contractor_tg:
+                caption = replies.invoice.legium_link.format(url=url)
+                contractors = await get_contractors()
+                contractor = find_contractor_by_id(contractor_id, contractors)
+                prepared = await asyncio.to_thread(prepare_existing_invoice, contractor, month) if contractor else None
+                if prepared:
+                    filename = f"{contractor.display_name}+Unsigned.pdf"
+                    doc = BufferedInputFile(prepared.pdf_bytes, filename=filename)
+                    await bot.send_document(int(contractor_tg), doc, caption=caption)
+                else:
+                    await bot.send_message(int(contractor_tg), caption)
+                await asyncio.to_thread(
+                    update_legium_link, contractor_id, month, url,
+                )
+                await message.answer(replies.invoice.legium_sent)
             else:
-                await bot.send_message(int(contractor_tg), caption)
-            await asyncio.to_thread(
-                update_legium_link, contractor_id, month, url,
+                await asyncio.to_thread(
+                    update_legium_link, contractor_id, month, url, mark_sent=False,
+                )
+                await message.answer(replies.invoice.legium_saved)
+            del _admin_reply_map[key]
+        except Exception as e:
+            await message.answer(replies.invoice.legium_send_error.format(error=e))
+        return
+
+    # 2. (Phase 6 placeholder: _support_draft_map check will go here)
+
+    # 3. NL conversation fallback
+    await _handle_nl_reply(message, state)
+
+
+def _format_reply_chain(chain: list[dict]) -> str:
+    parts = []
+    for entry in chain:
+        role = entry["role"]
+        content = entry["content"]
+        parts.append(f"{role}: {content}")
+    return "\n".join(parts)
+
+
+async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
+    """Handle a conversational NL reply to a bot message. Returns True on success."""
+    # Guard: skip if FSM state is active
+    if await state.get_state() is not None:
+        return False
+
+    reply = message.reply_to_message
+    if not reply:
+        return False
+
+    # Guard: only trigger for replies to BOT messages
+    if not reply.from_user or not reply.from_user.is_bot:
+        return False
+
+    try:
+        await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+
+        # Build conversation history
+        conv_entry = await asyncio.to_thread(
+            _db.get_conversation_by_message_id, message.chat.id, reply.message_id,
+        )
+
+        if conv_entry:
+            chain = await asyncio.to_thread(
+                _db.get_reply_chain, conv_entry["id"], depth=10,
             )
-            await message.answer(replies.invoice.legium_sent)
+            history = _format_reply_chain(chain)
+            history += f"\nuser: {message.text}"
         else:
-            await asyncio.to_thread(
-                update_legium_link, contractor_id, month, url, mark_sent=False,
-            )
-            await message.answer(replies.invoice.legium_saved)
-        del _admin_reply_map[key]
-    except Exception as e:
-        await message.answer(replies.invoice.legium_send_error.format(error=e))
+            # Bootstrap from reply text
+            reply_text = reply.text or ""
+            history = f"assistant: {reply_text}\nuser: {message.text}"
+
+        # Retrieve knowledge context
+        retriever = _get_retriever()
+        core = await asyncio.to_thread(retriever.get_core)
+        relevant = await asyncio.to_thread(retriever.retrieve, message.text)
+        knowledge_context = core + "\n\n" + relevant if core else relevant
+
+        # Call LLM
+        prompt, model, _ = compose_request.conversation_reply(
+            message.text, history, knowledge_context,
+        )
+        gemini = GeminiGateway()
+        result = await asyncio.to_thread(gemini.call, prompt, model)
+        answer = result.get("reply", str(result))
+
+        # Truncate if needed
+        if len(answer) > 4000:
+            answer = answer[:4000]
+
+        sent = await _send_html(message, answer, reply_to_message_id=message.message_id)
+        parent_id = conv_entry["id"] if conv_entry else None
+        await _save_turn(message, sent, message.text, answer, {"command": "nl_reply"},
+                         parent_id=parent_id)
+        return True
+    except Exception:
+        logger.exception("NL reply failed")
+        return False
 
 
 async def cmd_chatid(message: types.Message, state: FSMContext) -> None:
@@ -926,6 +1011,9 @@ async def handle_group_message(
         return
 
     if not result.classified:
+        if is_reply_to_bot:
+            if await _handle_nl_reply(message, state):
+                return
         if result.reply:
             sent = await _send_html(message, result.reply)
             await _save_turn(message, sent, clean_text, result.reply,

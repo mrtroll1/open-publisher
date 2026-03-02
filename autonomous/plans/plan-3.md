@@ -246,44 +246,44 @@ Three tiers of knowledge, all in PostgreSQL:
 
 ### 5.1 Reply routing chain in `handle_admin_reply`
 
-- [ ] Modify `handle_admin_reply` to be a routing chain:
+- [x] Modify `handle_admin_reply` to be a routing chain:
   ```
   1. Check _admin_reply_map → Legium forwarding (existing)
   2. Check _support_draft_map → Email draft feedback (Phase 6)
   3. Default → _handle_nl_reply (NL conversation)
   ```
-- [ ] Guard: skip NL if FSM state is active (`await state.get_state() is not None`)
-- [ ] Guard: only trigger for replies to BOT messages (`reply.from_user.is_bot`)
+- [x] Guard: skip NL if FSM state is active (`await state.get_state() is not None`)
+- [x] Guard: only trigger for replies to BOT messages (`reply.from_user.is_bot`)
 
 **Files**: `telegram_bot/flow_callbacks.py`
 
 ### 5.2 Implement `_handle_nl_reply`
 
-- [ ] Query `conversations` table for reply chain context
-- [ ] If no DB record, bootstrap from `reply.reply_to_message.text`
-- [ ] Retrieve relevant knowledge via `KnowledgeRetriever.retrieve(question)`
-- [ ] Format conversation history for prompt
-- [ ] Call LLM via `compose_request.conversation_reply()`
-- [ ] Reply to user's message with `reply_to_message_id=message.message_id` (maintains visual chain)
-- [ ] Save both turns to `conversations` table with `reply_to_id` linking
-- [ ] Truncate answer to 4000 chars if needed
+- [x] Query `conversations` table for reply chain context
+- [x] If no DB record, bootstrap from `reply.reply_to_message.text`
+- [x] Retrieve relevant knowledge via `KnowledgeRetriever.retrieve(question)`
+- [x] Format conversation history for prompt
+- [x] Call LLM via `compose_request.conversation_reply()`
+- [x] Reply to user's message with `reply_to_message_id=message.message_id` (maintains visual chain)
+- [x] Save both turns to `conversations` table with `reply_to_id` linking
+- [x] Truncate answer to 4000 chars if needed
 
 **Files**: `telegram_bot/flow_callbacks.py`
 
 ### 5.3 Group chat integration
 
-- [ ] In `handle_group_message`, when `not result.classified` and `is_reply_to_bot`: call `_handle_nl_reply` instead of showing generic classifier reply
-- [ ] If `_handle_nl_reply` returns False (guards failed), fall back to existing behavior
+- [x] In `handle_group_message`, when `not result.classified` and `is_reply_to_bot`: call `_handle_nl_reply` instead of showing generic classifier reply
+- [x] If `_handle_nl_reply` returns False (guards failed), fall back to existing behavior
 
 **Files**: `telegram_bot/flow_callbacks.py`
 
 ### 5.4 Tests
 
-- [ ] Test `_handle_nl_reply` with mocked DB and LLM
-- [ ] Test reply chain context building
-- [ ] Test that legium forwarding still works (priority 1)
-- [ ] Test that FSM states are respected
-- [ ] Run full test suite
+- [x] Test `_handle_nl_reply` with mocked DB and LLM — 7 tests in TestHandleNlReply
+- [x] Test reply chain context building — 3 tests in TestFormatReplyChain
+- [x] Test that legium forwarding still works (priority 1) — 3 tests in TestAdminReplyRouting
+- [x] Test that FSM states are respected — included in TestHandleNlReply
+- [x] Run full test suite — 940 tests pass
 
 ---
 

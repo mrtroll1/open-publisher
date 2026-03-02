@@ -1363,8 +1363,55 @@ Phase 3.4 — Tests:
 - Individual handlers (cmd_support, cmd_code) detect channel type themselves via `_save_turn`, so group message handler doesn't need separate saving logic
 - `get_reply_chain` uses `cur.description` for column names, matching the `get_conversation_by_message_id` pattern
 
+### Session 46 (2026-03-03) — Plan 3 Phase 5: Conversation NL Reply (Reply-to-Bot)
+**Status:** Complete (all items: 5.1, 5.2, 5.3, 5.4)
+
+**What was done:**
+
+Phase 5.1 — Reply routing chain in `handle_admin_reply`:
+- Restructured `handle_admin_reply` into a routing chain with 3 priority levels:
+  1. `_admin_reply_map` → Legium forwarding (existing, returns early)
+  2. Phase 6 placeholder comment for `_support_draft_map`
+  3. Default → `_handle_nl_reply()` NL conversation fallback
+
+Phase 5.2 — `_handle_nl_reply` implementation:
+- Created `_format_reply_chain(chain) -> str` — formats conversation entries as `role: content` lines
+- Created `_handle_nl_reply(message, state) -> bool`:
+  - Guards: FSM state active → False, no reply → False, reply not from bot → False
+  - TYPING indicator sent before LLM call
+  - DB lookup for conversation entry by `(chat_id, message_id)`
+  - If found: fetches reply chain, formats history, passes `parent_id` for chain linking
+  - If not found: bootstraps from `reply.text` with 2-line history
+  - Knowledge retrieval: `_get_retriever()` → `get_core()` + `retrieve(message.text)`
+  - LLM call: `compose_request.conversation_reply()` + `GeminiGateway().call()` via `asyncio.to_thread`
+  - Reply: truncated to 4000 chars, sent via `_send_html` with `reply_to_message_id`
+  - Saves both turns via `_save_turn` with `{"command": "nl_reply"}` metadata
+  - Error handling: entire LLM path wrapped in try/except, returns False on failure
+
+Phase 5.3 — Group chat integration:
+- When command classification returns no match AND `is_reply_to_bot`: calls `_handle_nl_reply` first
+- If returns False, falls back to existing behavior (show classifier reply)
+- When just a mention (not reply-to-bot), behavior unchanged
+
+Phase 5.4 — Tests:
+- `TestFormatReplyChain` (3 tests): single/multi/empty chain formatting
+- `TestHandleNlReply` (7 tests): happy path with DB, bootstrap without DB, LLM error, FSM guard, no-reply guard, not-from-bot guard, truncation
+- `TestAdminReplyRouting` (3 tests): legium priority, NL fallback, no-reply early return
+- 1 additional test for `_save_turn` `parent_id` linking
+
+**Review fix applied:**
+- Added `parent_id: str | None = None` parameter to `_save_turn()` — without this, multi-turn chains would break because `get_reply_chain()` couldn't walk back past one turn. `_handle_nl_reply` passes `conv_entry["id"]` when DB record exists.
+
+**Net result:** 15 new tests (940 total), all passing in ~1.8s
+
+**Notes:**
+- `_get_retriever` imported from `backend.domain.compose_request` (private function import, but consistent with test patching)
+- `GeminiGateway()` creates new instance per NL reply call (same pattern as cmd_nl)
+- `handle_admin_reply` is registered for admin users only — no separate admin check in `_handle_nl_reply`
+- Group chat NL reply works for both @mention and reply-to-bot scenarios
+
 ## Next up
 
-- Plan 3 Phase 5: Conversation NL Reply (reply-to-bot routing, _handle_nl_reply, group chat integration)
+- Plan 3 Phase 6: Learning from Admin Feedback (draft tracking, reply handling, knowledge storage)
 - Phase 2.4 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

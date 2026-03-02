@@ -119,4 +119,5 @@ from backend.domain.parse_bank_statement import ParseBankStatement  # noqa: F401
 from backend.domain.compute_budget import ComputeBudget  # noqa: F401
 from backend.domain.inbox_service import InboxService  # noqa: F401
 from backend.domain.tech_support_handler import TechSupportHandler  # noqa: F401
+from backend.domain.code_runner import run_claude_code  # noqa: F401
 from backend.domain.healthcheck import run_healthchecks, format_healthcheck_results  # noqa: F401

@@ -41,6 +41,7 @@ from telegram_bot.flow_callbacks import (
     cmd_generate,
     cmd_health,
     cmd_tech_support,
+    cmd_code,
     cmd_budget,
     cmd_generate_invoices,
     cmd_send_global_invoices,
@@ -230,6 +231,12 @@ admin_commands = [
         description="Задать вопрос по техподдержке",
         handler=cmd_tech_support,
         usage="/tech_support [-v] <вопрос>",
+    ),
+    AdminCommand(
+        command="code",
+        description="Запустить Claude Code",
+        handler=cmd_code,
+        usage="/code [-v] <запрос>",
     ),
 ]
 

@@ -72,6 +72,7 @@ from backend.domain.compute_budget import ComputeBudget
 from backend.domain.healthcheck import run_healthchecks, format_healthcheck_results
 from backend.domain.inbox_service import InboxService
 from backend.domain.parse_bank_statement import ParseBankStatement
+from backend.domain.code_runner import run_claude_code
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.gateways.repo_gateway import RepoGateway
 
@@ -570,6 +571,31 @@ async def cmd_tech_support(message: types.Message, state: FSMContext) -> None:
         await message.answer(answer)
     except Exception as e:
         logger.exception("Tech support question failed")
+        await message.answer(f"Ошибка: {e}")
+
+
+async def cmd_code(message: types.Message, state: FSMContext) -> None:
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2 or not args[1].strip():
+        await message.answer("Использование: /code <запрос>\nФлаги: -v для подробного ответа")
+        return
+
+    text = args[1].strip()
+    verbose = False
+    if text.startswith("-v ") or text.startswith("verbose "):
+        verbose = True
+        text = text.split(None, 1)[1] if " " in text else ""
+        if not text:
+            await message.answer("Укажите запрос после флага -v")
+            return
+
+    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+
+    try:
+        answer = await asyncio.to_thread(run_claude_code, text, verbose)
+        await message.answer(answer)
+    except Exception as e:
+        logger.exception("Claude Code execution failed")
         await message.answer(f"Ошибка: {e}")
 
 

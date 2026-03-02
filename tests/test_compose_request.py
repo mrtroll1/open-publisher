@@ -11,6 +11,7 @@ from backend.domain.compose_request import (
     support_email_with_context,
     support_triage,
     tech_search_terms,
+    tech_support_question,
     translate_name,
 )
 
@@ -136,3 +137,29 @@ class TestPromptContent:
     def test_support_triage_contains_email(self):
         prompt, _, _ = support_triage("The user has billing issues")
         assert "The user has billing issues" in prompt
+
+
+# ===================================================================
+#  tech_support_question()
+# ===================================================================
+
+class TestTechSupportQuestion:
+
+    def test_returns_tuple(self):
+        prompt, model, keys = tech_support_question("how to deploy?")
+        assert isinstance(prompt, str)
+        assert isinstance(model, str)
+        assert isinstance(keys, list)
+        assert keys == ["answer"]
+
+    def test_prompt_contains_question(self):
+        prompt, _, _ = tech_support_question("how to restart nginx?")
+        assert "how to restart nginx?" in prompt
+
+    def test_verbose_text_included(self):
+        prompt_verbose, _, _ = tech_support_question("q", verbose=True)
+        assert "развёрнутый" in prompt_verbose
+
+    def test_code_context_included(self):
+        prompt, _, _ = tech_support_question("q", code_context="def foo(): pass")
+        assert "def foo(): pass" in prompt

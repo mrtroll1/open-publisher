@@ -669,6 +669,35 @@ _None yet._
 - `/tech_support` code context fetch is wrapped in try/except — silently continues without code if repos aren't available
 - All 526 tests pass
 
+### Session 26 (2026-03-02) — Plan 2 Phase 2.3 + 2.5: /code command + Phase 2 tests
+**Status:** Complete (all Phase 2 items done)
+
+**What was done:**
+- Created `backend/domain/code_runner.py`:
+  - `run_claude_code(prompt, verbose=False) -> str` — runs Claude CLI as subprocess
+  - `subprocess.run(["claude", "-p", prompt, "--max-turns", "5"], cwd=REPOS_DIR, timeout=300)`
+  - When not verbose, prepends `_CONCISE_PREFIX` (Russian instruction for Telegram-friendly output)
+  - Truncates output to 4000 chars
+  - Handles TimeoutExpired, FileNotFoundError, generic exceptions — returns error strings, never raises
+- Added `cmd_code` handler in `flow_callbacks.py` (same pattern as `cmd_tech_support`)
+- Registered `/code` as AdminCommand in `flows.py`
+- Updated `Dockerfile`: added Node.js 20 + `@anthropic-ai/claude-code` installation
+- Re-exported `run_claude_code` from `backend/__init__.py`
+
+**Phase 2.5 Tests:**
+- Created `tests/test_healthcheck.py` — 15 tests (HTTP up/down/exception, multiple domains, kubectl running/error/disabled, format output)
+- Created `tests/test_code_runner.py` — 9 tests (success, verbose flag, concise prefix, truncation, stderr fallback, empty output, timeout, file not found, exception)
+- Extended `tests/test_compose_request.py` — 4 tests for `tech_support_question` (tuple structure, question in prompt, verbose text, code context)
+- Extended `tests/test_tech_support_handler.py` — 1 test confirming `_fetch_code_context` is NOT called from `draft_reply()`
+
+**Net result:** 29 new tests (555 total), all passing in ~1.3s
+
+**Notes:**
+- Phase 2 is now fully complete (2.1-2.5 all checked off)
+- `/code` command imports `run_claude_code` directly in `flow_callbacks.py` (not through `backend/__init__`)
+- Claude CLI needs `ANTHROPIC_API_KEY` in environment (already in config.py)
+- Dockerfile now has a second `RUN` layer for Node.js/Claude CLI (~200MB addition)
+
 ## Next up
 
-- Plan 2 Phase 2.3: /code command (next session)
+- Plan 2 Phase 3: Natural Language Bot + Groupchat Support (Phase 3.1 first)

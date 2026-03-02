@@ -112,17 +112,17 @@ Currently `skip_support()` pops from memory dict — the draft vanishes.
 
 ### 2.3 /code command
 
-- [ ] Create `backend/domain/code_runner.py` with `run_claude_code(prompt, verbose=False) -> str`
-  - [ ] Use `subprocess.run(["claude", "-p", prompt, "--max-turns", "5"], capture_output=True, cwd=REPOS_DIR, timeout=300)`
-  - [ ] Prepend system instruction for concise Telegram output (omit if verbose)
-  - [ ] Truncate output to 4000 chars for Telegram
-- [ ] Add `cmd_code` handler in `flow_callbacks.py`:
-  - [ ] Extract text after `/code`
-  - [ ] Parse verbose flag
-  - [ ] Run in thread, reply with result
-- [ ] Register `/code` as `AdminCommand` in `flows.py`
-- [ ] Update `Dockerfile` to install Claude CLI (node + `@anthropic-ai/claude-code`)
-- [ ] Re-export from `backend/__init__.py`
+- [x] Create `backend/domain/code_runner.py` with `run_claude_code(prompt, verbose=False) -> str`
+  - [x] Use `subprocess.run(["claude", "-p", prompt, "--max-turns", "5"], capture_output=True, cwd=REPOS_DIR, timeout=300)`
+  - [x] Prepend system instruction for concise Telegram output (omit if verbose)
+  - [x] Truncate output to 4000 chars for Telegram
+- [x] Add `cmd_code` handler in `flow_callbacks.py`:
+  - [x] Extract text after `/code`
+  - [x] Parse verbose flag
+  - [x] Run in thread, reply with result
+- [x] Register `/code` as `AdminCommand` in `flows.py`
+- [x] Update `Dockerfile` to install Claude CLI (node + `@anthropic-ai/claude-code`)
+- [x] Re-export from `backend/__init__.py`
 
 **Files**: `backend/domain/code_runner.py` (new), `telegram_bot/flow_callbacks.py`, `telegram_bot/flows.py`, `Dockerfile`, `backend/__init__.py`
 
@@ -136,14 +136,14 @@ Currently `skip_support()` pops from memory dict — the draft vanishes.
 
 ### 2.5 Tests for Phase 2
 
-- [ ] Test `run_healthchecks()` with mocked HTTP responses (up/down scenarios)
-- [ ] Test `run_healthchecks()` with mocked kubectl subprocess
-- [ ] Test `format_healthcheck_results()` output formatting
-- [ ] Test `tech_support_question()` prompt composition
-- [ ] Test `run_claude_code()` with mocked subprocess (success + timeout + error)
-- [ ] Test verbose flag parsing for both commands
-- [ ] Test that `draft_reply()` no longer includes code context
-- [ ] Run full test suite, verify no regressions
+- [x] Test `run_healthchecks()` with mocked HTTP responses (up/down scenarios)
+- [x] Test `run_healthchecks()` with mocked kubectl subprocess
+- [x] Test `format_healthcheck_results()` output formatting
+- [x] Test `tech_support_question()` prompt composition
+- [x] Test `run_claude_code()` with mocked subprocess (success + timeout + error)
+- [x] Test verbose flag parsing for both commands
+- [x] Test that `draft_reply()` no longer includes code context
+- [x] Run full test suite, verify no regressions
 
 **Files**: `tests/test_healthcheck.py` (new), `tests/test_code_runner.py` (new), `tests/test_compose_request.py` (extend), `tests/test_tech_support_handler.py` (extend)
 

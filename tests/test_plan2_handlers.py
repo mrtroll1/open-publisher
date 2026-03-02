@@ -500,7 +500,7 @@ class TestCmdTechSupport:
         asyncio.run(cmd_tech_support(msg, state))
 
         answer = msg.answer.call_args[0][0]
-        assert "Ошибка" in answer
+        assert "Не удалось" in answer
 
 
 # ===================================================================
@@ -829,7 +829,7 @@ class TestCmdCode:
         asyncio.run(cmd_code(msg, state))
 
         answer = msg.answer.call_args[0][0]
-        assert "Ошибка" in answer
+        assert "Не удалось" in answer
 
     @patch("telegram_bot.flow_callbacks.DbGateway")
     @patch("telegram_bot.flow_callbacks.run_claude_code")

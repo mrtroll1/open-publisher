@@ -994,9 +994,32 @@ Phase 5.4 — Remaining tests:
 - `_find_contractor_or_suggest()` is async because `get_contractors()` is async
 - All refactors preserve existing public behavior and function signatures
 
+### Session 35 (2026-03-02) — Maintenance: Polish UX (bot reply texts)
+**Status:** Complete
+
+**What was done:**
+- Reviewed all user-facing Telegram bot text for typos, grammar, inconsistency, and UX issues
+- Fixed 5 grammar/punctuation issues in `replies.py`:
+  - `wrong_code`: added trailing period
+  - `invoice_ready`: fixed grammatical gender ("готова" → "готов" for masculine "счёт-оферта"), capitalized "Легиум"
+  - `add_prompt`: removed stray space before `\n`, replaced colon with period
+  - `amount_prompt`/`amount_invalid`: replaced formal "иную" with natural "другую", added guillemets around «ок»
+  - `no_changes`: improved from "Изменений не найдено" to actionable "Не удалось распознать изменения. Попробуйте ещё раз или отправьте «отмена»."
+- Centralized 10 hardcoded Russian strings from `flow_callbacks.py` to `replies.py`:
+  - `admin.articles_usage`, `admin.lookup_usage`, `admin.tech_support_usage`, `admin.tech_support_no_question`, `admin.tech_support_error`, `admin.code_usage`, `admin.code_no_query`, `admin.code_error`, `admin.orphans_none`, `admin.orphans_found`
+- Stopped exposing raw Python exceptions to users in `cmd_tech_support` and `cmd_code` — now show friendly error messages
+- Added missing TYPING chat action in `handle_manage_redirects` (was loading sheet data without feedback)
+- Updated 2 test assertions in `test_plan2_handlers.py` to match new error text
+
+**Net result:** 738 tests pass, +11 lines net
+
+**Notes:**
+- Remaining hardcoded strings in `flow_callbacks.py` are mostly dynamic format strings that are hard to template (contractor-specific output). Not worth centralizing.
+- `_test_ternary.py` stray file still needs manual deletion (rm blocked by security policy)
+
 ## Next up
 
 - Plan 2 is complete through Phase 5. Phase 6 deferred (see plan notes).
-- Continue maintenance mode: spot bugs, polish UX, improve prompts, then more tests.
+- Continue maintenance mode: improve prompts, then more tests or spot bugs round 2.
 - Remaining high-value test gaps: generate_invoice.py, generate_batch_invoices.py, prepare_invoice.py (all require DocsGateway/DriveGateway mocking)
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

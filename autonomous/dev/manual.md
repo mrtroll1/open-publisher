@@ -18,3 +18,7 @@
 - Claude CLI runs in `REPOS_DIR` (`/opt/repos` by default), so it has access to cloned repos.
 - The command has a 5-minute timeout and limits Claude to 5 agent turns.
 - Use `/code -v <prompt>` for verbose output (no concise-output instruction prepended).
+
+## Cleanup:
+
+- Delete `_test_ternary.py` from project root — empty stray file, `rm` blocked by agent security policy.

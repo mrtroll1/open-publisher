@@ -202,6 +202,7 @@ async def handle_manage_redirects(message: types.Message, state: FSMContext) -> 
     if not contractor or contractor.role_code != RoleCode.REDAKTOR:
         await message.answer(replies.start.contractor)
         return
+    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
     rules = await asyncio.to_thread(find_redirect_rules_by_target, contractor.id)
     text, markup = _editor_sources_content(rules)
     await message.answer(text, reply_markup=markup)
@@ -560,12 +561,12 @@ def _answer_tech_question(question: str, verbose: bool) -> str:
 async def cmd_tech_support(message: types.Message, state: FSMContext) -> None:
     args = message.text.split(maxsplit=1)
     if len(args) < 2 or not args[1].strip():
-        await message.answer("Использование: /tech_support <вопрос>\nФлаги: -v для подробного ответа")
+        await message.answer(replies.admin.tech_support_usage)
         return
 
     verbose, text = _parse_verbose_flag(args[1].strip())
     if not text:
-        await message.answer("Укажите вопрос после флага -v")
+        await message.answer(replies.admin.tech_support_no_question)
         return
 
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
@@ -577,18 +578,18 @@ async def cmd_tech_support(message: types.Message, state: FSMContext) -> None:
         await message.answer(answer)
     except Exception as e:
         logger.exception("Tech support question failed")
-        await message.answer(f"Ошибка: {e}")
+        await message.answer(replies.admin.tech_support_error)
 
 
 async def cmd_code(message: types.Message, state: FSMContext) -> None:
     args = message.text.split(maxsplit=1)
     if len(args) < 2 or not args[1].strip():
-        await message.answer("Использование: /code <запрос>\nФлаги: -v для подробного ответа")
+        await message.answer(replies.admin.code_usage)
         return
 
     verbose, text = _parse_verbose_flag(args[1].strip())
     if not text:
-        await message.answer("Укажите запрос после флага -v")
+        await message.answer(replies.admin.code_no_query)
         return
 
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
@@ -614,7 +615,7 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
         await message.answer(answer, reply_markup=reply_markup)
     except Exception as e:
         logger.exception("Claude Code execution failed")
-        await message.answer(f"Ошибка: {e}")
+        await message.answer(replies.admin.code_error)
 
 
 _ROLE_LABELS = {
@@ -633,7 +634,7 @@ _TYPE_LABELS = {
 async def cmd_articles(message: types.Message, state: FSMContext) -> None:
     args = message.text.split(maxsplit=2)
     if len(args) < 2:
-        await message.answer("Использование: /articles <имя> [YYYY-MM]")
+        await message.answer(replies.admin.articles_usage)
         return
 
     raw_name = args[1].strip()
@@ -647,7 +648,7 @@ async def cmd_articles(message: types.Message, state: FSMContext) -> None:
     articles = await asyncio.to_thread(fetch_articles, contractor, month)
 
     if not articles:
-        await message.answer(f"У {contractor.display_name} нет публикаций за {month}.")
+        await message.answer(replies.invoice.no_articles.format(name=contractor.display_name, month=month))
         return
 
     role_label = _ROLE_LABELS.get(contractor.role_code, contractor.role_code.value)
@@ -664,7 +665,7 @@ async def cmd_articles(message: types.Message, state: FSMContext) -> None:
 async def cmd_lookup(message: types.Message, state: FSMContext) -> None:
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
-        await message.answer("Использование: /lookup <имя>")
+        await message.answer(replies.admin.lookup_usage)
         return
 
     raw_name = args[1].strip()
@@ -1022,11 +1023,11 @@ async def cmd_orphan_contractors(message: types.Message, state: FSMContext) -> N
     orphans = sorted(n for n in budget_amounts if n not in contractor_names)
 
     if not orphans:
-        await message.answer(f"Все записи в бюджете за {month} совпадают с контрагентами.")
+        await message.answer(replies.admin.orphans_none.format(month=month))
         return
 
     lines = "\n".join(f"  - {n}" for n in orphans)
-    await message.answer(f"В бюджете за {month}, но нет привязанного контрагента ({len(orphans)}):\n{lines}")
+    await message.answer(replies.admin.orphans_found.format(month=month, count=len(orphans), lines=lines))
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

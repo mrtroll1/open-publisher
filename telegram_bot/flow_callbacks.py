@@ -502,12 +502,16 @@ async def cmd_generate(message: types.Message, state: FSMContext) -> None:
         await message.answer_document(
             doc, caption=f"[DEBUG] {contractor.display_name} ({tg_info})",
         )
-    else:
+    elif isinstance(contractor, GlobalContractor):
         await message.answer_document(doc, caption=replies.admin.generate_caption.format(name=contractor.display_name))
-        if isinstance(contractor, GlobalContractor):
-            await message.answer(replies.admin.proforma_ready)
-        else:
-            await message.answer(replies.admin.invoice_ready)
+        await message.answer(replies.admin.proforma_ready)
+    else:
+        caption = replies.invoice.legium_admin_caption.format(
+            name=contractor.display_name, type=contractor.type.value,
+            month=month, amount=amount_int,
+        )
+        sent = await message.answer_document(doc, caption=caption)
+        _admin_reply_map[(message.chat.id, sent.message_id)] = (contractor.telegram, contractor.id)
 
 
 async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:

@@ -93,38 +93,6 @@ class TestFormatThread:
 
 
 # ===================================================================
-#  draft_reply() — verify _fetch_code_context is NOT called
-# ===================================================================
-
-class TestDraftReplyNoCodeContext:
-
-    @patch("backend.domain.tech_support_handler.DbGateway")
-    @patch("backend.domain.tech_support_handler.RepoGateway")
-    @patch("backend.domain.tech_support_handler.SupportUserLookup")
-    @patch("backend.domain.tech_support_handler.GeminiGateway")
-    def test_draft_reply_does_not_call_fetch_code_context(
-        self, MockGemini, MockLookup, MockRepo, MockDb,
-    ):
-        mock_db = MockDb.return_value
-        mock_db.find_thread.return_value = "thread-1"
-        mock_db.get_thread_history.return_value = []
-
-        mock_gemini = MockGemini.return_value
-        mock_gemini.call.return_value = {"reply": "test reply", "can_answer": True}
-
-        handler = TechSupportHandler()
-
-        email = IncomingEmail(
-            uid="u1", from_addr="user@test.com", subject="Help",
-            body="I have a question", date="2026-01-01",
-        )
-
-        with patch.object(handler, "_fetch_code_context") as mock_code_ctx:
-            handler.draft_reply(email)
-            mock_code_ctx.assert_not_called()
-
-
-# ===================================================================
 #  Helpers
 # ===================================================================
 

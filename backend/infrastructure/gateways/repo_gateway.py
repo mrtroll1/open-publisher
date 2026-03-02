@@ -83,6 +83,29 @@ class RepoGateway:
                 logger.warning("Grep failed for %s: %s", name, e)
         return results[:20]
 
+    def fetch_snippets(self, search_terms: list[str], max_files: int = 5, context_lines: int = 25) -> str:
+        seen_files: dict[str, tuple[str, int]] = {}
+        for term in search_terms:
+            for rel_path, lineno, _ in self.search_code(term):
+                if rel_path not in seen_files:
+                    seen_files[rel_path] = (rel_path.split("/", 1)[0], lineno)
+
+        snippets = []
+        for rel_path, (repo, lineno) in list(seen_files.items())[:max_files]:
+            filepath = rel_path.split("/", 1)[1] if "/" in rel_path else rel_path
+            content = self.read_file(repo, filepath)
+            if not content:
+                continue
+            lines = content.splitlines()
+            start = max(0, lineno - context_lines)
+            end = min(len(lines), lineno + context_lines)
+            snippet = "\n".join(lines[start:end])
+            snippets.append(f"### {rel_path} (lines {start + 1}-{end})\n```\n{snippet}\n```")
+
+        if not snippets:
+            return ""
+        return "## Контекст из кода\n\n" + "\n\n".join(snippets)
+
     def read_file(self, repo: str, filepath: str, max_lines: int = 200) -> str:
         full = (self._repo_path(repo) / filepath).resolve()
         if not full.is_relative_to(self._repos_dir) or not full.exists():

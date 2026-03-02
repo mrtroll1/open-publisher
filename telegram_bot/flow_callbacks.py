@@ -85,6 +85,42 @@ logger = logging.getLogger(__name__)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  Shared helpers
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+async def _safe_edit_text(message, text: str, **kwargs) -> None:
+    try:
+        await message.edit_text(text, **kwargs)
+    except TelegramBadRequest:
+        pass
+
+
+def _parse_verbose_flag(text: str) -> tuple[bool, str]:
+    if text.startswith("-v ") or text.startswith("verbose "):
+        rest = text.split(None, 1)[1] if " " in text else ""
+        return True, rest
+    return False, text
+
+
+async def _find_contractor_or_suggest(
+    raw_name: str, message: types.Message,
+) -> Contractor | None:
+    contractors = await get_contractors()
+    contractor = find_contractor(raw_name, contractors)
+    if contractor:
+        return contractor
+    matches = fuzzy_find(raw_name, contractors, threshold=0.4)
+    if matches:
+        suggestions = "\n".join(
+            f"  - {c.display_name} ({c.type.value})" for c, _ in matches[:5]
+        )
+        await message.answer(replies.lookup.fuzzy_suggestions.format(suggestions=suggestions))
+    else:
+        await message.answer(replies.lookup.not_found)
+    return None
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  /start
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -405,18 +441,8 @@ async def cmd_generate(message: types.Message, state: FSMContext) -> None:
     debug = raw.lower().startswith("debug ")
     query = raw[6:].strip() if debug else raw
 
-    contractors = await get_contractors()
-    contractor = find_contractor(query, contractors)
-
+    contractor = await _find_contractor_or_suggest(query, message)
     if not contractor:
-        matches = fuzzy_find(query, contractors, threshold=0.4)
-        if matches:
-            suggestions = "\n".join(
-                f"  - {c.display_name} ({c.type.value})" for c, _ in matches[:5]
-            )
-            await message.answer(replies.lookup.fuzzy_suggestions.format(suggestions=suggestions))
-        else:
-            await message.answer(replies.lookup.not_found)
         return
 
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
@@ -517,33 +543,12 @@ async def cmd_health(message: types.Message, state: FSMContext) -> None:
 def _answer_tech_question(question: str, verbose: bool) -> str:
     gemini = GeminiGateway()
 
-    # Try to get code context
     code_context = ""
     try:
-        repo_gw = RepoGateway()
         prompt, model, _ = compose_request.tech_search_terms(question)
         result = gemini.call(prompt, model, task="TECH_SEARCH_TERMS")
         if result.get("needs_code") and result.get("search_terms"):
-            seen_files: dict[str, tuple[str, int]] = {}
-            for term in result["search_terms"]:
-                for rel_path, lineno, _ in repo_gw.search_code(term):
-                    if rel_path not in seen_files:
-                        seen_files[rel_path] = (rel_path.split("/", 1)[0], lineno)
-
-            snippets = []
-            for rel_path, (repo, lineno) in list(seen_files.items())[:5]:
-                filepath = rel_path.split("/", 1)[1] if "/" in rel_path else rel_path
-                content = repo_gw.read_file(repo, filepath)
-                if not content:
-                    continue
-                lines = content.splitlines()
-                start = max(0, lineno - 25)
-                end = min(len(lines), lineno + 25)
-                snippet = "\n".join(lines[start:end])
-                snippets.append(f"### {rel_path} (lines {start + 1}-{end})\n```\n{snippet}\n```")
-
-            if snippets:
-                code_context = "## Контекст из кода\n\n" + "\n\n".join(snippets)
+            code_context = RepoGateway().fetch_snippets(result["search_terms"])
     except Exception as e:
         logger.warning("Code context fetch for /tech_support failed: %s", e)
 
@@ -558,14 +563,10 @@ async def cmd_tech_support(message: types.Message, state: FSMContext) -> None:
         await message.answer("Использование: /tech_support <вопрос>\nФлаги: -v для подробного ответа")
         return
 
-    text = args[1].strip()
-    verbose = False
-    if text.startswith("-v ") or text.startswith("verbose "):
-        verbose = True
-        text = text.split(None, 1)[1] if " " in text else ""
-        if not text:
-            await message.answer("Укажите вопрос после флага -v")
-            return
+    verbose, text = _parse_verbose_flag(args[1].strip())
+    if not text:
+        await message.answer("Укажите вопрос после флага -v")
+        return
 
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
 
@@ -585,14 +586,10 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
         await message.answer("Использование: /code <запрос>\nФлаги: -v для подробного ответа")
         return
 
-    text = args[1].strip()
-    verbose = False
-    if text.startswith("-v ") or text.startswith("verbose "):
-        verbose = True
-        text = text.split(None, 1)[1] if " " in text else ""
-        if not text:
-            await message.answer("Укажите запрос после флага -v")
-            return
+    verbose, text = _parse_verbose_flag(args[1].strip())
+    if not text:
+        await message.answer("Укажите запрос после флага -v")
+        return
 
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
 
@@ -601,7 +598,6 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
         # Save to DB and build rating keyboard
         reply_markup = None
         try:
-            from backend.infrastructure.gateways.db_gateway import DbGateway
             task_id = await asyncio.to_thread(
                 DbGateway().create_code_task,
                 requested_by=str(message.from_user.id),
@@ -643,18 +639,8 @@ async def cmd_articles(message: types.Message, state: FSMContext) -> None:
     raw_name = args[1].strip()
     month = args[2].strip() if len(args) > 2 else prev_month()
 
-    contractors = await get_contractors()
-    contractor = find_contractor(raw_name, contractors)
-
+    contractor = await _find_contractor_or_suggest(raw_name, message)
     if not contractor:
-        matches = fuzzy_find(raw_name, contractors, threshold=0.4)
-        if matches:
-            suggestions = "\n".join(
-                f"  - {c.display_name} ({c.type.value})" for c, _ in matches[:5]
-            )
-            await message.answer(replies.lookup.fuzzy_suggestions.format(suggestions=suggestions))
-        else:
-            await message.answer(replies.lookup.not_found)
         return
 
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
@@ -683,18 +669,8 @@ async def cmd_lookup(message: types.Message, state: FSMContext) -> None:
 
     raw_name = args[1].strip()
 
-    contractors = await get_contractors()
-    contractor = find_contractor(raw_name, contractors)
-
+    contractor = await _find_contractor_or_suggest(raw_name, message)
     if not contractor:
-        matches = fuzzy_find(raw_name, contractors, threshold=0.4)
-        if matches:
-            suggestions = "\n".join(
-                f"  - {c.display_name} ({c.type.value})" for c, _ in matches[:5]
-            )
-            await message.answer(replies.lookup.fuzzy_suggestions.format(suggestions=suggestions))
-        else:
-            await message.answer(replies.lookup.not_found)
         return
 
     type_label = _TYPE_LABELS.get(contractor.type, contractor.type.value)
@@ -1175,13 +1151,11 @@ async def handle_duplicate_callback(callback: CallbackQuery, state: FSMContext) 
         await callback.message.answer(replies.lookup.not_found)
         return
 
-    try:
-        await callback.message.edit_text(
-            replies.lookup.selected.format(name=contractor.display_name),
-            reply_markup=None,
-        )
-    except TelegramBadRequest:
-        pass
+    await _safe_edit_text(
+        callback.message,
+        replies.lookup.selected.format(name=contractor.display_name),
+        reply_markup=None,
+    )
     await bot.send_chat_action(callback.message.chat.id, ChatAction.TYPING)
 
     telegram_id = callback.from_user.id
@@ -1259,10 +1233,7 @@ async def _show_editor_sources(callback: CallbackQuery, contractor: Contractor) 
     """Render the editor sources list with inline buttons."""
     rules = await asyncio.to_thread(find_redirect_rules_by_target, contractor.id)
     text, markup = _editor_sources_content(rules)
-    try:
-        await callback.message.edit_text(text, reply_markup=markup)
-    except TelegramBadRequest:
-        pass
+    await _safe_edit_text(callback.message, text, reply_markup=markup)
 
 
 async def handle_editor_source_callback(callback: CallbackQuery, state: FSMContext) -> None:
@@ -1298,13 +1269,11 @@ async def handle_editor_source_callback(callback: CallbackQuery, state: FSMConte
 
     elif data == "back":
         await callback.answer()
-        try:
-            await callback.message.edit_text(
-                replies.menu.prompt,
-                reply_markup=_linked_menu_markup(contractor),
-            )
-        except TelegramBadRequest:
-            pass
+        await _safe_edit_text(
+            callback.message,
+            replies.menu.prompt,
+            reply_markup=_linked_menu_markup(contractor),
+        )
 
 
 async def handle_editor_source_name(message: types.Message, state: FSMContext) -> str | None:
@@ -1745,24 +1714,15 @@ async def handle_support_callback(callback: CallbackQuery) -> None:
 
     draft = _inbox.get_pending_support(uid)
     if not draft:
-        try:
-            await callback.message.edit_text(replies.tech_support.expired)
-        except TelegramBadRequest:
-            pass
+        await _safe_edit_text(callback.message, replies.tech_support.expired)
         return
 
     if action == "send":
         await asyncio.to_thread(_inbox.approve_support, uid)
-        try:
-            await callback.message.edit_text(replies.tech_support.reply_sent.format(addr=draft.email.reply_to or draft.email.from_addr))
-        except TelegramBadRequest:
-            pass
+        await _safe_edit_text(callback.message, replies.tech_support.reply_sent.format(addr=draft.email.reply_to or draft.email.from_addr))
     elif action == "skip":
         await asyncio.to_thread(_inbox.skip_support, uid)
-        try:
-            await callback.message.edit_text(replies.tech_support.skipped.format(from_addr=draft.email.from_addr))
-        except TelegramBadRequest:
-            pass
+        await _safe_edit_text(callback.message, replies.tech_support.skipped.format(from_addr=draft.email.from_addr))
 
 
 async def handle_editorial_callback(callback: CallbackQuery) -> None:
@@ -1775,24 +1735,15 @@ async def handle_editorial_callback(callback: CallbackQuery) -> None:
 
     item = _inbox.get_pending_editorial(uid)
     if not item:
-        try:
-            await callback.message.edit_text(replies.editorial.expired)
-        except TelegramBadRequest:
-            pass
+        await _safe_edit_text(callback.message, replies.editorial.expired)
         return
 
     if action == "fwd":
         await asyncio.to_thread(_inbox.approve_editorial, uid)
-        try:
-            await callback.message.edit_text(replies.editorial.forwarded.format(from_addr=item.email.from_addr, subject=item.email.subject))
-        except TelegramBadRequest:
-            pass
+        await _safe_edit_text(callback.message, replies.editorial.forwarded.format(from_addr=item.email.from_addr, subject=item.email.subject))
     elif action == "skip":
         await asyncio.to_thread(_inbox.skip_editorial, uid)
-        try:
-            await callback.message.edit_text(replies.editorial.skipped.format(from_addr=item.email.from_addr))
-        except TelegramBadRequest:
-            pass
+        await _safe_edit_text(callback.message, replies.editorial.skipped.format(from_addr=item.email.from_addr))
 
 
 async def handle_code_rate_callback(callback: CallbackQuery) -> None:
@@ -1802,7 +1753,6 @@ async def handle_code_rate_callback(callback: CallbackQuery) -> None:
         return
     _, task_id, rating = parts
     try:
-        from backend.infrastructure.gateways.db_gateway import DbGateway
         await asyncio.to_thread(DbGateway().rate_code_task, task_id, int(rating))
     except Exception:
         logger.exception("Failed to save code task rating")

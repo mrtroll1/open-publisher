@@ -21,8 +21,7 @@ class TechSupportHandler:
     def __init__(self):
         self._gemini = GeminiGateway()
         self._user_lookup = SupportUserLookup()
-        self._repo_gw = RepoGateway()
-        self._repo_gw.ensure_repos()
+        RepoGateway().ensure_repos()
         self._db = DbGateway()
         self._db.init_schema()
         self._uid_thread: dict[str, str] = {}
@@ -98,45 +97,6 @@ class TechSupportHandler:
             return user_data
         except Exception as e:
             logger.error("Support triage/lookup failed: %s", e)
-            return ""
-
-    def _fetch_code_context(self, email_text: str) -> str:
-        try:
-            prompt, model, _ = compose_request.tech_search_terms(email_text)
-            result = self._gemini.call(prompt, model, task="TECH_SEARCH_TERMS")
-            if not result.get("needs_code"):
-                return ""
-            terms = result.get("search_terms", [])
-            if not terms:
-                return ""
-
-            seen_files: dict[str, tuple[str, int]] = {}
-            for term in terms:
-                for rel_path, lineno, _ in self._repo_gw.search_code(term):
-                    if rel_path not in seen_files:
-                        seen_files[rel_path] = (rel_path.split("/", 1)[0], lineno)
-
-            if not seen_files:
-                return ""
-
-            snippets = []
-            for rel_path, (repo, lineno) in list(seen_files.items())[:5]:
-                filepath = rel_path.split("/", 1)[1] if "/" in rel_path else rel_path
-                content = self._repo_gw.read_file(repo, filepath)
-                if not content:
-                    continue
-                lines = content.splitlines()
-                start = max(0, lineno - 25)
-                end = min(len(lines), lineno + 25)
-                snippet = "\n".join(lines[start:end])
-                snippets.append(f"### {rel_path} (lines {start + 1}-{end})\n```\n{snippet}\n```")
-
-            if not snippets:
-                return ""
-            logger.info("Code context: %d snippets from %d file matches", len(snippets), len(seen_files))
-            return "## Контекст из кода\n\n" + "\n\n".join(snippets)
-        except Exception as e:
-            logger.error("Code context fetch failed: %s", e)
             return ""
 
     @staticmethod

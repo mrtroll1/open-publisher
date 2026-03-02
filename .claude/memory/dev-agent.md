@@ -971,8 +971,32 @@ Phase 5.4 — Remaining tests:
 - These tests mock all 4+ dependencies per service and verify return values, not just mock calls
 - `_test_ternary.py` stray empty file in project root — needs manual deletion (rm blocked by security policy)
 
+### Session 34 (2026-03-02) — Maintenance: Refactor (round 4)
+**Status:** Complete
+
+**What was done:**
+- Refactoring pass across Plan 2 code, net -109 lines (104 added, 213 removed)
+- Extracted 3 helpers in `flow_callbacks.py`:
+  - `_safe_edit_text()` — replaces 8 duplicated try/except TelegramBadRequest blocks
+  - `_parse_verbose_flag()` — shared verbose/`-v` parsing for `cmd_tech_support` and `cmd_code`
+  - `_find_contractor_or_suggest()` — shared contractor lookup+fuzzy suggestions for `cmd_generate`, `cmd_articles`, `cmd_lookup`
+- Removed 2 redundant inline `DbGateway` imports in `flow_callbacks.py` (already imported at top level)
+- Removed dead `_fetch_code_context()` method (38 lines) from `tech_support_handler.py` — was no longer called after Plan 2 removed its invocation from `draft_reply()`
+- Removed `self._repo_gw` instance storage from `TechSupportHandler.__init__()` (only `ensure_repos()` needed, called directly)
+- Added `fetch_snippets()` method to `RepoGateway` — extracted snippet-building logic that was duplicated between `_answer_tech_question` in `flow_callbacks.py` and the now-removed `_fetch_code_context`
+- Updated test mock paths in `test_flow_callbacks_helpers.py` and `test_plan2_handlers.py` to match import changes
+- Removed 1 test (`TestDraftReplyNoCodeContext`) that tested the removed dead code
+
+**Net result:** 738 tests pass (1 test removed with dead code), -109 lines
+
+**Notes:**
+- `RepoGateway.fetch_snippets()` is the natural home for snippet logic — operates on repo data via `search_code()` and `read_file()`
+- `_find_contractor_or_suggest()` is async because `get_contractors()` is async
+- All refactors preserve existing public behavior and function signatures
+
 ## Next up
 
 - Plan 2 is complete through Phase 5. Phase 6 deferred (see plan notes).
-- Continue maintenance mode: spot bugs, refactor, polish UX, improve prompts.
+- Continue maintenance mode: spot bugs, polish UX, improve prompts, then more tests.
 - Remaining high-value test gaps: generate_invoice.py, generate_batch_invoices.py, prepare_invoice.py (all require DocsGateway/DriveGateway mocking)
+- `_test_ternary.py` stray empty file in project root — needs manual deletion

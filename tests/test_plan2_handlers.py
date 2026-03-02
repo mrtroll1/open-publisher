@@ -552,16 +552,13 @@ class TestAnswerTechQuestion:
         MockGemini.return_value = mock_gemini
 
         mock_repo = MagicMock()
-        mock_repo.search_code.return_value = [
-            ("agent/backend/healthcheck.py", 10, "def healthcheck():"),
-        ]
-        mock_repo.read_file.return_value = "\n".join([f"line {i}" for i in range(50)])
+        mock_repo.fetch_snippets.return_value = "## Контекст из кода\n\n### file.py\n```\ncode\n```"
         MockRepo.return_value = mock_repo
 
         result = _answer_tech_question("what is healthcheck?", True)
 
         assert result == "Healthcheck uses requests.get"
-        # Code context should be passed
+        mock_repo.fetch_snippets.assert_called_once_with(["def healthcheck"])
         call_args = mock_compose.tech_support_question.call_args
         code_context = call_args[0][1]
         assert "Контекст из кода" in code_context
@@ -631,7 +628,7 @@ class TestAnswerTechQuestion:
     @patch("telegram_bot.flow_callbacks.RepoGateway")
     @patch("telegram_bot.flow_callbacks.GeminiGateway")
     @patch("telegram_bot.flow_callbacks.compose_request")
-    def test_empty_file_content_skipped(self, mock_compose, MockGemini, MockRepo):
+    def test_empty_snippets_passes_empty_context(self, mock_compose, MockGemini, MockRepo):
         from telegram_bot.flow_callbacks import _answer_tech_question
 
         mock_compose.tech_search_terms.return_value = ("p", "m", [])
@@ -645,21 +642,19 @@ class TestAnswerTechQuestion:
         MockGemini.return_value = mock_gemini
 
         mock_repo = MagicMock()
-        mock_repo.search_code.return_value = [("repo/file.py", 5, "match")]
-        mock_repo.read_file.return_value = None  # File can't be read
+        mock_repo.fetch_snippets.return_value = ""
         MockRepo.return_value = mock_repo
 
         result = _answer_tech_question("q", False)
 
         assert result == "ok"
-        # Code context should be empty since file content was None
         code_context = mock_compose.tech_support_question.call_args[0][1]
         assert code_context == ""
 
     @patch("telegram_bot.flow_callbacks.RepoGateway")
     @patch("telegram_bot.flow_callbacks.GeminiGateway")
     @patch("telegram_bot.flow_callbacks.compose_request")
-    def test_max_5_files_limit(self, mock_compose, MockGemini, MockRepo):
+    def test_search_terms_forwarded_to_fetch_snippets(self, mock_compose, MockGemini, MockRepo):
         from telegram_bot.flow_callbacks import _answer_tech_question
 
         mock_compose.tech_search_terms.return_value = ("p", "m", [])
@@ -667,23 +662,18 @@ class TestAnswerTechQuestion:
 
         mock_gemini = MagicMock()
         mock_gemini.call.side_effect = [
-            {"needs_code": True, "search_terms": ["term"]},
+            {"needs_code": True, "search_terms": ["term1", "term2"]},
             {"answer": "ok"},
         ]
         MockGemini.return_value = mock_gemini
 
-        # Return 10 unique files
         mock_repo = MagicMock()
-        mock_repo.search_code.return_value = [
-            (f"repo/file{i}.py", i, "match") for i in range(10)
-        ]
-        mock_repo.read_file.return_value = "line1\nline2\nline3"
+        mock_repo.fetch_snippets.return_value = "## snippets"
         MockRepo.return_value = mock_repo
 
         _answer_tech_question("q", False)
 
-        # read_file should be called at most 5 times
-        assert mock_repo.read_file.call_count <= 5
+        mock_repo.fetch_snippets.assert_called_once_with(["term1", "term2"])
 
 
 # ===================================================================
@@ -693,7 +683,7 @@ class TestAnswerTechQuestion:
 class TestCmdCode:
     """cmd_code uses a LOCAL import of DbGateway, so we patch at the source module."""
 
-    @patch("backend.infrastructure.gateways.db_gateway.DbGateway")
+    @patch("telegram_bot.flow_callbacks.DbGateway")
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
     def test_successful_run_with_db_save(self, mock_bot, mock_run, MockDb):
@@ -739,7 +729,7 @@ class TestCmdCode:
         msg.answer.assert_awaited_once()
         assert "Использование" in msg.answer.call_args[0][0]
 
-    @patch("backend.infrastructure.gateways.db_gateway.DbGateway")
+    @patch("telegram_bot.flow_callbacks.DbGateway")
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
     def test_verbose_flag(self, mock_bot, mock_run, MockDb):
@@ -756,7 +746,7 @@ class TestCmdCode:
 
         mock_run.assert_called_once_with("analyze this", True)
 
-    @patch("backend.infrastructure.gateways.db_gateway.DbGateway")
+    @patch("telegram_bot.flow_callbacks.DbGateway")
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
     def test_verbose_word_flag(self, mock_bot, mock_run, MockDb):
@@ -805,7 +795,7 @@ class TestCmdCode:
 
         mock_run.assert_called_once_with("-v", False)
 
-    @patch("backend.infrastructure.gateways.db_gateway.DbGateway")
+    @patch("telegram_bot.flow_callbacks.DbGateway")
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
     def test_db_save_failure_still_sends_answer(self, mock_bot, mock_run, MockDb):
@@ -841,7 +831,7 @@ class TestCmdCode:
         answer = msg.answer.call_args[0][0]
         assert "Ошибка" in answer
 
-    @patch("backend.infrastructure.gateways.db_gateway.DbGateway")
+    @patch("telegram_bot.flow_callbacks.DbGateway")
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
     def test_rating_keyboard_has_5_buttons(self, mock_bot, mock_run, MockDb):

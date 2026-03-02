@@ -422,7 +422,7 @@ def _make_callback(data: str) -> MagicMock:
 
 class TestHandleCodeRateCallback:
 
-    @patch("backend.infrastructure.gateways.db_gateway.DbGateway")
+    @patch("telegram_bot.flow_callbacks.DbGateway")
     def test_valid_rating(self, MockGw):
         mock_gw = MagicMock()
         MockGw.return_value = mock_gw
@@ -446,7 +446,7 @@ class TestHandleCodeRateCallback:
 
         cb.answer.assert_awaited_once_with()
 
-    @patch("backend.infrastructure.gateways.db_gateway.DbGateway")
+    @patch("telegram_bot.flow_callbacks.DbGateway")
     def test_db_error_still_answers(self, MockGw):
         MockGw.return_value.rate_code_task.side_effect = RuntimeError("db down")
 

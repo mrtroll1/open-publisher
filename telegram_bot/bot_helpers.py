@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from datetime import date
 
 from aiogram import Bot
@@ -40,3 +41,12 @@ def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_TELEGRAM_IDS
 
 
+# ─── Markdown → Telegram HTML ────────────────────────────────────────
+
+def md_to_tg_html(text: str) -> str:
+    """Convert standard markdown to Telegram-compatible HTML."""
+    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    text = re.sub(r"```(?:\w*)\n?(.*?)```", r"<pre>\1</pre>", text, flags=re.DOTALL)
+    text = re.sub(r"`([^`\n]+)`", r"<code>\1</code>", text)
+    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text, flags=re.DOTALL)
+    return text

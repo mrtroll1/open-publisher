@@ -68,7 +68,7 @@ from backend import (
     validate_contractor_fields,
 )
 from telegram_bot import replies
-from telegram_bot.bot_helpers import bot, get_contractors, is_admin, prev_month
+from telegram_bot.bot_helpers import bot, get_contractors, is_admin, md_to_tg_html, prev_month
 from backend.domain import compose_request
 from backend.domain.compute_budget import ComputeBudget
 from backend.domain.healthcheck import run_healthchecks, format_healthcheck_results
@@ -95,6 +95,14 @@ async def _safe_edit_text(message, text: str, **kwargs) -> None:
         await message.edit_text(text, **kwargs)
     except TelegramBadRequest:
         pass
+
+
+async def _send_html(message: types.Message, text: str, **kwargs) -> None:
+    """Send with markdown→HTML conversion; fall back to plain text on parse error."""
+    try:
+        await message.answer(md_to_tg_html(text), parse_mode="HTML", **kwargs)
+    except TelegramBadRequest:
+        await message.answer(text, **kwargs)
 
 
 def _parse_flags(text: str) -> tuple[bool, bool, str]:
@@ -607,7 +615,7 @@ async def cmd_support(message: types.Message, state: FSMContext) -> None:
         answer = await asyncio.to_thread(_answer_tech_question, text, verbose, expert)
         if len(answer) > 4000:
             answer = answer[:4000] + "..."
-        await message.answer(answer)
+        await _send_html(message, answer)
     except Exception as e:
         logger.exception("Support question failed")
         await message.answer(replies.admin.support_error)
@@ -644,7 +652,7 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
             ]])
         except Exception:
             logger.exception("Failed to save code task to DB")
-        await message.answer(answer, reply_markup=reply_markup)
+        await _send_html(message, answer, reply_markup=reply_markup)
     except Exception as e:
         logger.exception("Claude Code execution failed")
         await message.answer(replies.admin.code_error)
@@ -781,7 +789,7 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
 
     if not result.classified:
         reply = result.reply or "Не удалось определить команду."
-        await message.answer(reply)
+        await _send_html(message, reply)
         return
 
     cmd = result.classified.command
@@ -892,7 +900,7 @@ async def handle_group_message(
 
     if not result.classified:
         if result.reply:
-            await message.answer(result.reply)
+            await _send_html(message, result.reply)
         return
 
     await _dispatch_group_command(

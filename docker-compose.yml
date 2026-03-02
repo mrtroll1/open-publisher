@@ -22,6 +22,7 @@ services:
       - ./config/business_config.json:/app/config/business_config.json:ro
       - ./config/tech_config.json:/app/config/tech_config.json:ro
       - ./repos:/opt/repos
+      - ./knowledge/claude-code-context.md:/opt/repos/CLAUDE.md:ro
 
 volumes:
   pgdata:

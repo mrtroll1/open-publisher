@@ -116,9 +116,13 @@ EUR_RUB_CELL = os.getenv("EUR_RUB_CELL", "")
 
 # --- Repos ---
 REPOS_DIR = os.getenv("REPOS_DIR", "/opt/repos")
-REPUBLIC_REPO_URL = os.getenv("REPUBLIC_REPO_URL", "")
-REDEFINE_REPO_URL = os.getenv("REDEFINE_REPO_URL", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+
+# Dynamic: every REPO_* env var becomes a clone target (REPO_FOO=url -> "foo": url)
+REPO_URLS: dict[str, str] = {}
+for _k, _v in os.environ.items():
+    if _k.startswith("REPO_") and _k != "REPOS_DIR" and _v:
+        REPO_URLS[_k[5:].lower()] = _v
 
 # --- Product name (used in user-facing strings) ---
 PRODUCT_NAME = os.getenv("PRODUCT_NAME", "")

@@ -1,12 +1,13 @@
-"""Gateway for git repo access — clone/pull, grep search, file reading."""
+"""Gateway for git repo access — clone, grep search, file reading."""
 
 from __future__ import annotations
 
 import logging
+import shutil
 import subprocess
 from pathlib import Path
 
-from common.config import REPOS_DIR, REPUBLIC_REPO_URL, REDEFINE_REPO_URL
+from common.config import REPOS_DIR, REPO_URLS
 
 logger = logging.getLogger(__name__)
 
@@ -22,11 +23,7 @@ class RepoGateway:
 
     def __init__(self):
         self._repos_dir = Path(REPOS_DIR).resolve()
-        self._repo_urls: dict[str, str] = {}
-        if REPUBLIC_REPO_URL:
-            self._repo_urls["republic"] = REPUBLIC_REPO_URL
-        if REDEFINE_REPO_URL:
-            self._repo_urls["redefine"] = REDEFINE_REPO_URL
+        self._repo_urls: dict[str, str] = dict(REPO_URLS)
 
     def _repo_path(self, name: str) -> Path:
         return self._repos_dir / name
@@ -39,15 +36,11 @@ class RepoGateway:
             path = self._repo_path(name)
             try:
                 if path.exists():
-                    subprocess.run(
-                        ["git", "-C", str(path), "pull", "--ff-only"],
-                        capture_output=True, timeout=30,
-                    )
-                else:
-                    subprocess.run(
-                        ["git", "clone", "--depth", "1", url, str(path)],
-                        capture_output=True, timeout=30,
-                    )
+                    shutil.rmtree(path)
+                subprocess.run(
+                    ["git", "clone", "--depth", "1", url, str(path)],
+                    capture_output=True, timeout=60,
+                )
             except Exception as e:
                 logger.warning("Git op failed for %s: %s", name, e)
 

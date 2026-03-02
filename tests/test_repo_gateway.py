@@ -8,12 +8,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
-def _make_gw(repos_dir: str, republic_url: str = "https://git.example.com/republic.git",
-             redefine_url: str = ""):
+def _make_gw(repos_dir: str, repo_urls: dict | None = None):
     """Create a RepoGateway with patched config values."""
+    if repo_urls is None:
+        repo_urls = {"republic": "https://git.example.com/republic.git"}
     with patch("backend.infrastructure.gateways.repo_gateway.REPOS_DIR", repos_dir), \
-         patch("backend.infrastructure.gateways.repo_gateway.REPUBLIC_REPO_URL", republic_url), \
-         patch("backend.infrastructure.gateways.repo_gateway.REDEFINE_REPO_URL", redefine_url):
+         patch("backend.infrastructure.gateways.repo_gateway.REPO_URLS", repo_urls):
         from backend.infrastructure.gateways.repo_gateway import RepoGateway
         return RepoGateway()
 
@@ -57,7 +57,10 @@ class TestSearchCode:
             mock_run.assert_not_called()
 
     def test_single_repo_filter(self, tmp_path):
-        gw = _make_gw(str(tmp_path), redefine_url="https://git.example.com/redefine.git")
+        gw = _make_gw(str(tmp_path), repo_urls={
+            "republic": "https://git.example.com/republic.git",
+            "redefine": "https://git.example.com/redefine.git",
+        })
         (tmp_path / "republic").mkdir()
         (tmp_path / "redefine").mkdir()
         with patch("backend.infrastructure.gateways.repo_gateway.subprocess.run") as mock_run:
@@ -70,7 +73,7 @@ class TestSearchCode:
             assert str(tmp_path / "republic") in call_cmd
 
     def test_no_repos_configured(self, tmp_path):
-        gw = _make_gw(str(tmp_path), republic_url="", redefine_url="")
+        gw = _make_gw(str(tmp_path), repo_urls={})
         assert gw.search_code("anything") == []
 
     def test_skips_malformed_lines(self, tmp_path):
@@ -96,7 +99,10 @@ class TestSearchCode:
             assert results == []
 
     def test_multi_repo_search(self, tmp_path):
-        gw = _make_gw(str(tmp_path), redefine_url="https://git.example.com/redefine.git")
+        gw = _make_gw(str(tmp_path), repo_urls={
+            "republic": "https://git.example.com/republic.git",
+            "redefine": "https://git.example.com/redefine.git",
+        })
         (tmp_path / "republic").mkdir()
         (tmp_path / "redefine").mkdir()
         with patch("backend.infrastructure.gateways.repo_gateway.subprocess.run") as mock_run:
@@ -233,29 +239,28 @@ class TestFetchSnippets:
 
 class TestEnsureRepos:
 
-    def test_clones_when_not_exists(self, tmp_path):
+    def test_clones_fresh(self, tmp_path):
         gw = _make_gw(str(tmp_path))
-        # Remove the republic dir if it exists
-        republic_path = tmp_path / "republic"
-        if republic_path.exists():
-            republic_path.rmdir()
         with patch("backend.infrastructure.gateways.repo_gateway.subprocess.run") as mock_run:
             gw.ensure_repos()
             call_cmd = mock_run.call_args[0][0]
             assert call_cmd[0] == "git"
             assert call_cmd[1] == "clone"
 
-    def test_pulls_when_exists(self, tmp_path):
+    def test_removes_existing_before_clone(self, tmp_path):
         gw = _make_gw(str(tmp_path))
-        (tmp_path / "republic").mkdir()
+        repo_path = tmp_path / "republic"
+        repo_path.mkdir()
+        (repo_path / "stale.txt").write_text("old")
         with patch("backend.infrastructure.gateways.repo_gateway.subprocess.run") as mock_run:
             gw.ensure_repos()
+            # Old dir should be gone (rmtree'd), clone called
+            assert not (repo_path / "stale.txt").exists()
             call_cmd = mock_run.call_args[0][0]
-            assert call_cmd[0] == "git"
-            assert "pull" in call_cmd
+            assert call_cmd[1] == "clone"
 
     def test_no_urls_is_noop(self, tmp_path):
-        gw = _make_gw(str(tmp_path), republic_url="", redefine_url="")
+        gw = _make_gw(str(tmp_path), repo_urls={})
         with patch("backend.infrastructure.gateways.repo_gateway.subprocess.run") as mock_run:
             gw.ensure_repos()
             mock_run.assert_not_called()
@@ -263,6 +268,6 @@ class TestEnsureRepos:
     def test_exception_does_not_propagate(self, tmp_path):
         gw = _make_gw(str(tmp_path))
         with patch("backend.infrastructure.gateways.repo_gateway.subprocess.run") as mock_run:
-            mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=30)
+            mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=60)
             # Should not raise
             gw.ensure_repos()

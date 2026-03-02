@@ -9,14 +9,26 @@ from common.config import REPOS_DIR
 
 logger = logging.getLogger(__name__)
 
-_CONCISE_PREFIX = (
-    "Ответь кратко и по делу, как для Telegram-сообщения. "
-    "Не используй блоки кода длиннее ~20 строк. Фокусируйся на ключевой информации.\n\n"
+_USER_PREFIX = (
+    "Ты отвечаешь редактору или обычному пользователю, который НЕ разбирается в коде. "
+    "Объясняй на уровне интерфейса: что нажать, куда зайти, что должно произойти. "
+    "Не показывай код, не упоминай технические детали. Кратко, для Telegram.\n\n"
+)
+
+_EXPERT_PREFIX = (
+    "Ты отвечаешь техническому специалисту. "
+    "Отвечай кратко и по делу, как для Telegram-сообщения. "
+    "Показывай код, пути к файлам, конкретные решения.\n\n"
 )
 
 
-def run_claude_code(prompt: str, verbose: bool = False) -> str:
-    full_prompt = prompt if verbose else _CONCISE_PREFIX + prompt
+def run_claude_code(prompt: str, verbose: bool = False, expert: bool = False) -> str:
+    if verbose:
+        full_prompt = prompt
+    elif expert:
+        full_prompt = _EXPERT_PREFIX + prompt
+    else:
+        full_prompt = _USER_PREFIX + prompt
     try:
         result = subprocess.run(
             ["claude", "-p", full_prompt, "--max-turns", "5"],

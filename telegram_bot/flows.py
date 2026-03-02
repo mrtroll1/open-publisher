@@ -41,6 +41,7 @@ from telegram_bot.flow_callbacks import (
     # Admin
     handle_admin_reply,
     cmd_articles,
+    cmd_chatid,
     cmd_generate,
     cmd_health,
     cmd_lookup,
@@ -237,6 +238,12 @@ admin_commands = [
         usage="/upload_to_airtable <курс AED→RUB>",
     ),
     AdminCommand(
+        command="chatid",
+        description="Показать ID текущего чата",
+        handler=cmd_chatid,
+        usage="/chatid",
+    ),
+    AdminCommand(
         command="health",
         description="Проверка доступности сайтов и подов",
         handler=cmd_health,
@@ -252,7 +259,7 @@ admin_commands = [
         command="code",
         description="Запустить Claude Code",
         handler=cmd_code,
-        usage="/code [-v] <запрос>",
+        usage="/code [-e] [-v] <запрос>",
     ),
 ]
 
@@ -265,7 +272,7 @@ group_configs = [
     gc for gc in [
         GroupChatConfig(
             chat_id=EDITORIAL_CHAT_ID,
-            allowed_commands=["health", "tech_support", "code", "articles", "lookup"],
+            allowed_commands=["menu", "health", "tech_support", "code", "articles", "lookup"],
         ) if EDITORIAL_CHAT_ID else None,
     ] if gc is not None
 ]

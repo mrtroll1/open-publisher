@@ -97,11 +97,20 @@ async def _safe_edit_text(message, text: str, **kwargs) -> None:
         pass
 
 
-def _parse_verbose_flag(text: str) -> tuple[bool, str]:
-    if text.startswith("-v ") or text.startswith("verbose "):
-        rest = text.split(None, 1)[1] if " " in text else ""
-        return True, rest
-    return False, text
+def _parse_flags(text: str) -> tuple[bool, bool, str]:
+    """Parse -v (verbose) and -e (expert) flags. Returns (verbose, expert, rest)."""
+    verbose = False
+    expert = False
+    while text:
+        if text.startswith("-v ") or text.startswith("verbose "):
+            verbose = True
+            text = text.split(None, 1)[1] if " " in text else ""
+        elif text.startswith("-e ") or text.startswith("expert "):
+            expert = True
+            text = text.split(None, 1)[1] if " " in text else ""
+        else:
+            break
+    return verbose, expert, text
 
 
 async def _find_contractor_or_suggest(
@@ -552,6 +561,10 @@ async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
         await message.answer(replies.invoice.legium_send_error.format(error=e))
 
 
+async def cmd_chatid(message: types.Message, state: FSMContext) -> None:
+    await message.answer(f"Chat ID: `{message.chat.id}`", parse_mode="Markdown")
+
+
 async def cmd_health(message: types.Message, state: FSMContext) -> None:
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
     results = await asyncio.to_thread(run_healthchecks)
@@ -581,7 +594,7 @@ async def cmd_tech_support(message: types.Message, state: FSMContext) -> None:
         await message.answer(replies.admin.tech_support_usage)
         return
 
-    verbose, text = _parse_verbose_flag(args[1].strip())
+    verbose, _, text = _parse_flags(args[1].strip())
     if not text:
         await message.answer(replies.admin.tech_support_no_question)
         return
@@ -604,7 +617,7 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
         await message.answer(replies.admin.code_usage)
         return
 
-    verbose, text = _parse_verbose_flag(args[1].strip())
+    verbose, expert, text = _parse_flags(args[1].strip())
     if not text:
         await message.answer(replies.admin.code_no_query)
         return
@@ -612,7 +625,7 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
 
     try:
-        answer = await asyncio.to_thread(run_claude_code, text, verbose)
+        answer = await asyncio.to_thread(run_claude_code, text, verbose, expert)
         # Save to DB and build rating keyboard
         reply_markup = None
         try:
@@ -642,13 +655,20 @@ _ROLE_LABELS = {
 }
 
 async def cmd_articles(message: types.Message, state: FSMContext) -> None:
-    args = message.text.split(maxsplit=2)
-    if len(args) < 2:
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2 or not args[1].strip():
         await message.answer(replies.admin.articles_usage)
         return
 
-    raw_name = args[1].strip()
-    month = args[2].strip() if len(args) > 2 else prev_month()
+    rest = args[1].strip()
+    # If last word looks like YYYY-MM, treat it as month
+    parts = rest.rsplit(None, 1)
+    if len(parts) == 2 and len(parts[1]) >= 6 and parts[1][:4].isdigit() and "-" in parts[1]:
+        raw_name = parts[0]
+        month = parts[1]
+    else:
+        raw_name = rest
+        month = prev_month()
 
     contractor = await _find_contractor_or_suggest(raw_name, message)
     if not contractor:
@@ -738,6 +758,9 @@ def _extract_bot_mention(text: str, bot_username: str) -> str | None:
 async def _dispatch_group_command(
     command: str, args_text: str, message: types.Message, state: FSMContext,
 ) -> None:
+    if command == "menu":
+        await message.answer(replies.menu.group)
+        return
     handler = _GROUP_COMMAND_HANDLERS.get(command)
     if not handler:
         return

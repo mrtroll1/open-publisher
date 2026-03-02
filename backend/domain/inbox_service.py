@@ -6,6 +6,7 @@ import logging
 
 from backend.domain import compose_request
 from backend.domain.tech_support_handler import TechSupportHandler
+from backend.infrastructure.gateways.db_gateway import DbGateway
 from backend.infrastructure.gateways.email_gateway import EmailGateway
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from common.config import CHIEF_EDITOR_EMAIL, EMAIL_ADDRESS, SUPPORT_ADDRESSES
@@ -21,6 +22,7 @@ class InboxService:
         self._tech_support = TechSupportHandler()
         self._gemini = GeminiGateway()
         self._email_gw = EmailGateway()
+        self._db = DbGateway()
         self._pending_support: dict[str, SupportDraft] = {}
         self._pending_editorial: dict[str, EditorialItem] = {}
 
@@ -53,6 +55,11 @@ class InboxService:
         if email.uid in self._pending_support:
             return None
         draft = self._tech_support.draft_reply(email)
+        decision_id = self._db.create_email_decision(
+            task="SUPPORT_ANSWER", channel="EMAIL",
+            input_message_ids=[email.message_id],
+        )
+        draft.decision_id = decision_id
         self._pending_support[email.uid] = draft
         return PendingItem(category="tech_support", uid=email.uid, draft=draft)
 
@@ -64,6 +71,11 @@ class InboxService:
         if not result.get("forward", False):
             return None
         item = EditorialItem(email=email, reply_to_sender=result.get("reply", ""))
+        decision_id = self._db.create_email_decision(
+            task="ARTICLE_APPROVAL", channel="EMAIL",
+            input_message_ids=[email.message_id],
+        )
+        item.decision_id = decision_id
         self._pending_editorial[email.uid] = item
         return PendingItem(category="editorial", uid=email.uid, editorial=item)
 
@@ -73,6 +85,9 @@ class InboxService:
         draft = self._pending_support.pop(uid, None)
         if not draft:
             return None
+        if draft.decision_id:
+            self._db.update_email_decision_output(draft.decision_id, draft.draft_reply)
+            self._db.update_email_decision(draft.decision_id, "APPROVED", decided_by="admin")
         em = draft.email
         self._email_gw.send_reply(
             em.reply_to or em.from_addr, em.subject,
@@ -90,8 +105,10 @@ class InboxService:
         return self.approve_support(uid)
 
     def skip_support(self, uid: str) -> None:
-        self._pending_support.pop(uid, None)
-        self._tech_support.discard(uid)
+        draft = self._pending_support.pop(uid, None)
+        if draft and draft.decision_id:
+            self._db.update_email_decision(draft.decision_id, "REJECTED", decided_by="admin")
+        self._tech_support.discard(uid, draft=draft)
 
     def get_pending_support(self, uid: str) -> SupportDraft | None:
         return self._pending_support.get(uid)
@@ -102,6 +119,8 @@ class InboxService:
         item = self._pending_editorial.pop(uid, None)
         if not item:
             return None
+        if item.decision_id:
+            self._db.update_email_decision(item.decision_id, "APPROVED", decided_by="admin")
         self._forward_to_editor(item.email)
         if item.reply_to_sender:
             self._email_gw.send_reply(
@@ -112,7 +131,9 @@ class InboxService:
         return item
 
     def skip_editorial(self, uid: str) -> None:
-        self._pending_editorial.pop(uid, None)
+        item = self._pending_editorial.pop(uid, None)
+        if item and item.decision_id:
+            self._db.update_email_decision(item.decision_id, "REJECTED", decided_by="admin")
 
     def get_pending_editorial(self, uid: str) -> EditorialItem | None:
         return self._pending_editorial.get(uid)

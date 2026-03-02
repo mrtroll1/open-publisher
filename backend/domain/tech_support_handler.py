@@ -68,9 +68,22 @@ class TechSupportHandler:
         )
         self._db.save_message(thread_id, outbound, "outbound")
 
-    def discard(self, uid: str) -> None:
+    def discard(self, uid: str, draft: SupportDraft | None = None) -> None:
         """Clean up thread tracking for a skipped email."""
-        self._uid_thread.pop(uid, None)
+        thread_id = self._uid_thread.pop(uid, None)
+        if draft and thread_id:
+            em = draft.email
+            rejected = IncomingEmail(
+                uid="",
+                from_addr=em.to_addr,
+                to_addr=em.reply_to or em.from_addr,
+                subject=em.subject,
+                body=draft.draft_reply,
+                date="",
+                message_id=f"<draft-rejected-{uuid.uuid4().hex}>",
+                in_reply_to=em.message_id,
+            )
+            self._db.save_message(thread_id, rejected, "draft_rejected")
 
     def _fetch_user_data(self, email_text: str, fallback_email: str) -> str:
         try:

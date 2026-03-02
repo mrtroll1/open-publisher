@@ -34,6 +34,18 @@ CREATE TABLE IF NOT EXISTS email_messages (
     direction TEXT,
     created_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS email_decisions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP DEFAULT NOW(),
+    task TEXT NOT NULL,
+    channel TEXT NOT NULL DEFAULT 'EMAIL',
+    input_message_ids TEXT[] NOT NULL,
+    output TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'PENDING',
+    decided_by TEXT DEFAULT '',
+    decided_at TIMESTAMP
+);
 """
 
 _RE_PREFIX = re.compile(r"^(Re|Fwd|Fw)\s*:\s*", re.IGNORECASE)
@@ -129,6 +141,64 @@ class DbGateway:
             )
             cols = ["message_id", "from_addr", "to_addr", "subject", "body", "date", "direction"]
             return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+    def create_email_decision(self, task: str, channel: str, input_message_ids: list[str], output: str = "") -> str:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO email_decisions (task, channel, input_message_ids, output)
+                   VALUES (%s, %s, %s, %s)
+                   RETURNING id""",
+                (task, channel, input_message_ids, output),
+            )
+            return str(cur.fetchone()[0])
+
+    def update_email_decision(self, decision_id: str, status: str, decided_by: str | None = None) -> None:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """UPDATE email_decisions
+                   SET status = %s, decided_by = %s, decided_at = NOW()
+                   WHERE id = %s""",
+                (status, decided_by or "", decision_id),
+            )
+
+    def update_email_decision_output(self, decision_id: str, output: str) -> None:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE email_decisions SET output = %s WHERE id = %s",
+                (output, decision_id),
+            )
+
+    def get_email_decision(self, decision_id: str) -> dict | None:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT id, created_at, task, channel, input_message_ids,
+                          output, status, decided_by, decided_at
+                   FROM email_decisions WHERE id = %s""",
+                (decision_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            cols = ["id", "created_at", "task", "channel", "input_message_ids",
+                    "output", "status", "decided_by", "decided_at"]
+            result = dict(zip(cols, row))
+            result["id"] = str(result["id"])
+            return result
+
+    def get_thread_message_ids(self, thread_id: str) -> list[str]:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT message_id FROM email_messages
+                   WHERE thread_id = %s
+                   ORDER BY created_at ASC""",
+                (thread_id,),
+            )
+            return [row[0] for row in cur.fetchall()]
 
     def close(self):
         if self._conn and not self._conn.closed:

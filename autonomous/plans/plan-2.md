@@ -14,7 +14,7 @@
 
 ### 1.1 New `email_decisions` table + CRUD in `db_gateway.py`
 
-- [ ] Add `email_decisions` table to `_SCHEMA_SQL`:
+- [x] Add `email_decisions` table to `_SCHEMA_SQL`:
   ```sql
   CREATE TABLE IF NOT EXISTS email_decisions (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -28,11 +28,11 @@
       decided_at TIMESTAMP
   );
   ```
-- [ ] Add `create_email_decision(task, channel, input_message_ids, output) -> str` method
-- [ ] Add `update_email_decision(decision_id, status, decided_by=None)` method
-- [ ] Add `update_email_decision_output(decision_id, output)` method
-- [ ] Add `get_email_decision(decision_id) -> dict | None` method
-- [ ] Add `get_thread_message_ids(thread_id) -> list[str]` method
+- [x] Add `create_email_decision(task, channel, input_message_ids, output) -> str` method
+- [x] Add `update_email_decision(decision_id, status, decided_by=None)` method
+- [x] Add `update_email_decision_output(decision_id, output)` method
+- [x] Add `get_email_decision(decision_id) -> dict | None` method
+- [x] Add `get_thread_message_ids(thread_id) -> list[str]` method
 
 **Why `input_message_ids TEXT[]`**: email_messages already stores full body/from/subject, so we reconstruct full input by fetching messages by IDs. Avoids duplicating large email bodies.
 
@@ -42,27 +42,27 @@
 
 Currently `skip_support()` pops from memory dict — the draft vanishes.
 
-- [ ] Change `TechSupportHandler.discard(uid)` to save the draft to `email_messages` with `direction='draft_rejected'` instead of just popping
-- [ ] Pass `DbGateway` and draft data needed for saving into `discard()`
+- [x] Change `TechSupportHandler.discard(uid)` to save the draft to `email_messages` with `direction='draft_rejected'` instead of just popping
+- [x] Pass `DbGateway` and draft data needed for saving into `discard()`
 
 **Files**: `backend/domain/tech_support_handler.py`
 
 ### 1.3 Wire decision tracking into `InboxService`
 
-- [ ] Add `DbGateway` dependency to `InboxService.__init__()`
-- [ ] In `_handle_support()`: after draft is created, create PENDING decision record, store `decision_id` on `SupportDraft`
-- [ ] In `_handle_editorial()`: after item is created, create PENDING decision record, store `decision_id` on `EditorialItem`
-- [ ] In `approve_support(uid)`: update decision to APPROVED
-- [ ] In `skip_support(uid)`: save rejected draft to email_messages, update decision to REJECTED
-- [ ] In `approve_editorial(uid)`: update decision to APPROVED
-- [ ] In `skip_editorial(uid)`: update decision to REJECTED
+- [x] Add `DbGateway` dependency to `InboxService.__init__()`
+- [x] In `_handle_support()`: after draft is created, create PENDING decision record, store `decision_id` on `SupportDraft`
+- [x] In `_handle_editorial()`: after item is created, create PENDING decision record, store `decision_id` on `EditorialItem`
+- [x] In `approve_support(uid)`: update decision to APPROVED
+- [x] In `skip_support(uid)`: save rejected draft to email_messages, update decision to REJECTED
+- [x] In `approve_editorial(uid)`: update decision to APPROVED
+- [x] In `skip_editorial(uid)`: update decision to REJECTED
 
 **Files**: `backend/domain/inbox_service.py`
 
 ### 1.4 Extend models with `decision_id`
 
-- [ ] Add `decision_id: str = ""` to `SupportDraft`
-- [ ] Add `decision_id: str = ""` to `EditorialItem`
+- [x] Add `decision_id: str = ""` to `SupportDraft`
+- [x] Add `decision_id: str = ""` to `EditorialItem`
 
 **Files**: `common/models.py`
 

@@ -571,6 +571,35 @@ _None yet._
 - Coverage now extends to prompt loading, email parsing, flow DSL, flow engine, compose functions, support formatting, bot helpers, and model properties
 - Remaining untested: service-layer orchestration code (requires full mocking of gateways)
 
+### Session 23 (2026-03-02) — Plan 2 Phase 1.1-1.4: Email Decision Tracking (DB + Models + Wiring)
+**Status:** Complete (Phase 1.1, 1.2, 1.3, 1.4 — all items)
+
+**What was done:**
+- Added `email_decisions` table to `_SCHEMA_SQL` in `db_gateway.py` (UUID PK, task, channel, input_message_ids TEXT[], output, status, decided_by, decided_at)
+- Added 5 new methods to `DbGateway`:
+  - `create_email_decision(task, channel, input_message_ids, output="") -> str`
+  - `update_email_decision(decision_id, status, decided_by=None)`
+  - `update_email_decision_output(decision_id, output)`
+  - `get_email_decision(decision_id) -> dict | None`
+  - `get_thread_message_ids(thread_id) -> list[str]`
+- Modified `TechSupportHandler.discard(uid, draft=None)` to save rejected drafts to `email_messages` with `direction='draft_rejected'` when draft is provided
+- Added `self._db = DbGateway()` to `InboxService.__init__()`
+- Wired decision tracking into all InboxService flows:
+  - `_handle_support()`: creates PENDING SUPPORT_ANSWER decision, sets `draft.decision_id`
+  - `_handle_editorial()`: creates PENDING ARTICLE_APPROVAL decision, sets `item.decision_id`
+  - `approve_support()`: updates decision output + status APPROVED
+  - `skip_support()`: updates decision REJECTED, passes draft to discard for storage
+  - `approve_editorial()`: updates decision APPROVED
+  - `skip_editorial()`: updates decision REJECTED
+- Added `decision_id: str = ""` to `SupportDraft` and `EditorialItem` in `common/models.py`
+- All 503 tests pass
+
+**Notes:**
+- `InboxService` creates its own `DbGateway` instance (separate from `TechSupportHandler`'s) — schema init is idempotent via CREATE IF NOT EXISTS
+- `input_message_ids` for decisions uses `[email.message_id]` — the single inbound email that triggered the decision
+- Decision output is set at approval time (captures any admin edits via `update_and_approve_support`)
+- Rejected drafts saved with `direction='draft_rejected'` and `message_id=<draft-rejected-{uuid}>` prefix
+
 ## Next up
 
-- Maintenance mode continues. Fourth cycle: next session should be spot bugs (round 4).
+- Plan 2 Phase 1.5: Tests for the decision tracking code (next session)

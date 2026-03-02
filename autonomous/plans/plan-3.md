@@ -59,7 +59,7 @@ Three tiers of knowledge, all in PostgreSQL:
 
 ### 2.1 New table: `knowledge_entries`
 
-- [ ] Add to `_SCHEMA_SQL` in `db_gateway.py`:
+- [x] Add to `_SCHEMA_SQL` in `db_gateway.py`:
   ```sql
   CREATE TABLE IF NOT EXISTS knowledge_entries (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -83,13 +83,13 @@ Three tiers of knowledge, all in PostgreSQL:
 
 ### 2.2 DbGateway methods
 
-- [ ] `save_knowledge_entry(tier, scope, title, content, source, embedding) -> str`
-- [ ] `update_knowledge_entry(entry_id, content, embedding) -> None`
-- [ ] `search_knowledge(query_embedding, scope=None, limit=5) -> list[dict]` — cosine similarity, only `is_active=TRUE`
-- [ ] `get_knowledge_by_tier(tier) -> list[dict]` — load all core entries
-- [ ] `get_knowledge_by_scope(scope) -> list[dict]` — load full scope
-- [ ] `list_knowledge(scope=None, tier=None) -> list[dict]` — for admin listing
-- [ ] `deactivate_knowledge(entry_id) -> None` — soft delete
+- [x] `save_knowledge_entry(tier, scope, title, content, source, embedding) -> str`
+- [x] `update_knowledge_entry(entry_id, content, embedding) -> None`
+- [x] `search_knowledge(query_embedding, scope=None, limit=5) -> list[dict]` — cosine similarity, only `is_active=TRUE`
+- [x] `get_knowledge_by_tier(tier) -> list[dict]` — load all core entries
+- [x] `get_knowledge_by_scope(scope) -> list[dict]` — load full scope
+- [x] `list_knowledge(scope=None, tier=None) -> list[dict]` — for admin listing
+- [x] `deactivate_knowledge(entry_id) -> None` — soft delete
 
 **Files**: `backend/infrastructure/gateways/db_gateway.py`
 

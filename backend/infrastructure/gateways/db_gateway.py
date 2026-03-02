@@ -80,6 +80,25 @@ CREATE TABLE IF NOT EXISTS code_tasks (
     rating INT,
     rated_at TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS knowledge_entries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tier TEXT NOT NULL DEFAULT 'domain',
+    scope TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL,
+    source TEXT NOT NULL DEFAULT 'seed',
+    embedding vector(256),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_embedding
+    ON knowledge_entries USING ivfflat (embedding vector_cosine_ops) WITH (lists = 10);
+CREATE INDEX IF NOT EXISTS idx_knowledge_scope
+    ON knowledge_entries(scope, is_active);
+CREATE INDEX IF NOT EXISTS idx_knowledge_tier
+    ON knowledge_entries(tier, is_active);
 """
 
 _RE_PREFIX = re.compile(r"^(Re|Fwd|Fw)\s*:\s*", re.IGNORECASE)
@@ -284,6 +303,128 @@ class DbGateway:
             cur.execute(
                 "UPDATE code_tasks SET rating = %s, rated_at = NOW() WHERE id = %s",
                 (rating, task_id),
+            )
+
+    # --- knowledge_entries ---
+
+    def save_knowledge_entry(self, tier: str, scope: str, title: str, content: str, source: str, embedding: list[float] | None = None) -> str:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO knowledge_entries (tier, scope, title, content, source, embedding)
+                   VALUES (%s, %s, %s, %s, %s, %s)
+                   RETURNING id""",
+                (tier, scope, title, content, source, str(embedding) if embedding is not None else None),
+            )
+            return str(cur.fetchone()[0])
+
+    def update_knowledge_entry(self, entry_id: str, content: str, embedding: list[float] | None = None) -> None:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """UPDATE knowledge_entries
+                   SET content = %s, embedding = %s, updated_at = NOW()
+                   WHERE id = %s""",
+                (content, str(embedding) if embedding is not None else None, entry_id),
+            )
+
+    def search_knowledge(self, query_embedding: list[float], scope: str | None = None, limit: int = 5) -> list[dict]:
+        conn = self._get_conn()
+        emb_str = str(query_embedding)
+        with conn.cursor() as cur:
+            if scope is not None:
+                cur.execute(
+                    """SELECT id, tier, scope, title, content, source,
+                              1 - (embedding <=> %s::vector) AS similarity
+                       FROM knowledge_entries
+                       WHERE is_active = TRUE AND scope = %s
+                       ORDER BY embedding <=> %s::vector ASC
+                       LIMIT %s""",
+                    (emb_str, scope, emb_str, limit),
+                )
+            else:
+                cur.execute(
+                    """SELECT id, tier, scope, title, content, source,
+                              1 - (embedding <=> %s::vector) AS similarity
+                       FROM knowledge_entries
+                       WHERE is_active = TRUE
+                       ORDER BY embedding <=> %s::vector ASC
+                       LIMIT %s""",
+                    (emb_str, emb_str, limit),
+                )
+            cols = ["id", "tier", "scope", "title", "content", "source", "similarity"]
+            rows = []
+            for row in cur.fetchall():
+                d = dict(zip(cols, row))
+                d["id"] = str(d["id"])
+                rows.append(d)
+            return rows
+
+    def get_knowledge_by_tier(self, tier: str) -> list[dict]:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT id, tier, scope, title, content, source
+                   FROM knowledge_entries
+                   WHERE tier = %s AND is_active = TRUE
+                   ORDER BY scope, created_at""",
+                (tier,),
+            )
+            cols = ["id", "tier", "scope", "title", "content", "source"]
+            rows = []
+            for row in cur.fetchall():
+                d = dict(zip(cols, row))
+                d["id"] = str(d["id"])
+                rows.append(d)
+            return rows
+
+    def get_knowledge_by_scope(self, scope: str) -> list[dict]:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT id, tier, scope, title, content, source
+                   FROM knowledge_entries
+                   WHERE scope = %s AND is_active = TRUE
+                   ORDER BY created_at""",
+                (scope,),
+            )
+            cols = ["id", "tier", "scope", "title", "content", "source"]
+            rows = []
+            for row in cur.fetchall():
+                d = dict(zip(cols, row))
+                d["id"] = str(d["id"])
+                rows.append(d)
+            return rows
+
+    def list_knowledge(self, scope: str | None = None, tier: str | None = None) -> list[dict]:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            sql = """SELECT id, tier, scope, title, source, created_at
+                     FROM knowledge_entries
+                     WHERE is_active = TRUE"""
+            params: list = []
+            if scope is not None:
+                sql += " AND scope = %s"
+                params.append(scope)
+            if tier is not None:
+                sql += " AND tier = %s"
+                params.append(tier)
+            sql += " ORDER BY tier, scope, created_at"
+            cur.execute(sql, tuple(params))
+            cols = ["id", "tier", "scope", "title", "source", "created_at"]
+            rows = []
+            for row in cur.fetchall():
+                d = dict(zip(cols, row))
+                d["id"] = str(d["id"])
+                rows.append(d)
+            return rows
+
+    def deactivate_knowledge(self, entry_id: str) -> None:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE knowledge_entries SET is_active = FALSE, updated_at = NOW() WHERE id = %s",
+                (entry_id,),
             )
 
     def close(self):

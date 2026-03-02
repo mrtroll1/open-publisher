@@ -279,3 +279,52 @@ class TestFinalizePaymentValidation:
         assert "UPDATE payment_validations" in sql
         assert "SET is_final = TRUE" in sql
         assert params == ("val-abc-123",)
+
+
+# ===================================================================
+#  code_tasks CRUD
+# ===================================================================
+
+class TestCodeTasksCRUD:
+
+    def test_create_code_task(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = ("task-uuid-123",)
+
+        result = gw.create_code_task(
+            requested_by="user42",
+            input_text="fix the bug",
+            output_text="here is the fix ...",
+        )
+
+        assert result == "task-uuid-123"
+        sql, params = cur.execute.call_args[0]
+        assert "INSERT INTO code_tasks" in sql
+        assert "RETURNING id" in sql
+        assert params == ("user42", "fix the bug", "here is the fix ...", False)
+
+    def test_create_code_task_verbose(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = ("task-verbose-456",)
+
+        result = gw.create_code_task(
+            requested_by="user42",
+            input_text="explain this code",
+            output_text="detailed explanation ...",
+            verbose=True,
+        )
+
+        assert result == "task-verbose-456"
+        _, params = cur.execute.call_args[0]
+        assert params[3] is True
+
+    def test_rate_code_task(self):
+        gw, cur = _make_gw()
+
+        gw.rate_code_task("task-uuid-123", 5)
+
+        sql, params = cur.execute.call_args[0]
+        assert "UPDATE code_tasks" in sql
+        assert "SET rating" in sql
+        assert "rated_at = NOW()" in sql
+        assert params == (5, "task-uuid-123")

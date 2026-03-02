@@ -297,7 +297,7 @@ Currently `skip_support()` pops from memory dict — the draft vanishes.
 
 ### 5.3 `code_tasks` table + rating
 
-- [ ] Add table to `_SCHEMA_SQL`:
+- [x] Add table to `_SCHEMA_SQL`:
   ```sql
   CREATE TABLE IF NOT EXISTS code_tasks (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -310,12 +310,12 @@ Currently `skip_support()` pops from memory dict — the draft vanishes.
       rated_at TIMESTAMP
   );
   ```
-- [ ] Add `create_code_task(requested_by, input, output, verbose) -> str` to `DbGateway`
-- [ ] Add `rate_code_task(task_id, rating)` to `DbGateway`
-- [ ] Save task in `cmd_code` handler after Claude returns
-- [ ] Show rating buttons (1-5) as inline keyboard after response
-- [ ] Add `handle_code_rate_callback` for `code_rate:<id>:<rating>` prefix
-- [ ] Register callback in `main.py`
+- [x] Add `create_code_task(requested_by, input, output, verbose) -> str` to `DbGateway`
+- [x] Add `rate_code_task(task_id, rating)` to `DbGateway`
+- [x] Save task in `cmd_code` handler after Claude returns
+- [x] Show rating buttons (1-5) as inline keyboard after response
+- [x] Add `handle_code_rate_callback` for `code_rate:<id>:<rating>` prefix
+- [x] Register callback in `main.py`
 
 **Files**: `backend/infrastructure/gateways/db_gateway.py`, `backend/domain/code_runner.py`, `telegram_bot/flow_callbacks.py`, `telegram_bot/main.py`
 
@@ -325,9 +325,9 @@ Currently `skip_support()` pops from memory dict — the draft vanishes.
 - [x] Test `GeminiGateway.call()` with `task` param logs to DB
 - [x] Test `GeminiGateway.call()` without `task` param does NOT log
 - [x] Test `log_payment_validation` writes correct data
-- [ ] Test `create_code_task` and `rate_code_task` CRUD
-- [ ] Test code rating callback handler
-- [ ] Run full test suite, verify no regressions
+- [x] Test `create_code_task` and `rate_code_task` CRUD
+- [x] Test code rating callback handler
+- [x] Run full test suite, verify no regressions
 
 **Files**: `tests/test_db_gateway.py` (extend), `tests/test_gemini_gateway.py` (new or extend), `tests/test_code_runner.py` (extend)
 

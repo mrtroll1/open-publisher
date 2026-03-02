@@ -598,7 +598,23 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
 
     try:
         answer = await asyncio.to_thread(run_claude_code, text, verbose)
-        await message.answer(answer)
+        # Save to DB and build rating keyboard
+        reply_markup = None
+        try:
+            from backend.infrastructure.gateways.db_gateway import DbGateway
+            task_id = DbGateway().create_code_task(
+                requested_by=str(message.from_user.id),
+                input_text=text,
+                output_text=answer,
+                verbose=verbose,
+            )
+            reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text=str(i), callback_data=f"code_rate:{task_id}:{i}")
+                for i in range(1, 6)
+            ]])
+        except Exception:
+            logger.exception("Failed to save code task to DB")
+        await message.answer(answer, reply_markup=reply_markup)
     except Exception as e:
         logger.exception("Claude Code execution failed")
         await message.answer(f"Ошибка: {e}")
@@ -1775,3 +1791,21 @@ async def handle_editorial_callback(callback: CallbackQuery) -> None:
             await callback.message.edit_text(replies.editorial.skipped.format(from_addr=item.email.from_addr))
         except TelegramBadRequest:
             pass
+
+
+async def handle_code_rate_callback(callback: CallbackQuery) -> None:
+    parts = callback.data.split(":")
+    if len(parts) != 3:
+        await callback.answer()
+        return
+    _, task_id, rating = parts
+    try:
+        from backend.infrastructure.gateways.db_gateway import DbGateway
+        DbGateway().rate_code_task(task_id, int(rating))
+    except Exception:
+        logger.exception("Failed to save code task rating")
+    await callback.answer("Оценка сохранена!")
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except TelegramBadRequest:
+        pass

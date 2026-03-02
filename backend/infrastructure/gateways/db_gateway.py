@@ -67,6 +67,17 @@ CREATE TABLE IF NOT EXISTS payment_validations (
     validation_warnings TEXT[],
     is_final BOOLEAN DEFAULT FALSE
 );
+
+CREATE TABLE IF NOT EXISTS code_tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP DEFAULT NOW(),
+    requested_by TEXT,
+    input_text TEXT NOT NULL,
+    output_text TEXT NOT NULL,
+    verbose BOOLEAN DEFAULT FALSE,
+    rating INT,
+    rated_at TIMESTAMP
+);
 """
 
 _RE_PREFIX = re.compile(r"^(Re|Fwd|Fw)\s*:\s*", re.IGNORECASE)
@@ -252,6 +263,25 @@ class DbGateway:
             cur.execute(
                 "UPDATE payment_validations SET is_final = TRUE WHERE id = %s",
                 (validation_id,),
+            )
+
+    def create_code_task(self, requested_by: str, input_text: str, output_text: str, verbose: bool = False) -> str:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """INSERT INTO code_tasks (requested_by, input_text, output_text, verbose)
+                   VALUES (%s, %s, %s, %s)
+                   RETURNING id""",
+                (requested_by, input_text, output_text, verbose),
+            )
+            return str(cur.fetchone()[0])
+
+    def rate_code_task(self, task_id: str, rating: int) -> None:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE code_tasks SET rating = %s, rated_at = NOW() WHERE id = %s",
+                (rating, task_id),
             )
 
     def close(self):

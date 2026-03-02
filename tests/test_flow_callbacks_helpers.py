@@ -1,5 +1,8 @@
 """Tests for pure helper functions in telegram_bot/flow_callbacks.py."""
 
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 
 from common.models import (
@@ -17,6 +20,7 @@ from telegram_bot.flow_callbacks import (
     _COMMAND_DESCRIPTIONS,
     _ROLE_LABELS,
     _TYPE_LABELS,
+    handle_code_rate_callback,
 )
 from telegram_bot import replies
 
@@ -403,3 +407,51 @@ class TestFuzzySuggestionFormatting:
             "  - Пётр Петров (ИП)\n"
             "  - John Smith (global)"
         )
+
+
+# ===================================================================
+#  handle_code_rate_callback
+# ===================================================================
+
+def _make_callback(data: str) -> MagicMock:
+    cb = AsyncMock()
+    cb.data = data
+    cb.message = AsyncMock()
+    return cb
+
+
+class TestHandleCodeRateCallback:
+
+    @patch("backend.infrastructure.gateways.db_gateway.DbGateway")
+    def test_valid_rating(self, MockGw):
+        mock_gw = MagicMock()
+        MockGw.return_value = mock_gw
+
+        cb = _make_callback("code_rate:task-abc-123:4")
+        asyncio.run(handle_code_rate_callback(cb))
+
+        mock_gw.rate_code_task.assert_called_once_with("task-abc-123", 4)
+        cb.answer.assert_awaited_once_with("Оценка сохранена!")
+        cb.message.edit_reply_markup.assert_awaited_once_with(reply_markup=None)
+
+    def test_invalid_format_too_few_parts(self):
+        cb = _make_callback("code_rate:missing")
+        asyncio.run(handle_code_rate_callback(cb))
+
+        cb.answer.assert_awaited_once_with()
+
+    def test_invalid_format_too_many_parts(self):
+        cb = _make_callback("code_rate:id:3:extra")
+        asyncio.run(handle_code_rate_callback(cb))
+
+        cb.answer.assert_awaited_once_with()
+
+    @patch("backend.infrastructure.gateways.db_gateway.DbGateway")
+    def test_db_error_still_answers(self, MockGw):
+        MockGw.return_value.rate_code_task.side_effect = RuntimeError("db down")
+
+        cb = _make_callback("code_rate:task-xyz:5")
+        asyncio.run(handle_code_rate_callback(cb))
+
+        cb.answer.assert_awaited_once_with("Оценка сохранена!")
+        cb.message.edit_reply_markup.assert_awaited_once_with(reply_markup=None)

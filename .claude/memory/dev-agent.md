@@ -848,6 +848,33 @@ Tests:
 - `_validation_id` key in result dict is ignored by downstream processing (unknown keys silently pass through)
 - `parse_contractor_data()` is called from `backend/__init__.py`, not directly — the DB logging happens in the Telegram-side `_parse_with_llm` wrapper
 
+### Session 30 (2026-03-02) — Plan 2 Phase 5.3 + 5.4: code_tasks table + rating + remaining tests
+**Status:** Complete (all Phase 5 items done)
+
+**What was done:**
+
+Phase 5.3 — `code_tasks` table + rating:
+- Added `code_tasks` table to `_SCHEMA_SQL` (UUID PK, requested_by, input_text, output_text, verbose, rating, rated_at)
+- Added `DbGateway.create_code_task()` — INSERT with RETURNING id
+- Added `DbGateway.rate_code_task()` — UPDATE rating + rated_at=NOW()
+- Modified `cmd_code` handler: after Claude returns, saves task to DB (try/except), shows 1-5 rating inline keyboard
+- Created `handle_code_rate_callback` — parses `code_rate:{task_id}:{rating}`, calls rate_code_task, removes keyboard
+- Registered `handle_code_rate_callback` in `main.py` with `F.data.startswith("code_rate:")`
+
+Phase 5.4 — Remaining tests:
+- Added `TestCodeTasksCRUD` (3 tests) to `test_db_gateway.py`: create, create verbose, rate
+- Added `TestHandleCodeRateCallback` (4 tests) to `test_flow_callbacks_helpers.py`: valid rating, invalid format (too few/many parts), DB error graceful degradation
+
+**Net result:** 7 new tests (639 total), all passing in 1.35s
+
+**Notes:**
+- Phase 5 is now fully complete (5.1-5.4 all checked off)
+- Plan 2 Phases 1-5 are all done. Phase 6 (domain refactor) is optional/stretch.
+- DB logging in cmd_code is wrapped in try/except — never breaks user experience
+- Rating buttons use compact single-row layout: "1" through "5"
+- Callback data format: `code_rate:{uuid}:{1-5}` — fits within Telegram's 64-byte limit
+
 ## Next up
 
-- Plan 2 Phase 5.3: `code_tasks` table + rating (inline keyboard, callback handler)
+- Plan 2 is complete through Phase 5. Phase 6 (LLM domain structure refactor) is optional/stretch.
+- Enter maintenance mode: write tests, spot bugs, refactor, polish UX, improve prompts.

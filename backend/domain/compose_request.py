@@ -41,8 +41,8 @@ def support_email(email_text: str, user_data: str = "") -> tuple[str, str, list[
     return prompt, _MODELS["support_email"], ["reply"]
 
 
-def tech_search_terms(email_text: str) -> tuple[str, str, list[str]]:
-    prompt = load_template("tech-search-terms.md", {"EMAIL": email_text})
+def tech_search_terms(text: str) -> tuple[str, str, list[str]]:
+    prompt = load_template("tech-search-terms.md", {"EMAIL": text})
     return prompt, _MODELS["tech_search_terms"], ["search_terms", "needs_code"]
 
 

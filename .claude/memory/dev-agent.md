@@ -1080,9 +1080,64 @@ Phase 5.4 — Remaining tests:
 - The DB connection leak was potentially the most impactful — could exhaust Postgres connections during batch invoice operations
 - `_validation_id` leak was a PII-adjacent issue (internal UUIDs exposed to admin users)
 
+### Session 38 (2026-03-02) — Maintenance: Refactor (round 5)
+**Status:** Complete
+
+**What was done:**
+- Refactoring pass across 7 source files, net -84 lines (89 added, 173 removed)
+- Merged `support_email()` and `support_email_with_context()` into single function with `user_data=""` default parameter in `compose_request.py`
+- Extracted `_build_thread_message()` static method in `tech_support_handler.py` — deduplicated IncomingEmail construction in `save_outbound()` and `discard()`
+- Extracted `_check_email()` helper in `validate_contractor.py` — deduplicated email regex validation for samozanyaty and global branches
+- Removed no-op `_format_date()` function from `parse_bank_statement.py` — validated ISO date format but always returned input unchanged
+- Extracted `_quote_csv()` helper in `airtable_gateway.py` — consolidated 4 identical comma-quoting blocks
+- Extracted `_deliver_or_start_invoice()` in `flow_callbacks.py` — deduplicated invoice delivery logic between `handle_sign_doc()` and `handle_linked_menu_callback()`
+- Removed `_translate_name_to_russian()` one-liner wrapper in `flow_callbacks.py` — inlined `asyncio.to_thread(translate_name_to_russian, name_en)`
+- Removed unused `_TYPE_LABELS` dict — `ContractorType.value` already provides the same strings
+- Consolidated triplicated progress callback in `generate_batch_invoices.py` into a `finally` block
+- Updated 4 test files to match refactored code (removed 7 tests for dead code)
+
+**Net result:** 773 tests pass (7 removed with dead code), -84 lines
+
+**Notes:**
+- All refactors preserve existing public behavior and function signatures
+- `support_email(email_text, user_data="")` is backward-compatible — existing callers without context still work
+- `_build_thread_message()` is a static method since it doesn't need `self`
+
+### Session 39 (2026-03-02) — Maintenance: Spot Bugs (round 6)
+**Status:** Complete
+
+**What was done:**
+- Thorough code review of all files, focusing on recent refactoring (session 38) and less-reviewed areas
+- Found and fixed 2 confirmed bugs in `backend/infrastructure/gateways/airtable_gateway.py`:
+
+1. **Missing `parent` field in Airtable upload**:
+   - Every `AirtableExpense` record has a `parent` field (e.g., "staff", "goods and services", "expenses") but `upload_expenses()` never included it in the JSON payload
+   - All uploaded expense records were missing their category in Airtable
+   - **Fix**: Added `"parent": exp.parent` to the `fields` dict
+
+2. **Spurious CSV quoting in Airtable API calls**:
+   - `_quote_csv()` wrapped values containing commas in literal double quotes
+   - Designed for CSV output but data is sent via pyairtable's JSON API
+   - Contractor names, unit names, entity names, group names with commas had spurious `"..."` wrapping
+   - **Fix**: Removed `_quote_csv()` entirely, pass raw string values to API
+
+- Cross-file consistency checks all passed:
+  - `support_email()` callers correct after merge
+  - `_build_thread_message()` constructs messages correctly
+  - `_deliver_or_start_invoice()` handles both caller scenarios
+  - `_check_email()` called correctly in both places
+- Reviewed 20+ files across all layers — no other bugs found
+
+**Notes:**
+- All 773 tests pass after fixes
+- The Airtable bugs were introduced during refactoring round 5 when `_quote_csv()` was extracted — the quoting was wrong from the start but only became visible during refactoring review
+- The `parent` field omission was likely present since the original `parse_bank_statement` feature was implemented
+
 ## Next up
 
 - Plan 2 is complete through Phase 5. Phase 6 deferred (see plan notes).
-- Continue maintenance mode: refactor, improve prompts, or polish UX.
-- Test coverage is now strong across all layers. Remaining untested: low-value thin wrappers (gateways to external APIs).
+- Continue maintenance mode: improve prompts, polish UX, write tests, or spot bugs.
+- Refactoring opportunities are mostly exhausted after 5 rounds (-329 lines total, 28 helpers extracted).
+- Test coverage is strong across all layers (773 tests). Remaining untested: low-value thin wrappers (gateways to external APIs).
 - `_test_ternary.py` stray empty file in project root — needs manual deletion (rm blocked by security policy)
+- Airtable gateway now fully correct — parent field included, no spurious quoting

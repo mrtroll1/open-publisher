@@ -14,10 +14,6 @@ from common.models import AirtableExpense
 logger = logging.getLogger(__name__)
 
 
-def _quote_csv(val: str) -> str:
-    return f'"{val}"' if "," in val else val
-
-
 class AirtableGateway:
     """Wraps the Airtable API for expense record uploads."""
 
@@ -37,11 +33,12 @@ class AirtableGateway:
             fields = {
                 "payed": exp.payed,
                 "amount rub": float(exp.amount_rub),
-                "contractor": _quote_csv(exp.contractor),
-                "unit": _quote_csv(exp.unit),
-                "entity": _quote_csv(exp.entity),
+                "contractor": exp.contractor,
+                "unit": exp.unit,
+                "entity": exp.entity,
                 "description": exp.description,
-                "group": _quote_csv(exp.group),
+                "group": exp.group,
+                "parent": exp.parent,
                 "crated": today,
             }
             if exp.splited:

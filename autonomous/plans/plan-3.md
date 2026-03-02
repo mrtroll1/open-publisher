@@ -95,16 +95,16 @@ Three tiers of knowledge, all in PostgreSQL:
 
 ### 2.3 Knowledge retriever
 
-- [ ] Create `backend/domain/knowledge_retriever.py`:
+- [x] Create `backend/domain/knowledge_retriever.py`:
   ```python
   class KnowledgeRetriever:
       def get_core(self) -> str                                          # all core entries, always loaded
       def retrieve(self, query: str, scope: str | None, limit=5) -> str # semantic search over domain tier
       def retrieve_full_scope(self, scope: str) -> str                  # all entries in a scope
   ```
-- [ ] `get_core()` loads all `tier='core'` entries, joins as markdown
-- [ ] `retrieve()` embeds query → pgvector similarity search → format results
-- [ ] Handle `{{SUBSCRIPTION_SERVICE_URL}}` replacement after retrieval
+- [x] `get_core()` loads all `tier='core'` entries, joins as markdown
+- [x] `retrieve()` embeds query → pgvector similarity search → format results
+- [x] Handle `{{SUBSCRIPTION_SERVICE_URL}}` replacement after retrieval
 
 **Files**: `backend/domain/knowledge_retriever.py` (new)
 
@@ -127,8 +127,8 @@ Three tiers of knowledge, all in PostgreSQL:
 
 ### 2.5 Tests
 
-- [ ] Create `tests/test_knowledge_retriever.py` — mock DB and embeddings, test retrieval logic
-- [ ] Run tests
+- [x] Create `tests/test_knowledge_retriever.py` — mock DB and embeddings, test retrieval logic
+- [x] Run tests
 
 ---
 

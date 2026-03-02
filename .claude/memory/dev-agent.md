@@ -1133,11 +1133,45 @@ Phase 5.4 — Remaining tests:
 - The Airtable bugs were introduced during refactoring round 5 when `_quote_csv()` was extracted — the quoting was wrong from the start but only became visible during refactoring review
 - The `parent` field omission was likely present since the original `parse_bank_statement` feature was implemented
 
+### Session 40 (2026-03-02) — Maintenance: Write Tests (round 7 — bank statement categorization)
+**Status:** Complete
+
+**What was done:**
+- Extended `tests/test_parse_bank_statement.py` with 32 new tests across 14 classes covering all 16 code paths in `_categorize_transactions()`:
+  - `TestCategorizeIncomeSkip` (2): Stripe/NETWORK INTERNATIONAL payout skip, case-insensitive
+  - `TestCategorizeOwnerTransfer` (2): owner keyword match creates expense, non-match skipped
+  - `TestCategorizeOtherPositiveTransfers` (2): unknown sender skip, no "From" pattern skip
+  - `TestCategorizeFeesSwift` (2): single SWIFT fee aggregated, uppercase SWIFT in description
+  - `TestCategorizeFeesFx` (1): FX fee creates 2 split expenses (50/50 units)
+  - `TestCategorizeFeesSubscription` (1): subscription fee → Wio Bank expense, entity.split("-")[0] for unit
+  - `TestCategorizeFeesUnknown` (1): unknown fee type skipped
+  - `TestCategorizeOutgoingTransfers` (3): known person classification, unknown person defaults, no "To" pattern
+  - `TestCategorizeCardKnownServiceNoSplit` (1): SERVICE_MAP match → single expense
+  - `TestCategorizeCardKnownServiceSplit` (1): split=True → 2 expenses per unit
+  - `TestCategorizeCardUnknownService` (1): unknown → 2 expenses with "NEEDS REVIEW"
+  - `TestCategorizeInvalidAmount` (2): non-numeric and empty amounts skipped
+  - `TestCategorizeEmptyRows` (4): empty dict, missing fields, zero amount, unknown txn type
+  - `TestCategorizeMixedScenario` (1): 7 mixed rows → 6 correct expenses
+  - `TestCategorizeSwiftAggregation` (1): 3 SWIFT fees → 1 aggregated with sum and latest date
+  - `TestCategorizeFxAggregation` (1): 2 FX fees → 2 split aggregated with sum and latest date
+  - `TestCategorizeEdgeCases` (6): empty list, positive card, whitespace, entity split, abs values
+
+- Uses `_apply_patches` decorator to mock all 7 config values deterministically
+- Uses `_row()` helper for concise CSV row construction
+
+**Net result:** 32 new tests (805 total), all passing in 1.60s
+
+**Notes:**
+- `_categorize_transactions` is now comprehensively tested — every branch and aggregation path covered
+- Tests are fully deterministic via config mocking, independent of business_config.json
+- File went from 36 tests (helpers only) to 68 tests (helpers + full categorization engine)
+
 ## Next up
 
 - Plan 2 is complete through Phase 5. Phase 6 deferred (see plan notes).
 - Continue maintenance mode: improve prompts, polish UX, write tests, or spot bugs.
 - Refactoring opportunities are mostly exhausted after 5 rounds (-329 lines total, 28 helpers extracted).
-- Test coverage is strong across all layers (773 tests). Remaining untested: low-value thin wrappers (gateways to external APIs).
+- Test coverage is now comprehensive across all layers (805 tests). Remaining untested: low-value thin wrappers (gateways to external APIs).
 - `_test_ternary.py` stray empty file in project root — needs manual deletion (rm blocked by security policy)
 - Airtable gateway now fully correct — parent field included, no spurious quoting
+- Bank statement categorization is now fully tested (was the biggest gap)

@@ -197,12 +197,12 @@ Currently `skip_support()` pops from memory dict — the draft vanishes.
 
 ### 3.5 Tests for Phase 3
 
-- [ ] Test `CommandClassifier` with Russian NL inputs (e.g. "у нас сайт лежит" → health)
-- [ ] Test `CommandClassifier` returns None for irrelevant messages
-- [ ] Test `GroupChatConfig` filtering (configured chat vs unconfigured)
-- [ ] Test mention extraction (strip @username, handle replies)
-- [ ] Test that group commands dispatch correctly
-- [ ] Run full test suite, verify no regressions
+- [x] Test `CommandClassifier` with Russian NL inputs (e.g. "у нас сайт лежит" → health)
+- [x] Test `CommandClassifier` returns None for irrelevant messages
+- [x] Test `GroupChatConfig` filtering (configured chat vs unconfigured)
+- [x] Test mention extraction (strip @username, handle replies)
+- [x] Test that group commands dispatch correctly
+- [x] Run full test suite, verify no regressions
 
 **Files**: `tests/test_command_classifier.py` (new), `tests/test_flow_engine.py` (extend)
 
@@ -212,35 +212,35 @@ Currently `skip_support()` pops from memory dict — the draft vanishes.
 
 ### 4.1 /articles command
 
-- [ ] Add `cmd_articles` handler in `flow_callbacks.py`:
-  - [ ] Parse args: `<author_name> [month]` (default: previous month)
-  - [ ] Fuzzy-find contractor by name
-  - [ ] Call `fetch_articles(contractor, month)`
-  - [ ] Format result: article count, list of article IDs, role
-- [ ] Register `/articles` as `AdminCommand` in `flows.py`
-- [ ] Add `"articles"` to editorial groupchat's `allowed_commands`
+- [x] Add `cmd_articles` handler in `flow_callbacks.py`:
+  - [x] Parse args: `<author_name> [month]` (default: previous month)
+  - [x] Fuzzy-find contractor by name
+  - [x] Call `fetch_articles(contractor, month)`
+  - [x] Format result: article count, list of article IDs, role
+- [x] Register `/articles` as `AdminCommand` in `flows.py`
+- [x] Add `"articles"` to editorial groupchat's `allowed_commands`
 
 **Files**: `telegram_bot/flow_callbacks.py`, `telegram_bot/flows.py`
 
 ### 4.2 /lookup command
 
-- [ ] Add `cmd_lookup` handler in `flow_callbacks.py`:
-  - [ ] Parse args: `<name>`
-  - [ ] Fuzzy-find contractor
-  - [ ] Show: name, type, role, invoice status, payment data completeness
-  - [ ] Do NOT show sensitive fields (passport, bank account) — only presence/absence
-- [ ] Register `/lookup` as `AdminCommand` in `flows.py`
-- [ ] Add `"lookup"` to editorial groupchat's `allowed_commands`
+- [x] Add `cmd_lookup` handler in `flow_callbacks.py`:
+  - [x] Parse args: `<name>`
+  - [x] Fuzzy-find contractor
+  - [x] Show: name, type, role, invoice status, payment data completeness
+  - [x] Do NOT show sensitive fields (passport, bank account) — only presence/absence
+- [x] Register `/lookup` as `AdminCommand` in `flows.py`
+- [x] Add `"lookup"` to editorial groupchat's `allowed_commands`
 
 **Files**: `telegram_bot/flow_callbacks.py`, `telegram_bot/flows.py`
 
 ### 4.3 Tests for Phase 4
 
-- [ ] Test `/articles` with mocked `fetch_articles`
-- [ ] Test `/articles` with unknown author
-- [ ] Test `/lookup` with mocked contractor data
-- [ ] Test `/lookup` does not expose sensitive fields
-- [ ] Run full test suite, verify no regressions
+- [x] Test `/articles` with mocked `fetch_articles`
+- [x] Test `/articles` with unknown author
+- [x] Test `/lookup` with mocked contractor data
+- [x] Test `/lookup` does not expose sensitive fields
+- [x] Run full test suite, verify no regressions
 
 **Files**: `tests/test_flow_callbacks_helpers.py` (extend)
 

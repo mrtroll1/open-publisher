@@ -603,6 +603,105 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
         await message.answer(f"Ошибка: {e}")
 
 
+_ROLE_LABELS = {
+    RoleCode.AUTHOR: "автор",
+    RoleCode.REDAKTOR: "редактор",
+    RoleCode.KORREKTOR: "корректор",
+}
+
+_TYPE_LABELS = {
+    ContractorType.SAMOZANYATY: "самозанятый",
+    ContractorType.IP: "ИП",
+    ContractorType.GLOBAL: "global",
+}
+
+
+async def cmd_articles(message: types.Message, state: FSMContext) -> None:
+    args = message.text.split(maxsplit=2)
+    if len(args) < 2:
+        await message.answer("Использование: /articles <имя> [YYYY-MM]")
+        return
+
+    raw_name = args[1].strip()
+    month = args[2].strip() if len(args) > 2 else prev_month()
+
+    contractors = await get_contractors()
+    contractor = find_contractor(raw_name, contractors)
+
+    if not contractor:
+        matches = fuzzy_find(raw_name, contractors, threshold=0.4)
+        if matches:
+            suggestions = "\n".join(
+                f"  - {c.display_name} ({c.type.value})" for c, _ in matches[:5]
+            )
+            await message.answer(replies.lookup.fuzzy_suggestions.format(suggestions=suggestions))
+        else:
+            await message.answer(replies.lookup.not_found)
+        return
+
+    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    articles = await asyncio.to_thread(fetch_articles, contractor, month)
+
+    if not articles:
+        await message.answer(f"У {contractor.display_name} нет публикаций за {month}.")
+        return
+
+    role_label = _ROLE_LABELS.get(contractor.role_code, contractor.role_code.value)
+    ids_list = "\n".join(f"  - {a.article_id}" for a in articles)
+    text = (
+        f"{contractor.display_name} ({role_label})\n"
+        f"Месяц: {month}\n"
+        f"Статей: {len(articles)}\n\n"
+        f"{ids_list}"
+    )
+    await message.answer(text)
+
+
+async def cmd_lookup(message: types.Message, state: FSMContext) -> None:
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        await message.answer("Использование: /lookup <имя>")
+        return
+
+    raw_name = args[1].strip()
+
+    contractors = await get_contractors()
+    contractor = find_contractor(raw_name, contractors)
+
+    if not contractor:
+        matches = fuzzy_find(raw_name, contractors, threshold=0.4)
+        if matches:
+            suggestions = "\n".join(
+                f"  - {c.display_name} ({c.type.value})" for c, _ in matches[:5]
+            )
+            await message.answer(replies.lookup.fuzzy_suggestions.format(suggestions=suggestions))
+        else:
+            await message.answer(replies.lookup.not_found)
+        return
+
+    type_label = _TYPE_LABELS.get(contractor.type, contractor.type.value)
+    role_label = _ROLE_LABELS.get(contractor.role_code, contractor.role_code.value)
+    tg_status = "привязан" if contractor.telegram else "не привязан"
+
+    has_bank = bool(contractor.bank_name and contractor.bank_account)
+    bank_status = "заполнены" if has_bank else "не заполнены"
+
+    lines = [
+        f"{contractor.display_name}",
+        f"Тип: {type_label}",
+        f"Роль: {role_label}",
+    ]
+    if contractor.mags:
+        lines.append(f"Издания: {contractor.mags}")
+    if contractor.email:
+        lines.append(f"Email: {contractor.email}")
+    lines.append(f"Telegram: {tg_status}")
+    lines.append(f"Номер счёта: {contractor.invoice_number}")
+    lines.append(f"Банковские данные: {bank_status}")
+
+    await message.answer("\n".join(lines))
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  GROUP CHAT HANDLER
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -611,12 +710,16 @@ _GROUP_COMMAND_HANDLERS: dict[str, Callable] = {
     "health": cmd_health,
     "tech_support": cmd_tech_support,
     "code": cmd_code,
+    "articles": cmd_articles,
+    "lookup": cmd_lookup,
 }
 
 _COMMAND_DESCRIPTIONS: dict[str, str] = {
     "health": "Проверка доступности сайтов и подов",
     "tech_support": "Задать вопрос по техподдержке",
     "code": "Запустить Claude Code",
+    "articles": "Статьи контрагента за месяц",
+    "lookup": "Информация о контрагенте",
 }
 
 

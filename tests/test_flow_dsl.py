@@ -7,6 +7,7 @@ from telegram_bot.flow_dsl import (
     BotFlows,
     Flow,
     FlowState,
+    GroupChatConfig,
     InputType,
     Transition,
 )
@@ -173,3 +174,66 @@ class TestInputType:
 
     def test_document_value(self):
         assert InputType.DOCUMENT.value == "document"
+
+
+# ===================================================================
+#  GroupChatConfig
+# ===================================================================
+
+class TestGroupChatConfig:
+
+    def test_defaults(self):
+        gc = GroupChatConfig(chat_id=-1001234567890)
+        assert gc.chat_id == -1001234567890
+        assert gc.allowed_commands == []
+        assert gc.natural_language is True
+
+    def test_custom_allowed_commands(self):
+        gc = GroupChatConfig(
+            chat_id=-100111,
+            allowed_commands=["health", "code"],
+        )
+        assert gc.allowed_commands == ["health", "code"]
+
+    def test_natural_language_disabled(self):
+        gc = GroupChatConfig(
+            chat_id=-100222,
+            natural_language=False,
+        )
+        assert gc.natural_language is False
+
+    def test_filtering_configured_chat(self):
+        configs = [
+            GroupChatConfig(chat_id=-100111, allowed_commands=["health"]),
+            GroupChatConfig(chat_id=-100222, allowed_commands=["code"]),
+        ]
+        config_by_chat = {gc.chat_id: gc for gc in configs}
+
+        assert -100111 in config_by_chat
+        assert config_by_chat[-100111].allowed_commands == ["health"]
+
+    def test_filtering_unconfigured_chat(self):
+        configs = [
+            GroupChatConfig(chat_id=-100111, allowed_commands=["health"]),
+        ]
+        config_by_chat = {gc.chat_id: gc for gc in configs}
+
+        assert -100999 not in config_by_chat
+        assert config_by_chat.get(-100999) is None
+
+
+# ===================================================================
+#  BotFlows.group_configs
+# ===================================================================
+
+class TestBotFlowsGroupConfigs:
+
+    def test_default_group_configs_empty(self):
+        bf = BotFlows()
+        assert bf.group_configs == []
+
+    def test_group_configs_stored(self):
+        gc = GroupChatConfig(chat_id=-100111, allowed_commands=["health"])
+        bf = BotFlows(group_configs=[gc])
+        assert len(bf.group_configs) == 1
+        assert bf.group_configs[0].chat_id == -100111

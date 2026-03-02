@@ -40,8 +40,10 @@ from telegram_bot.flow_callbacks import (
     handle_document,
     # Admin
     handle_admin_reply,
+    cmd_articles,
     cmd_generate,
     cmd_health,
+    cmd_lookup,
     cmd_tech_support,
     cmd_code,
     cmd_budget,
@@ -211,6 +213,18 @@ admin_commands = [
         usage="/orphan_contractors",
     ),
     AdminCommand(
+        command="articles",
+        description="Статьи контрагента за месяц",
+        handler=cmd_articles,
+        usage="/articles <имя> [YYYY-MM]",
+    ),
+    AdminCommand(
+        command="lookup",
+        description="Информация о контрагенте",
+        handler=cmd_lookup,
+        usage="/lookup <имя>",
+    ),
+    AdminCommand(
         command="budget",
         description="Расчёт бюджета (в разработке)",
         handler=cmd_budget,
@@ -251,7 +265,7 @@ group_configs = [
     gc for gc in [
         GroupChatConfig(
             chat_id=EDITORIAL_CHAT_ID,
-            allowed_commands=["health", "tech_support", "code"],
+            allowed_commands=["health", "tech_support", "code", "articles", "lookup"],
         ) if EDITORIAL_CHAT_ID else None,
     ] if gc is not None
 ]

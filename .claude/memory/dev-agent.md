@@ -744,6 +744,68 @@ Phase 3.4 — Flow engine wiring:
 - All 555 tests pass
 - Updated `test_compose_request.py` to include `classify_command` in expected model keys
 
+### Session 28 (2026-03-02) — Plan 2 Phase 3.5: Tests for Phase 3
+**Status:** Complete (all 6 items)
+
+**What was done:**
+- Created `tests/test_command_classifier.py` — 18 tests across 3 classes:
+  - `TestClassifiedCommand` (2): dataclass field storage
+  - `TestCommandClassifier` (11): Russian NL inputs → correct commands (health, tech_support, code), None for irrelevant/invalid/unknown commands, Gemini call verification, args handling
+  - `TestClassifyCommandCompose` (5): compose function structure, model, keys, prompt content
+- Extended `tests/test_flow_callbacks_helpers.py` — 21 new tests across 3 classes:
+  - `TestExtractBotMention` (8): @username extraction with space/newline separators, no mention, wrong username, mention in middle, multiline
+  - `TestGroupCommandHandlers` (5): handler dict contents, callability, expected commands
+  - `TestCommandDescriptions` (4): description presence, non-empty strings, expected commands
+- Extended `tests/test_flow_dsl.py` — 9 new tests across 2 classes:
+  - `TestGroupChatConfig` (5): defaults, custom commands, NL override, chat_id filtering
+  - `TestBotFlowsGroupConfigs` (2): default empty, stored configs retrievable
+- Extended `tests/test_flow_engine.py` — 3 new tests:
+  - `TestRegisterFlowsGroupConfig` (3): group router added when configs present, absent when empty, named "group"
+- Extended `tests/test_flows_structure.py` — 1 new test: group_configs is a list
+
+**Net result:** 46 new tests (601 total), all passing in 1.45s
+
+**Notes:**
+- Phase 3 is now fully complete (3.1-3.5 all checked off)
+- CommandClassifier tests mock GeminiGateway.call() to return specific JSON responses
+- `_extract_bot_mention` tested as pure function (no mocking needed)
+- Flow engine group registration tests mock Dispatcher and verify router naming
+
+### Session 28b (2026-03-02) — Plan 2 Phase 4.1-4.3: /articles + /lookup commands + tests
+**Status:** Complete (all Phase 4 items done)
+
+**What was done:**
+
+Phase 4.1 — /articles command:
+- Added `_ROLE_LABELS` and `_TYPE_LABELS` dicts in `flow_callbacks.py` — maps enums to Russian labels
+- Created `cmd_articles` handler: parses `<name> [YYYY-MM]`, fuzzy-finds contractor, fetches articles via `asyncio.to_thread(fetch_articles)`, formats as display_name + role + month + count + article ID list
+- Registered `/articles` as AdminCommand in `flows.py`
+
+Phase 4.2 — /lookup command:
+- Created `cmd_lookup` handler: parses `<name>`, fuzzy-finds contractor, shows display_name, type, role, mags, email, telegram status, invoice_number, bank data presence (without exposing sensitive fields)
+- Registered `/lookup` as AdminCommand in `flows.py`
+
+Both commands:
+- Added to `_GROUP_COMMAND_HANDLERS` and `_COMMAND_DESCRIPTIONS` dicts
+- Added to editorial groupchat's `allowed_commands` list
+- Follow same fuzzy-find + suggestions pattern as `cmd_generate`
+
+Phase 4.3 — Tests:
+- Extended `tests/test_flow_callbacks_helpers.py` with 21 new tests across 5 classes:
+  - `TestRoleLabels` (4): enum → label mappings
+  - `TestTypeLabels` (4): enum → label mappings
+  - `TestArticlesFormatting` (3): output format assembly
+  - `TestLookupNoSensitiveData` (6): verifies passport, INN, bank_account, BIK, SWIFT, etc. are absent from output
+  - `TestFuzzySuggestionFormatting` (4): suggestion list format
+
+**Net result:** 622 total tests, all passing in 1.38s
+
+**Notes:**
+- Phase 4 is now fully complete (4.1-4.3 all checked off)
+- Lookup uses same fuzzy_find threshold=0.4 as cmd_generate for suggestions
+- Lookup shows bank data as "заполнены"/"не заполнены" — no raw bank details exposed
+- Both commands are available in editorial groupchat
+
 ## Next up
 
-- Plan 2 Phase 3.5: Tests for Phase 3 (command classifier, group handler, mention extraction)
+- Plan 2 Phase 5.1: `llm_classifications` table (unified classifier logging)

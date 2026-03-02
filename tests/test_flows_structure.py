@@ -143,3 +143,6 @@ class TestBotFlowsAssembly:
 
     def test_has_admin_commands(self):
         assert len(bot_flows.admin_commands) > 0
+
+    def test_group_configs_is_list(self):
+        assert isinstance(bot_flows.group_configs, list)

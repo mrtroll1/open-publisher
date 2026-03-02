@@ -1166,12 +1166,49 @@ Phase 5.4 — Remaining tests:
 - Tests are fully deterministic via config mocking, independent of business_config.json
 - File went from 36 tests (helpers only) to 68 tests (helpers + full categorization engine)
 
+### Session 41 (2026-03-02) — Maintenance: Write Tests (round 8 — gateway layer)
+**Status:** Complete
+
+**What was done:**
+- Created 5 new test files covering previously untested gateway modules:
+
+**`tests/test_repo_gateway.py`** — 23 tests across 4 classes:
+  - `TestSearchCode` (8): grep output parsing, 20-result limit, nonexistent repo skip, single-repo filter, no-repos noop, malformed lines, timeout
+  - `TestReadFile` (6): content read, max_lines truncation, path traversal blocked, nonexistent file/repo
+  - `TestFetchSnippets` (5): snippet assembly, deduplication, max_files limit, empty results, line range calculation
+  - `TestEnsureRepos` (4): clone vs pull branching, no-URLs noop, exception handling
+
+**`tests/test_republic_gateway.py`** — 16 tests across 3 classes:
+  - `TestApiGet` (9): $data vs data key, retry on 5xx with recovery, exhausted retries, timeout/connection retry, 4xx error, empty data
+  - `TestFetchArticles` (4): mag-based vs author-based routing, deduplication, empty names
+  - `TestFetchPublishedAuthors` (3): response parsing, malformed row skip, API error
+
+**`tests/test_airtable_gateway.py`** — 7 tests:
+  - Field mapping, conditional fields (splited/comment), 10-record batching, partial batch failure, no-token/no-base guard, empty list
+
+**`tests/test_exchange_rate_gateway.py`** — 6 tests:
+  - Successful parse, missing RUB/rates key, HTTP error, connection error, timeout
+
+**`tests/test_email_gateway.py`** — 9 tests:
+  - Re: prefix handling, Fwd:/Fw: preserved, In-Reply-To/References headers, custom/default from_addr, To header
+
+- Updated `conftest.py`: added `"pyairtable"` to stubbed modules
+- Removed unused `_extract_sent_message()` helper from test_email_gateway.py
+
+**Net result:** 61 new tests (866 total), all passing in 1.48s
+
+**Notes:**
+- Gateway layer coverage went from 3/11 (27%) to 8/11 (73%)
+- Still untested: `drive_gateway.py`, `sheets_gateway.py`, `redefine_gateway.py` — thin wrappers with minimal logic
+- All tests use `unittest.mock.patch` for external deps (requests, subprocess, pyairtable, file I/O)
+- `test_repo_gateway.py` uses pytest `tmp_path` fixture for filesystem tests
+
 ## Next up
 
 - Plan 2 is complete through Phase 5. Phase 6 deferred (see plan notes).
 - Continue maintenance mode: improve prompts, polish UX, write tests, or spot bugs.
 - Refactoring opportunities are mostly exhausted after 5 rounds (-329 lines total, 28 helpers extracted).
-- Test coverage is now comprehensive across all layers (805 tests). Remaining untested: low-value thin wrappers (gateways to external APIs).
+- Test coverage is now very comprehensive (866 tests). Remaining untested: 3 thin gateway wrappers (drive, sheets, redefine).
 - `_test_ternary.py` stray empty file in project root — needs manual deletion (rm blocked by security policy)
 - Airtable gateway now fully correct — parent field included, no spurious quoting
 - Bank statement categorization is now fully tested (was the biggest gap)

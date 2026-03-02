@@ -10,5 +10,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 for _mod in (
     "googleapiclient", "googleapiclient.discovery", "googleapiclient.http",
     "psycopg2",
+    "pyairtable",
 ):
     sys.modules.setdefault(_mod, MagicMock())

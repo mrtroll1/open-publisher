@@ -45,7 +45,7 @@ from telegram_bot.flow_callbacks import (
     cmd_generate,
     cmd_health,
     cmd_lookup,
-    cmd_tech_support,
+    cmd_support,
     cmd_code,
     cmd_budget,
     cmd_generate_invoices,
@@ -53,6 +53,7 @@ from telegram_bot.flow_callbacks import (
     cmd_send_legium_links,
     cmd_orphan_contractors,
     cmd_upload_to_airtable,
+    cmd_nl,
 )
 
 
@@ -250,16 +251,22 @@ admin_commands = [
         usage="/health",
     ),
     AdminCommand(
-        command="tech_support",
+        command="support",
         description="Задать вопрос по техподдержке",
-        handler=cmd_tech_support,
-        usage="/tech_support [-v] <вопрос>",
+        handler=cmd_support,
+        usage="/support [-v] <вопрос>",
     ),
     AdminCommand(
         command="code",
         description="Запустить Claude Code",
         handler=cmd_code,
         usage="/code [-e] [-v] <запрос>",
+    ),
+    AdminCommand(
+        command="nl",
+        description="Команда на естественном языке",
+        handler=cmd_nl,
+        usage="/nl <текст>",
     ),
 ]
 
@@ -272,7 +279,7 @@ group_configs = [
     gc for gc in [
         GroupChatConfig(
             chat_id=EDITORIAL_CHAT_ID,
-            allowed_commands=["menu", "health", "tech_support", "articles", "lookup"],
+            allowed_commands=["menu", "health", "support", "articles", "lookup"],
         ) if EDITORIAL_CHAT_ID else None,
     ] if gc is not None
 ]

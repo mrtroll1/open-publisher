@@ -590,15 +590,15 @@ def _answer_tech_question(question: str, verbose: bool, expert: bool) -> str:
     return result.get("answer", str(result))
 
 
-async def cmd_tech_support(message: types.Message, state: FSMContext) -> None:
+async def cmd_support(message: types.Message, state: FSMContext) -> None:
     args = message.text.split(maxsplit=1)
     if len(args) < 2 or not args[1].strip():
-        await message.answer(replies.admin.tech_support_usage)
+        await message.answer(replies.admin.support_usage)
         return
 
     verbose, expert, text = _parse_flags(args[1].strip())
     if not text:
-        await message.answer(replies.admin.tech_support_no_question)
+        await message.answer(replies.admin.support_no_question)
         return
 
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
@@ -609,8 +609,8 @@ async def cmd_tech_support(message: types.Message, state: FSMContext) -> None:
             answer = answer[:4000] + "..."
         await message.answer(answer)
     except Exception as e:
-        logger.exception("Tech support question failed")
-        await message.answer(replies.admin.tech_support_error)
+        logger.exception("Support question failed")
+        await message.answer(replies.admin.support_error)
 
 
 async def cmd_code(message: types.Message, state: FSMContext) -> None:
@@ -735,17 +735,82 @@ async def cmd_lookup(message: types.Message, state: FSMContext) -> None:
 
 _GROUP_COMMAND_HANDLERS: dict[str, Callable] = {
     "health": cmd_health,
-    "tech_support": cmd_tech_support,
+    "support": cmd_support,
     "articles": cmd_articles,
     "lookup": cmd_lookup,
 }
 
 _COMMAND_DESCRIPTIONS: dict[str, str] = {
     "health": "Проверка доступности сайтов и подов",
-    "tech_support": "Задать вопрос по техподдержке (может использовать Claude Code для анализа кода)",
+    "support": "Задать вопрос по техподдержке (может использовать Claude Code для анализа кода)",
     "articles": "Статьи контрагента за месяц",
     "lookup": "Информация о контрагенте",
 }
+
+# All commands available for admin /nl classification
+_ADMIN_NL_DESCRIPTIONS: dict[str, str] = {
+    **_COMMAND_DESCRIPTIONS,
+    "generate": "Сгенерировать документ для контрагента",
+    "generate_invoices": "Сгенерировать счета для всех контрагентов",
+    "send_global_invoices": "Отправить глобальные счета контрагентам в Telegram",
+    "send_legium_links": "Отправить ссылки на Легиум контрагентам в Telegram",
+    "orphan_contractors": "Показать несовпадения между бюджетом и контрагентами",
+    "budget": "Расчёт бюджета",
+    "code": "Запустить Claude Code для внесения изменений в код",
+}
+
+
+async def cmd_nl(message: types.Message, state: FSMContext) -> None:
+    """Natural language command classification for admin DM."""
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2 or not args[1].strip():
+        await message.answer("Использование: /nl <текст команды на естественном языке>")
+        return
+
+    text = args[1].strip()
+
+    try:
+        classifier = CommandClassifier(GeminiGateway())
+        result = await asyncio.to_thread(
+            classifier.classify, text, _ADMIN_NL_DESCRIPTIONS,
+        )
+    except Exception:
+        logger.exception("NL classification failed")
+        await message.answer("Не удалось классифицировать команду.")
+        return
+
+    if not result.classified:
+        reply = result.reply or "Не удалось определить команду."
+        await message.answer(reply)
+        return
+
+    cmd = result.classified.command
+    cmd_args = result.classified.args or text
+
+    # Build the handler map lazily (all cmd_* functions are defined by now)
+    handlers: dict[str, Callable] = {
+        **_GROUP_COMMAND_HANDLERS,
+        "generate": cmd_generate,
+        "generate_invoices": cmd_generate_invoices,
+        "send_global_invoices": cmd_send_global_invoices,
+        "send_legium_links": cmd_send_legium_links,
+        "orphan_contractors": cmd_orphan_contractors,
+        "budget": cmd_budget,
+        "code": cmd_code,
+    }
+
+    handler = handlers.get(cmd)
+    if not handler:
+        await message.answer(f"Команда {cmd} не найдена.")
+        return
+
+    # Rewrite message.text so the handler parses it correctly
+    original_text = message.text
+    message.text = f"/{cmd} {cmd_args}" if cmd_args else f"/{cmd}"
+    try:
+        await handler(message, state)
+    finally:
+        message.text = original_text
 
 
 def _extract_bot_mention(text: str, bot_username: str) -> str | None:
@@ -780,7 +845,7 @@ async def handle_group_message(
 ) -> None:
     text = message.text or ""
 
-    # Explicit command (e.g. /health, /tech_support@bot_username)
+    # Explicit command (e.g. /health, /support@bot_username)
     if text.startswith("/"):
         raw_cmd = text.split()[0].lstrip("/")
         # Strip @bot_username suffix from command

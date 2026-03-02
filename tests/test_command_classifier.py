@@ -9,7 +9,7 @@ from backend.domain.compose_request import _MODELS, classify_command
 
 SAMPLE_COMMANDS = {
     "health": "Проверка доступности сайтов и подов",
-    "tech_support": "Задать вопрос по техподдержке",
+    "support": "Задать вопрос по техподдержке",
     "code": "Запустить Claude Code",
 }
 
@@ -47,48 +47,48 @@ class TestCommandClassifier:
     def test_russian_nl_health(self):
         clf = self._make_classifier({"command": "health", "args": ""})
         result = clf.classify("у нас сайт лежит", SAMPLE_COMMANDS)
-        assert result is not None
-        assert result.command == "health"
-        assert result.args == ""
+        assert result.classified is not None
+        assert result.classified.command == "health"
+        assert result.classified.args == ""
 
-    def test_russian_nl_tech_support(self):
-        clf = self._make_classifier({"command": "tech_support", "args": "как настроить подписку"})
+    def test_russian_nl_support(self):
+        clf = self._make_classifier({"command": "support", "args": "как настроить подписку"})
         result = clf.classify("как настроить подписку", SAMPLE_COMMANDS)
-        assert result is not None
-        assert result.command == "tech_support"
-        assert result.args == "как настроить подписку"
+        assert result.classified is not None
+        assert result.classified.command == "support"
+        assert result.classified.args == "как настроить подписку"
 
     def test_russian_nl_code(self):
         clf = self._make_classifier({"command": "code", "args": "проверь тесты"})
         result = clf.classify("запусти клод чтобы проверить тесты", SAMPLE_COMMANDS)
-        assert result is not None
-        assert result.command == "code"
-        assert result.args == "проверь тесты"
+        assert result.classified is not None
+        assert result.classified.command == "code"
+        assert result.classified.args == "проверь тесты"
 
     # -- Returns None for irrelevant messages ---
 
     def test_returns_none_when_command_is_null(self):
         clf = self._make_classifier({"command": None, "args": ""})
         result = clf.classify("что нового?", SAMPLE_COMMANDS)
-        assert result is None
+        assert result.classified is None
 
     def test_returns_none_when_command_missing_from_response(self):
         clf = self._make_classifier({"args": ""})
         result = clf.classify("привет", SAMPLE_COMMANDS)
-        assert result is None
+        assert result.classified is None
 
     def test_returns_none_when_command_not_in_available(self):
         clf = self._make_classifier({"command": "unknown_cmd", "args": ""})
         result = clf.classify("сделай что-то", SAMPLE_COMMANDS)
-        assert result is None
+        assert result.classified is None
 
     # -- Args default ---
 
     def test_missing_args_defaults_to_empty(self):
         clf = self._make_classifier({"command": "health"})
         result = clf.classify("проверь сайт", SAMPLE_COMMANDS)
-        assert result is not None
-        assert result.args == ""
+        assert result.classified is not None
+        assert result.classified.args == ""
 
     # -- Gemini is called with correct prompt/model ---
 
@@ -122,7 +122,7 @@ class TestCommandClassifier:
 
         prompt = gemini.call.call_args[0][0]
         assert "health" in prompt
-        assert "tech_support" in prompt
+        assert "support" in prompt
         assert "code" in prompt
 
     # -- Subset of available commands ---
@@ -131,7 +131,7 @@ class TestCommandClassifier:
         subset = {"health": "Check health"}
         clf = self._make_classifier({"command": "code", "args": ""})
         result = clf.classify("запусти клод", subset)
-        assert result is None
+        assert result.classified is None
 
 
 # ===================================================================

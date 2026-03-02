@@ -149,18 +149,15 @@ class TestGroupCommandHandlers:
     def test_health_registered(self):
         assert "health" in _GROUP_COMMAND_HANDLERS
 
-    def test_tech_support_registered(self):
-        assert "tech_support" in _GROUP_COMMAND_HANDLERS
-
-    def test_code_registered(self):
-        assert "code" in _GROUP_COMMAND_HANDLERS
+    def test_support_registered(self):
+        assert "support" in _GROUP_COMMAND_HANDLERS
 
     def test_handlers_are_callable(self):
         for name, handler in _GROUP_COMMAND_HANDLERS.items():
             assert callable(handler), f"Handler for {name} is not callable"
 
     def test_expected_commands_only(self):
-        assert set(_GROUP_COMMAND_HANDLERS.keys()) == {"health", "tech_support", "code", "articles", "lookup"}
+        assert set(_GROUP_COMMAND_HANDLERS.keys()) == {"health", "support", "articles", "lookup"}
 
 
 # ===================================================================
@@ -182,7 +179,7 @@ class TestCommandDescriptions:
             assert desc.strip(), f"Description for {cmd} is empty"
 
     def test_expected_descriptions(self):
-        assert set(_COMMAND_DESCRIPTIONS.keys()) == {"health", "tech_support", "code", "articles", "lookup"}
+        assert set(_COMMAND_DESCRIPTIONS.keys()) == {"health", "support", "articles", "lookup"}
 
 
 # ===================================================================

@@ -1,5 +1,5 @@
 """Tests for Plan 2 handlers: group message handling, cmd_articles, cmd_lookup,
-_answer_tech_question, _parse_with_llm, cmd_code, cmd_tech_support, cmd_health.
+_answer_tech_question, _parse_with_llm, cmd_code, cmd_support, cmd_health.
 
 All external dependencies (Gemini, DB, Telegram, Google Sheets, repo gateway)
 are mocked — no real network calls.
@@ -66,7 +66,7 @@ def _ip(**overrides) -> IPContractor:
 @dataclass
 class FakeGroupChatConfig:
     chat_id: int = -100123
-    allowed_commands: list = field(default_factory=lambda: ["health", "tech_support", "code", "articles", "lookup"])
+    allowed_commands: list = field(default_factory=lambda: ["health", "support", "articles", "lookup"])
     natural_language: bool = True
 
 
@@ -184,10 +184,12 @@ class TestHandleGroupMessageNaturalLanguage:
         self, mock_bot, mock_format, mock_run, MockGemini, MockClassifier,
     ):
         from telegram_bot.flow_callbacks import handle_group_message
-        from backend.domain.command_classifier import ClassifiedCommand
+        from backend.domain.command_classifier import ClassifiedCommand, ClassificationResult
 
         mock_instance = MagicMock()
-        mock_instance.classify.return_value = ClassifiedCommand(command="health", args="")
+        mock_instance.classify.return_value = ClassificationResult(
+            classified=ClassifiedCommand(command="health", args=""), reply="",
+        )
         MockClassifier.return_value = mock_instance
         mock_run.return_value = []
         mock_format.return_value = "All OK"
@@ -231,9 +233,10 @@ class TestHandleGroupMessageNaturalLanguage:
     @patch("telegram_bot.flow_callbacks.GeminiGateway")
     def test_classification_returns_none_no_dispatch(self, MockGemini, MockClassifier):
         from telegram_bot.flow_callbacks import handle_group_message
+        from backend.domain.command_classifier import ClassificationResult
 
         mock_instance = MagicMock()
-        mock_instance.classify.return_value = None
+        mock_instance.classify.return_value = ClassificationResult(classified=None, reply="")
         MockClassifier.return_value = mock_instance
 
         msg = _make_message("@republic_bot что нового?")
@@ -286,10 +289,12 @@ class TestHandleGroupMessageNaturalLanguage:
         self, mock_bot, mock_format, mock_run, MockGemini, MockClassifier,
     ):
         from telegram_bot.flow_callbacks import handle_group_message
-        from backend.domain.command_classifier import ClassifiedCommand
+        from backend.domain.command_classifier import ClassifiedCommand, ClassificationResult
 
         mock_instance = MagicMock()
-        mock_instance.classify.return_value = ClassifiedCommand(command="health", args="")
+        mock_instance.classify.return_value = ClassificationResult(
+            classified=ClassifiedCommand(command="health", args=""), reply="",
+        )
         MockClassifier.return_value = mock_instance
         mock_run.return_value = []
         mock_format.return_value = "OK"
@@ -364,45 +369,45 @@ class TestCmdHealth:
 
 
 # ===================================================================
-#  cmd_tech_support
+#  cmd_support
 # ===================================================================
 
-class TestCmdTechSupport:
+class TestCmdSupport:
 
     @patch("telegram_bot.flow_callbacks._answer_tech_question")
     @patch("telegram_bot.flow_callbacks.bot")
     def test_valid_question(self, mock_bot, mock_answer):
-        from telegram_bot.flow_callbacks import cmd_tech_support
+        from telegram_bot.flow_callbacks import cmd_support
 
         mock_answer.return_value = "Ответ на вопрос"
         mock_bot.send_chat_action = AsyncMock()
 
-        msg = _make_message("/tech_support как работает подписка?")
+        msg = _make_message("/support как работает подписка?")
         state = _make_state()
 
-        asyncio.run(cmd_tech_support(msg, state))
+        asyncio.run(cmd_support(msg, state))
 
-        mock_answer.assert_called_once_with("как работает подписка?", False)
+        mock_answer.assert_called_once_with("как работает подписка?", False, False)
         msg.answer.assert_awaited_once_with("Ответ на вопрос")
 
     def test_no_question_shows_usage(self):
-        from telegram_bot.flow_callbacks import cmd_tech_support
+        from telegram_bot.flow_callbacks import cmd_support
 
-        msg = _make_message("/tech_support")
+        msg = _make_message("/support")
         state = _make_state()
 
-        asyncio.run(cmd_tech_support(msg, state))
+        asyncio.run(cmd_support(msg, state))
 
         msg.answer.assert_awaited_once()
         assert "Использование" in msg.answer.call_args[0][0]
 
     def test_empty_question_shows_usage(self):
-        from telegram_bot.flow_callbacks import cmd_tech_support
+        from telegram_bot.flow_callbacks import cmd_support
 
-        msg = _make_message("/tech_support   ")
+        msg = _make_message("/support   ")
         state = _make_state()
 
-        asyncio.run(cmd_tech_support(msg, state))
+        asyncio.run(cmd_support(msg, state))
 
         msg.answer.assert_awaited_once()
         assert "Использование" in msg.answer.call_args[0][0]
@@ -410,77 +415,77 @@ class TestCmdTechSupport:
     @patch("telegram_bot.flow_callbacks._answer_tech_question")
     @patch("telegram_bot.flow_callbacks.bot")
     def test_verbose_flag(self, mock_bot, mock_answer):
-        from telegram_bot.flow_callbacks import cmd_tech_support
+        from telegram_bot.flow_callbacks import cmd_support
 
         mock_answer.return_value = "Verbose answer"
         mock_bot.send_chat_action = AsyncMock()
 
-        msg = _make_message("/tech_support -v как настроить?")
+        msg = _make_message("/support -v как настроить?")
         state = _make_state()
 
-        asyncio.run(cmd_tech_support(msg, state))
+        asyncio.run(cmd_support(msg, state))
 
-        mock_answer.assert_called_once_with("как настроить?", True)
+        mock_answer.assert_called_once_with("как настроить?", True, False)
 
     @patch("telegram_bot.flow_callbacks._answer_tech_question")
     @patch("telegram_bot.flow_callbacks.bot")
     def test_verbose_word_flag(self, mock_bot, mock_answer):
-        from telegram_bot.flow_callbacks import cmd_tech_support
+        from telegram_bot.flow_callbacks import cmd_support
 
         mock_answer.return_value = "Verbose answer"
         mock_bot.send_chat_action = AsyncMock()
 
-        msg = _make_message("/tech_support verbose как настроить?")
+        msg = _make_message("/support verbose как настроить?")
         state = _make_state()
 
-        asyncio.run(cmd_tech_support(msg, state))
+        asyncio.run(cmd_support(msg, state))
 
-        mock_answer.assert_called_once_with("как настроить?", True)
+        mock_answer.assert_called_once_with("как настроить?", True, False)
 
     @patch("telegram_bot.flow_callbacks._answer_tech_question")
     @patch("telegram_bot.flow_callbacks.bot")
     def test_v_alone_treated_as_question(self, mock_bot, mock_answer):
         """'-v' without space is not a flag — it's treated as the question itself."""
-        from telegram_bot.flow_callbacks import cmd_tech_support
+        from telegram_bot.flow_callbacks import cmd_support
 
         mock_answer.return_value = "answer"
         mock_bot.send_chat_action = AsyncMock()
 
-        msg = _make_message("/tech_support -v")
+        msg = _make_message("/support -v")
         state = _make_state()
 
-        asyncio.run(cmd_tech_support(msg, state))
+        asyncio.run(cmd_support(msg, state))
 
-        mock_answer.assert_called_once_with("-v", False)
+        mock_answer.assert_called_once_with("-v", False, False)
 
     @patch("telegram_bot.flow_callbacks._answer_tech_question")
     @patch("telegram_bot.flow_callbacks.bot")
     def test_v_with_trailing_space_treated_as_question(self, mock_bot, mock_answer):
         """'-v ' (with trailing space) is stripped to '-v' and treated as the question."""
-        from telegram_bot.flow_callbacks import cmd_tech_support
+        from telegram_bot.flow_callbacks import cmd_support
 
         mock_answer.return_value = "answer"
         mock_bot.send_chat_action = AsyncMock()
 
-        msg = _make_message("/tech_support -v ")
+        msg = _make_message("/support -v ")
         state = _make_state()
 
-        asyncio.run(cmd_tech_support(msg, state))
+        asyncio.run(cmd_support(msg, state))
 
-        mock_answer.assert_called_once_with("-v", False)
+        mock_answer.assert_called_once_with("-v", False, False)
 
     @patch("telegram_bot.flow_callbacks._answer_tech_question")
     @patch("telegram_bot.flow_callbacks.bot")
     def test_long_answer_truncated(self, mock_bot, mock_answer):
-        from telegram_bot.flow_callbacks import cmd_tech_support
+        from telegram_bot.flow_callbacks import cmd_support
 
         mock_answer.return_value = "x" * 5000
         mock_bot.send_chat_action = AsyncMock()
 
-        msg = _make_message("/tech_support вопрос")
+        msg = _make_message("/support вопрос")
         state = _make_state()
 
-        asyncio.run(cmd_tech_support(msg, state))
+        asyncio.run(cmd_support(msg, state))
 
         answer = msg.answer.call_args[0][0]
         assert len(answer) <= 4003
@@ -489,15 +494,15 @@ class TestCmdTechSupport:
     @patch("telegram_bot.flow_callbacks._answer_tech_question")
     @patch("telegram_bot.flow_callbacks.bot")
     def test_exception_returns_error(self, mock_bot, mock_answer):
-        from telegram_bot.flow_callbacks import cmd_tech_support
+        from telegram_bot.flow_callbacks import cmd_support
 
         mock_answer.side_effect = RuntimeError("Gemini down")
         mock_bot.send_chat_action = AsyncMock()
 
-        msg = _make_message("/tech_support вопрос")
+        msg = _make_message("/support вопрос")
         state = _make_state()
 
-        asyncio.run(cmd_tech_support(msg, state))
+        asyncio.run(cmd_support(msg, state))
 
         answer = msg.answer.call_args[0][0]
         assert "Не удалось" in answer
@@ -526,7 +531,7 @@ class TestAnswerTechQuestion:
         ]
         MockGemini.return_value = mock_gemini
 
-        result = _answer_tech_question("как работает подписка?", False)
+        result = _answer_tech_question("как работает подписка?", False, False)
 
         assert result == "Подписка работает так..."
         assert mock_gemini.call.call_count == 2
@@ -535,53 +540,42 @@ class TestAnswerTechQuestion:
             "как работает подписка?", "", False,
         )
 
-    @patch("telegram_bot.flow_callbacks.RepoGateway")
+    @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.GeminiGateway")
     @patch("telegram_bot.flow_callbacks.compose_request")
-    def test_question_with_code_context(self, mock_compose, MockGemini, MockRepo):
+    def test_question_needing_code_uses_claude(self, mock_compose, MockGemini, mock_run_claude):
         from telegram_bot.flow_callbacks import _answer_tech_question
 
         mock_compose.tech_search_terms.return_value = ("prompt1", "model1", [])
-        mock_compose.tech_support_question.return_value = ("prompt2", "model2", [])
 
         mock_gemini = MagicMock()
-        mock_gemini.call.side_effect = [
-            {"needs_code": True, "search_terms": ["def healthcheck"]},
-            {"answer": "Healthcheck uses requests.get"},
-        ]
+        mock_gemini.call.return_value = {"needs_code": True, "search_terms": ["def healthcheck"]}
         MockGemini.return_value = mock_gemini
 
-        mock_repo = MagicMock()
-        mock_repo.fetch_snippets.return_value = "## Контекст из кода\n\n### file.py\n```\ncode\n```"
-        MockRepo.return_value = mock_repo
+        mock_run_claude.return_value = "Healthcheck uses requests.get"
 
-        result = _answer_tech_question("what is healthcheck?", True)
+        result = _answer_tech_question("what is healthcheck?", True, False)
 
         assert result == "Healthcheck uses requests.get"
-        mock_repo.fetch_snippets.assert_called_once_with(["def healthcheck"])
-        call_args = mock_compose.tech_support_question.call_args
-        code_context = call_args[0][1]
-        assert "Контекст из кода" in code_context
+        mock_run_claude.assert_called_once_with(
+            "what is healthcheck?", verbose=True, expert=False, mode="explore",
+        )
 
-    @patch("telegram_bot.flow_callbacks.RepoGateway")
     @patch("telegram_bot.flow_callbacks.GeminiGateway")
     @patch("telegram_bot.flow_callbacks.compose_request")
-    def test_repo_gateway_error_still_answers(self, mock_compose, MockGemini, MockRepo):
+    def test_triage_error_falls_back_to_gemini(self, mock_compose, MockGemini):
         from telegram_bot.flow_callbacks import _answer_tech_question
 
-        mock_compose.tech_search_terms.return_value = ("prompt1", "model1", [])
+        mock_compose.tech_search_terms.side_effect = RuntimeError("Gemini down")
         mock_compose.tech_support_question.return_value = ("prompt2", "model2", [])
 
         mock_gemini = MagicMock()
-        # RepoGateway() raises, so only the final gemini.call() for tech_support_question runs
         mock_gemini.call.return_value = {"answer": "answer without code"}
         MockGemini.return_value = mock_gemini
-        MockRepo.side_effect = RuntimeError("No repos configured")
 
-        result = _answer_tech_question("вопрос", False)
+        result = _answer_tech_question("вопрос", False, False)
 
         assert result == "answer without code"
-        # Fell back gracefully, code_context should be empty
         mock_compose.tech_support_question.assert_called_once_with("вопрос", "", False)
 
     @patch("telegram_bot.flow_callbacks.RepoGateway")
@@ -600,7 +594,7 @@ class TestAnswerTechQuestion:
         ]
         MockGemini.return_value = mock_gemini
 
-        result = _answer_tech_question("test", False)
+        result = _answer_tech_question("test", False, False)
 
         # Falls back to str(result) when no "answer" key
         assert "other_key" in result
@@ -621,59 +615,28 @@ class TestAnswerTechQuestion:
         ]
         MockGemini.return_value = mock_gemini
 
-        _answer_tech_question("q", verbose=True)
+        _answer_tech_question("q", verbose=True, expert=False)
 
         mock_compose.tech_support_question.assert_called_once_with("q", "", True)
 
-    @patch("telegram_bot.flow_callbacks.RepoGateway")
+    @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.GeminiGateway")
     @patch("telegram_bot.flow_callbacks.compose_request")
-    def test_empty_snippets_passes_empty_context(self, mock_compose, MockGemini, MockRepo):
+    def test_needs_code_true_delegates_to_claude(self, mock_compose, MockGemini, mock_run_claude):
         from telegram_bot.flow_callbacks import _answer_tech_question
 
         mock_compose.tech_search_terms.return_value = ("p", "m", [])
-        mock_compose.tech_support_question.return_value = ("p", "m", [])
 
         mock_gemini = MagicMock()
-        mock_gemini.call.side_effect = [
-            {"needs_code": True, "search_terms": ["term"]},
-            {"answer": "ok"},
-        ]
+        mock_gemini.call.return_value = {"needs_code": True, "search_terms": ["term"]}
         MockGemini.return_value = mock_gemini
 
-        mock_repo = MagicMock()
-        mock_repo.fetch_snippets.return_value = ""
-        MockRepo.return_value = mock_repo
+        mock_run_claude.return_value = "claude answer"
 
-        result = _answer_tech_question("q", False)
+        result = _answer_tech_question("q", False, False)
 
-        assert result == "ok"
-        code_context = mock_compose.tech_support_question.call_args[0][1]
-        assert code_context == ""
-
-    @patch("telegram_bot.flow_callbacks.RepoGateway")
-    @patch("telegram_bot.flow_callbacks.GeminiGateway")
-    @patch("telegram_bot.flow_callbacks.compose_request")
-    def test_search_terms_forwarded_to_fetch_snippets(self, mock_compose, MockGemini, MockRepo):
-        from telegram_bot.flow_callbacks import _answer_tech_question
-
-        mock_compose.tech_search_terms.return_value = ("p", "m", [])
-        mock_compose.tech_support_question.return_value = ("p", "m", [])
-
-        mock_gemini = MagicMock()
-        mock_gemini.call.side_effect = [
-            {"needs_code": True, "search_terms": ["term1", "term2"]},
-            {"answer": "ok"},
-        ]
-        MockGemini.return_value = mock_gemini
-
-        mock_repo = MagicMock()
-        mock_repo.fetch_snippets.return_value = "## snippets"
-        MockRepo.return_value = mock_repo
-
-        _answer_tech_question("q", False)
-
-        mock_repo.fetch_snippets.assert_called_once_with(["term1", "term2"])
+        assert result == "claude answer"
+        mock_run_claude.assert_called_once_with("q", verbose=False, expert=False, mode="explore")
 
 
 # ===================================================================
@@ -698,7 +661,7 @@ class TestCmdCode:
 
         asyncio.run(cmd_code(msg, state))
 
-        mock_run.assert_called_once_with("check tests", False)
+        mock_run.assert_called_once_with("check tests", False, False, mode="changes")
         mock_db.create_code_task.assert_called_once()
         msg.answer.assert_awaited_once()
         call_kwargs = msg.answer.call_args
@@ -742,7 +705,7 @@ class TestCmdCode:
 
         asyncio.run(cmd_code(msg, state))
 
-        mock_run.assert_called_once_with("analyze this", True)
+        mock_run.assert_called_once_with("analyze this", True, False, mode="changes")
 
     @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.run_claude_code")
@@ -759,7 +722,7 @@ class TestCmdCode:
 
         asyncio.run(cmd_code(msg, state))
 
-        mock_run.assert_called_once_with("analyze this", True)
+        mock_run.assert_called_once_with("analyze this", True, False, mode="changes")
 
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
@@ -775,7 +738,7 @@ class TestCmdCode:
 
         asyncio.run(cmd_code(msg, state))
 
-        mock_run.assert_called_once_with("-v", False)
+        mock_run.assert_called_once_with("-v", False, False, mode="changes")
 
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
@@ -791,7 +754,7 @@ class TestCmdCode:
 
         asyncio.run(cmd_code(msg, state))
 
-        mock_run.assert_called_once_with("-v", False)
+        mock_run.assert_called_once_with("-v", False, False, mode="changes")
 
     @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.run_claude_code")

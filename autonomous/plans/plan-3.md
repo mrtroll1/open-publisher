@@ -110,18 +110,18 @@ Three tiers of knowledge, all in PostgreSQL:
 
 ### 2.4 Seed knowledge from `.md` files
 
-- [ ] Create `backend/domain/seed_knowledge.py` — one-time migration script
-- [ ] Chunking:
+- [x] Create `backend/domain/seed_knowledge.py` — one-time migration script
+- [x] Chunking:
   - `base.md` → **tier=core**, scope `identity`, 1 entry
   - `tech-support.md` → split by FAQ sections. First section (general instructions) → **tier=core**, scope `tech_support`. Rest → tier=domain, scope `tech_support`
   - `email-inbox.md` → tier=core, scope `email_inbox`, 1 entry
   - `support-triage.md` → tier=domain, scope `support_triage`, 1 entry
   - `payment-data-validation.md` → tier=domain, scope `contractor`, split by contractor type
   - `claude-code-context.md` → tier=domain, scope `code`, 1 entry
-- [ ] Generate embeddings for each chunk via `EmbeddingGateway`
-- [ ] Insert with `source='seed'`
-- [ ] Keep `.md` files in repo as historical record
-- [ ] Run seed script and verify entries
+- [x] Generate embeddings for each chunk via `EmbeddingGateway`
+- [x] Insert with `source='seed'`
+- [x] Keep `.md` files in repo as historical record
+- [ ] Run seed script and verify entries (requires live DB — deferred to deployment)
 
 **Files**: `backend/domain/seed_knowledge.py` (new)
 

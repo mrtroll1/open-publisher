@@ -163,7 +163,7 @@ class menu:
         "/articles <имя> [YYYY-MM] — статьи контрагента\n"
         "/lookup <имя> — информация о контрагенте\n"
         "/health — проверка доступности сайтов\n"
-        "/tech_support [-v] <вопрос> — вопрос по техподдержке\n"
+        "/tech_support [-e] [-v] <вопрос> — вопрос по техподдержке\n"
         "/code [-e] [-v] <запрос> — запустить Claude Code"
     )
     group = (
@@ -171,8 +171,7 @@ class menu:
         "/health — проверка доступности сайтов\n"
         "/articles <имя> [YYYY-MM] — статьи контрагента\n"
         "/lookup <имя> — информация о контрагенте\n"
-        "/tech_support [-v] <вопрос> — вопрос по техподдержке\n"
-        "/code [-e] [-v] <запрос> — спросить Claude Code"
+        "/tech_support [-e] [-v] <вопрос> — вопрос по техподдержке"
     )
 
 
@@ -225,7 +224,7 @@ class admin:
     generate_usage = "Использование: /generate <имя контрагента>"
     articles_usage = "Использование: /articles <имя> [YYYY-MM]"
     lookup_usage = "Использование: /lookup <имя>"
-    tech_support_usage = "Использование: /tech_support <вопрос>\nФлаги: -v для подробного ответа"
+    tech_support_usage = "Использование: /tech_support <вопрос>\nФлаги: -e для технического ответа, -v без префикса"
     tech_support_no_question = "Укажите вопрос после флага -v."
     tech_support_error = "Не удалось получить ответ. Попробуйте позже."
     code_usage = "Использование: /code <запрос>\nФлаги: -e для технического ответа, -v без префикса"

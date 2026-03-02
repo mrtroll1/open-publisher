@@ -571,19 +571,21 @@ async def cmd_health(message: types.Message, state: FSMContext) -> None:
     await message.answer(format_healthcheck_results(results))
 
 
-def _answer_tech_question(question: str, verbose: bool) -> str:
+def _answer_tech_question(question: str, verbose: bool, expert: bool) -> str:
     gemini = GeminiGateway()
 
-    code_context = ""
+    needs_code = False
     try:
         prompt, model, _ = compose_request.tech_search_terms(question)
         result = gemini.call(prompt, model, task="TECH_SEARCH_TERMS")
-        if result.get("needs_code") and result.get("search_terms"):
-            code_context = RepoGateway().fetch_snippets(result["search_terms"])
+        needs_code = bool(result.get("needs_code"))
     except Exception as e:
-        logger.warning("Code context fetch for /tech_support failed: %s", e)
+        logger.warning("Tech support triage failed: %s", e)
 
-    prompt, model, _ = compose_request.tech_support_question(question, code_context, verbose)
+    if needs_code:
+        return run_claude_code(question, verbose=verbose, expert=expert, mode="explore")
+
+    prompt, model, _ = compose_request.tech_support_question(question, "", verbose)
     result = gemini.call(prompt, model)
     return result.get("answer", str(result))
 
@@ -594,7 +596,7 @@ async def cmd_tech_support(message: types.Message, state: FSMContext) -> None:
         await message.answer(replies.admin.tech_support_usage)
         return
 
-    verbose, _, text = _parse_flags(args[1].strip())
+    verbose, expert, text = _parse_flags(args[1].strip())
     if not text:
         await message.answer(replies.admin.tech_support_no_question)
         return
@@ -602,7 +604,7 @@ async def cmd_tech_support(message: types.Message, state: FSMContext) -> None:
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
 
     try:
-        answer = await asyncio.to_thread(_answer_tech_question, text, verbose)
+        answer = await asyncio.to_thread(_answer_tech_question, text, verbose, expert)
         if len(answer) > 4000:
             answer = answer[:4000] + "..."
         await message.answer(answer)
@@ -625,7 +627,7 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
 
     try:
-        answer = await asyncio.to_thread(run_claude_code, text, verbose, expert)
+        answer = await asyncio.to_thread(run_claude_code, text, verbose, expert, mode="changes")
         # Save to DB and build rating keyboard
         reply_markup = None
         try:
@@ -734,15 +736,13 @@ async def cmd_lookup(message: types.Message, state: FSMContext) -> None:
 _GROUP_COMMAND_HANDLERS: dict[str, Callable] = {
     "health": cmd_health,
     "tech_support": cmd_tech_support,
-    "code": cmd_code,
     "articles": cmd_articles,
     "lookup": cmd_lookup,
 }
 
 _COMMAND_DESCRIPTIONS: dict[str, str] = {
     "health": "Проверка доступности сайтов и подов",
-    "tech_support": "Задать вопрос по техподдержке",
-    "code": "Запустить Claude Code",
+    "tech_support": "Задать вопрос по техподдержке (может использовать Claude Code для анализа кода)",
     "articles": "Статьи контрагента за месяц",
     "lookup": "Информация о контрагенте",
 }
@@ -820,18 +820,20 @@ async def handle_group_message(
 
     try:
         classifier = CommandClassifier(GeminiGateway())
-        classified = await asyncio.to_thread(
+        result = await asyncio.to_thread(
             classifier.classify, clean_text, available_commands,
         )
     except Exception:
         logger.exception("Command classification failed in group chat")
         return
 
-    if not classified:
+    if not result.classified:
+        if result.reply:
+            await message.answer(result.reply)
         return
 
     await _dispatch_group_command(
-        classified.command, classified.args or clean_text, message, state,
+        result.classified.command, result.classified.args or clean_text, message, state,
     )
 
 

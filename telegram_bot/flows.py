@@ -272,7 +272,7 @@ group_configs = [
     gc for gc in [
         GroupChatConfig(
             chat_id=EDITORIAL_CHAT_ID,
-            allowed_commands=["menu", "health", "tech_support", "code", "articles", "lookup"],
+            allowed_commands=["menu", "health", "tech_support", "articles", "lookup"],
         ) if EDITORIAL_CHAT_ID else None,
     ] if gc is not None
 ]

@@ -9,26 +9,37 @@ from common.config import REPOS_DIR
 
 logger = logging.getLogger(__name__)
 
-_USER_PREFIX = (
+_EXPLORE_USER_PREFIX = (
     "Ты отвечаешь редактору или обычному пользователю, который НЕ разбирается в коде. "
     "Объясняй на уровне интерфейса: что нажать, куда зайти, что должно произойти. "
-    "Не показывай код, не упоминай технические детали. Кратко, для Telegram.\n\n"
+    "Не показывай код, не упоминай технические детали. Кратко, для Telegram. "
+    "Используй только чтение файлов — ничего не меняй.\n\n"
 )
 
-_EXPERT_PREFIX = (
+_EXPLORE_EXPERT_PREFIX = (
     "Ты отвечаешь техническому специалисту. "
     "Отвечай кратко и по делу, как для Telegram-сообщения. "
-    "Показывай код, пути к файлам, конкретные решения.\n\n"
+    "Показывай код, пути к файлам, конкретные решения. "
+    "Используй только чтение файлов — ничего не меняй.\n\n"
+)
+
+_CHANGES_PREFIX = (
+    "Ты — агент для внесения изменений в код. "
+    "Предложи конкретные правки с путями к файлам и diff-ами. "
+    "Кратко, для Telegram.\n\n"
 )
 
 
-def run_claude_code(prompt: str, verbose: bool = False, expert: bool = False) -> str:
+def run_claude_code(prompt: str, verbose: bool = False, expert: bool = False,
+                    mode: str = "explore") -> str:
     if verbose:
         full_prompt = prompt
+    elif mode == "changes":
+        full_prompt = _CHANGES_PREFIX + prompt
     elif expert:
-        full_prompt = _EXPERT_PREFIX + prompt
+        full_prompt = _EXPLORE_EXPERT_PREFIX + prompt
     else:
-        full_prompt = _USER_PREFIX + prompt
+        full_prompt = _EXPLORE_USER_PREFIX + prompt
     try:
         result = subprocess.run(
             ["claude", "-p", full_prompt, "--max-turns", "5"],

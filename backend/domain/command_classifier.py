@@ -14,12 +14,18 @@ class ClassifiedCommand:
     args: str
 
 
+@dataclass
+class ClassificationResult:
+    classified: ClassifiedCommand | None
+    reply: str
+
+
 class CommandClassifier:
 
     def __init__(self, gemini: GeminiGateway):
         self._gemini = gemini
 
-    def classify(self, text: str, available_commands: dict[str, str]) -> ClassifiedCommand | None:
+    def classify(self, text: str, available_commands: dict[str, str]) -> ClassificationResult:
         commands_description = "\n".join(
             f"- **{name}** — {desc}" for name, desc in available_commands.items()
         )
@@ -27,5 +33,8 @@ class CommandClassifier:
         result = self._gemini.call(prompt, model, task="COMMAND_CLASSIFY")
         command = result.get("command")
         if not command or command not in available_commands:
-            return None
-        return ClassifiedCommand(command=command, args=result.get("args", ""))
+            return ClassificationResult(classified=None, reply=result.get("reply", ""))
+        return ClassificationResult(
+            classified=ClassifiedCommand(command=command, args=result.get("args", "")),
+            reply="",
+        )

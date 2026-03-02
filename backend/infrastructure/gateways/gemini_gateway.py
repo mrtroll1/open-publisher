@@ -16,6 +16,7 @@ class GeminiGateway:
 
     def __init__(self, model: str = "gemini-2.5-flash"):
         self._model = model
+        self._db = None
 
     def call(self, prompt: str, model: str | None = None, task: str | None = None) -> dict:
         """Send a prompt and return parsed JSON from the response."""
@@ -37,8 +38,10 @@ class GeminiGateway:
         if task:
             latency_ms = int((time.time() - t0) * 1000)
             try:
-                from backend.infrastructure.gateways.db_gateway import DbGateway
-                DbGateway().log_classification(task, model_used, prompt, json.dumps(result), latency_ms)
+                if self._db is None:
+                    from backend.infrastructure.gateways.db_gateway import DbGateway
+                    self._db = DbGateway()
+                self._db.log_classification(task, model_used, prompt, json.dumps(result), latency_ms)
             except Exception:
                 logger.warning("Failed to log classification for task=%s", task, exc_info=True)
 

@@ -422,15 +422,12 @@ def _make_callback(data: str) -> MagicMock:
 
 class TestHandleCodeRateCallback:
 
-    @patch("telegram_bot.flow_callbacks.DbGateway")
-    def test_valid_rating(self, MockGw):
-        mock_gw = MagicMock()
-        MockGw.return_value = mock_gw
-
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_valid_rating(self, mock_db):
         cb = _make_callback("code_rate:task-abc-123:4")
         asyncio.run(handle_code_rate_callback(cb))
 
-        mock_gw.rate_code_task.assert_called_once_with("task-abc-123", 4)
+        mock_db.rate_code_task.assert_called_once_with("task-abc-123", 4)
         cb.answer.assert_awaited_once_with("Оценка сохранена!")
         cb.message.edit_reply_markup.assert_awaited_once_with(reply_markup=None)
 
@@ -446,9 +443,9 @@ class TestHandleCodeRateCallback:
 
         cb.answer.assert_awaited_once_with()
 
-    @patch("telegram_bot.flow_callbacks.DbGateway")
-    def test_db_error_still_answers(self, MockGw):
-        MockGw.return_value.rate_code_task.side_effect = RuntimeError("db down")
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_db_error_still_answers(self, mock_db):
+        mock_db.rate_code_task.side_effect = RuntimeError("db down")
 
         cb = _make_callback("code_rate:task-xyz:5")
         asyncio.run(handle_code_rate_callback(cb))

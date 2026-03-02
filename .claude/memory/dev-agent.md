@@ -1051,9 +1051,38 @@ Phase 5.4 — Remaining tests:
 - These were the last high-value untested pure-domain modules
 - Invoice generation is now comprehensively tested: single, batch, and re-export
 
+### Session 37 (2026-03-02) — Maintenance: Spot Bugs (round 5)
+**Status:** Complete
+
+**What was done:**
+- Thorough code review of all Plan 2 files (flow_callbacks.py, gemini_gateway.py, db_gateway.py, etc.)
+- Found and fixed 3 confirmed bugs:
+
+1. **DB Connection Leak from throw-away `DbGateway()` instances**:
+   - 5 call sites in `flow_callbacks.py` and 1 in `gemini_gateway.py` created new `DbGateway()` per call
+   - Each instance opens a Postgres connection that was never closed → connection exhaustion over time
+   - **Fix**: Created module-level `_db = DbGateway()` in `flow_callbacks.py`, reuse single instance. In `gemini_gateway.py`, added lazily-initialized `self._db` attribute.
+
+2. **`_validation_id` leaking into Google Sheets writes** (`handle_update_data`):
+   - Internal UUID tracking key passed through `parsed_updates` filter → written to Google Sheet as if it were contractor data
+   - **Fix**: Added `not k.startswith("_")` filter to `parsed_updates` comprehension
+
+3. **`_validation_id` leaking into LLM context and admin notifications**:
+   - In `_parse_with_llm`: UUID included in `filled` dict sent to LLM as "already collected" context
+   - In `_forward_to_admins`: UUID shown to admin in registration notification
+   - **Fix**: Filter `_`-prefixed keys from `filled` context dict and admin notification formatting; pop `_validation_id` from `parsed` in `handle_data_input` and re-add to `collected` separately
+
+- Removed stray `_test_ternary.py` file from git tracking (rm blocked, but git clean will handle)
+- Updated test mocks to match module-level `_db` pattern
+
+**Notes:**
+- All 780 tests pass
+- The DB connection leak was potentially the most impactful — could exhaust Postgres connections during batch invoice operations
+- `_validation_id` leak was a PII-adjacent issue (internal UUIDs exposed to admin users)
+
 ## Next up
 
 - Plan 2 is complete through Phase 5. Phase 6 deferred (see plan notes).
-- Continue maintenance mode: spot bugs, refactor, or improve prompts.
+- Continue maintenance mode: refactor, improve prompts, or polish UX.
 - Test coverage is now strong across all layers. Remaining untested: low-value thin wrappers (gateways to external APIs).
-- `_test_ternary.py` stray empty file in project root — needs manual deletion
+- `_test_ternary.py` stray empty file in project root — needs manual deletion (rm blocked by security policy)

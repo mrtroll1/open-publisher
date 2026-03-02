@@ -683,16 +683,14 @@ class TestAnswerTechQuestion:
 class TestCmdCode:
     """cmd_code uses a LOCAL import of DbGateway, so we patch at the source module."""
 
-    @patch("telegram_bot.flow_callbacks.DbGateway")
+    @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
-    def test_successful_run_with_db_save(self, mock_bot, mock_run, MockDb):
+    def test_successful_run_with_db_save(self, mock_bot, mock_run, mock_db):
         from telegram_bot.flow_callbacks import cmd_code
 
         mock_run.return_value = "Code result"
-        mock_db = MagicMock()
         mock_db.create_code_task.return_value = "task-abc-123"
-        MockDb.return_value = mock_db
         mock_bot.send_chat_action = AsyncMock()
 
         msg = _make_message("/code check tests")
@@ -729,14 +727,14 @@ class TestCmdCode:
         msg.answer.assert_awaited_once()
         assert "Использование" in msg.answer.call_args[0][0]
 
-    @patch("telegram_bot.flow_callbacks.DbGateway")
+    @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
-    def test_verbose_flag(self, mock_bot, mock_run, MockDb):
+    def test_verbose_flag(self, mock_bot, mock_run, mock_db):
         from telegram_bot.flow_callbacks import cmd_code
 
         mock_run.return_value = "Verbose result"
-        MockDb.return_value.create_code_task.return_value = "t1"
+        mock_db.create_code_task.return_value = "t1"
         mock_bot.send_chat_action = AsyncMock()
 
         msg = _make_message("/code -v analyze this")
@@ -746,14 +744,14 @@ class TestCmdCode:
 
         mock_run.assert_called_once_with("analyze this", True)
 
-    @patch("telegram_bot.flow_callbacks.DbGateway")
+    @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
-    def test_verbose_word_flag(self, mock_bot, mock_run, MockDb):
+    def test_verbose_word_flag(self, mock_bot, mock_run, mock_db):
         from telegram_bot.flow_callbacks import cmd_code
 
         mock_run.return_value = "Verbose result"
-        MockDb.return_value.create_code_task.return_value = "t1"
+        mock_db.create_code_task.return_value = "t1"
         mock_bot.send_chat_action = AsyncMock()
 
         msg = _make_message("/code verbose analyze this")
@@ -795,14 +793,14 @@ class TestCmdCode:
 
         mock_run.assert_called_once_with("-v", False)
 
-    @patch("telegram_bot.flow_callbacks.DbGateway")
+    @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
-    def test_db_save_failure_still_sends_answer(self, mock_bot, mock_run, MockDb):
+    def test_db_save_failure_still_sends_answer(self, mock_bot, mock_run, mock_db):
         from telegram_bot.flow_callbacks import cmd_code
 
         mock_run.return_value = "Code result"
-        MockDb.return_value.create_code_task.side_effect = RuntimeError("DB down")
+        mock_db.create_code_task.side_effect = RuntimeError("DB down")
         mock_bot.send_chat_action = AsyncMock()
 
         msg = _make_message("/code test")
@@ -831,14 +829,14 @@ class TestCmdCode:
         answer = msg.answer.call_args[0][0]
         assert "Не удалось" in answer
 
-    @patch("telegram_bot.flow_callbacks.DbGateway")
+    @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
-    def test_rating_keyboard_has_5_buttons(self, mock_bot, mock_run, MockDb):
+    def test_rating_keyboard_has_5_buttons(self, mock_bot, mock_run, mock_db):
         from telegram_bot.flow_callbacks import cmd_code
 
         mock_run.return_value = "Result"
-        MockDb.return_value.create_code_task.return_value = "task-xyz"
+        mock_db.create_code_task.return_value = "task-xyz"
         mock_bot.send_chat_action = AsyncMock()
 
         msg = _make_message("/code do something")
@@ -1170,15 +1168,13 @@ class TestCmdLookup:
 
 class TestParseWithLlm:
 
-    @patch("telegram_bot.flow_callbacks.DbGateway")
+    @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.parse_contractor_data")
-    def test_successful_parse_logs_to_db(self, mock_parse, MockDb):
+    def test_successful_parse_logs_to_db(self, mock_parse, mock_db):
         from telegram_bot.flow_callbacks import _parse_with_llm
 
         mock_parse.return_value = {"name_ru": "Иван Иванов", "inn": "123456789012"}
-        mock_db = MagicMock()
         mock_db.log_payment_validation.return_value = "val-001"
-        MockDb.return_value = mock_db
 
         result = asyncio.run(_parse_with_llm("Иван Иванов ИНН 123456789012", ContractorType.SAMOZANYATY))
 
@@ -1189,9 +1185,9 @@ class TestParseWithLlm:
         assert call_kwargs["contractor_type"] == "самозанятый"
         assert "Иван Иванов" in call_kwargs["input_text"]
 
-    @patch("telegram_bot.flow_callbacks.DbGateway")
+    @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.parse_contractor_data")
-    def test_parse_error_skips_db_log(self, mock_parse, MockDb):
+    def test_parse_error_skips_db_log(self, mock_parse, mock_db):
         from telegram_bot.flow_callbacks import _parse_with_llm
 
         mock_parse.return_value = {"parse_error": "Could not parse"}
@@ -1199,28 +1195,28 @@ class TestParseWithLlm:
         result = asyncio.run(_parse_with_llm("gibberish", ContractorType.SAMOZANYATY))
 
         assert "parse_error" in result
-        MockDb.return_value.log_payment_validation.assert_not_called()
+        mock_db.log_payment_validation.assert_not_called()
 
-    @patch("telegram_bot.flow_callbacks.DbGateway")
+    @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.parse_contractor_data")
-    def test_db_log_failure_still_returns_result(self, mock_parse, MockDb):
+    def test_db_log_failure_still_returns_result(self, mock_parse, mock_db):
         from telegram_bot.flow_callbacks import _parse_with_llm
 
         mock_parse.return_value = {"name_ru": "Test"}
-        MockDb.return_value.log_payment_validation.side_effect = RuntimeError("DB down")
+        mock_db.log_payment_validation.side_effect = RuntimeError("DB down")
 
         result = asyncio.run(_parse_with_llm("test", ContractorType.SAMOZANYATY))
 
         assert result["name_ru"] == "Test"
         assert "_validation_id" not in result
 
-    @patch("telegram_bot.flow_callbacks.DbGateway")
+    @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.parse_contractor_data")
-    def test_passes_context_with_collected_data(self, mock_parse, MockDb):
+    def test_passes_context_with_collected_data(self, mock_parse, mock_db):
         from telegram_bot.flow_callbacks import _parse_with_llm
 
         mock_parse.return_value = {"inn": "111222333444"}
-        MockDb.return_value.log_payment_validation.return_value = "v1"
+        mock_db.log_payment_validation.return_value = "v1"
 
         collected = {"name_ru": "Иван", "email": "ivan@test.ru"}
         result = asyncio.run(_parse_with_llm(
@@ -1234,13 +1230,13 @@ class TestParseWithLlm:
         assert "Иван" in context
         assert "ivan@test.ru" in context
 
-    @patch("telegram_bot.flow_callbacks.DbGateway")
+    @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.parse_contractor_data")
-    def test_passes_warnings_in_context(self, mock_parse, MockDb):
+    def test_passes_warnings_in_context(self, mock_parse, mock_db):
         from telegram_bot.flow_callbacks import _parse_with_llm
 
         mock_parse.return_value = {"inn": "valid"}
-        MockDb.return_value.log_payment_validation.return_value = "v2"
+        mock_db.log_payment_validation.return_value = "v2"
 
         warnings = ["ИНН: должен быть 12 цифр"]
         result = asyncio.run(_parse_with_llm(
@@ -1252,43 +1248,43 @@ class TestParseWithLlm:
         assert "ошибки валидации" in context
         assert "12 цифр" in context
 
-    @patch("telegram_bot.flow_callbacks.DbGateway")
+    @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.parse_contractor_data")
-    def test_ip_contractor_type(self, mock_parse, MockDb):
+    def test_ip_contractor_type(self, mock_parse, mock_db):
         from telegram_bot.flow_callbacks import _parse_with_llm
 
         mock_parse.return_value = {"name_ru": "ИП Петров"}
-        MockDb.return_value.log_payment_validation.return_value = "v3"
+        mock_db.log_payment_validation.return_value = "v3"
 
         result = asyncio.run(_parse_with_llm("ИП Петров", ContractorType.IP))
 
-        call_kwargs = MockDb.return_value.log_payment_validation.call_args[1]
+        call_kwargs = mock_db.log_payment_validation.call_args[1]
         assert call_kwargs["contractor_type"] == "ИП"
 
-    @patch("telegram_bot.flow_callbacks.DbGateway")
+    @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.parse_contractor_data")
-    def test_global_contractor_type(self, mock_parse, MockDb):
+    def test_global_contractor_type(self, mock_parse, mock_db):
         from telegram_bot.flow_callbacks import _parse_with_llm
 
         mock_parse.return_value = {"name_en": "John Smith"}
-        MockDb.return_value.log_payment_validation.return_value = "v4"
+        mock_db.log_payment_validation.return_value = "v4"
 
         result = asyncio.run(_parse_with_llm("John Smith", ContractorType.GLOBAL))
 
-        call_kwargs = MockDb.return_value.log_payment_validation.call_args[1]
+        call_kwargs = mock_db.log_payment_validation.call_args[1]
         assert call_kwargs["contractor_type"] == "global"
 
-    @patch("telegram_bot.flow_callbacks.DbGateway")
+    @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.parse_contractor_data")
-    def test_parsed_json_in_db_call(self, mock_parse, MockDb):
+    def test_parsed_json_in_db_call(self, mock_parse, mock_db):
         from telegram_bot.flow_callbacks import _parse_with_llm
 
         mock_parse.return_value = {"name_ru": "Тест", "inn": "123"}
-        MockDb.return_value.log_payment_validation.return_value = "v5"
+        mock_db.log_payment_validation.return_value = "v5"
 
         asyncio.run(_parse_with_llm("Тест ИНН 123", ContractorType.SAMOZANYATY))
 
-        call_kwargs = MockDb.return_value.log_payment_validation.call_args[1]
+        call_kwargs = mock_db.log_payment_validation.call_args[1]
         parsed_json = json.loads(call_kwargs["parsed_json"])
         assert parsed_json["name_ru"] == "Тест"
         assert parsed_json["inn"] == "123"

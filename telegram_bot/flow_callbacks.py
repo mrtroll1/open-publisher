@@ -83,6 +83,8 @@ from telegram_bot.flow_dsl import GroupChatConfig
 
 logger = logging.getLogger(__name__)
 
+_db = DbGateway()
+
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  Shared helpers
@@ -263,10 +265,14 @@ async def handle_data_input(message: types.Message, state: FSMContext) -> str | 
         return None
 
     llm_comment = parsed.pop("comment", None)
+    validation_id = parsed.pop("_validation_id", None)
 
     for key, value in parsed.items():
         if isinstance(value, str) and value.strip():
             collected[key] = value.strip()
+
+    if validation_id:
+        collected["_validation_id"] = validation_id
 
     all_fields = cls.all_field_labels()
     required = cls.required_fields()
@@ -600,7 +606,7 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
         reply_markup = None
         try:
             task_id = await asyncio.to_thread(
-                DbGateway().create_code_task,
+                _db.create_code_task,
                 requested_by=str(message.from_user.id),
                 input_text=text,
                 output_text=answer,
@@ -1324,7 +1330,7 @@ async def handle_update_data(message: types.Message, state: FSMContext) -> str |
         await message.answer(replies.registration.parse_error)
         return None
 
-    parsed_updates = {k: v for k, v in parsed.items() if isinstance(v, str) and v.strip()}
+    parsed_updates = {k: v for k, v in parsed.items() if isinstance(v, str) and v.strip() and not k.startswith("_")}
     parsed_updates.pop("comment", None)
 
     if not parsed_updates:
@@ -1406,7 +1412,7 @@ async def _finish_registration(
     validation_id = collected.get("_validation_id")
     if validation_id:
         try:
-            await asyncio.to_thread(DbGateway().finalize_payment_validation, validation_id)
+            await asyncio.to_thread(_db.finalize_payment_validation, validation_id)
         except Exception:
             logger.warning("Failed to finalize payment validation %s", validation_id, exc_info=True)
 
@@ -1530,7 +1536,7 @@ async def _forward_to_admins(raw_text: str, ctype: ContractorType, parsed: dict)
         try:
             msg = replies.notifications.new_registration.format(type=ctype.value, raw_text=raw_text)
             if parsed:
-                formatted = "\n".join(f"  {k}: {v}" for k, v in parsed.items() if v)
+                formatted = "\n".join(f"  {k}: {v}" for k, v in parsed.items() if v and not k.startswith("_"))
                 msg += replies.notifications.new_registration_parsed.format(formatted=formatted)
             await bot.send_message(admin_id, msg)
         except Exception:
@@ -1547,7 +1553,7 @@ async def _parse_with_llm(
 
     context = ""
     if collected:
-        filled = {k: v for k, v in collected.items() if v}
+        filled = {k: v for k, v in collected.items() if v and not k.startswith("_")}
         missing = [f for f in cls.FIELD_META if f not in filled]
         if filled:
             context += f"\nУже получено: {json.dumps(filled, ensure_ascii=False)}"
@@ -1566,7 +1572,7 @@ async def _parse_with_llm(
     if "parse_error" not in result:
         try:
             vid = await asyncio.to_thread(
-                DbGateway().log_payment_validation,
+                _db.log_payment_validation,
                 contractor_id="", contractor_type=ctype.value,
                 input_text=text, parsed_json=json.dumps(result, ensure_ascii=False),
             )
@@ -1754,7 +1760,7 @@ async def handle_code_rate_callback(callback: CallbackQuery) -> None:
         return
     _, task_id, rating = parts
     try:
-        await asyncio.to_thread(DbGateway().rate_code_task, task_id, int(rating))
+        await asyncio.to_thread(_db.rate_code_task, task_id, int(rating))
     except Exception:
         logger.exception("Failed to save code task rating")
     await callback.answer("Оценка сохранена!")

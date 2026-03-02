@@ -1,0 +1,452 @@
+# Plan 2 — Decision Tracking, Health/Code Commands, Natural Language Bot, Editor Tools
+
+## Current State Summary
+
+- **DB**: PostgreSQL with 2 tables: `email_threads`, `email_messages`. No migration framework — raw SQL in `db_gateway.py`.
+- **LLM**: All via Gemini 2.5 Flash (7 use cases). No decision audit trail — all in-memory, lost on restart.
+- **Email flow**: Inbox → classify (support/editorial/ignore) → LLM draft → admin approve/skip in Telegram → send/discard. Rejected drafts are **discarded** (popped from memory dict). Outbound replies saved to `email_messages`.
+- **Bot**: Private 1:1 only. No groupchat support. Admin commands are stateless. No natural language classification.
+- **Code/Claude**: `ANTHROPIC_API_KEY` exists in config, repo gateway exists, but no Claude subprocess integration yet.
+
+---
+
+## Phase 1: Email Decision Tracking (DB foundation)
+
+### 1.1 New `email_decisions` table + CRUD in `db_gateway.py`
+
+- [ ] Add `email_decisions` table to `_SCHEMA_SQL`:
+  ```sql
+  CREATE TABLE IF NOT EXISTS email_decisions (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      created_at TIMESTAMP DEFAULT NOW(),
+      task TEXT NOT NULL,            -- 'SUPPORT_ANSWER', 'ARTICLE_APPROVAL'
+      channel TEXT NOT NULL DEFAULT 'EMAIL',
+      input_message_ids TEXT[] NOT NULL,
+      output TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      decided_by TEXT DEFAULT '',
+      decided_at TIMESTAMP
+  );
+  ```
+- [ ] Add `create_email_decision(task, channel, input_message_ids, output) -> str` method
+- [ ] Add `update_email_decision(decision_id, status, decided_by=None)` method
+- [ ] Add `update_email_decision_output(decision_id, output)` method
+- [ ] Add `get_email_decision(decision_id) -> dict | None` method
+- [ ] Add `get_thread_message_ids(thread_id) -> list[str]` method
+
+**Why `input_message_ids TEXT[]`**: email_messages already stores full body/from/subject, so we reconstruct full input by fetching messages by IDs. Avoids duplicating large email bodies.
+
+**Files**: `backend/infrastructure/gateways/db_gateway.py`
+
+### 1.2 Store rejected drafts in `email_messages`
+
+Currently `skip_support()` pops from memory dict — the draft vanishes.
+
+- [ ] Change `TechSupportHandler.discard(uid)` to save the draft to `email_messages` with `direction='draft_rejected'` instead of just popping
+- [ ] Pass `DbGateway` and draft data needed for saving into `discard()`
+
+**Files**: `backend/domain/tech_support_handler.py`
+
+### 1.3 Wire decision tracking into `InboxService`
+
+- [ ] Add `DbGateway` dependency to `InboxService.__init__()`
+- [ ] In `_handle_support()`: after draft is created, create PENDING decision record, store `decision_id` on `SupportDraft`
+- [ ] In `_handle_editorial()`: after item is created, create PENDING decision record, store `decision_id` on `EditorialItem`
+- [ ] In `approve_support(uid)`: update decision to APPROVED
+- [ ] In `skip_support(uid)`: save rejected draft to email_messages, update decision to REJECTED
+- [ ] In `approve_editorial(uid)`: update decision to APPROVED
+- [ ] In `skip_editorial(uid)`: update decision to REJECTED
+
+**Files**: `backend/domain/inbox_service.py`
+
+### 1.4 Extend models with `decision_id`
+
+- [ ] Add `decision_id: str = ""` to `SupportDraft`
+- [ ] Add `decision_id: str = ""` to `EditorialItem`
+
+**Files**: `common/models.py`
+
+### 1.5 Tests for Phase 1
+
+- [ ] Test `email_decisions` CRUD in `test_db_gateway.py`
+- [ ] Test `get_thread_message_ids` in `test_db_gateway.py`
+- [ ] Test that `approve_support` creates APPROVED decision record
+- [ ] Test that `skip_support` creates REJECTED decision + saves draft to email_messages
+- [ ] Test that `approve_editorial` creates APPROVED decision record
+- [ ] Test that `skip_editorial` creates REJECTED decision record
+- [ ] Run full test suite, verify no regressions
+
+**Files**: `tests/test_db_gateway.py` (extend), `tests/test_inbox_service.py` (new or extend `test_tech_support_handler.py`)
+
+---
+
+## Phase 2: /health, /tech_support, /code Commands
+
+### 2.1 /health command
+
+- [ ] Add `HEALTHCHECK_DOMAINS` to `common/config.py` (from env, comma-separated, default `"republicmag.io,redefine.media"`)
+- [ ] Add `KUBECTL_ENABLED` bool to `common/config.py` (default `False`)
+- [ ] Create `backend/domain/healthcheck.py` with `HealthResult` dataclass (`name`, `status`, `details`)
+- [ ] Implement HTTP domain checks (`requests.get(url, timeout=5)`, catch exceptions)
+- [ ] Implement kubectl checks (`subprocess.run(["kubectl", ...], capture_output=True, timeout=10)`) gated by `KUBECTL_ENABLED`
+- [ ] Implement `run_healthchecks() -> list[HealthResult]`
+- [ ] Implement `format_healthcheck_results(results) -> str` for Telegram output
+- [ ] Add `cmd_health` handler in `flow_callbacks.py`
+- [ ] Register `/health` as `AdminCommand` in `flows.py`
+- [ ] Re-export from `backend/__init__.py`
+
+**Files**: `backend/domain/healthcheck.py` (new), `telegram_bot/flow_callbacks.py`, `telegram_bot/flows.py`, `common/config.py`, `backend/__init__.py`
+
+### 2.2 /tech_support command
+
+- [ ] Create `templates/tech-support-question.md` — takes question + knowledge + optional code context, instructs concise Telegram-friendly output
+- [ ] Add `tech_support_question(question, code_context="", verbose=False)` to `compose_request.py`
+- [ ] Add `cmd_tech_support` handler in `flow_callbacks.py`:
+  - [ ] Extract text after `/tech_support`
+  - [ ] Parse verbose flag (`-v` or `verbose` prefix)
+  - [ ] Optionally fetch code context from repos via `RepoGateway`
+  - [ ] Call Gemini, reply in Telegram
+- [ ] Register `/tech_support` as `AdminCommand` in `flows.py`
+
+**Files**: `templates/tech-support-question.md` (new), `backend/domain/compose_request.py`, `telegram_bot/flow_callbacks.py`, `telegram_bot/flows.py`
+
+### 2.3 /code command
+
+- [ ] Create `backend/domain/code_runner.py` with `run_claude_code(prompt, verbose=False) -> str`
+  - [ ] Use `subprocess.run(["claude", "-p", prompt, "--max-turns", "5"], capture_output=True, cwd=REPOS_DIR, timeout=300)`
+  - [ ] Prepend system instruction for concise Telegram output (omit if verbose)
+  - [ ] Truncate output to 4000 chars for Telegram
+- [ ] Add `cmd_code` handler in `flow_callbacks.py`:
+  - [ ] Extract text after `/code`
+  - [ ] Parse verbose flag
+  - [ ] Run in thread, reply with result
+- [ ] Register `/code` as `AdminCommand` in `flows.py`
+- [ ] Update `Dockerfile` to install Claude CLI (node + `@anthropic-ai/claude-code`)
+- [ ] Re-export from `backend/__init__.py`
+
+**Files**: `backend/domain/code_runner.py` (new), `telegram_bot/flow_callbacks.py`, `telegram_bot/flows.py`, `Dockerfile`, `backend/__init__.py`
+
+### 2.4 Remove code context from email tech support pipeline
+
+- [ ] Remove `_fetch_code_context()` call from `draft_reply()` in `TechSupportHandler`
+- [ ] Remove `code_context` variable and its inclusion in the LLM prompt within `draft_reply()`
+- [ ] Keep `_fetch_code_context()` method and `RepoGateway` intact (reused by /tech_support)
+
+**Files**: `backend/domain/tech_support_handler.py`
+
+### 2.5 Tests for Phase 2
+
+- [ ] Test `run_healthchecks()` with mocked HTTP responses (up/down scenarios)
+- [ ] Test `run_healthchecks()` with mocked kubectl subprocess
+- [ ] Test `format_healthcheck_results()` output formatting
+- [ ] Test `tech_support_question()` prompt composition
+- [ ] Test `run_claude_code()` with mocked subprocess (success + timeout + error)
+- [ ] Test verbose flag parsing for both commands
+- [ ] Test that `draft_reply()` no longer includes code context
+- [ ] Run full test suite, verify no regressions
+
+**Files**: `tests/test_healthcheck.py` (new), `tests/test_code_runner.py` (new), `tests/test_compose_request.py` (extend), `tests/test_tech_support_handler.py` (extend)
+
+---
+
+## Phase 3: Natural Language Bot + Groupchat Support
+
+### 3.1 Command classifier (Gemini-based)
+
+- [ ] Create `templates/classify-command.md` — input: user text + available commands with descriptions, output: `{"command": "..." | null, "args": "..."}`
+- [ ] Add `classify_command(text, commands_description)` to `compose_request.py`
+- [ ] Create `backend/domain/command_classifier.py`:
+  - [ ] `ClassifiedCommand` dataclass (`command: str`, `args: str`)
+  - [ ] `CommandClassifier.classify(text, available_commands) -> ClassifiedCommand | None`
+- [ ] Re-export from `backend/__init__.py`
+
+**Files**: `templates/classify-command.md` (new), `backend/domain/compose_request.py`, `backend/domain/command_classifier.py` (new), `backend/__init__.py`
+
+### 3.2 Groupchat configuration
+
+- [ ] Add `GroupChatConfig` dataclass to `flow_dsl.py` (`chat_id: int`, `allowed_commands: list[str]`, `natural_language: bool = True`)
+- [ ] Add `group_configs: list[GroupChatConfig]` to `BotFlows`
+- [ ] Add `EDITORIAL_CHAT_ID` to `common/config.py`
+- [ ] Add `BOT_USERNAME` to `common/config.py`
+- [ ] Define editorial groupchat config in `flows.py` with `allowed_commands=["health", "tech_support", "code"]`
+
+**Files**: `telegram_bot/flow_dsl.py`, `telegram_bot/flows.py`, `common/config.py`
+
+### 3.3 Groupchat message handler
+
+- [ ] Add bot mention detection helper: extract clean text, check if bot is @mentioned or replied to
+- [ ] Add group message handler in `flow_callbacks.py`:
+  - [ ] Check `message.chat.type` in `("group", "supergroup")`
+  - [ ] Find `GroupChatConfig` for `chat_id`, skip if not configured
+  - [ ] If explicit command: check if in `allowed_commands`, execute
+  - [ ] If mentions bot: run `CommandClassifier` with group's `allowed_commands`
+  - [ ] If classified: execute the command
+  - [ ] If not classified: ignore
+- [ ] Build command dispatch map (command name → handler function) for reuse
+
+**Files**: `telegram_bot/flow_callbacks.py`
+
+### 3.4 Register group handler in flow engine
+
+- [ ] Add group-aware router registration in `flow_engine.py`
+- [ ] Register group handler with appropriate filters (`F.chat.type.in_({"group", "supergroup"})`)
+- [ ] Ensure group handler does NOT interfere with existing private chat handlers
+- [ ] Register new callback handlers in `main.py` if needed
+
+**Files**: `telegram_bot/flow_engine.py`, `telegram_bot/main.py`
+
+### 3.5 Tests for Phase 3
+
+- [ ] Test `CommandClassifier` with Russian NL inputs (e.g. "у нас сайт лежит" → health)
+- [ ] Test `CommandClassifier` returns None for irrelevant messages
+- [ ] Test `GroupChatConfig` filtering (configured chat vs unconfigured)
+- [ ] Test mention extraction (strip @username, handle replies)
+- [ ] Test that group commands dispatch correctly
+- [ ] Run full test suite, verify no regressions
+
+**Files**: `tests/test_command_classifier.py` (new), `tests/test_flow_engine.py` (extend)
+
+---
+
+## Phase 4: Editor-Useful Features
+
+### 4.1 /articles command
+
+- [ ] Add `cmd_articles` handler in `flow_callbacks.py`:
+  - [ ] Parse args: `<author_name> [month]` (default: previous month)
+  - [ ] Fuzzy-find contractor by name
+  - [ ] Call `fetch_articles(contractor, month)`
+  - [ ] Format result: article count, list of article IDs, role
+- [ ] Register `/articles` as `AdminCommand` in `flows.py`
+- [ ] Add `"articles"` to editorial groupchat's `allowed_commands`
+
+**Files**: `telegram_bot/flow_callbacks.py`, `telegram_bot/flows.py`
+
+### 4.2 /lookup command
+
+- [ ] Add `cmd_lookup` handler in `flow_callbacks.py`:
+  - [ ] Parse args: `<name>`
+  - [ ] Fuzzy-find contractor
+  - [ ] Show: name, type, role, invoice status, payment data completeness
+  - [ ] Do NOT show sensitive fields (passport, bank account) — only presence/absence
+- [ ] Register `/lookup` as `AdminCommand` in `flows.py`
+- [ ] Add `"lookup"` to editorial groupchat's `allowed_commands`
+
+**Files**: `telegram_bot/flow_callbacks.py`, `telegram_bot/flows.py`
+
+### 4.3 Tests for Phase 4
+
+- [ ] Test `/articles` with mocked `fetch_articles`
+- [ ] Test `/articles` with unknown author
+- [ ] Test `/lookup` with mocked contractor data
+- [ ] Test `/lookup` does not expose sensitive fields
+- [ ] Run full test suite, verify no regressions
+
+**Files**: `tests/test_flow_callbacks_helpers.py` (extend)
+
+---
+
+## Phase 5: LLM Decision Tracking
+
+### 5.1 `llm_classifications` table (unified classifier logging)
+
+- [ ] Add table to `_SCHEMA_SQL`:
+  ```sql
+  CREATE TABLE IF NOT EXISTS llm_classifications (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      created_at TIMESTAMP DEFAULT NOW(),
+      task TEXT NOT NULL,
+      model TEXT NOT NULL,
+      input_text TEXT NOT NULL,
+      output_json TEXT NOT NULL,
+      latency_ms INT DEFAULT 0
+  );
+  ```
+- [ ] Add `log_classification(task, model, input_text, output_json, latency_ms)` to `DbGateway`
+- [ ] Add optional `task` parameter to `GeminiGateway.call()`
+- [ ] When `task` is provided, measure latency and call `log_classification`
+- [ ] Update caller: `InboxService._llm_classify()` — pass `task="INBOX_CLASSIFY"`
+- [ ] Update caller: `InboxService._handle_editorial()` — pass `task="EDITORIAL_ASSESS"`
+- [ ] Update caller: `TechSupportHandler._fetch_user_data()` — pass `task="SUPPORT_TRIAGE"`
+- [ ] Update caller: `TechSupportHandler._fetch_code_context()` — pass `task="TECH_SEARCH_TERMS"`
+- [ ] Update caller: `CommandClassifier.classify()` — pass `task="COMMAND_CLASSIFY"`
+- [ ] Update caller: `compose_request.translate_name()` callsite — pass `task="TRANSLATE_NAME"`
+
+**Files**: `backend/infrastructure/gateways/db_gateway.py`, `backend/infrastructure/gateways/gemini_gateway.py`, `backend/domain/inbox_service.py`, `backend/domain/tech_support_handler.py`, `backend/domain/command_classifier.py`
+
+### 5.2 `payment_validations` table
+
+- [ ] Add table to `_SCHEMA_SQL`:
+  ```sql
+  CREATE TABLE IF NOT EXISTS payment_validations (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      created_at TIMESTAMP DEFAULT NOW(),
+      contractor_id TEXT,
+      contractor_type TEXT,
+      input_text TEXT NOT NULL,
+      parsed_json TEXT NOT NULL,
+      validation_warnings TEXT[],
+      is_final BOOLEAN DEFAULT FALSE
+  );
+  ```
+- [ ] Add `log_payment_validation(contractor_id, type, input, parsed, warnings, is_final)` to `DbGateway`
+- [ ] Call `log_payment_validation` from `_parse_with_llm()` in `flow_callbacks.py`
+- [ ] Set `is_final=True` when `_finish_registration()` completes successfully
+
+**Files**: `backend/infrastructure/gateways/db_gateway.py`, `telegram_bot/flow_callbacks.py`
+
+### 5.3 `code_tasks` table + rating
+
+- [ ] Add table to `_SCHEMA_SQL`:
+  ```sql
+  CREATE TABLE IF NOT EXISTS code_tasks (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      created_at TIMESTAMP DEFAULT NOW(),
+      requested_by TEXT,
+      input_text TEXT NOT NULL,
+      output_text TEXT NOT NULL,
+      verbose BOOLEAN DEFAULT FALSE,
+      rating INT,
+      rated_at TIMESTAMP
+  );
+  ```
+- [ ] Add `create_code_task(requested_by, input, output, verbose) -> str` to `DbGateway`
+- [ ] Add `rate_code_task(task_id, rating)` to `DbGateway`
+- [ ] Save task in `cmd_code` handler after Claude returns
+- [ ] Show rating buttons (1-5) as inline keyboard after response
+- [ ] Add `handle_code_rate_callback` for `code_rate:<id>:<rating>` prefix
+- [ ] Register callback in `main.py`
+
+**Files**: `backend/infrastructure/gateways/db_gateway.py`, `backend/domain/code_runner.py`, `telegram_bot/flow_callbacks.py`, `telegram_bot/main.py`
+
+### 5.4 Tests for Phase 5
+
+- [ ] Test `log_classification` writes correct data
+- [ ] Test `GeminiGateway.call()` with `task` param logs to DB
+- [ ] Test `GeminiGateway.call()` without `task` param does NOT log
+- [ ] Test `log_payment_validation` writes correct data
+- [ ] Test `create_code_task` and `rate_code_task` CRUD
+- [ ] Test code rating callback handler
+- [ ] Run full test suite, verify no regressions
+
+**Files**: `tests/test_db_gateway.py` (extend), `tests/test_gemini_gateway.py` (new or extend), `tests/test_code_runner.py` (extend)
+
+---
+
+## Phase 6: Domain Structure for LLM Decisions (Future Ambition)
+
+> **Prerequisite**: All phases 1-5 complete and passing tests. This is optional/stretch.
+
+### 6.1 Analysis of LLM decision landscape
+
+After phases 1-5, we have these tables:
+- `email_decisions` — human decisions on LLM-drafted emails
+- `llm_classifications` — all LLM classifier outputs
+- `payment_validations` — LLM-parsed payment data + validation results
+- `code_tasks` — Claude Code tasks + ratings
+
+LLM use cases fall into 3 categories:
+
+**A. Classifiers** (text in → category out): inbox_classify, editorial_assess, support_triage, classify_command — unified in `llm_classifications`
+
+**B. Generators** (input → natural language output): support_email, tech_support_question, code_task — tracked in `email_decisions` / `code_tasks`
+
+**C. Extractors** (text → structured data): contractor_parse, translate_name, tech_search_terms — tracked in `payment_validations` / `llm_classifications`
+
+### 6.2 Create `backend/domain/llm/` package
+
+- [ ] Create `backend/domain/llm/__init__.py`
+- [ ] Create `backend/domain/llm/base.py` with `LLMTask` protocol and `LLMResult` model
+- [ ] Create `backend/domain/llm/classifier.py` — `ClassifierTask` base
+- [ ] Create `backend/domain/llm/generator.py` — `GeneratorTask` base
+- [ ] Create `backend/domain/llm/extractor.py` — `ExtractorTask` base
+- [ ] Create `backend/domain/llm/tracker.py` — `LLMTracker` (routes to correct table by category)
+
+### 6.3 Migrate one classifier as proof of concept
+
+- [ ] Migrate `inbox_classify` to `ClassifierTask` subclass
+- [ ] Verify existing tests still pass
+- [ ] Verify behavior is identical
+
+### 6.4 Migrate remaining use cases (if 6.3 succeeds)
+
+- [ ] Migrate remaining classifiers: editorial_assess, support_triage, classify_command
+- [ ] Migrate generators: support_email, tech_support_question
+- [ ] Migrate extractors: contractor_parse, translate_name, tech_search_terms
+- [ ] Update or deprecate `compose_request.py` in favor of task classes
+- [ ] Run full test suite after each migration
+
+**Files**: `backend/domain/llm/` (new package), various domain files
+
+---
+
+## Implementation Order & Dependencies
+
+```
+Phase 1 (DB foundation)     ← do first, all others depend on it
+  ↓
+Phase 2 (commands)           ← independent of Phase 3
+  ↓
+Phase 3 (NL + groupchat)    ← depends on Phase 2 commands existing
+  ↓
+Phase 4 (editor features)   ← depends on Phase 3 groupchat support
+  ↓
+Phase 5 (LLM tracking)      ← can be done in parallel with Phase 3/4
+  ↓
+Phase 6 (domain refactor)   ← only after everything else passes
+```
+
+## New Files Summary
+
+| File | Phase | Purpose |
+|------|-------|---------|
+| `backend/domain/healthcheck.py` | 2 | Domain/k8s healthchecks |
+| `backend/domain/code_runner.py` | 2 | Claude Code subprocess runner |
+| `backend/domain/command_classifier.py` | 3 | NL → command classification |
+| `templates/tech-support-question.md` | 2 | LLM prompt for /tech_support |
+| `templates/classify-command.md` | 3 | LLM prompt for NL classification |
+| `tests/test_healthcheck.py` | 2 | Healthcheck tests |
+| `tests/test_code_runner.py` | 2 | Code runner tests |
+| `tests/test_command_classifier.py` | 3 | Classifier tests |
+| `tests/test_inbox_service.py` | 1 | Decision tracking tests |
+| `backend/domain/llm/` | 6 | LLM task abstractions (future) |
+
+## Modified Files Summary
+
+| File | Phases | Changes |
+|------|--------|---------|
+| `backend/infrastructure/gateways/db_gateway.py` | 1,5 | New tables + CRUD methods |
+| `backend/domain/inbox_service.py` | 1 | Decision tracking on approve/skip |
+| `backend/domain/tech_support_handler.py` | 1,2 | Save rejected drafts, remove code context from email |
+| `common/models.py` | 1 | decision_id on SupportDraft/EditorialItem |
+| `telegram_bot/flow_callbacks.py` | 2,3,4,5 | New command handlers, NL handler, rating |
+| `telegram_bot/flows.py` | 2,3,4 | New commands, group configs |
+| `telegram_bot/flow_dsl.py` | 3 | GroupChatConfig dataclass |
+| `telegram_bot/flow_engine.py` | 3 | Group message routing |
+| `telegram_bot/main.py` | 3,5 | New callback registrations |
+| `backend/domain/compose_request.py` | 2,3 | New prompt composers |
+| `backend/infrastructure/gateways/gemini_gateway.py` | 5 | Classification logging |
+| `common/config.py` | 2,3 | New env vars |
+| `Dockerfile` | 2 | Claude CLI installation |
+| `backend/__init__.py` | 2,3,4 | Re-exports |
+
+## New Env Vars
+
+```bash
+# Phase 2
+HEALTHCHECK_DOMAINS=republicmag.io,redefine.media
+KUBECTL_ENABLED=true
+
+# Phase 3
+EDITORIAL_CHAT_ID=-100123456789
+BOT_USERNAME=your_bot_username
+```
+
+## Risk Assessment
+
+- **Phase 1**: Low — extends existing DB pattern, straightforward CRUD
+- **Phase 2**: Medium — /code depends on Claude CLI in Docker, subprocess management
+- **Phase 3**: Medium — groupchat handling is new territory, NL classification accuracy
+- **Phase 4**: Low — reuses existing backend functions
+- **Phase 5**: Low — logging/tracking, no behavior changes
+- **Phase 6**: Medium — refactoring risk, but optional and incremental

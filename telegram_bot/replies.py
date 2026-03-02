@@ -159,7 +159,12 @@ class menu:
         "/send_legium_links — отправить ссылки на Легиум\n"
         "/orphan_contractors — сверка бюджета и контрагентов\n"
         "/budget — расчёт бюджета\n"
-        "/upload_to_airtable — загрузить банковскую выписку"
+        "/upload_to_airtable — загрузить банковскую выписку\n"
+        "/articles <имя> [YYYY-MM] — статьи контрагента\n"
+        "/lookup <имя> — информация о контрагенте\n"
+        "/health — проверка доступности сайтов\n"
+        "/tech_support [-v] <вопрос> — вопрос по техподдержке\n"
+        "/code [-v] <запрос> — запустить Claude Code"
     )
 
 

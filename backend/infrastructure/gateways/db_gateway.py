@@ -74,7 +74,7 @@ CREATE TABLE IF NOT EXISTS code_tasks (
     requested_by TEXT,
     input_text TEXT NOT NULL,
     output_text TEXT NOT NULL,
-    verbose BOOLEAN DEFAULT FALSE,
+    is_verbose BOOLEAN DEFAULT FALSE,
     rating INT,
     rated_at TIMESTAMP
 );
@@ -269,7 +269,7 @@ class DbGateway:
         conn = self._get_conn()
         with conn.cursor() as cur:
             cur.execute(
-                """INSERT INTO code_tasks (requested_by, input_text, output_text, verbose)
+                """INSERT INTO code_tasks (requested_by, input_text, output_text, is_verbose)
                    VALUES (%s, %s, %s, %s)
                    RETURNING id""",
                 (requested_by, input_text, output_text, verbose),

@@ -1,1 +1,20 @@
-TODO: fill in with context about the repos for Claude Code CLI
+Ты работаешь с кодовой базой двух продуктов: Republic и Redefine.
+
+Republic — онлайн-медиа с пейволлом (republicmag.io).
+Redefine — сервис подписок (redefine.media).
+
+## Структура репозиториев
+
+### Republic
+- `republic/` — много легаси-кода + CMS
+- `republic_api/` — основной бэкенд
+- `nuxt/` — фронтенд (Nuxt)
+
+### Redefine
+- `redefine_back/` — основной бэкенд
+- `payment/` — микросервис платежей и чеков
+
+## Правила работы
+- В каждом проекте есть свои стандарты и конвенции кода — следуй им.
+- Отвечай кратко и по делу (для Telegram).
+- Не придумывай код, которого нет — ищи в репозиториях.

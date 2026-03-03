@@ -4,6 +4,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from aiogram.enums import ChatAction
 
 from common.models import (
     ArticleEntry,
@@ -1117,3 +1118,287 @@ class TestAdminReplySupportDraftRouting:
         # Clean up
         _admin_reply_map.pop((400, 80), None)
         _support_draft_map.pop((400, 80), None)
+
+
+# ===================================================================
+#  handler_utils helpers — send_typing, get_current_contractor,
+#  get_contractor_by_id, parse_month_arg, _parse_flags,
+#  _find_contractor_or_suggest
+# ===================================================================
+
+from telegram_bot.handler_utils import (
+    send_typing,
+    get_current_contractor,
+    get_contractor_by_id,
+    parse_month_arg,
+    _parse_flags,
+    _find_contractor_or_suggest,
+)
+
+
+# ===================================================================
+#  TestSendTyping
+# ===================================================================
+
+class TestSendTyping:
+
+    @patch("telegram_bot.handler_utils.bot", new_callable=AsyncMock)
+    def test_calls_send_chat_action_with_typing(self, mock_bot):
+        asyncio.run(send_typing(12345))
+        mock_bot.send_chat_action.assert_awaited_once_with(12345, ChatAction.TYPING)
+
+    @patch("telegram_bot.handler_utils.bot", new_callable=AsyncMock)
+    def test_different_chat_id(self, mock_bot):
+        asyncio.run(send_typing(99999))
+        mock_bot.send_chat_action.assert_awaited_once_with(99999, ChatAction.TYPING)
+
+
+# ===================================================================
+#  TestGetCurrentContractor
+# ===================================================================
+
+class TestGetCurrentContractor:
+
+    @patch("telegram_bot.handler_utils.find_contractor_by_telegram_id")
+    @patch("telegram_bot.handler_utils.get_contractors", new_callable=AsyncMock)
+    def test_returns_contractor_when_found(self, mock_get, mock_find):
+        contractor = _samoz()
+        mock_get.return_value = [contractor]
+        mock_find.return_value = contractor
+
+        result = asyncio.run(get_current_contractor(42))
+
+        mock_get.assert_awaited_once()
+        mock_find.assert_called_once_with(42, [contractor])
+        assert result is contractor
+
+    @patch("telegram_bot.handler_utils.find_contractor_by_telegram_id")
+    @patch("telegram_bot.handler_utils.get_contractors", new_callable=AsyncMock)
+    def test_returns_none_when_not_found(self, mock_get, mock_find):
+        mock_get.return_value = []
+        mock_find.return_value = None
+
+        result = asyncio.run(get_current_contractor(999))
+
+        assert result is None
+
+
+# ===================================================================
+#  TestGetContractorById
+# ===================================================================
+
+class TestGetContractorById:
+
+    @patch("telegram_bot.handler_utils.find_contractor_by_id")
+    @patch("telegram_bot.handler_utils.get_contractors", new_callable=AsyncMock)
+    def test_returns_contractor_when_found(self, mock_get, mock_find):
+        contractor = _global(id="g42")
+        mock_get.return_value = [contractor]
+        mock_find.return_value = contractor
+
+        result = asyncio.run(get_contractor_by_id("g42"))
+
+        mock_get.assert_awaited_once()
+        mock_find.assert_called_once_with("g42", [contractor])
+        assert result is contractor
+
+    @patch("telegram_bot.handler_utils.find_contractor_by_id")
+    @patch("telegram_bot.handler_utils.get_contractors", new_callable=AsyncMock)
+    def test_returns_none_when_not_found(self, mock_get, mock_find):
+        mock_get.return_value = []
+        mock_find.return_value = None
+
+        result = asyncio.run(get_contractor_by_id("nonexistent"))
+
+        assert result is None
+
+
+# ===================================================================
+#  TestParseMonthArg
+# ===================================================================
+
+class TestParseMonthArg:
+
+    def test_extracts_month_from_args(self):
+        assert parse_month_arg(["/cmd", "2026-02"]) == "2026-02"
+
+    def test_strips_whitespace(self):
+        assert parse_month_arg(["/cmd", "  2025-12  "]) == "2025-12"
+
+    @patch("telegram_bot.handler_utils.prev_month", return_value="2026-02")
+    def test_defaults_to_prev_month_when_no_arg(self, mock_prev):
+        assert parse_month_arg(["/cmd"]) == "2026-02"
+        mock_prev.assert_called_once()
+
+    @patch("telegram_bot.handler_utils.prev_month", return_value="2026-02")
+    def test_defaults_to_prev_month_when_empty(self, mock_prev):
+        assert parse_month_arg([]) == "2026-02"
+
+    def test_arbitrary_string_arg(self):
+        assert parse_month_arg(["/articles", "january"]) == "january"
+
+    def test_third_arg_ignored(self):
+        result = parse_month_arg(["/cmd", "2026-01", "extra"])
+        assert result == "2026-01"
+
+
+# ===================================================================
+#  TestParseFlags
+# ===================================================================
+
+class TestParseFlags:
+
+    def test_no_flags(self):
+        verbose, expert, rest = _parse_flags("hello world")
+        assert verbose is False
+        assert expert is False
+        assert rest == "hello world"
+
+    def test_verbose_short_flag(self):
+        verbose, expert, rest = _parse_flags("-v some question")
+        assert verbose is True
+        assert expert is False
+        assert rest == "some question"
+
+    def test_verbose_long_flag(self):
+        verbose, expert, rest = _parse_flags("verbose some question")
+        assert verbose is True
+        assert expert is False
+        assert rest == "some question"
+
+    def test_expert_short_flag(self):
+        verbose, expert, rest = _parse_flags("-e some question")
+        assert verbose is False
+        assert expert is True
+        assert rest == "some question"
+
+    def test_expert_long_flag(self):
+        verbose, expert, rest = _parse_flags("expert some question")
+        assert verbose is False
+        assert expert is True
+        assert rest == "some question"
+
+    def test_both_flags(self):
+        verbose, expert, rest = _parse_flags("-v -e the rest")
+        assert verbose is True
+        assert expert is True
+        assert rest == "the rest"
+
+    def test_both_flags_reversed(self):
+        verbose, expert, rest = _parse_flags("-e -v the rest")
+        assert verbose is True
+        assert expert is True
+        assert rest == "the rest"
+
+    def test_both_long_flags(self):
+        verbose, expert, rest = _parse_flags("verbose expert the rest")
+        assert verbose is True
+        assert expert is True
+        assert rest == "the rest"
+
+    def test_empty_string(self):
+        verbose, expert, rest = _parse_flags("")
+        assert verbose is False
+        assert expert is False
+        assert rest == ""
+
+    def test_flag_in_middle_not_parsed(self):
+        verbose, expert, rest = _parse_flags("question -v more")
+        assert verbose is False
+        assert expert is False
+        assert rest == "question -v more"
+
+    def test_flag_only_no_trailing_text(self):
+        verbose, expert, rest = _parse_flags("-v ")
+        assert verbose is True
+        assert rest == ""
+
+    def test_expert_only_no_trailing_text(self):
+        verbose, expert, rest = _parse_flags("-e ")
+        assert expert is True
+        assert rest == ""
+
+
+# ===================================================================
+#  TestFindContractorOrSuggest
+# ===================================================================
+
+class TestFindContractorOrSuggest:
+
+    @patch("telegram_bot.handler_utils.find_contractor")
+    @patch("telegram_bot.handler_utils.get_contractors", new_callable=AsyncMock)
+    def test_returns_contractor_on_exact_match(self, mock_get, mock_find):
+        contractor = _samoz(name_ru="Иван Иванов")
+        mock_get.return_value = [contractor]
+        mock_find.return_value = contractor
+
+        msg = AsyncMock()
+        result = asyncio.run(_find_contractor_or_suggest("Иван Иванов", msg))
+
+        assert result is contractor
+        msg.answer.assert_not_awaited()
+
+    @patch("telegram_bot.handler_utils.fuzzy_find")
+    @patch("telegram_bot.handler_utils.find_contractor")
+    @patch("telegram_bot.handler_utils.get_contractors", new_callable=AsyncMock)
+    def test_shows_fuzzy_suggestions_when_no_exact(self, mock_get, mock_find, mock_fuzzy):
+        c1 = _samoz(name_ru="Иван Иванов")
+        c2 = _global(name_en="Ivan Ivanov")
+        mock_get.return_value = [c1, c2]
+        mock_find.return_value = None
+        mock_fuzzy.return_value = [(c1, 0.6), (c2, 0.5)]
+
+        msg = AsyncMock()
+        result = asyncio.run(_find_contractor_or_suggest("Иван", msg))
+
+        assert result is None
+        msg.answer.assert_awaited_once()
+        answer_text = msg.answer.call_args[0][0]
+        assert "Иван Иванов" in answer_text
+        assert "Ivan Ivanov" in answer_text
+
+    @patch("telegram_bot.handler_utils.fuzzy_find")
+    @patch("telegram_bot.handler_utils.find_contractor")
+    @patch("telegram_bot.handler_utils.get_contractors", new_callable=AsyncMock)
+    def test_shows_not_found_when_no_matches(self, mock_get, mock_find, mock_fuzzy):
+        mock_get.return_value = []
+        mock_find.return_value = None
+        mock_fuzzy.return_value = []
+
+        msg = AsyncMock()
+        result = asyncio.run(_find_contractor_or_suggest("Никто", msg))
+
+        assert result is None
+        msg.answer.assert_awaited_once_with(replies.lookup.not_found)
+
+    @patch("telegram_bot.handler_utils.fuzzy_find")
+    @patch("telegram_bot.handler_utils.find_contractor")
+    @patch("telegram_bot.handler_utils.get_contractors", new_callable=AsyncMock)
+    def test_fuzzy_limited_to_five_suggestions(self, mock_get, mock_find, mock_fuzzy):
+        contractors = [_samoz(id=f"s{i}", name_ru=f"Имя{i}") for i in range(7)]
+        mock_get.return_value = contractors
+        mock_find.return_value = None
+        mock_fuzzy.return_value = [(c, 0.5) for c in contractors]
+
+        msg = AsyncMock()
+        asyncio.run(_find_contractor_or_suggest("Имя", msg))
+
+        answer_text = msg.answer.call_args[0][0]
+        # Only first 5 should appear
+        assert "Имя0" in answer_text
+        assert "Имя4" in answer_text
+        assert "Имя5" not in answer_text
+        assert "Имя6" not in answer_text
+
+    @patch("telegram_bot.handler_utils.fuzzy_find")
+    @patch("telegram_bot.handler_utils.find_contractor")
+    @patch("telegram_bot.handler_utils.get_contractors", new_callable=AsyncMock)
+    def test_fuzzy_called_with_correct_threshold(self, mock_get, mock_find, mock_fuzzy):
+        mock_get.return_value = []
+        mock_find.return_value = None
+        mock_fuzzy.return_value = []
+
+        msg = AsyncMock()
+        asyncio.run(_find_contractor_or_suggest("test", msg))
+
+        mock_fuzzy.assert_called_once_with("test", [], threshold=0.4)

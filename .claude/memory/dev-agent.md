@@ -1776,6 +1776,30 @@ tests/
 
 **Net result:** 1057 tests pass, 5 files refactored, all fat methods under 43 lines
 
+### Session 58 (2026-03-03) — Maintenance: Spot Bugs (round 9) + Write Tests (round 10)
+**Status:** Complete
+
+**Spot Bugs (round 9):**
+- Thorough review of all key files from Plan 4 Phases 1-9 (30+ files: handlers, services, repos, shims, wiring)
+- Checked: missing imports, incorrect paths, state sharing, parameter mismatches, asyncio.to_thread wrapping, PatchProxyModule correctness, circular imports, dead code
+- **Zero bugs found** — the 9-phase refactoring was executed cleanly
+
+**Write Tests (round 10):**
+- Added 29 new tests for Phase 8 handler_utils.py helpers (previously zero coverage):
+  - `TestSendTyping` (2): bot.send_chat_action called correctly
+  - `TestGetCurrentContractor` (2): found/not-found paths with mocked get_contractors
+  - `TestGetContractorById` (2): found/not-found paths
+  - `TestParseMonthArg` (6): month extraction, defaults, whitespace, extra args
+  - `TestParseFlags` (12): all flag combos (-v, verbose, -e, expert), edge cases, no-flags
+  - `TestFindContractorOrSuggest` (5): exact match, fuzzy suggestions, not found, cap at 5, threshold
+
+**Bug found and fixed:**
+1. **`_parse_flags` IndexError on trailing whitespace** (`handler_utils.py`):
+   - `"-v "` → `text.split(None, 1)` returns `["-v"]` (single element), `[1]` crashes
+   - **Fix**: Check `len(parts) > 1` instead of `" " in text`
+
+**Net result:** 1086 tests pass (+29 new), 1 bug fixed
+
 ## Plan 4 status
 
 **ALL PHASES COMPLETE (1-9).** Plan 4 Architecture Refactor is fully done. Next sessions enter maintenance mode.

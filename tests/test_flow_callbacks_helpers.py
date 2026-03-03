@@ -724,11 +724,11 @@ class TestHandleNlReply:
 
         assert result is True
         mock_db.get_reply_chain.assert_not_called()
-        # Verify the history was bootstrapped
+        # Verify the history was bootstrapped (user message is NOT in history — it's in {{MESSAGE}})
         call_args = mock_gemini.call.call_args[0]
         prompt = call_args[0]
         assert "assistant: Вот информация" in prompt
-        assert "user: Расскажи подробнее" in prompt
+        assert "Расскажи подробнее" in prompt
         # No DB record → parent_id is None
         save_kwargs = mock_save_turn.call_args[1]
         assert save_kwargs["parent_id"] is None
@@ -823,7 +823,8 @@ class TestHandleNlReply:
         assert "assistant: Первый ответ" in prompt
         assert "user: Второй вопрос" in prompt
         assert "assistant: Второй ответ" in prompt
-        assert "user: Третий вопрос" in prompt
+        # Current message is NOT in history — it's in {{MESSAGE}} section
+        assert "Третий вопрос" in prompt
 
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")

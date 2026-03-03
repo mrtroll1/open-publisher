@@ -61,10 +61,12 @@ class TestUpdateKnowledgeEntry:
 
     def test_update_with_embedding(self):
         gw, cur = _make_gw()
+        cur.rowcount = 1
         emb = [0.4, 0.5, 0.6]
 
-        gw.update_knowledge_entry("entry-uuid-1", content="Updated content.", embedding=emb)
+        result = gw.update_knowledge_entry("entry-uuid-1", content="Updated content.", embedding=emb)
 
+        assert result is True
         sql, params = cur.execute.call_args[0]
         assert "UPDATE knowledge_entries" in sql
         assert "updated_at = NOW()" in sql
@@ -72,11 +74,20 @@ class TestUpdateKnowledgeEntry:
 
     def test_update_without_embedding(self):
         gw, cur = _make_gw()
+        cur.rowcount = 1
 
         gw.update_knowledge_entry("entry-uuid-1", content="New content.")
 
         _, params = cur.execute.call_args[0]
         assert params == ("New content.", None, "entry-uuid-1")
+
+    def test_returns_false_when_not_found(self):
+        gw, cur = _make_gw()
+        cur.rowcount = 0
+
+        result = gw.update_knowledge_entry("nonexistent-uuid", content="text")
+
+        assert result is False
 
 
 # ===================================================================
@@ -257,11 +268,21 @@ class TestDeactivateKnowledge:
 
     def test_deactivates_entry(self):
         gw, cur = _make_gw()
+        cur.rowcount = 1
 
-        gw.deactivate_knowledge("entry-uuid-1")
+        result = gw.deactivate_knowledge("entry-uuid-1")
 
+        assert result is True
         sql, params = cur.execute.call_args[0]
         assert "UPDATE knowledge_entries" in sql
         assert "SET is_active = FALSE" in sql
         assert "updated_at = NOW()" in sql
         assert params == ("entry-uuid-1",)
+
+    def test_returns_false_when_not_found(self):
+        gw, cur = _make_gw()
+        cur.rowcount = 0
+
+        result = gw.deactivate_knowledge("nonexistent-uuid")
+
+        assert result is False

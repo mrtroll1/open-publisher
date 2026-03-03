@@ -693,11 +693,10 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
                 _db.get_reply_chain, conv_entry["id"], depth=10,
             )
             history = _format_reply_chain(chain)
-            history += f"\nuser: {message.text}"
         else:
             # Bootstrap from reply text
             reply_text = reply.text or ""
-            history = f"assistant: {reply_text}\nuser: {message.text}"
+            history = f"assistant: {reply_text}"
 
         # Retrieve knowledge context
         retriever = _get_retriever()
@@ -1037,9 +1036,12 @@ async def cmd_forget(message: types.Message, state: FSMContext) -> None:
 
     entry_id = args[1].strip()
     try:
-        await asyncio.to_thread(_db.deactivate_knowledge, entry_id)
+        found = await asyncio.to_thread(_db.deactivate_knowledge, entry_id)
     except Exception:
         logger.exception("Failed to deactivate knowledge entry")
+        await message.answer(replies.knowledge.not_found)
+        return
+    if not found:
         await message.answer(replies.knowledge.not_found)
         return
     await message.answer(replies.knowledge.forget_done)
@@ -1056,9 +1058,12 @@ async def cmd_kedit(message: types.Message, state: FSMContext) -> None:
     try:
         retriever = _get_retriever()
         embedding = await asyncio.to_thread(retriever._embed.embed_one, new_content)
-        await asyncio.to_thread(_db.update_knowledge_entry, entry_id, new_content, embedding)
+        found = await asyncio.to_thread(_db.update_knowledge_entry, entry_id, new_content, embedding)
     except Exception:
         logger.exception("Failed to edit knowledge entry")
+        await message.answer(replies.knowledge.not_found)
+        return
+    if not found:
         await message.answer(replies.knowledge.not_found)
         return
     await message.answer(replies.knowledge.edit_done)

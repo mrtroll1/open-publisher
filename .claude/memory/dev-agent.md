@@ -1452,8 +1452,34 @@ Phase 6.4 — Tests:
 - Map cleanup happens after `_handle_draft_reply` returns (even on error, map entry persists so admin can retry)
 - Send/Skip buttons still work — both paths check `get_pending_support`, which consumes the draft
 
+### Session 48 (2026-03-03) — Maintenance: Spot Bugs (round 8) + Write Tests (round 9)
+**Status:** Complete
+
+**Spot Bugs (round 8) — Plan 3 code review:**
+- Thorough review of all Plan 3 files (Phases 1-7)
+- Found and fixed 2 confirmed bugs:
+
+1. **Duplicate user message in LLM prompt** (`flow_callbacks.py:_handle_nl_reply`):
+   - User's message appended to conversation history AND passed as separate `{{MESSAGE}}` placeholder — LLM saw it twice
+   - **Fix**: Removed user message from history string; now only in `{{MESSAGE}}`
+
+2. **Silent success on `/forget` and `/kedit` with nonexistent entry IDs** (`db_gateway.py` + `flow_callbacks.py`):
+   - `deactivate_knowledge()` and `update_knowledge_entry()` didn't check `cursor.rowcount` — user saw "success" for nonexistent UUIDs
+   - **Fix**: Both methods now return `bool` (rowcount > 0), handlers show "Запись не найдена" when False
+
+- Noted 7 non-bugs (theoretical/won't-happen): get_reply_chain cycles bounded by depth=10, lstrip char-set behavior correct for actual data, etc.
+
+**Write Tests (round 9) — seed_knowledge.py:**
+- Created `tests/test_seed_knowledge.py` — 22 tests across 3 classes:
+  - `TestChunkTechSupport` (7): core section, domain bullets, multi-line, empty input, no core, title extraction
+  - `TestChunkPaymentValidation` (8): all heading mappings, unknown heading, empty input, content completeness
+  - `TestSeedKnowledge` (7): happy path, idempotent skip, entry count, source=seed, batch embedding, scopes, init_schema
+- seed_knowledge.py coverage went from 0% to comprehensive
+
+**Net result:** 1003 tests pass (+25 new: 3 bug fix + 22 seed_knowledge)
+
 ## Next up
 
-- Plan 3 Phase 7: Admin Teaching (/teach, NL teaching, /knowledge, /forget, /kedit)
+- Plan 3 complete (maintenance mode)
 - Phase 2.4 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

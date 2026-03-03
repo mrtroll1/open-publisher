@@ -474,6 +474,8 @@ class TestCmdForget:
     def test_soft_deletes_entry(self, mock_db):
         from telegram_bot.flow_callbacks import cmd_forget
 
+        mock_db.deactivate_knowledge.return_value = True
+
         msg = _make_message("/forget uuid-123")
         state = _make_state()
 
@@ -483,6 +485,22 @@ class TestCmdForget:
         msg.answer.assert_awaited_once()
         reply = msg.answer.call_args[0][0]
         assert "удалена" in reply.lower()
+
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_nonexistent_id_reports_not_found(self, mock_db):
+        from telegram_bot.flow_callbacks import cmd_forget
+
+        mock_db.deactivate_knowledge.return_value = False
+
+        msg = _make_message("/forget uuid-nonexistent")
+        state = _make_state()
+
+        asyncio.run(cmd_forget(msg, state))
+
+        mock_db.deactivate_knowledge.assert_called_once_with("uuid-nonexistent")
+        msg.answer.assert_awaited_once()
+        reply = msg.answer.call_args[0][0]
+        assert "не найдена" in reply.lower()
 
     def test_no_id_shows_usage(self):
         from telegram_bot.flow_callbacks import cmd_forget
@@ -525,6 +543,7 @@ class TestCmdKedit:
         retriever = MagicMock()
         retriever._embed.embed_one.return_value = [0.9, 0.8]
         mock_get_retriever.return_value = retriever
+        mock_db.update_knowledge_entry.return_value = True
 
         msg = _make_message("/kedit uuid-1 Новое содержание записи")
         state = _make_state()

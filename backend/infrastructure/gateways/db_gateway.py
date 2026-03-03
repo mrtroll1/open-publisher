@@ -334,7 +334,8 @@ class DbGateway:
             )
             return str(cur.fetchone()[0])
 
-    def update_knowledge_entry(self, entry_id: str, content: str, embedding: list[float] | None = None) -> None:
+    def update_knowledge_entry(self, entry_id: str, content: str, embedding: list[float] | None = None) -> bool:
+        """Update a knowledge entry. Returns True if an entry was actually updated."""
         conn = self._get_conn()
         with conn.cursor() as cur:
             cur.execute(
@@ -343,6 +344,7 @@ class DbGateway:
                    WHERE id = %s""",
                 (content, str(embedding) if embedding is not None else None, entry_id),
             )
+            return cur.rowcount > 0
 
     def search_knowledge(self, query_embedding: list[float], scope: str | None = None, limit: int = 5) -> list[dict]:
         conn = self._get_conn()
@@ -435,13 +437,15 @@ class DbGateway:
                 rows.append(d)
             return rows
 
-    def deactivate_knowledge(self, entry_id: str) -> None:
+    def deactivate_knowledge(self, entry_id: str) -> bool:
+        """Soft-delete a knowledge entry. Returns True if an entry was actually deactivated."""
         conn = self._get_conn()
         with conn.cursor() as cur:
             cur.execute(
                 "UPDATE knowledge_entries SET is_active = FALSE, updated_at = NOW() WHERE id = %s",
                 (entry_id,),
             )
+            return cur.rowcount > 0
 
     # --- conversations ---
 

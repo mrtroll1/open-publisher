@@ -1800,6 +1800,29 @@ tests/
 
 **Net result:** 1086 tests pass (+29 new), 1 bug fixed
 
+### Session 59 (2026-03-03) — Maintenance: Write Tests (round 11 — budget_service)
+**Status:** Complete
+
+**What was done:**
+- Created `tests/domain/services/test_budget_service.py` — 67 tests across 10 classes covering all 9 functions + `_restore_source_row`:
+  - `TestFindRowByName` (7): exact match, case insensitive, whitespace, not found, empty rows, first match
+  - `TestFindSourceRow` (8): found with amounts, missing columns, not found, empty/blank rows
+  - `TestConvertAmount` (9): EUR→EUR, RUB→RUB, cross-currency both directions, preference when both present, zeros
+  - `TestPadRow` (5): empty, short, already full, edge sizes
+  - `TestAddAmountToRow` (4): EUR/RUB columns, cumulative, empty cell
+  - `TestSubtractAmountFromRow` (4): EUR/RUB columns, negative result, empty cell
+  - `TestExtractBonusFromNote` (9): single/multiple entries, case insensitive, no match, invalid amount, no parens, middle match
+  - `TestRedirectInBudget` (9): mocked _find_sheet + _sheets: no sheet, source/target not found, zero amounts, happy path EUR/RUB, note appending, cross-currency, short rows
+  - `TestUnredirectInBudget` (7): mocked: no sheet, target not found, empty note, source not in note, happy path EUR/RUB, remaining note preserved
+  - `TestRestoreSourceRow` (5): mocked _sheets: empty slot, no empty slot (append), EUR/RUB column, blank name as empty slot
+
+**Net result:** 67 new tests (1153 total), all passing in 2.07s
+
+**Notes:**
+- `budget_service.py` was the last critical untested module — handles financial redirects with complex business logic
+- Tests mock `_sheets` and `_find_sheet` at the budget_service module namespace
+- Pure helper tests require no mocking — they work on plain lists and enums
+
 ## Plan 4 status
 
 **ALL PHASES COMPLETE (1-9).** Plan 4 Architecture Refactor is fully done. Next sessions enter maintenance mode.

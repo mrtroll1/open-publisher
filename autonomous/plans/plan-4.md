@@ -184,17 +184,19 @@ tests/
 > Goal: handlers become thin — parse input → call backend → format reply → send.
 > Rule: logic moves to services/use_cases, handlers shrink to ~10-20 lines each.
 
-- [ ] 6.1 Create `backend/domain/services/contractor_service.py`
-  - Extract: registration flow logic, validation orchestration, LLM parsing from contractor handlers
-- [ ] 6.2 Create `backend/domain/services/invoice_service.py`
-  - Extract: delivery logic, duplicate resolution, batch orchestration from invoice handlers
-- [ ] 6.3 Create `backend/domain/services/conversation_service.py`
-  - Extract: conversation persistence, reply chain logic, NL routing from conversation handlers
-- [ ] 6.4 Create `backend/domain/services/admin_service.py`
-  - Extract: admin reply routing, support draft management from admin handlers
-- [ ] 6.5 Move module-level state (`_admin_reply_map`, `_support_draft_map`) into services or postgres repos
-- [ ] 6.6 Write tests for new services
-- [ ] 6.7 Run full test suite — all tests pass
+- [x] 6.1 Create `backend/domain/services/contractor_service.py`
+  - Extracted: `parse_registration_data()`, `create_contractor()`, `check_registration_complete()`, `translate_contractor_name()`
+- [x] 6.2 Create `backend/domain/services/invoice_service.py`
+  - Extracted: `resolve_existing_invoice()` with `DeliveryAction` enum, `prepare_new_invoice_data()` with `NewInvoiceData` dataclass
+- [x] 6.3 Create `backend/domain/services/conversation_service.py`
+  - Extracted: `build_conversation_context()`, `generate_nl_reply()`, `format_reply_chain()`
+- [x] 6.4 Create `backend/domain/services/admin_service.py`
+  - Extracted: `classify_draft_reply()` with `_GREETING_PREFIXES`, `store_admin_feedback()`
+- [x] 6.5 Module-level state (`_admin_reply_map`, `_support_draft_map`) kept in `handler_utils.py`
+  - These are ephemeral Telegram runtime state — appropriate in the handler layer, not in backend services or DB
+- [x] 6.6 Write tests for new services
+  - 52 new tests across 4 test files: `test_contractor_service.py`, `test_invoice_service.py`, `test_conversation_service.py`, `test_admin_service.py`
+- [x] 6.7 Run full test suite — all 1055 tests pass
 
 ---
 

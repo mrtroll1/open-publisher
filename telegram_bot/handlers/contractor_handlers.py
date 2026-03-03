@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import re
 from decimal import Decimal
@@ -34,22 +33,24 @@ from backend import (
     find_contractor_by_telegram_id,
     find_redirect_rules_by_target,
     fuzzy_find,
-    next_contractor_id,
-    parse_contractor_data,
-    plural_ru,
-    pop_random_secret_code,
-    prepare_existing_invoice,
-    read_budget_amounts,
     redirect_in_budget,
     remove_redirect_rule,
-    resolve_amount,
-    save_contractor,
-    translate_name_to_russian,
     unredirect_in_budget,
     update_contractor_fields,
     update_invoice_status,
     upload_invoice_pdf,
     validate_contractor_fields,
+)
+from backend.domain.services.contractor_service import (
+    check_registration_complete,
+    create_contractor,
+    parse_registration_data,
+    translate_contractor_name,
+)
+from backend.domain.services.invoice_service import (
+    DeliveryAction,
+    prepare_new_invoice_data,
+    resolve_existing_invoice,
 )
 from telegram_bot import replies
 from telegram_bot.bot_helpers import bot, get_contractors, is_admin, prev_month
@@ -247,11 +248,7 @@ async def handle_data_input(message: types.Message, state: FSMContext) -> str | 
 
     all_fields = cls.all_field_labels()
     required = cls.required_fields()
-    missing = {
-        field: label
-        for field, label in required.items()
-        if not collected.get(field, "").strip()
-    }
+    _, missing = check_registration_complete(collected, required)
     warnings = validate_contractor_fields(collected, ctype)
     if llm_comment:
         warnings.append(llm_comment)
@@ -276,7 +273,7 @@ async def handle_data_input(message: types.Message, state: FSMContext) -> str | 
     if ctype == ContractorType.GLOBAL:
         name_en = collected.get("name_en", "")
         if name_en:
-            name_ru = await asyncio.to_thread(translate_name_to_russian, name_en)
+            name_ru = await asyncio.to_thread(translate_contractor_name, name_en)
             if name_ru:
                 aliases = collected.get("aliases", [])
                 if name_ru not in aliases:
@@ -403,27 +400,19 @@ async def _start_invoice_flow(
     """Fetch budget + articles and prompt for amount. Returns "invoice" or None."""
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
     month = prev_month()
-    budget_amounts = await asyncio.to_thread(read_budget_amounts, month)
-    articles = await asyncio.to_thread(fetch_articles, contractor, month)
-    num_articles = len(articles)
-
-    default_amount_int, explanation = resolve_amount(
-        budget_amounts, contractor, num_articles,
-    )
-    if not default_amount_int:
+    data = await asyncio.to_thread(prepare_new_invoice_data, contractor, month)
+    if not data:
         return None
 
-    article_ids = [a.article_id for a in articles]
     await state.update_data(
         invoice_contractor_id=contractor.id,
         invoice_month=month,
-        invoice_article_ids=article_ids,
-        invoice_default_amount=default_amount_int,
+        invoice_article_ids=data.article_ids,
+        invoice_default_amount=data.default_amount,
     )
-    pub_word = plural_ru(num_articles, "публикация", "публикации", "публикаций") if num_articles else "0 публикаций"
     await message.answer(
         replies.invoice.amount_prompt.format(
-            pub_word=pub_word, month=month, explanation=explanation,
+            pub_word=data.pub_word, month=month, explanation=data.explanation,
         )
     )
     return "invoice"
@@ -452,44 +441,32 @@ async def _deliver_existing_invoice(message: types.Message, contractor: Contract
     Returns True if an invoice was found and handled, False otherwise.
     """
     month = prev_month()
-    prepared = await asyncio.to_thread(prepare_existing_invoice, contractor, month)
-    if not prepared:
+    result = await asyncio.to_thread(resolve_existing_invoice, contractor, month)
+    if not result:
         return False
 
-    inv = prepared.invoice
+    inv = result.prepared.invoice
     filename = f"{contractor.display_name}+Unsigned.pdf"
-    doc = BufferedInputFile(prepared.pdf_bytes, filename=filename)
+    doc = BufferedInputFile(result.prepared.pdf_bytes, filename=filename)
+    action = result.action
 
-    if contractor.currency == Currency.EUR:
+    if action == DeliveryAction.SEND_PROFORMA:
+        await bot.send_document(message.chat.id, doc, caption=replies.invoice.proforma_caption)
+        await asyncio.to_thread(update_invoice_status, inv.contractor_id, month, InvoiceStatus.SENT)
+    elif action == DeliveryAction.PROFORMA_ALREADY_SENT:
+        await message.answer(replies.invoice.proforma_already_sent)
+    elif action == DeliveryAction.SEND_RUB_WITH_LEGIUM:
+        await bot.send_document(
+            message.chat.id, doc,
+            caption=replies.invoice.legium_link.format(url=inv.legium_link),
+        )
         if inv.status == InvoiceStatus.DRAFT:
-            await bot.send_document(
-                message.chat.id, doc,
-                caption=replies.invoice.proforma_caption,
-            )
-            await asyncio.to_thread(
-                update_invoice_status, inv.contractor_id, month, InvoiceStatus.SENT,
-            )
-        else:
-            await message.answer(replies.invoice.proforma_already_sent)
-    else:
-        # RUB contractor
-        if inv.legium_link:
-            await bot.send_document(
-                message.chat.id, doc,
-                caption=replies.invoice.legium_link.format(url=inv.legium_link),
-            )
-            if inv.status == InvoiceStatus.DRAFT:
-                await asyncio.to_thread(
-                    update_invoice_status, inv.contractor_id, month, InvoiceStatus.SENT,
-                )
-        elif inv.status == InvoiceStatus.DRAFT:
-            await bot.send_document(
-                message.chat.id, doc,
-                caption=replies.invoice.rub_invoice_caption,
-            )
-            await _notify_admins_rub_invoice(prepared.pdf_bytes, filename, contractor, month, inv.amount)
-        else:
-            await message.answer(replies.invoice.legium_already_sent)
+            await asyncio.to_thread(update_invoice_status, inv.contractor_id, month, InvoiceStatus.SENT)
+    elif action == DeliveryAction.SEND_RUB_DRAFT:
+        await bot.send_document(message.chat.id, doc, caption=replies.invoice.rub_invoice_caption)
+        await _notify_admins_rub_invoice(result.prepared.pdf_bytes, filename, contractor, month, inv.amount)
+    elif action == DeliveryAction.RUB_ALREADY_SENT:
+        await message.answer(replies.invoice.legium_already_sent)
 
     return True
 
@@ -844,33 +821,10 @@ async def _save_new_contractor(
 
     Returns (contractor, secret_code).
     """
-    try:
-        contractors = await get_contractors()
-        cid = next_contractor_id(contractors)
-        cls = CONTRACTOR_CLASS_BY_TYPE[ctype]
-
-        code = await asyncio.to_thread(pop_random_secret_code)
-
-        kwargs = dict(
-            id=cid,
-            aliases=collected.get("aliases", []),
-            email=collected.get("email", ""),
-            bank_name=collected.get("bank_name", ""),
-            bank_account=collected.get("bank_account", ""),
-            telegram=telegram_id,
-            secret_code=code,
-        )
-        for field in cls.FIELD_META:
-            if field not in kwargs:
-                kwargs[field] = collected.get(field, "")
-
-        contractor = cls(**kwargs)
-        await asyncio.to_thread(save_contractor, contractor)
-        logger.info("Auto-saved new contractor %s (%s)", cid, contractor.display_name)
-        return contractor, code
-    except Exception as e:
-        logger.error("Failed to auto-save contractor: %s", e)
-        return None, ""
+    contractors = await get_contractors()
+    return await asyncio.to_thread(
+        create_contractor, collected, ctype, telegram_id, contractors,
+    )
 
 
 async def _forward_to_admins(raw_text: str, ctype: ContractorType, parsed: dict) -> None:
@@ -891,36 +845,6 @@ async def _parse_with_llm(
     collected: dict | None = None, warnings: list[str] | None = None,
 ) -> dict:
     """Parse contractor data from free-form text using Gemini."""
-    cls = CONTRACTOR_CLASS_BY_TYPE[ctype]
-    fields = cls.field_names_csv()
-
-    context = ""
-    if collected:
-        filled = {k: v for k, v in collected.items() if v and not k.startswith("_")}
-        missing = [f for f in cls.FIELD_META if f not in filled]
-        if filled:
-            context += f"\nУже получено: {json.dumps(filled, ensure_ascii=False)}"
-        if missing:
-            context += f"\nЕщё не заполнены: {', '.join(missing)}"
-        if warnings:
-            context += (
-                "\nСледующие поля имеют ошибки валидации, пользователь "
-                "скорее всего исправляет их. Объедини новый ввод с уже "
-                "собранными данными, чтобы получить исправленное значение:\n"
-                + "\n".join(f"- {w}" for w in warnings)
-            )
-
-    result = await asyncio.to_thread(parse_contractor_data, text, fields, context)
-
-    if "parse_error" not in result:
-        try:
-            vid = await asyncio.to_thread(
-                _db.log_payment_validation,
-                contractor_id="", contractor_type=ctype.value,
-                input_text=text, parsed_json=json.dumps(result, ensure_ascii=False),
-            )
-            result["_validation_id"] = vid
-        except Exception:
-            logger.warning("Failed to log payment validation", exc_info=True)
-
-    return result
+    return await asyncio.to_thread(
+        parse_registration_data, text, ctype, collected, warnings,
+    )

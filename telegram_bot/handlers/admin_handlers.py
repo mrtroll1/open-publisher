@@ -32,6 +32,11 @@ from backend import (
     update_legium_link,
 )
 from backend.domain.compose_request import _get_retriever
+from backend.domain.services.admin_service import (
+    _GREETING_PREFIXES,
+    classify_draft_reply,
+    store_admin_feedback,
+)
 from backend.wiring import create_compute_budget, create_generate_batch_invoices, create_parse_bank_statement
 from telegram_bot import replies
 from telegram_bot.bot_helpers import bot, get_contractors, prev_month
@@ -46,11 +51,6 @@ from telegram_bot.handler_utils import (
 )
 
 logger = logging.getLogger(__name__)
-
-_GREETING_PREFIXES = (
-    "здравствуйте", "добрый день", "добрый вечер", "доброе утро",
-    "hello", "dear", "привет", "уважаем", "hi,", "hi ",
-)
 
 _ROLE_LABELS = {
     RoleCode.AUTHOR: "автор",
@@ -203,19 +203,15 @@ async def _handle_draft_reply(message: types.Message, uid: str) -> None:
         return
 
     text = message.text.strip()
-    is_replacement = text.lower().startswith(_GREETING_PREFIXES)
+    action = classify_draft_reply(text)
 
-    if is_replacement:
+    if action == "replacement":
         await asyncio.to_thread(_inbox.update_and_approve_support, uid, message.text)
         addr = draft.email.reply_to or draft.email.from_addr
         await message.reply(replies.tech_support.replacement_sent.format(addr=addr))
     else:
         await asyncio.to_thread(_inbox.skip_support, uid)
-        try:
-            retriever = _get_retriever()
-            await asyncio.to_thread(retriever.store_feedback, text, scope="tech_support")
-        except Exception:
-            logger.exception("Failed to store support feedback")
+        await asyncio.to_thread(store_admin_feedback, text, "tech_support", _get_retriever())
         await message.reply(replies.tech_support.feedback_noted)
 
 

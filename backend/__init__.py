@@ -107,6 +107,23 @@ def export_pdf(doc_id: str) -> bytes:
     return DocsGateway().export_pdf(doc_id)
 
 
+# --- Contractor service ---
+from backend.domain.services.contractor_service import (  # noqa: F401
+    check_registration_complete,
+    create_contractor,
+    parse_registration_data,
+    translate_contractor_name,
+)
+
+# --- Invoice service ---
+from backend.domain.services.invoice_service import (  # noqa: F401
+    DeliveryAction,
+    ExistingInvoiceResult,
+    NewInvoiceData,
+    prepare_new_invoice_data,
+    resolve_existing_invoice,
+)
+
 # --- Domain helpers ---
 from backend.domain.validate_contractor import validate_fields as validate_contractor_fields  # noqa: F401
 from backend.domain.resolve_amount import resolve_amount, plural_ru  # noqa: F401

@@ -1131,15 +1131,18 @@ class TestCmdLookup:
 
 class TestParseWithLlm:
 
-    @patch("telegram_bot.flow_callbacks._db")
-    @patch("telegram_bot.flow_callbacks.parse_contractor_data")
-    def test_successful_parse_logs_to_db(self, mock_parse, mock_db):
-        from telegram_bot.flow_callbacks import _parse_with_llm
+    _SVC = "backend.domain.services.contractor_service"
+
+    @patch(f"{_SVC}.DbGateway")
+    @patch(f"{_SVC}.parse_contractor_data")
+    def test_successful_parse_logs_to_db(self, mock_parse, mock_db_cls):
+        from backend.domain.services.contractor_service import parse_registration_data
 
         mock_parse.return_value = {"name_ru": "Иван Иванов", "inn": "123456789012"}
+        mock_db = mock_db_cls.return_value
         mock_db.log_payment_validation.return_value = "val-001"
 
-        result = asyncio.run(_parse_with_llm("Иван Иванов ИНН 123456789012", ContractorType.SAMOZANYATY))
+        result = parse_registration_data("Иван Иванов ИНН 123456789012", ContractorType.SAMOZANYATY)
 
         assert result["name_ru"] == "Иван Иванов"
         assert result["_validation_id"] == "val-001"
@@ -1148,44 +1151,44 @@ class TestParseWithLlm:
         assert call_kwargs["contractor_type"] == "самозанятый"
         assert "Иван Иванов" in call_kwargs["input_text"]
 
-    @patch("telegram_bot.flow_callbacks._db")
-    @patch("telegram_bot.flow_callbacks.parse_contractor_data")
-    def test_parse_error_skips_db_log(self, mock_parse, mock_db):
-        from telegram_bot.flow_callbacks import _parse_with_llm
+    @patch(f"{_SVC}.DbGateway")
+    @patch(f"{_SVC}.parse_contractor_data")
+    def test_parse_error_skips_db_log(self, mock_parse, mock_db_cls):
+        from backend.domain.services.contractor_service import parse_registration_data
 
         mock_parse.return_value = {"parse_error": "Could not parse"}
 
-        result = asyncio.run(_parse_with_llm("gibberish", ContractorType.SAMOZANYATY))
+        result = parse_registration_data("gibberish", ContractorType.SAMOZANYATY)
 
         assert "parse_error" in result
-        mock_db.log_payment_validation.assert_not_called()
+        mock_db_cls.return_value.log_payment_validation.assert_not_called()
 
-    @patch("telegram_bot.flow_callbacks._db")
-    @patch("telegram_bot.flow_callbacks.parse_contractor_data")
-    def test_db_log_failure_still_returns_result(self, mock_parse, mock_db):
-        from telegram_bot.flow_callbacks import _parse_with_llm
+    @patch(f"{_SVC}.DbGateway")
+    @patch(f"{_SVC}.parse_contractor_data")
+    def test_db_log_failure_still_returns_result(self, mock_parse, mock_db_cls):
+        from backend.domain.services.contractor_service import parse_registration_data
 
         mock_parse.return_value = {"name_ru": "Test"}
-        mock_db.log_payment_validation.side_effect = RuntimeError("DB down")
+        mock_db_cls.return_value.log_payment_validation.side_effect = RuntimeError("DB down")
 
-        result = asyncio.run(_parse_with_llm("test", ContractorType.SAMOZANYATY))
+        result = parse_registration_data("test", ContractorType.SAMOZANYATY)
 
         assert result["name_ru"] == "Test"
         assert "_validation_id" not in result
 
-    @patch("telegram_bot.flow_callbacks._db")
-    @patch("telegram_bot.flow_callbacks.parse_contractor_data")
-    def test_passes_context_with_collected_data(self, mock_parse, mock_db):
-        from telegram_bot.flow_callbacks import _parse_with_llm
+    @patch(f"{_SVC}.DbGateway")
+    @patch(f"{_SVC}.parse_contractor_data")
+    def test_passes_context_with_collected_data(self, mock_parse, mock_db_cls):
+        from backend.domain.services.contractor_service import parse_registration_data
 
         mock_parse.return_value = {"inn": "111222333444"}
-        mock_db.log_payment_validation.return_value = "v1"
+        mock_db_cls.return_value.log_payment_validation.return_value = "v1"
 
         collected = {"name_ru": "Иван", "email": "ivan@test.ru"}
-        result = asyncio.run(_parse_with_llm(
+        result = parse_registration_data(
             "ИНН 111222333444", ContractorType.SAMOZANYATY,
             collected=collected,
-        ))
+        )
 
         # parse_contractor_data should have been called with context
         call_args = mock_parse.call_args
@@ -1193,61 +1196,61 @@ class TestParseWithLlm:
         assert "Иван" in context
         assert "ivan@test.ru" in context
 
-    @patch("telegram_bot.flow_callbacks._db")
-    @patch("telegram_bot.flow_callbacks.parse_contractor_data")
-    def test_passes_warnings_in_context(self, mock_parse, mock_db):
-        from telegram_bot.flow_callbacks import _parse_with_llm
+    @patch(f"{_SVC}.DbGateway")
+    @patch(f"{_SVC}.parse_contractor_data")
+    def test_passes_warnings_in_context(self, mock_parse, mock_db_cls):
+        from backend.domain.services.contractor_service import parse_registration_data
 
         mock_parse.return_value = {"inn": "valid"}
-        mock_db.log_payment_validation.return_value = "v2"
+        mock_db_cls.return_value.log_payment_validation.return_value = "v2"
 
         warnings = ["ИНН: должен быть 12 цифр"]
-        result = asyncio.run(_parse_with_llm(
+        result = parse_registration_data(
             "ИНН valid", ContractorType.SAMOZANYATY,
             collected={"name_ru": "Test"}, warnings=warnings,
-        ))
+        )
 
         context = mock_parse.call_args[0][2]
         assert "ошибки валидации" in context
         assert "12 цифр" in context
 
-    @patch("telegram_bot.flow_callbacks._db")
-    @patch("telegram_bot.flow_callbacks.parse_contractor_data")
-    def test_ip_contractor_type(self, mock_parse, mock_db):
-        from telegram_bot.flow_callbacks import _parse_with_llm
+    @patch(f"{_SVC}.DbGateway")
+    @patch(f"{_SVC}.parse_contractor_data")
+    def test_ip_contractor_type(self, mock_parse, mock_db_cls):
+        from backend.domain.services.contractor_service import parse_registration_data
 
         mock_parse.return_value = {"name_ru": "ИП Петров"}
-        mock_db.log_payment_validation.return_value = "v3"
+        mock_db_cls.return_value.log_payment_validation.return_value = "v3"
 
-        result = asyncio.run(_parse_with_llm("ИП Петров", ContractorType.IP))
+        result = parse_registration_data("ИП Петров", ContractorType.IP)
 
-        call_kwargs = mock_db.log_payment_validation.call_args[1]
+        call_kwargs = mock_db_cls.return_value.log_payment_validation.call_args[1]
         assert call_kwargs["contractor_type"] == "ИП"
 
-    @patch("telegram_bot.flow_callbacks._db")
-    @patch("telegram_bot.flow_callbacks.parse_contractor_data")
-    def test_global_contractor_type(self, mock_parse, mock_db):
-        from telegram_bot.flow_callbacks import _parse_with_llm
+    @patch(f"{_SVC}.DbGateway")
+    @patch(f"{_SVC}.parse_contractor_data")
+    def test_global_contractor_type(self, mock_parse, mock_db_cls):
+        from backend.domain.services.contractor_service import parse_registration_data
 
         mock_parse.return_value = {"name_en": "John Smith"}
-        mock_db.log_payment_validation.return_value = "v4"
+        mock_db_cls.return_value.log_payment_validation.return_value = "v4"
 
-        result = asyncio.run(_parse_with_llm("John Smith", ContractorType.GLOBAL))
+        result = parse_registration_data("John Smith", ContractorType.GLOBAL)
 
-        call_kwargs = mock_db.log_payment_validation.call_args[1]
+        call_kwargs = mock_db_cls.return_value.log_payment_validation.call_args[1]
         assert call_kwargs["contractor_type"] == "global"
 
-    @patch("telegram_bot.flow_callbacks._db")
-    @patch("telegram_bot.flow_callbacks.parse_contractor_data")
-    def test_parsed_json_in_db_call(self, mock_parse, mock_db):
-        from telegram_bot.flow_callbacks import _parse_with_llm
+    @patch(f"{_SVC}.DbGateway")
+    @patch(f"{_SVC}.parse_contractor_data")
+    def test_parsed_json_in_db_call(self, mock_parse, mock_db_cls):
+        from backend.domain.services.contractor_service import parse_registration_data
 
         mock_parse.return_value = {"name_ru": "Тест", "inn": "123"}
-        mock_db.log_payment_validation.return_value = "v5"
+        mock_db_cls.return_value.log_payment_validation.return_value = "v5"
 
-        asyncio.run(_parse_with_llm("Тест ИНН 123", ContractorType.SAMOZANYATY))
+        parse_registration_data("Тест ИНН 123", ContractorType.SAMOZANYATY)
 
-        call_kwargs = mock_db.log_payment_validation.call_args[1]
+        call_kwargs = mock_db_cls.return_value.log_payment_validation.call_args[1]
         parsed_json = json.loads(call_kwargs["parsed_json"])
         assert parsed_json["name_ru"] == "Тест"
         assert parsed_json["inn"] == "123"

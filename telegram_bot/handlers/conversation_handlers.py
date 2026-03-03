@@ -13,6 +13,11 @@ from aiogram.fsm.context import FSMContext
 from backend.domain import compose_request
 from backend.domain.compose_request import _get_retriever
 from backend.domain.command_classifier import CommandClassifier
+from backend.domain.services.conversation_service import (
+    build_conversation_context,
+    format_reply_chain as _format_reply_chain,
+    generate_nl_reply,
+)
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from telegram_bot import replies
 from telegram_bot.bot_helpers import bot
@@ -48,18 +53,8 @@ __all__ = [
 ]
 
 
-def _format_reply_chain(chain: list[dict]) -> str:
-    parts = []
-    for entry in chain:
-        role = entry["role"]
-        content = entry["content"]
-        parts.append(f"{role}: {content}")
-    return "\n".join(parts)
-
-
 async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
     """Handle a conversational NL reply to a bot message. Returns True on success."""
-    # Guard: skip if FSM state is active
     if await state.get_state() is not None:
         return False
 
@@ -67,7 +62,6 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
     if not reply:
         return False
 
-    # Guard: only trigger for replies to BOT messages
     if not reply.from_user or not reply.from_user.is_bot:
         return False
 
@@ -84,40 +78,19 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
                 logger.exception("Failed to store NL teaching")
 
         # Build conversation history
-        conv_entry = await asyncio.to_thread(
-            _db.get_conversation_by_message_id, message.chat.id, reply.message_id,
+        history, parent_id = await asyncio.to_thread(
+            build_conversation_context,
+            message.chat.id, reply.message_id, reply.text or "", _db,
         )
 
-        if conv_entry:
-            chain = await asyncio.to_thread(
-                _db.get_reply_chain, conv_entry["id"], depth=10,
-            )
-            history = _format_reply_chain(chain)
-        else:
-            # Bootstrap from reply text
-            reply_text = reply.text or ""
-            history = f"assistant: {reply_text}"
-
-        # Retrieve knowledge context
+        # Generate reply via LLM
         retriever = _get_retriever()
-        core = await asyncio.to_thread(retriever.get_core)
-        relevant = await asyncio.to_thread(retriever.retrieve, message.text)
-        knowledge_context = core + "\n\n" + relevant if core else relevant
-
-        # Call LLM
-        prompt, model, _ = compose_request.conversation_reply(
-            message.text, history, knowledge_context,
+        answer = await asyncio.to_thread(
+            generate_nl_reply,
+            message.text, history, retriever, GeminiGateway(),
         )
-        gemini = GeminiGateway()
-        result = await asyncio.to_thread(gemini.call, prompt, model)
-        answer = result.get("reply", str(result))
-
-        # Truncate if needed
-        if len(answer) > 4000:
-            answer = answer[:4000]
 
         sent = await _send_html(message, answer, reply_to_message_id=message.message_id)
-        parent_id = conv_entry["id"] if conv_entry else None
         await _save_turn(message, sent, message.text, answer, {"command": "nl_reply"},
                          parent_id=parent_id)
         return True

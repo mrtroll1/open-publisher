@@ -1621,8 +1621,51 @@ tests/
 
 **Net result:** 1003 tests pass, zero test modifications, 1 new file (`backend/wiring.py`), 10 files modified
 
+### Session 54 (2026-03-03) — Plan 4 Phase 6: Extract business logic from handlers into backend
+**Status:** Complete (all 7 items: 6.1-6.7)
+
+**What was done:**
+- Created 4 new backend service modules extracting business logic from Telegram handlers:
+
+**`backend/domain/services/contractor_service.py`** — 4 functions:
+  - `parse_registration_data(text, contractor_type, collected, warnings)` — LLM parsing + DB validation logging (from `_parse_with_llm`)
+  - `create_contractor(collected, contractor_type, telegram_id, contractors)` — ID generation, object construction, save + secret code (from `_save_new_contractor`)
+  - `check_registration_complete(collected, required_fields)` — field completion check returning `(is_complete, missing)` (from `handle_data_input`)
+  - `translate_contractor_name(name_en)` — thin wrapper around `translate_name_to_russian`
+
+**`backend/domain/services/invoice_service.py`** — 2 functions + supporting types:
+  - `resolve_existing_invoice(contractor, month)` — checks for existing invoice, classifies delivery action via `DeliveryAction` enum (5 values: SEND_PROFORMA, PROFORMA_ALREADY_SENT, SEND_RUB_WITH_LEGIUM, SEND_RUB_DRAFT, RUB_ALREADY_SENT)
+  - `prepare_new_invoice_data(contractor, month)` — budget lookup, article fetching, amount resolution → returns `NewInvoiceData` dataclass or None
+  - `ExistingInvoiceResult` and `NewInvoiceData` dataclasses
+
+**`backend/domain/services/conversation_service.py`** — 3 functions:
+  - `format_reply_chain(chain)` — pure formatting of conversation chain entries
+  - `build_conversation_context(chat_id, reply_message_id, reply_text, db)` — DB lookup + reply chain retrieval or bootstrap fallback
+  - `generate_nl_reply(message_text, conversation_history, retriever, gemini, verbose)` — knowledge retrieval + LLM call + response parsing
+
+**`backend/domain/services/admin_service.py`** — 2 functions:
+  - `classify_draft_reply(reply_text)` — greeting prefix detection, returns "replacement" or "feedback"
+  - `store_admin_feedback(text, scope, retriever)` — wraps `retriever.store_feedback()` with error handling
+
+- Updated 3 handler files to delegate to services:
+  - `contractor_handlers.py`: uses contractor_service + invoice_service
+  - `admin_handlers.py`: uses admin_service
+  - `conversation_handlers.py`: uses conversation_service
+- Module-level state (`_admin_reply_map`, `_support_draft_map`) kept in `handler_utils.py` — ephemeral Telegram runtime state, appropriate location
+- All service functions are sync, handlers wrap in `asyncio.to_thread()`
+- Dependencies passed as parameters to services for testability
+- Created 4 test files with 52 new tests covering all service functions
+
+**Net result:** 1055 tests pass (52 new), 4 new service files, 4 new test files, 3 handlers updated
+
+**Notes:**
+- `_GREETING_PREFIXES` moved from `admin_handlers.py` to `admin_service.py`, re-imported in handler for backward compat
+- `conversation_service.generate_nl_reply` accepts optional `gemini` and `retriever` params — handler passes its patchable references
+- `invoice_service.DeliveryAction` enum used by handler for clean action-based dispatch (switch on enum value)
+- No changes to flow_callbacks.py shim — all patches still propagate correctly
+
 ## Next up
 
-- Plan 4 Phase 5 complete → Phase 6 next (extract business logic from handlers into backend)
+- Plan 4 Phase 6 complete → Phase 7 next (clean up infrastructure leaks)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

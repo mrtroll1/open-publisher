@@ -91,12 +91,6 @@ CREATE TABLE IF NOT EXISTS knowledge_entries (
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_knowledge_embedding
-    ON knowledge_entries USING ivfflat (embedding vector_cosine_ops) WITH (lists = 10);
-CREATE INDEX IF NOT EXISTS idx_knowledge_domain
-    ON knowledge_entries(domain, is_active);
-CREATE INDEX IF NOT EXISTS idx_knowledge_tier
-    ON knowledge_entries(tier, is_active);
 
 -- Idempotent migration: rename scope→domain, tier "domain"→"specific", backfill domains
 DO $$
@@ -132,6 +126,12 @@ BEGIN
 END $$;
 
 DROP INDEX IF EXISTS idx_knowledge_scope;
+CREATE INDEX IF NOT EXISTS idx_knowledge_embedding
+    ON knowledge_entries USING ivfflat (embedding vector_cosine_ops) WITH (lists = 10);
+CREATE INDEX IF NOT EXISTS idx_knowledge_domain
+    ON knowledge_entries(domain, is_active);
+CREATE INDEX IF NOT EXISTS idx_knowledge_tier
+    ON knowledge_entries(tier, is_active);
 
 CREATE TABLE IF NOT EXISTS conversations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

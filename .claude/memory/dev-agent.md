@@ -1823,6 +1823,51 @@ tests/
 - Tests mock `_sheets` and `_find_sheet` at the budget_service module namespace
 - Pure helper tests require no mocking — they work on plain lists and enums
 
+### Session 60 (2026-03-03) — Maintenance: Write Tests (round 12 — handler modules)
+**Status:** Complete
+
+**What was done:**
+- Created 4 new test files with 129 tests covering previously untested Telegram handler functions:
+
+**`tests/telegram_bot/handlers/test_support_handlers.py`** — 21 tests across 4 classes:
+  - `TestHandleSupportCallback` (6): send/skip actions, expired draft, invalid data, unknown action
+  - `TestHandleEditorialCallback` (4): forward/skip actions, expired editorial, invalid data
+  - `TestSendSupportDraft` (6): message format with buttons, draft_map population, uncertain header, reply-to, truncation
+  - `TestSendEditorial` (5): message format, auto-reply, truncation, callback data
+
+**`tests/telegram_bot/handlers/test_conversation_handlers.py`** — 16 tests across 2 classes:
+  - `TestCmdNl` (10): no args usage, empty args, classification error, unclassified reply, turn saving, handler dispatch, text rewrite/restore
+  - `TestHandleNlReplyNewModule` (6): FSM/no-reply/not-bot guards, happy path, teaching keyword
+
+**`tests/telegram_bot/handlers/test_admin_handlers.py`** — 30 tests across 8 classes:
+  - `TestCmdGenerate` (8): no args, not found, not in budget, zero amount, RUB/EUR, error, debug
+  - `TestCmdBudget` (3): success, default month, error
+  - `TestCmdGenerateInvoices` (4): no results, with results, ValueError, errors
+  - `TestCmdSendGlobalInvoices` (4): no drafts, sends, no telegram, no doc_id
+  - `TestCmdSendLegiumLinks` (3): no pending, sends with PDF, no telegram
+  - `TestCmdOrphanContractors` (2): none/found
+  - `TestCmdChatid` (1)
+  - `TestCmdUploadToAirtable` (5): no document, no rate, invalid rate, success, error
+
+**`tests/telegram_bot/handlers/test_contractor_handlers.py`** — 62 tests across 19 classes:
+  - Registration flows: type selection (6), data input, contractor text (4), duplicate callback (4)
+  - Invoice flows: verification code (5), amount input (5), linked menu (3), sign doc (2)
+  - Update flows: update data (5), editor sources (6), editor source name (3)
+  - Utility: linked menu markup (2), start (2), menu (3), non-document (3), document (4), forward to admins (2), notify admins (1)
+
+**Review cleanup applied:**
+- Removed module docstrings from all 4 files (project convention)
+- Removed unused imports (dataclass, ArticleEntry, RoleCode, pytest)
+- Fixed meaningless assertion in truncation test
+
+**Net result:** 129 new tests (1282 total), all passing in 2.44s
+
+**Notes:**
+- Handler test coverage went from ~40% (only test_plan2_handlers.py and test_flow_callbacks_helpers.py) to ~90%
+- All tests use established patterns: AsyncMock for Telegram, patch for deps, MagicMock for sync gateways
+- No duplication with existing test files — each new file covers different functions
+- Remaining untested: email_listener.py (42 lines, async background loop), thin gateway wrappers (drive, sheets, redefine)
+
 ## Plan 4 status
 
 **ALL PHASES COMPLETE (1-9).** Plan 4 Architecture Refactor is fully done. Next sessions enter maintenance mode.

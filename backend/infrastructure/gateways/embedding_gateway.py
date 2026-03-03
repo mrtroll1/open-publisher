@@ -1,4 +1,4 @@
-"""Embedding gateway — Google text-embedding-004 wrapper."""
+"""Embedding gateway — Google gemini-embedding-001 wrapper."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from common.config import GEMINI_API_KEY
 
 class EmbeddingGateway:
 
-    def __init__(self, model: str = "text-embedding-004", dimensions: int = 256):
+    def __init__(self, model: str = "gemini-embedding-001", dimensions: int = 256):
         self._model = model
         self._dimensions = dimensions
 

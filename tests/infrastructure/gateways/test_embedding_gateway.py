@@ -54,7 +54,7 @@ class TestEmbedOne:
         gw.embed_one("test")
 
         call_kwargs = mock_client.models.embed_content.call_args
-        assert call_kwargs.kwargs["model"] == "text-embedding-004"
+        assert call_kwargs.kwargs["model"] == "gemini-embedding-001"
         # Verify EmbedContentConfig was constructed with correct dimensionality
         _mock_genai.types.EmbedContentConfig.assert_called_with(output_dimensionality=256)
 

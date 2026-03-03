@@ -109,8 +109,11 @@ def tech_support_question(
     return prompt, _MODELS["tech_support_question"], ["answer"]
 
 
-def classify_teaching(text: str) -> tuple[str, str, list[str]]:
-    prompt = load_template("classify-teaching.md", {"TEXT": text})
+def classify_teaching(text: str, examples: str = "") -> tuple[str, str, list[str]]:
+    prompt = load_template("classify-teaching.md", {
+        "TEXT": text,
+        "EXAMPLES": examples or "(пусто)",
+    })
     return prompt, _MODELS["classify_teaching"], ["scope", "tier"]
 
 

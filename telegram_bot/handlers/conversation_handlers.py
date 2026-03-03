@@ -164,9 +164,22 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
 
 
 async def _classify_teaching_text(text: str) -> tuple[str, str]:
-    """Classify teaching text into (scope, tier) via Gemini."""
+    """Classify teaching text into (scope, tier) via Gemini.
+
+    Fetches similar entries from the DB to give Gemini context for better classification.
+    """
+    retriever = _get_retriever()
+
+    # Fetch similar entries as examples for Gemini
+    similar = await asyncio.to_thread(retriever._db.search_knowledge,
+                                      retriever._embed.embed_one(text), None, 5)
+    examples_lines = []
+    for e in similar:
+        examples_lines.append(f"- [{e['tier']}] {e['scope']} / {e['title']}")
+    examples = "\n".join(examples_lines) if examples_lines else ""
+
     gemini = GeminiGateway()
-    prompt, model, keys = compose_request.classify_teaching(text)
+    prompt, model, keys = compose_request.classify_teaching(text, examples)
     result = await asyncio.to_thread(gemini.call, prompt, model)
     scope = result.get("scope", "general")
     tier = result.get("tier", "domain")
@@ -217,14 +230,15 @@ async def cmd_knowledge(message: types.Message, state: FSMContext) -> None:
 
     template = replies.knowledge.entry_verbose if verbose else replies.knowledge.entry
 
-    # Group by scope for readability
-    grouped: dict[str, list[tuple[int, dict]]] = {}
+    # Group by (tier, scope) for readability
+    grouped: dict[tuple[str, str], list[tuple[int, dict]]] = {}
     for i, e in enumerate(entries, 1):
-        grouped.setdefault(e["scope"], []).append((i, e))
+        key = (e["tier"], e["scope"])
+        grouped.setdefault(key, []).append((i, e))
 
     lines = [replies.knowledge.header.format(count=len(entries))]
-    for scope_name, items in grouped.items():
-        lines.append(f"[{scope_name}]")
+    for (tier_name, scope_name), items in grouped.items():
+        lines.append(f"<b>[{tier_name}] {scope_name}</b>")
         for i, e in items:
             date = e["created_at"].strftime("%Y-%m-%d") if e.get("created_at") else "?"
             content = e.get("content", "")
@@ -238,7 +252,7 @@ async def cmd_knowledge(message: types.Message, state: FSMContext) -> None:
             ))
         lines.append("")  # blank line between groups
 
-    await _send(message, "\n".join(lines).rstrip())
+    await _send(message, "\n".join(lines).rstrip(), parse_mode="HTML")
 
 
 async def cmd_forget(message: types.Message, state: FSMContext) -> None:

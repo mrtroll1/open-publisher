@@ -133,7 +133,9 @@ class TestCmdTeach:
         asyncio.run(cmd_teach(msg, state))
 
         mock_classify.assert_awaited_once_with("Клиентов зовут по имени")
-        retriever.store_teaching.assert_called_once_with("Клиентов зовут по имени", scope="general", tier="domain")
+        retriever.store_teaching.assert_called_once_with(
+            "Клиентов зовут по имени", scope="general", tier="domain",
+        )
         msg.answer.assert_awaited_once()
         reply_text = msg.answer.call_args[0][0]
         assert "Запомнил" in reply_text
@@ -441,13 +443,15 @@ class TestCmdKnowledge:
         mock_db.list_knowledge.assert_called_once_with(scope=None, tier=None)
         msg.answer.assert_awaited_once()
         reply = msg.answer.call_args[0][0]
-        # Default mode: no IDs shown
-        assert "uuid-1" not in reply
+        # Default mode: IDs shown, no date, bold group headers
+        assert "uuid-1" in reply
         assert "Правило 1" in reply
-        assert "2025-06-15" in reply
+        assert "2025-06-15" not in reply
+        assert "<b>[domain] general</b>" in reply
+        assert "<b>[core] tech_support</b>" in reply
 
     @patch("telegram_bot.flow_callbacks._db")
-    def test_verbose_shows_ids_and_content(self, mock_db):
+    def test_verbose_shows_content(self, mock_db):
         from telegram_bot.flow_callbacks import cmd_knowledge
 
         mock_db.list_knowledge.return_value = [
@@ -467,6 +471,7 @@ class TestCmdKnowledge:
         reply = msg.answer.call_args[0][0]
         assert "uuid-1" in reply
         assert "Содержание 1" in reply
+        assert "2025-06-15" in reply
 
     @patch("telegram_bot.flow_callbacks._db")
     def test_filters_by_scope(self, mock_db):

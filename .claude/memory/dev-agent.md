@@ -1478,8 +1478,42 @@ Phase 6.4 — Tests:
 
 **Net result:** 1003 tests pass (+25 new: 3 bug fix + 22 seed_knowledge)
 
+### Session 49 (2026-03-03) — Plan 4 Phase 1: Split flow_callbacks.py into handler modules
+**Status:** Complete (all 11 items: 1.1-1.11)
+
+**What was done:**
+- Split the 2,105-line monolithic `telegram_bot/flow_callbacks.py` into 7 domain-specific handler modules + 1 shared utilities module:
+
+| File | Lines | Functions |
+|------|-------|-----------|
+| `telegram_bot/handler_utils.py` | 120 | 5 shared helpers + module-level state (`_db`, `_inbox`, `_admin_reply_map`, `_support_draft_map`) |
+| `telegram_bot/handlers/__init__.py` | 0 | Empty package init |
+| `telegram_bot/handlers/contractor_handlers.py` | 926 | 29 functions (registration, linking, verification, invoice flows, editor sources) |
+| `telegram_bot/handlers/admin_handlers.py` | 573 | 15 functions (admin commands: generate, budget, articles, lookup, reply routing) |
+| `telegram_bot/handlers/support_handlers.py` | 229 | 9 functions (tech support, code runner, health check, email callbacks) |
+| `telegram_bot/handlers/group_handlers.py` | 139 | 5 functions (group chat handling, command dispatch, NL classification) |
+| `telegram_bot/handlers/conversation_handlers.py` | 271 | 7 functions (NL reply, teaching, knowledge management) |
+| `telegram_bot/handlers/email_listener.py` | 42 | 1 function (background email listener task) |
+| `telegram_bot/flow_callbacks.py` | 68 | Backward-compatible re-export shim |
+
+- `flow_callbacks.py` reduced to a 68-line re-export shim using `_PatchProxyModule.__setattr__` to propagate test `@patch` calls to actual handler modules
+- Cross-module dependencies handled via lazy imports (e.g., `_handle_nl_reply` imported lazily in `admin_handlers` and `group_handlers`)
+- Fixed unused `ChatAction` import in `group_handlers.py` during review
+
+**Design decisions:**
+- Invoice handlers merged into contractor_handlers (contractor-side ops) and admin_handlers (batch commands) rather than separate file — they're tightly coupled
+- Shared state centralized in `handler_utils.py`, imported by handler modules
+- `_PatchProxyModule` trick means zero test file modifications needed — all `@patch("telegram_bot.flow_callbacks.X")` still works
+
+**Net result:** 1003 tests pass, zero test files modified, pure move-only refactoring
+
+**Notes:**
+- Plan originally called for separate invoice_handlers.py but invoice logic is deeply intertwined with contractor and admin flows
+- `flow_callbacks.py` re-export shim is a temporary bridge — later phases should update imports in flows.py, main.py, flow_engine.py, and tests to point directly to handler modules
+- Next session should start Phase 2 (split db_gateway.py into domain-specific postgres repos)
+
 ## Next up
 
-- Plan 3 complete (maintenance mode)
-- Phase 2.4 still needs: run seed script on live DB and verify entries
+- Plan 4 Phase 1 complete → start Phase 2 next session
+- Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

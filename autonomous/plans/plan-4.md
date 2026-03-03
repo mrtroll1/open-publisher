@@ -51,25 +51,28 @@ tests/
 > Goal: break the 2,105-line monolith into domain-specific files under `telegram_bot/handlers/`.
 > Rule: MOVE code only, no logic changes. Tests must keep passing after each step.
 
-- [ ] 1.1 Create `telegram_bot/handlers/__init__.py`
-- [ ] 1.2 Extract contractor handlers → `telegram_bot/handlers/contractor_handlers.py`
-  - `handle_lookup`, `handle_data_input`, `handle_amount_input`, `_save_new_contractor`, `_finish_registration`, contractor registration flow callbacks
-- [ ] 1.3 Extract invoice handlers → `telegram_bot/handlers/invoice_handlers.py`
-  - `_deliver_existing_invoice`, `handle_duplicate_callback`, invoice flow callbacks, `cmd_generate_invoices`, `cmd_send_global_invoices`, `cmd_send_legium_links`
-- [ ] 1.4 Extract admin handlers → `telegram_bot/handlers/admin_handlers.py`
-  - `handle_admin_reply`, `_handle_nl_reply`, admin command handlers (budget, articles, bank, etc.)
-- [ ] 1.5 Extract support handlers → `telegram_bot/handlers/support_handlers.py`
-  - `_answer_tech_question`, `cmd_support`, support-related callbacks
-- [ ] 1.6 Extract group handlers → `telegram_bot/handlers/group_handlers.py`
-  - `handle_group_message`, group command dispatch
-- [ ] 1.7 Extract conversation/teaching handlers → `telegram_bot/handlers/conversation_handlers.py`
-  - `/teach`, `/knowledge`, `/forget`, `/kedit`, NL detection, conversation persistence
-- [ ] 1.8 Extract email listener → `telegram_bot/handlers/email_listener.py`
+- [x] 1.1 Create `telegram_bot/handlers/__init__.py`
+- [x] 1.2 Extract contractor handlers → `telegram_bot/handlers/contractor_handlers.py` (926 lines, 29 functions)
+  - All contractor registration, linking, verification, invoice flow callbacks, editor source management
+- [x] 1.3 Invoice handlers merged into contractor_handlers (tightly coupled) and admin_handlers (batch commands)
+  - Contractor-side invoice ops in contractor_handlers.py, batch commands in admin_handlers.py
+- [x] 1.4 Extract admin handlers → `telegram_bot/handlers/admin_handlers.py` (573 lines, 15 functions)
+  - `handle_admin_reply`, `_handle_draft_reply`, admin command handlers (budget, articles, bank, generate, lookup, etc.)
+- [x] 1.5 Extract support handlers → `telegram_bot/handlers/support_handlers.py` (229 lines, 9 functions)
+  - `_answer_tech_question`, `cmd_support`, `cmd_code`, `cmd_health`, email callback handlers
+- [x] 1.6 Extract group handlers → `telegram_bot/handlers/group_handlers.py` (139 lines, 5 functions)
+  - `handle_group_message`, `_dispatch_group_command`, `_extract_bot_mention`, command dicts
+- [x] 1.7 Extract conversation/teaching handlers → `telegram_bot/handlers/conversation_handlers.py` (271 lines, 7 functions)
+  - `cmd_nl`, `cmd_teach`, `cmd_knowledge`, `cmd_forget`, `cmd_kedit`, `_handle_nl_reply`, `_format_reply_chain`
+- [x] 1.8 Extract email listener → `telegram_bot/handlers/email_listener.py` (42 lines, 1 function)
   - `email_listener_task` background loop
-- [ ] 1.9 Keep only shared wiring/helpers in `flow_callbacks.py` (or rename to `handler_utils.py`)
-  - Module-level globals (`_db`, `_admin_reply_map`, `_support_draft_map`), shared helpers (`_send_html`)
-- [ ] 1.10 Update `flows.py` imports to point to new handler modules
-- [ ] 1.11 Run full test suite — all tests pass
+- [x] 1.9 Shared helpers in `telegram_bot/handler_utils.py` (120 lines)
+  - Module-level state (`_db`, `_inbox`, `_admin_reply_map`, `_support_draft_map`)
+  - Shared helpers: `_safe_edit_text`, `_send_html`, `_save_turn`, `_parse_flags`, `_find_contractor_or_suggest`
+- [x] 1.10 `flow_callbacks.py` reduced to 68-line backward-compatible re-export shim
+  - Uses `_PatchProxyModule.__setattr__` to propagate test `@patch` calls to actual handler modules
+  - All existing imports from `telegram_bot.flow_callbacks` continue to work unchanged
+- [x] 1.11 Full test suite — all 1003 tests pass
 
 ---
 

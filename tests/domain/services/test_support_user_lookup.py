@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import patch
 
-from backend.domain.support_user_lookup import SupportUserLookup
+from backend.domain.services.support_user_lookup import SupportUserLookup
 
 
 # ===================================================================
@@ -188,8 +188,8 @@ class TestFmtAuditLog:
 #  Helpers for fetch_and_format tests
 # ===================================================================
 
-@patch("backend.domain.support_user_lookup.RedefineGateway")
-@patch("backend.domain.support_user_lookup.RepublicGateway")
+@patch("backend.domain.services.support_user_lookup.RedefineGateway")
+@patch("backend.domain.services.support_user_lookup.RepublicGateway")
 def _make_lookup(MockRepublic, MockRedefine):
     lookup = SupportUserLookup()
     return lookup, lookup._republic, lookup._redefine

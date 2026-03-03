@@ -2,7 +2,7 @@
 
 from unittest.mock import patch
 
-from backend.domain.tech_support_handler import TechSupportHandler
+from backend.domain.services.tech_support_handler import TechSupportHandler
 from common.models import IncomingEmail, SupportDraft
 
 
@@ -106,10 +106,10 @@ def _make_email(**overrides) -> IncomingEmail:
     return IncomingEmail(**defaults)
 
 
-@patch("backend.domain.tech_support_handler.DbGateway")
-@patch("backend.domain.tech_support_handler.RepoGateway")
-@patch("backend.domain.tech_support_handler.SupportUserLookup")
-@patch("backend.domain.tech_support_handler.GeminiGateway")
+@patch("backend.domain.services.tech_support_handler.DbGateway")
+@patch("backend.domain.services.tech_support_handler.RepoGateway")
+@patch("backend.domain.services.tech_support_handler.SupportUserLookup")
+@patch("backend.domain.services.tech_support_handler.GeminiGateway")
 def _make_handler(MockGemini, MockLookup, MockRepo, MockDb):
     handler = TechSupportHandler()
     return handler, handler._db, handler._gemini, handler._user_lookup

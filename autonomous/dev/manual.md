@@ -7,7 +7,7 @@
 ### Run seed script after deploy
 After deploying the updated code (with pgvector tables + embedding gateway):
 ```bash
-python -m backend.domain.seed_knowledge
+python -m backend.domain.use_cases.seed_knowledge
 ```
 This seeds 19 knowledge entries from the existing `.md` files into the `knowledge_entries` table. Requires:
 - Running Postgres with pgvector extension

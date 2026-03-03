@@ -3,8 +3,8 @@
 import pytest
 from unittest.mock import MagicMock
 
-from backend.domain.command_classifier import ClassifiedCommand, CommandClassifier
-from backend.domain.compose_request import _MODELS, classify_command
+from backend.domain.services.command_classifier import ClassifiedCommand, CommandClassifier
+from backend.domain.services.compose_request import _MODELS, classify_command
 
 
 SAMPLE_COMMANDS = {

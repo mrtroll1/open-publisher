@@ -7,11 +7,11 @@ from unittest.mock import patch
 #  _format_entries — pure function tests
 # ===================================================================
 
-@patch("backend.domain.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+@patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
 class TestFormatEntries:
 
     def _fmt(self, entries):
-        from backend.domain.knowledge_retriever import _format_entries
+        from backend.domain.services.knowledge_retriever import _format_entries
         return _format_entries(entries)
 
     def test_with_title(self):
@@ -47,11 +47,11 @@ class TestFormatEntries:
 #  Helper: build a KnowledgeRetriever with mocked gateways
 # ===================================================================
 
-@patch("backend.domain.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
-@patch("backend.domain.knowledge_retriever.EmbeddingGateway")
-@patch("backend.domain.knowledge_retriever.DbGateway")
+@patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+@patch("backend.domain.services.knowledge_retriever.EmbeddingGateway")
+@patch("backend.domain.services.knowledge_retriever.DbGateway")
 def _make_retriever(MockDb, MockEmbed):
-    from backend.domain.knowledge_retriever import KnowledgeRetriever
+    from backend.domain.services.knowledge_retriever import KnowledgeRetriever
     kr = KnowledgeRetriever()
     return kr, kr._db, kr._embed
 
@@ -70,7 +70,7 @@ class TestGetCore:
 
         mock_db.get_knowledge_by_tier.assert_called_once_with("core")
 
-    @patch("backend.domain.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
     def test_formats_results(self):
         kr, mock_db, _ = _make_retriever()
         mock_db.get_knowledge_by_tier.return_value = [
@@ -119,7 +119,7 @@ class TestRetrieve:
             [0.5], scope="billing", limit=3,
         )
 
-    @patch("backend.domain.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
     def test_formats_results(self):
         kr, mock_db, mock_embed = _make_retriever()
         mock_embed.embed_one.return_value = [0.1]
@@ -147,7 +147,7 @@ class TestRetrieveFullScope:
 
         mock_db.get_knowledge_by_scope.assert_called_once_with("subscriptions")
 
-    @patch("backend.domain.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
     def test_formats_results(self):
         kr, mock_db, _ = _make_retriever()
         mock_db.get_knowledge_by_scope.return_value = [

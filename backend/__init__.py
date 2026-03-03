@@ -54,7 +54,7 @@ def fetch_articles_by_name(author: str, month: str) -> list[int]:
 
 def parse_contractor_data(text: str, fields_csv: str, context: str = "") -> dict:
     """Parse contractor data from free-form text using LLM."""
-    from backend.domain import compose_request
+    from backend.domain.services import compose_request
     prompt, model, _ = compose_request.contractor_parse(text, fields_csv, context)
     return _gemini.call(prompt, model)
 
@@ -63,7 +63,7 @@ def translate_name_to_russian(name_en: str) -> str:
     """Translate a name to Russian."""
     import json
     import time
-    from backend.domain import compose_request
+    from backend.domain.services import compose_request
     prompt, model, _ = compose_request.translate_name(name_en)
     t0 = time.time()
     result = _gemini.call(prompt, model)
@@ -104,7 +104,7 @@ def create_and_save_invoice(contractor, month, amount, articles, invoice_date=No
 
     Returns InvoiceResult(pdf_bytes, invoice).
     """
-    from backend.domain.generate_invoice import GenerateInvoice
+    from backend.domain.use_cases.generate_invoice import GenerateInvoice
     return GenerateInvoice().create_and_save(
         contractor, month, amount, articles, invoice_date, debug,
     )
@@ -137,15 +137,15 @@ from backend.domain.services.invoice_service import (  # noqa: F401
 # --- Domain helpers ---
 from backend.domain.validate_contractor import validate_fields as validate_contractor_fields  # noqa: F401
 from backend.domain.resolve_amount import resolve_amount, plural_ru  # noqa: F401
-from backend.domain.prepare_invoice import prepare_existing_invoice  # noqa: F401
+from backend.domain.use_cases.prepare_invoice import prepare_existing_invoice  # noqa: F401
 
 # --- Use cases ---
-from backend.domain.generate_invoice import GenerateInvoice, InvoiceResult  # noqa: F401
-from backend.domain.generate_batch_invoices import GenerateBatchInvoices, BatchResult  # noqa: F401
-from backend.domain.parse_bank_statement import ParseBankStatement  # noqa: F401
-from backend.domain.compute_budget import ComputeBudget  # noqa: F401
-from backend.domain.inbox_service import InboxService  # noqa: F401
-from backend.domain.tech_support_handler import TechSupportHandler  # noqa: F401
+from backend.domain.use_cases.generate_invoice import GenerateInvoice, InvoiceResult  # noqa: F401
+from backend.domain.use_cases.generate_batch_invoices import GenerateBatchInvoices, BatchResult  # noqa: F401
+from backend.domain.use_cases.parse_bank_statement import ParseBankStatement  # noqa: F401
+from backend.domain.use_cases.compute_budget import ComputeBudget  # noqa: F401
+from backend.domain.services.inbox_service import InboxService  # noqa: F401
+from backend.domain.services.tech_support_handler import TechSupportHandler  # noqa: F401
 from backend.domain.code_runner import run_claude_code  # noqa: F401
 from backend.domain.healthcheck import run_healthchecks, format_healthcheck_results  # noqa: F401
-from backend.domain.command_classifier import CommandClassifier  # noqa: F401
+from backend.domain.services.command_classifier import CommandClassifier  # noqa: F401

@@ -30,7 +30,7 @@ from backend import (
     update_invoice_status,
     update_legium_link,
 )
-from backend.domain.compose_request import _get_retriever
+from backend.domain.services.compose_request import _get_retriever
 from backend.domain.services.admin_service import (
     _GREETING_PREFIXES,
     classify_draft_reply,

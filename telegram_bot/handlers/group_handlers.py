@@ -10,7 +10,7 @@ from aiogram import types
 from aiogram.fsm.context import FSMContext
 
 from common.config import BOT_USERNAME
-from backend.domain.command_classifier import CommandClassifier
+from backend.domain.services.command_classifier import CommandClassifier
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from telegram_bot import replies
 from telegram_bot.bot_helpers import bot

@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from backend.domain.generate_batch_invoices import BatchResult, GenerateBatchInvoices
-from backend.domain.generate_invoice import InvoiceResult
+from backend.domain.use_cases.generate_batch_invoices import BatchResult, GenerateBatchInvoices
+from backend.domain.use_cases.generate_invoice import InvoiceResult
 from common.models import (
     ArticleEntry,
     Currency,
@@ -67,10 +67,10 @@ def _invoice(contractor_id: str = "g1", **overrides) -> Invoice:
 #  Patch paths
 # ---------------------------------------------------------------------------
 
-_PATCH_LOAD = "backend.domain.generate_batch_invoices.load_invoices"
-_PATCH_BUDGET = "backend.domain.generate_batch_invoices.read_all_amounts"
-_PATCH_REPUBLIC = "backend.domain.generate_batch_invoices.RepublicGateway"
-_PATCH_GEN = "backend.domain.generate_batch_invoices.GenerateInvoice"
+_PATCH_LOAD = "backend.domain.use_cases.generate_batch_invoices.load_invoices"
+_PATCH_BUDGET = "backend.domain.use_cases.generate_batch_invoices.read_all_amounts"
+_PATCH_REPUBLIC = "backend.domain.use_cases.generate_batch_invoices.RepublicGateway"
+_PATCH_GEN = "backend.domain.use_cases.generate_batch_invoices.GenerateInvoice"
 
 
 def _make_batch(mock_republic, mock_gen) -> GenerateBatchInvoices:

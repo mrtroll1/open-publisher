@@ -1,6 +1,6 @@
 import pytest
 
-from backend.domain.compute_budget import (
+from backend.domain.use_cases.compute_budget import (
     DEFAULT_RATE_EUR,
     DEFAULT_RATE_RUB,
     ComputeBudget,

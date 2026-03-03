@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch, call
 class TestChunkTechSupport:
 
     def _chunk(self, text):
-        from backend.domain.seed_knowledge import _chunk_tech_support
+        from backend.domain.use_cases.seed_knowledge import _chunk_tech_support
         return _chunk_tech_support(text)
 
     def test_core_section_before_first_bullet(self):
@@ -64,7 +64,7 @@ class TestChunkTechSupport:
 class TestChunkPaymentValidation:
 
     def _chunk(self, text):
-        from backend.domain.seed_knowledge import _chunk_payment_validation
+        from backend.domain.use_cases.seed_knowledge import _chunk_payment_validation
         return _chunk_payment_validation(text)
 
     def test_general_rules_section(self):
@@ -130,13 +130,13 @@ def _fake_read(filename):
     }[filename]
 
 
-@patch("backend.domain.seed_knowledge.EmbeddingGateway")
-@patch("backend.domain.seed_knowledge.DbGateway")
-@patch("backend.domain.seed_knowledge._read", side_effect=_fake_read)
+@patch("backend.domain.use_cases.seed_knowledge.EmbeddingGateway")
+@patch("backend.domain.use_cases.seed_knowledge.DbGateway")
+@patch("backend.domain.use_cases.seed_knowledge._read", side_effect=_fake_read)
 class TestSeedKnowledge:
 
     def _run(self, mock_read, MockDb, MockEmbed):
-        from backend.domain.seed_knowledge import seed_knowledge
+        from backend.domain.use_cases.seed_knowledge import seed_knowledge
         seed_knowledge()
         return MockDb.return_value, MockEmbed.return_value
 
@@ -147,7 +147,7 @@ class TestSeedKnowledge:
         mock_embed = MockEmbed.return_value
         mock_embed.embed_texts.return_value = [[0.1]] * 20  # enough for any count
 
-        from backend.domain.seed_knowledge import seed_knowledge
+        from backend.domain.use_cases.seed_knowledge import seed_knowledge
         seed_knowledge()
 
         assert mock_db.save_knowledge_entry.call_count > 0
@@ -159,7 +159,7 @@ class TestSeedKnowledge:
         mock_db = MockDb.return_value
         mock_db.list_knowledge.return_value = [{"id": "existing"}]
 
-        from backend.domain.seed_knowledge import seed_knowledge
+        from backend.domain.use_cases.seed_knowledge import seed_knowledge
         seed_knowledge()
 
         mock_db.save_knowledge_entry.assert_not_called()
@@ -173,7 +173,7 @@ class TestSeedKnowledge:
         mock_embed = MockEmbed.return_value
         mock_embed.embed_texts.return_value = [[0.1]] * 10
 
-        from backend.domain.seed_knowledge import seed_knowledge
+        from backend.domain.use_cases.seed_knowledge import seed_knowledge
         seed_knowledge()
 
         assert mock_db.save_knowledge_entry.call_count == 10
@@ -185,7 +185,7 @@ class TestSeedKnowledge:
         mock_embed = MockEmbed.return_value
         mock_embed.embed_texts.return_value = [[0.1]] * 10
 
-        from backend.domain.seed_knowledge import seed_knowledge
+        from backend.domain.use_cases.seed_knowledge import seed_knowledge
         seed_knowledge()
 
         for c in mock_db.save_knowledge_entry.call_args_list:
@@ -198,7 +198,7 @@ class TestSeedKnowledge:
         mock_embed = MockEmbed.return_value
         mock_embed.embed_texts.return_value = [[0.1]] * 10
 
-        from backend.domain.seed_knowledge import seed_knowledge
+        from backend.domain.use_cases.seed_knowledge import seed_knowledge
         seed_knowledge()
 
         mock_embed.embed_texts.assert_called_once()
@@ -216,7 +216,7 @@ class TestSeedKnowledge:
         mock_embed = MockEmbed.return_value
         mock_embed.embed_texts.return_value = [[0.1]] * 10
 
-        from backend.domain.seed_knowledge import seed_knowledge
+        from backend.domain.use_cases.seed_knowledge import seed_knowledge
         seed_knowledge()
 
         calls = mock_db.save_knowledge_entry.call_args_list
@@ -235,7 +235,7 @@ class TestSeedKnowledge:
         mock_embed = MockEmbed.return_value
         mock_embed.embed_texts.return_value = [[0.1]] * 10
 
-        from backend.domain.seed_knowledge import seed_knowledge
+        from backend.domain.use_cases.seed_knowledge import seed_knowledge
         seed_knowledge()
 
         mock_db.init_schema.assert_called_once()

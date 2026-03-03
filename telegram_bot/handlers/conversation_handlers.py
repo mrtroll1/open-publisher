@@ -9,9 +9,9 @@ from typing import Callable
 from aiogram import types
 from aiogram.fsm.context import FSMContext
 
-from backend.domain import compose_request
-from backend.domain.compose_request import _get_retriever
-from backend.domain.command_classifier import CommandClassifier
+from backend.domain.services import compose_request
+from backend.domain.services.compose_request import _get_retriever
+from backend.domain.services.command_classifier import CommandClassifier
 from backend.domain.services.conversation_service import (
     build_conversation_context,
     format_reply_chain as _format_reply_chain,

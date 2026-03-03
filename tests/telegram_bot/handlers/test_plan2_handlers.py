@@ -184,7 +184,7 @@ class TestHandleGroupMessageNaturalLanguage:
         self, mock_bot, mock_format, mock_run, MockGemini, MockClassifier,
     ):
         from telegram_bot.flow_callbacks import handle_group_message
-        from backend.domain.command_classifier import ClassifiedCommand, ClassificationResult
+        from backend.domain.services.command_classifier import ClassifiedCommand, ClassificationResult
 
         mock_instance = MagicMock()
         mock_instance.classify.return_value = ClassificationResult(
@@ -233,7 +233,7 @@ class TestHandleGroupMessageNaturalLanguage:
     @patch("telegram_bot.flow_callbacks.GeminiGateway")
     def test_classification_returns_none_no_dispatch(self, MockGemini, MockClassifier):
         from telegram_bot.flow_callbacks import handle_group_message
-        from backend.domain.command_classifier import ClassificationResult
+        from backend.domain.services.command_classifier import ClassificationResult
 
         mock_instance = MagicMock()
         mock_instance.classify.return_value = ClassificationResult(classified=None, reply="")
@@ -289,7 +289,7 @@ class TestHandleGroupMessageNaturalLanguage:
         self, mock_bot, mock_format, mock_run, MockGemini, MockClassifier,
     ):
         from telegram_bot.flow_callbacks import handle_group_message
-        from backend.domain.command_classifier import ClassifiedCommand, ClassificationResult
+        from backend.domain.services.command_classifier import ClassifiedCommand, ClassificationResult
 
         mock_instance = MagicMock()
         mock_instance.classify.return_value = ClassificationResult(

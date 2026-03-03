@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from backend.domain.generate_invoice import GenerateInvoice, InvoiceResult
+from backend.domain.use_cases.generate_invoice import GenerateInvoice, InvoiceResult
 from common.models import (
     ArticleEntry,
     Currency,
@@ -61,10 +61,10 @@ def _articles(n: int = 2) -> list[ArticleEntry]:
 #  Patch paths
 # ---------------------------------------------------------------------------
 
-_PATCH_DOCS = "backend.domain.generate_invoice.DocsGateway"
-_PATCH_DRIVE = "backend.domain.generate_invoice.DriveGateway"
-_PATCH_INCREMENT = "backend.domain.generate_invoice.increment_invoice_number"
-_PATCH_SAVE = "backend.domain.generate_invoice.save_invoice"
+_PATCH_DOCS = "backend.domain.use_cases.generate_invoice.DocsGateway"
+_PATCH_DRIVE = "backend.domain.use_cases.generate_invoice.DriveGateway"
+_PATCH_INCREMENT = "backend.domain.use_cases.generate_invoice.increment_invoice_number"
+_PATCH_SAVE = "backend.domain.use_cases.generate_invoice.save_invoice"
 
 
 def _make_gen(mock_docs, mock_drive) -> GenerateInvoice:
@@ -124,8 +124,8 @@ class TestGenerateGlobalInvoice:
         gen = _make_gen(docs, drive)
 
         with patch(_PATCH_SAVE), \
-             patch("backend.domain.generate_invoice.TEMPLATE_GLOBAL_ID", "tmpl_global"), \
-             patch("backend.domain.generate_invoice.TEMPLATE_GLOBAL_PHOTO_ID", "tmpl_global_photo"):
+             patch("backend.domain.use_cases.generate_invoice.TEMPLATE_GLOBAL_ID", "tmpl_global"), \
+             patch("backend.domain.use_cases.generate_invoice.TEMPLATE_GLOBAL_PHOTO_ID", "tmpl_global_photo"):
             gen.create_and_save(
                 _global(), "2026-01", Decimal("100"), _articles(),
                 invoice_date=date(2026, 1, 1),
@@ -142,8 +142,8 @@ class TestGenerateGlobalInvoice:
         gen = _make_gen(docs, drive)
 
         with patch(_PATCH_SAVE), \
-             patch("backend.domain.generate_invoice.TEMPLATE_GLOBAL_ID", "tmpl_global"), \
-             patch("backend.domain.generate_invoice.TEMPLATE_GLOBAL_PHOTO_ID", "tmpl_global_photo"):
+             patch("backend.domain.use_cases.generate_invoice.TEMPLATE_GLOBAL_ID", "tmpl_global"), \
+             patch("backend.domain.use_cases.generate_invoice.TEMPLATE_GLOBAL_PHOTO_ID", "tmpl_global_photo"):
             gen.create_and_save(
                 _global(is_photographer=True), "2026-01", Decimal("100"), _articles(),
                 invoice_date=date(2026, 1, 1),
@@ -232,8 +232,8 @@ class TestGenerateIPInvoice:
 
         with patch(_PATCH_INCREMENT, return_value=1), \
              patch(_PATCH_SAVE), \
-             patch("backend.domain.generate_invoice.TEMPLATE_IP_ID", "tmpl_ip"), \
-             patch("backend.domain.generate_invoice.TEMPLATE_IP_PHOTO_ID", "tmpl_ip_photo"):
+             patch("backend.domain.use_cases.generate_invoice.TEMPLATE_IP_ID", "tmpl_ip"), \
+             patch("backend.domain.use_cases.generate_invoice.TEMPLATE_IP_PHOTO_ID", "tmpl_ip_photo"):
             gen.create_and_save(
                 _ip(), "2026-01", Decimal("10000"), _articles(),
                 invoice_date=date(2026, 1, 1),
@@ -250,8 +250,8 @@ class TestGenerateIPInvoice:
 
         with patch(_PATCH_INCREMENT, return_value=1), \
              patch(_PATCH_SAVE), \
-             patch("backend.domain.generate_invoice.TEMPLATE_IP_ID", "tmpl_ip"), \
-             patch("backend.domain.generate_invoice.TEMPLATE_IP_PHOTO_ID", "tmpl_ip_photo"):
+             patch("backend.domain.use_cases.generate_invoice.TEMPLATE_IP_ID", "tmpl_ip"), \
+             patch("backend.domain.use_cases.generate_invoice.TEMPLATE_IP_PHOTO_ID", "tmpl_ip_photo"):
             gen.create_and_save(
                 _ip(is_photographer=True), "2026-01", Decimal("10000"), _articles(),
                 invoice_date=date(2026, 1, 1),
@@ -345,8 +345,8 @@ class TestGenerateSamozanyatyInvoice:
 
         with patch(_PATCH_INCREMENT, return_value=1), \
              patch(_PATCH_SAVE), \
-             patch("backend.domain.generate_invoice.TEMPLATE_SAMOZANYATY_ID", "tmpl_sz"), \
-             patch("backend.domain.generate_invoice.TEMPLATE_SAMOZANYATY_PHOTO_ID", "tmpl_sz_photo"):
+             patch("backend.domain.use_cases.generate_invoice.TEMPLATE_SAMOZANYATY_ID", "tmpl_sz"), \
+             patch("backend.domain.use_cases.generate_invoice.TEMPLATE_SAMOZANYATY_PHOTO_ID", "tmpl_sz_photo"):
             gen.create_and_save(
                 _samoz(), "2026-01", Decimal("8000"), _articles(),
                 invoice_date=date(2026, 1, 1),
@@ -363,8 +363,8 @@ class TestGenerateSamozanyatyInvoice:
 
         with patch(_PATCH_INCREMENT, return_value=1), \
              patch(_PATCH_SAVE), \
-             patch("backend.domain.generate_invoice.TEMPLATE_SAMOZANYATY_ID", "tmpl_sz"), \
-             patch("backend.domain.generate_invoice.TEMPLATE_SAMOZANYATY_PHOTO_ID", "tmpl_sz_photo"):
+             patch("backend.domain.use_cases.generate_invoice.TEMPLATE_SAMOZANYATY_ID", "tmpl_sz"), \
+             patch("backend.domain.use_cases.generate_invoice.TEMPLATE_SAMOZANYATY_PHOTO_ID", "tmpl_sz_photo"):
             gen.create_and_save(
                 _samoz(is_photographer=True), "2026-01", Decimal("8000"), _articles(),
                 invoice_date=date(2026, 1, 1),

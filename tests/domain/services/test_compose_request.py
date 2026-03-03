@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from backend.domain.compose_request import (
+from backend.domain.services.compose_request import (
     _MODELS,
     classify_command,
     contractor_parse,
@@ -184,27 +184,27 @@ class TestRetrieverCalls:
 
     def test_support_email_calls_get_core_and_retrieve(self):
         r = self._make_retriever()
-        with patch("backend.domain.compose_request._get_retriever", return_value=r):
+        with patch("backend.domain.services.compose_request._get_retriever", return_value=r):
             support_email("my email text")
         r.get_core.assert_called_once()
         r.retrieve.assert_called_once_with("my email text", "tech_support", 5)
 
     def test_tech_support_question_calls_get_core_and_retrieve(self):
         r = self._make_retriever()
-        with patch("backend.domain.compose_request._get_retriever", return_value=r):
+        with patch("backend.domain.services.compose_request._get_retriever", return_value=r):
             tech_support_question("how to reset?")
         r.get_core.assert_called_once()
         r.retrieve.assert_called_once_with("how to reset?", "tech_support", 5)
 
     def test_support_triage_calls_retrieve_full_scope(self):
         r = self._make_retriever()
-        with patch("backend.domain.compose_request._get_retriever", return_value=r):
+        with patch("backend.domain.services.compose_request._get_retriever", return_value=r):
             support_triage("billing issue")
         r.retrieve_full_scope.assert_called_once_with("support_triage")
 
     def test_contractor_parse_calls_get_core_and_retrieve_full_scope(self):
         r = self._make_retriever()
-        with patch("backend.domain.compose_request._get_retriever", return_value=r):
+        with patch("backend.domain.services.compose_request._get_retriever", return_value=r):
             contractor_parse("text", "name_en")
         r.get_core.assert_called_once()
         r.retrieve_full_scope.assert_called_once_with("contractor")
@@ -252,7 +252,7 @@ class TestGetRetrieverSingleton:
 
     def test_creates_instance_once(self):
         import sys
-        import backend.domain.compose_request as mod
+        import backend.domain.services.compose_request as mod
 
         original = mod._retriever
         mod._retriever = None

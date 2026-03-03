@@ -37,10 +37,18 @@ class GeminiGateway:
             raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
             if raw.endswith("```"):
                 raw = raw[:-3].strip()
+
+        def _try_loads(s: str) -> dict:
+            try:
+                return json.loads(s)
+            except json.JSONDecodeError:
+                cleaned = s.replace("\r\n", "\\n").replace("\r", "\\n").replace("\n", "\\n").replace("\t", "\\t")
+                return json.loads(cleaned)
+
         if raw.startswith("{"):
-            return json.loads(raw)
+            return _try_loads(raw)
         start = raw.find("{")
         end = raw.rfind("}") + 1
         if start >= 0 and end > start:
-            return json.loads(raw[start:end])
+            return _try_loads(raw[start:end])
         return {"raw_parsed": raw}

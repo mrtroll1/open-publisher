@@ -13,7 +13,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
 from common.models import EditorialItem, SupportDraft
-from backend.domain import compose_request
+from backend.domain.services import compose_request
 from backend.domain.code_runner import run_claude_code
 from backend.domain.healthcheck import run_healthchecks, format_healthcheck_results
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway

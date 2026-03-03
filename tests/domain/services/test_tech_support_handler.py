@@ -274,9 +274,6 @@ class TestFetchUserData:
 
         assert result == "## User data here"
         mock_gemini.call.assert_called_once()
-        # Verify triage task
-        _, kwargs = mock_gemini.call.call_args
-        assert kwargs.get("task") == "SUPPORT_TRIAGE"
         mock_lookup.fetch_and_format.assert_called_once_with(
             "found@test.com", ["subscription_info", "payments_info"],
         )

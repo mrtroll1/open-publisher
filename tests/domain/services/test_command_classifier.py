@@ -100,10 +100,8 @@ class TestCommandClassifier:
 
         gemini.call.assert_called_once()
         call_args = gemini.call.call_args
-        prompt = call_args[0][0]
-        model = call_args[0][1]
-        assert isinstance(prompt, str)
-        assert model == _MODELS["classify_command"]
+        assert isinstance(call_args[0][0], str)  # prompt
+        assert call_args[0][1] == _MODELS["classify_command"]  # model
 
     def test_prompt_contains_user_text(self):
         gemini = MagicMock()

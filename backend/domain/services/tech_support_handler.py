@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import time
 import uuid
 
 from backend.domain.services import compose_request
@@ -77,7 +79,13 @@ class TechSupportHandler:
     def _fetch_user_data(self, email_text: str, fallback_email: str) -> str:
         try:
             prompt, model, _ = compose_request.support_triage(email_text)
-            result = self._gemini.call(prompt, model, task="SUPPORT_TRIAGE")
+            t0 = time.time()
+            result = self._gemini.call(prompt, model)
+            latency_ms = int((time.time() - t0) * 1000)
+            try:
+                self._db.log_classification("SUPPORT_TRIAGE", model, prompt, json.dumps(result), latency_ms)
+            except Exception:
+                logger.warning("Failed to log classification for task=SUPPORT_TRIAGE", exc_info=True)
             needs = result.get("needs", [])
             lookup_email = result.get("lookup_email") or fallback_email
             logger.info("Support triage: needs=%s, lookup_email=%s", needs, lookup_email)

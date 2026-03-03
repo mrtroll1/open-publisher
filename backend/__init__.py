@@ -61,9 +61,18 @@ def parse_contractor_data(text: str, fields_csv: str, context: str = "") -> dict
 
 def translate_name_to_russian(name_en: str) -> str:
     """Translate a name to Russian."""
+    import json
+    import time
     from backend.domain import compose_request
     prompt, model, _ = compose_request.translate_name(name_en)
-    result = _gemini.call(prompt, model, task="TRANSLATE_NAME")
+    t0 = time.time()
+    result = _gemini.call(prompt, model)
+    latency_ms = int((time.time() - t0) * 1000)
+    try:
+        from backend.infrastructure.gateways.db_gateway import DbGateway
+        DbGateway().log_classification("TRANSLATE_NAME", model, prompt, json.dumps(result), latency_ms)
+    except Exception:
+        pass
     return result.get("translated_name", "")
 
 
@@ -80,13 +89,13 @@ def read_budget_amounts(month: str) -> dict:
 
 def redirect_in_budget(source_name: str, target, month: str) -> None:
     """Move source author's budget row into target contractor's row."""
-    from backend.infrastructure.repositories.budget_repo import redirect_in_budget as _impl
+    from backend.domain.services.budget_service import redirect_in_budget as _impl
     _impl(source_name, target, month)
 
 
 def unredirect_in_budget(source_name: str, target, month: str) -> None:
     """Undo a redirect: restore source as standalone row."""
-    from backend.infrastructure.repositories.budget_repo import unredirect_in_budget as _impl
+    from backend.domain.services.budget_service import unredirect_in_budget as _impl
     _impl(source_name, target, month)
 
 
@@ -120,6 +129,7 @@ from backend.domain.services.invoice_service import (  # noqa: F401
     DeliveryAction,
     ExistingInvoiceResult,
     NewInvoiceData,
+    get_invoice_folder_path,
     prepare_new_invoice_data,
     resolve_existing_invoice,
 )

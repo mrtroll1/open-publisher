@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import time
 
 from aiogram import types
 from aiogram.enums import ChatAction
@@ -49,7 +51,13 @@ def _answer_tech_question(question: str, verbose: bool, expert: bool) -> str:
     needs_code = False
     try:
         prompt, model, _ = compose_request.tech_search_terms(question)
-        result = gemini.call(prompt, model, task="TECH_SEARCH_TERMS")
+        t0 = time.time()
+        result = gemini.call(prompt, model)
+        latency_ms = int((time.time() - t0) * 1000)
+        try:
+            _db.log_classification("TECH_SEARCH_TERMS", model, prompt, json.dumps(result), latency_ms)
+        except Exception:
+            logger.warning("Failed to log classification for task=TECH_SEARCH_TERMS", exc_info=True)
         needs_code = bool(result.get("needs_code"))
     except Exception as e:
         logger.warning("Tech support triage failed: %s", e)

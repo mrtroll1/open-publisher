@@ -205,14 +205,21 @@ tests/
 > Goal: gateways are pure I/O wrappers, repos don't orchestrate.
 > Rule: targeted fixes, one at a time.
 
-- [ ] 7.1 Remove DB logging from `gemini_gateway.py` — make callers responsible for logging classifications
-- [ ] 7.2 Move contractor folder logic from `drive_gateway.py` → `contractor_repo.py` or a service
-- [ ] 7.3 Extract email parsing from `email_gateway._parse()` → utility function
-- [ ] 7.4 Move `redirect_in_budget` / `unredirect_in_budget` orchestration from `budget_repo.py` → a budget service
-- [ ] 7.5 Make `exchange_rate_gateway` a class (consistent with other gateways), or move to utils
-- [ ] 7.6 Add error handling to `email_gateway.py` public methods (fetch_unread, mark_read, send_reply)
-- [ ] 7.7 Extract shared Google service builder from sheets/drive/docs gateways
-- [ ] 7.8 Run full test suite — all tests pass
+- [x] 7.1 Remove DB logging from `gemini_gateway.py` — make callers responsible for logging classifications
+  - Removed `task` parameter and all DB logging from `GeminiGateway.call()`, updated 6 callers to log classifications themselves
+- [x] 7.2 Move contractor folder logic from `drive_gateway.py` → `invoice_service.py`
+  - Created `get_invoice_folder_path()` in invoice_service, simplified `get_contractor_folder()` to accept path components
+- [x] 7.3 Extract email parsing from `email_gateway._parse()` → utility function
+  - Created `email_utils.py` with `parse_email_message()`, kept `_parse` as staticmethod alias for backward compat
+- [x] 7.4 Move `redirect_in_budget` / `unredirect_in_budget` orchestration from `budget_repo.py` → `budget_service.py`
+  - Created `backend/domain/services/budget_service.py` with both orchestration functions
+- [x] 7.5 Make `exchange_rate_gateway` a class (consistent with other gateways)
+  - Created `ExchangeRateGateway` class, kept backward-compat module-level function
+- [x] 7.6 Add error handling to `email_gateway.py` public methods (fetch_unread, mark_read, send_reply)
+  - `fetch_unread()` returns `[]` on error, `mark_read()` logs warning, `send_reply()` logs and re-raises
+- [x] 7.7 Extract shared Google service builder from sheets/drive/docs gateways
+  - Created `google_auth.py` with `build_google_service()`, updated 3 gateways
+- [x] 7.8 Run full test suite — all 1057 tests pass
 
 ---
 

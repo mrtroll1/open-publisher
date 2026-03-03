@@ -1,4 +1,4 @@
-"""Tests for EmailGateway._parse() — pure email parsing, no network."""
+"""Tests for parse_email_message() — pure email parsing, no network."""
 
 import email
 from email.mime.multipart import MIMEMultipart
@@ -6,6 +6,8 @@ from email.mime.text import MIMEText
 
 import pytest
 
+from backend.infrastructure.gateways.email_utils import parse_email_message
+# Backward compat: _parse is still accessible
 from backend.infrastructure.gateways.email_gateway import EmailGateway
 
 
@@ -60,42 +62,42 @@ class TestParseBasic:
 
     def test_uid_preserved(self):
         msg = _make_simple_email()
-        result = EmailGateway._parse("uid-123", msg)
+        result = parse_email_message("uid-123", msg)
         assert result.uid == "uid-123"
 
     def test_from_addr_extracted(self):
         msg = _make_simple_email(from_addr="test@domain.org")
-        result = EmailGateway._parse("1", msg)
+        result = parse_email_message("1", msg)
         assert result.from_addr == "test@domain.org"
 
     def test_to_addr_extracted(self):
         msg = _make_simple_email(to_addr="inbox@corp.com")
-        result = EmailGateway._parse("1", msg)
+        result = parse_email_message("1", msg)
         assert result.to_addr == "inbox@corp.com"
 
     def test_subject_extracted(self):
         msg = _make_simple_email(subject="Important Topic")
-        result = EmailGateway._parse("1", msg)
+        result = parse_email_message("1", msg)
         assert result.subject == "Important Topic"
 
     def test_body_extracted(self):
         msg = _make_simple_email(body="The body text.")
-        result = EmailGateway._parse("1", msg)
+        result = parse_email_message("1", msg)
         assert result.body == "The body text."
 
     def test_body_stripped(self):
         msg = _make_simple_email(body="  trimmed  \n\n")
-        result = EmailGateway._parse("1", msg)
+        result = parse_email_message("1", msg)
         assert result.body == "trimmed"
 
     def test_date_extracted(self):
         msg = _make_simple_email(date_str="Tue, 15 Feb 2026 10:30:00 +0300")
-        result = EmailGateway._parse("1", msg)
+        result = parse_email_message("1", msg)
         assert result.date == "Tue, 15 Feb 2026 10:30:00 +0300"
 
     def test_message_id_extracted(self):
         msg = _make_simple_email(message_id="<unique-id@mail.com>")
-        result = EmailGateway._parse("1", msg)
+        result = parse_email_message("1", msg)
         assert result.message_id == "<unique-id@mail.com>"
 
 
@@ -107,22 +109,22 @@ class TestParseThreading:
 
     def test_reply_to_extracted(self):
         msg = _make_simple_email(reply_to="replies@example.com")
-        result = EmailGateway._parse("1", msg)
+        result = parse_email_message("1", msg)
         assert result.reply_to == "replies@example.com"
 
     def test_reply_to_empty_when_absent(self):
         msg = _make_simple_email()
-        result = EmailGateway._parse("1", msg)
+        result = parse_email_message("1", msg)
         assert result.reply_to == ""
 
     def test_in_reply_to_extracted(self):
         msg = _make_simple_email(in_reply_to="<parent@example.com>")
-        result = EmailGateway._parse("1", msg)
+        result = parse_email_message("1", msg)
         assert result.in_reply_to == "<parent@example.com>"
 
     def test_references_extracted(self):
         msg = _make_simple_email(references="<ref1@a.com> <ref2@a.com>")
-        result = EmailGateway._parse("1", msg)
+        result = parse_email_message("1", msg)
         assert result.references == "<ref1@a.com> <ref2@a.com>"
 
 
@@ -134,7 +136,7 @@ class TestParseMultipart:
 
     def test_extracts_plain_text_from_multipart(self):
         msg = _make_multipart_email(plain_body="Plain version")
-        result = EmailGateway._parse("1", msg)
+        result = parse_email_message("1", msg)
         assert result.body == "Plain version"
 
     def test_ignores_html_part(self):
@@ -142,7 +144,7 @@ class TestParseMultipart:
             plain_body="Only plain",
             html_body="<b>Not this</b>",
         )
-        result = EmailGateway._parse("1", msg)
+        result = parse_email_message("1", msg)
         assert "<b>" not in result.body
         assert result.body == "Only plain"
 
@@ -157,12 +159,12 @@ class TestParseEncodedSubject:
         raw_subject = "=?utf-8?B?0KLQtdGB0YLQvtCy0LDRjyDRgtC10LzQsA==?="
         msg = _make_simple_email()
         msg.replace_header("Subject", raw_subject)
-        result = EmailGateway._parse("1", msg)
+        result = parse_email_message("1", msg)
         assert result.subject == "Тестовая тема"
 
     def test_plain_ascii_subject(self):
         msg = _make_simple_email(subject="Simple Subject")
-        result = EmailGateway._parse("1", msg)
+        result = parse_email_message("1", msg)
         assert result.subject == "Simple Subject"
 
 
@@ -175,7 +177,7 @@ class TestParseEdgeCases:
     def test_missing_headers_default_to_empty(self):
         msg = email.message.Message()
         msg.set_payload("bare body")
-        result = EmailGateway._parse("1", msg)
+        result = parse_email_message("1", msg)
         assert result.from_addr == ""
         assert result.to_addr == ""
         assert result.subject == ""
@@ -188,5 +190,5 @@ class TestParseEdgeCases:
         msg["From"] = "a@b.c"
         msg["To"] = "d@e.f"
         msg["Date"] = "Mon, 01 Jan 2026 00:00:00 +0000"
-        result = EmailGateway._parse("1", msg)
+        result = parse_email_message("1", msg)
         assert result.body == ""

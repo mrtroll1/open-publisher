@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import json
+import logging
+import time
 from dataclasses import dataclass
 
 from backend.domain.services import compose_request
+from backend.infrastructure.gateways.db_gateway import DbGateway
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -22,15 +28,23 @@ class ClassificationResult:
 
 class CommandClassifier:
 
-    def __init__(self, gemini: GeminiGateway):
+    def __init__(self, gemini: GeminiGateway, db: DbGateway | None = None):
         self._gemini = gemini
+        self._db = db
 
     def classify(self, text: str, available_commands: dict[str, str]) -> ClassificationResult:
         commands_description = "\n".join(
             f"- **{name}** — {desc}" for name, desc in available_commands.items()
         )
         prompt, model, _ = compose_request.classify_command(text, commands_description)
-        result = self._gemini.call(prompt, model, task="COMMAND_CLASSIFY")
+        t0 = time.time()
+        result = self._gemini.call(prompt, model)
+        latency_ms = int((time.time() - t0) * 1000)
+        if self._db:
+            try:
+                self._db.log_classification("COMMAND_CLASSIFY", model, prompt, json.dumps(result), latency_ms)
+            except Exception:
+                logger.warning("Failed to log classification for task=COMMAND_CLASSIFY", exc_info=True)
         command = result.get("command")
         if not command or command not in available_commands:
             return ClassificationResult(classified=None, reply=result.get("reply", ""))

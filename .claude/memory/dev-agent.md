@@ -1664,8 +1664,60 @@ tests/
 - `invoice_service.DeliveryAction` enum used by handler for clean action-based dispatch (switch on enum value)
 - No changes to flow_callbacks.py shim — all patches still propagate correctly
 
+### Session 55 (2026-03-03) — Plan 4 Phase 7: Clean up infrastructure leaks
+**Status:** Complete (all 8 items: 7.1-7.8)
+
+**What was done:**
+
+7.1 — Removed DB logging from `gemini_gateway.py`:
+- Removed `task` parameter, `self._db` lazy attr, `time` import, and all DB logging code from `GeminiGateway.call()`
+- Updated 6 callers to log classifications themselves using `time.time()` + `db.log_classification()`:
+  - `inbox_service.py`: `_llm_classify()`, `_handle_editorial()` — uses `self._db`
+  - `tech_support_handler.py`: `_fetch_user_data()` — uses `self._db`
+  - `command_classifier.py`: `classify()` — added optional `db` constructor param
+  - `backend/__init__.py`: `translate_name_to_russian()` — creates local `DbGateway()`
+  - `support_handlers.py`: `_answer_tech_question()` — uses shared `_db` from handler_utils
+- Updated test files to remove `task=` assertions
+
+7.2 — Moved contractor folder logic from `drive_gateway.py` to `invoice_service.py`:
+- Created `get_invoice_folder_path(contractor, month) -> (parent_id, month_folder, name_folder)` in invoice_service
+- Simplified `DriveGateway.get_contractor_folder()` to accept path components instead of contractor object
+- Added `upload_invoice_pdf()` convenience method to DriveGateway (calls get_invoice_folder_path internally)
+- Updated `generate_invoice.py` to call service function first
+
+7.3 — Extracted email parsing to utility:
+- Created `backend/infrastructure/gateways/email_utils.py` with `parse_email_message()`
+- `EmailGateway._parse` kept as `staticmethod(parse_email_message)` for backward compat
+- Updated `test_email_parse.py` to test utility directly
+
+7.4 — Moved budget orchestration to service:
+- Created `backend/domain/services/budget_service.py` with `redirect_in_budget()` and `unredirect_in_budget()`
+- `budget_repo.py` has backward-compat re-imports
+- Budget service imports `_find_sheet` and `EUR_RUB_RATE` from budget_repo
+
+7.5 — Made `exchange_rate_gateway` a class:
+- Created `ExchangeRateGateway` class with `fetch_eur_rub_rate()` method
+- Backward-compat module-level function delegates to class
+
+7.6 — Added error handling to `email_gateway.py` public methods:
+- `fetch_unread()`: try/except, returns `[]` on error, logs warning
+- `mark_read()`: try/except, logs warning
+- `send_reply()`: try/except around Gmail send, logs error and re-raises
+
+7.7 — Extracted shared Google service builder:
+- Created `backend/infrastructure/gateways/google_auth.py` with `build_google_service(api, version)`
+- Updated `sheets_gateway.py`, `drive_gateway.py`, `docs_gateway.py` to use it
+- `EmailGateway` NOT updated (uses separate `get_gmail_creds()`)
+
+**New files created:**
+- `backend/infrastructure/gateways/email_utils.py`
+- `backend/infrastructure/gateways/google_auth.py`
+- `backend/domain/services/budget_service.py`
+
+**Net result:** 1057 tests pass (2 new tests for exchange_rate_gateway class), 3 new files, ~15 files modified
+
 ## Next up
 
-- Plan 4 Phase 6 complete → Phase 7 next (clean up infrastructure leaks)
+- Plan 4 Phase 7 complete → Phase 8 next (eliminate code duplication)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

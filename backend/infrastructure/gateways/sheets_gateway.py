@@ -4,16 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from googleapiclient.discovery import build
-
-from common.config import get_google_creds
+from backend.infrastructure.gateways.google_auth import build_google_service
 
 
 class SheetsGateway:
     """Thin wrapper around the Google Sheets API v4."""
 
     def _service(self):
-        return build("sheets", "v4", credentials=get_google_creds(), cache_discovery=False)
+        return build_google_service("sheets", "v4")
 
     def read(self, spreadsheet_id: str, range_name: str) -> list[list[str]]:
         """Read a range. Returns list of rows (each row a list of strings)."""

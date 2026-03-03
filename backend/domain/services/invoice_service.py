@@ -12,7 +12,8 @@ from enum import Enum, auto
 from backend import fetch_articles, read_budget_amounts
 from backend.domain.resolve_amount import plural_ru, resolve_amount
 from backend.domain.use_cases.prepare_invoice import PreparedInvoice, prepare_existing_invoice
-from common.models import Contractor, Currency, InvoiceStatus
+from common.config import DRIVE_FOLDER_GLOBAL, DRIVE_FOLDER_RU
+from common.models import Contractor, Currency, GlobalContractor, InvoiceStatus
 
 
 class DeliveryAction(Enum):
@@ -92,3 +93,22 @@ def prepare_new_invoice_data(contractor: Contractor, month: str) -> NewInvoiceDa
         num_articles=num_articles,
         pub_word=pub_word,
     )
+
+
+def get_invoice_folder_path(contractor: Contractor, month: str) -> tuple[str, str, str]:
+    """Return (parent_folder_id, month_subfolder_name, contractor_subfolder_name).
+
+    Folder structure:
+      RU:     Invoices-RU/{MM-YYYY}/{ИмяФамилия}/
+      Global: Invoices-Global/{YYYY-MM}/{NameSurname}/
+    """
+    if isinstance(contractor, GlobalContractor):
+        parent = DRIVE_FOLDER_GLOBAL
+        month_folder = month  # "2026-01"
+        name_folder = contractor.name_en.replace(" ", "")
+    else:
+        parent = DRIVE_FOLDER_RU
+        parts = month.split("-")
+        month_folder = f"{parts[1]}-{parts[0]}" if len(parts) == 2 else month
+        name_folder = contractor.display_name.replace(" ", "")
+    return parent, month_folder, name_folder

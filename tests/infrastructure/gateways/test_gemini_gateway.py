@@ -1,4 +1,4 @@
-"""Tests for GeminiGateway.call() task-based classification logging."""
+"""Tests for GeminiGateway.call() — pure LLM wrapper, no DB logging."""
 
 import sys
 from unittest.mock import MagicMock, patch
@@ -27,53 +27,40 @@ def _setup_genai_response(response_text: str = '{"result": "ok"}'):
     _mock_genai.Client.return_value = mock_client
 
 
-class TestGeminiGatewayTaskLogging:
+class TestGeminiGatewayCall:
 
     def setup_method(self):
         _setup_genai_response('{"result": "ok"}')
 
-    @patch("backend.infrastructure.gateways.db_gateway.DbGateway")
-    def test_call_with_task_logs_classification(self, MockDbGwClass):
-        mock_db = MockDbGwClass.return_value
+    def test_call_returns_parsed_json(self):
         gw = GeminiGateway()
-
-        result = gw.call("test prompt", model="gemini-2.5-flash", task="INBOX_CLASSIFY")
-
-        assert result == {"result": "ok"}
-        mock_db.log_classification.assert_called_once()
-        call_args = mock_db.log_classification.call_args[0]
-        assert call_args[0] == "INBOX_CLASSIFY"
-        assert call_args[1] == "gemini-2.5-flash"
-        assert call_args[2] == "test prompt"
-        assert '"result": "ok"' in call_args[3]
-        assert isinstance(call_args[4], int)
-        assert call_args[4] >= 0
-
-    @patch("backend.infrastructure.gateways.db_gateway.DbGateway")
-    def test_call_without_task_does_not_log(self, MockDbGwClass):
-        gw = GeminiGateway()
-
         result = gw.call("test prompt", model="gemini-2.5-flash")
-
         assert result == {"result": "ok"}
-        MockDbGwClass.assert_not_called()
 
-    @patch("backend.infrastructure.gateways.db_gateway.DbGateway")
-    def test_call_with_task_uses_default_model(self, MockDbGwClass):
-        mock_db = MockDbGwClass.return_value
+    def test_call_uses_default_model(self):
         gw = GeminiGateway(model="gemini-2.5-flash")
-
-        gw.call("prompt", task="COMMAND_CLASSIFY")
-
-        call_args = mock_db.log_classification.call_args[0]
-        assert call_args[1] == "gemini-2.5-flash"
-
-    @patch("backend.infrastructure.gateways.db_gateway.DbGateway")
-    def test_call_with_task_db_failure_does_not_raise(self, MockDbGwClass):
-        mock_db = MockDbGwClass.return_value
-        mock_db.log_classification.side_effect = Exception("DB connection failed")
-        gw = GeminiGateway()
-
-        result = gw.call("prompt", task="INBOX_CLASSIFY")
-
+        result = gw.call("prompt")
         assert result == {"result": "ok"}
+
+    def test_call_does_not_accept_task_parameter(self):
+        gw = GeminiGateway()
+        with pytest.raises(TypeError):
+            gw.call("prompt", task="INBOX_CLASSIFY")
+
+    def test_call_with_markdown_fenced_json(self):
+        _setup_genai_response('```json\n{"key": "value"}\n```')
+        gw = GeminiGateway()
+        result = gw.call("prompt")
+        assert result == {"key": "value"}
+
+    def test_call_with_embedded_json(self):
+        _setup_genai_response('Some text {"key": "value"} more text')
+        gw = GeminiGateway()
+        result = gw.call("prompt")
+        assert result == {"key": "value"}
+
+    def test_call_with_no_json_returns_raw_parsed(self):
+        _setup_genai_response("plain text response")
+        gw = GeminiGateway()
+        result = gw.call("prompt")
+        assert result == {"raw_parsed": "plain text response"}

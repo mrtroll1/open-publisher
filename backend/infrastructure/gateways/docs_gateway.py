@@ -6,10 +6,9 @@ import io
 import logging
 from datetime import date
 
-from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
-from common.config import get_google_creds
+from backend.infrastructure.gateways.google_auth import build_google_service
 from common.models import ArticleEntry
 
 logger = logging.getLogger(__name__)
@@ -19,10 +18,10 @@ class DocsGateway:
     """Wraps Google Docs v1 and Drive v3 APIs for document generation."""
 
     def _docs_service(self):
-        return build("docs", "v1", credentials=get_google_creds(), cache_discovery=False)
+        return build_google_service("docs", "v1")
 
     def _drive_service(self):
-        return build("drive", "v3", credentials=get_google_creds(), cache_discovery=False)
+        return build_google_service("drive", "v3")
 
     def copy_template(self, template_id: str, title: str, folder_id: str) -> str:
         """Copy a Google Doc template into a specific folder. Returns the new document ID."""

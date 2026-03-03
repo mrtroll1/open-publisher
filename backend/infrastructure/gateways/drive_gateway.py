@@ -5,11 +5,9 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from googleapiclient.discovery import build
 from googleapiclient.http import MediaInMemoryUpload
 
-from common.config import DRIVE_FOLDER_GLOBAL, DRIVE_FOLDER_RU, get_google_creds
-from common.models import Contractor, GlobalContractor
+from backend.infrastructure.gateways.google_auth import build_google_service
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +16,7 @@ class DriveGateway:
     """Wraps Google Drive v3 API for folder and file operations."""
 
     def _service(self):
-        return build("drive", "v3", credentials=get_google_creds(), cache_discovery=False)
+        return build_google_service("drive", "v3")
 
     def find_subfolder(self, parent_id: str, name: str) -> Optional[str]:
         """Find a subfolder by name inside a parent folder. Returns folder ID or None."""
@@ -97,26 +95,10 @@ class DriveGateway:
         file = drive.files().get(fileId=file_id, fields="webViewLink", supportsAllDrives=True).execute()
         return file["webViewLink"]
 
-    def get_contractor_folder(self, contractor: Contractor, month: str) -> str:
-        """Get or create the contractor's folder for a given month.
-
-        Folder structure:
-          RU:     Invoices-RU/{MM-YYYY}/{ИмяФамилия}/
-          Global: Invoices-Global/{YYYY-MM}/{NameSurname}/
-        """
-        if isinstance(contractor, GlobalContractor):
-            root = DRIVE_FOLDER_GLOBAL
-            month_folder_name = month  # "2026-01"
-            name_folder = contractor.name_en.replace(" ", "")
-        else:
-            root = DRIVE_FOLDER_RU
-            parts = month.split("-")
-            month_folder_name = f"{parts[1]}-{parts[0]}" if len(parts) == 2 else month
-            name_folder = contractor.display_name.replace(" ", "")
-
-        month_id = self.ensure_folder(root, month_folder_name)
-        contractor_id = self.ensure_folder(month_id, name_folder)
-        return contractor_id
+    def get_contractor_folder(self, parent_folder_id: str, month_folder: str, contractor_folder: str) -> str:
+        """Get or create nested folder structure: parent/month/contractor. Returns folder ID."""
+        month_id = self.ensure_folder(parent_folder_id, month_folder)
+        return self.ensure_folder(month_id, contractor_folder)
 
     def find_file_by_name(self, name: str, parent_id: str) -> Optional[str]:
         """Find a file by exact name in a folder. Returns file ID or None."""
@@ -146,8 +128,10 @@ class DriveGateway:
         logger.info("Copied file %s → %s (%s) in folder %s", file_id, new_id, name, parent_id)
         return new_id
 
-    def upload_invoice_pdf(self, contractor: Contractor, month: str, filename: str, pdf_bytes: bytes) -> str:
+    def upload_invoice_pdf(self, contractor, month: str, filename: str, pdf_bytes: bytes) -> str:
         """Upload an invoice PDF to the appropriate folder structure. Returns a shareable link."""
-        folder_id = self.get_contractor_folder(contractor, month)
+        from backend.domain.services.invoice_service import get_invoice_folder_path
+        parent, month_folder, name_folder = get_invoice_folder_path(contractor, month)
+        folder_id = self.get_contractor_folder(parent, month_folder, name_folder)
         file_id = self.upload_file(folder_id, filename, pdf_bytes)
         return self.make_shareable(file_id)

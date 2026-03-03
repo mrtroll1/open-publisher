@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import time
 
 from backend.domain.services import compose_request
 from backend.domain.services.tech_support_handler import TechSupportHandler
@@ -46,7 +48,13 @@ class InboxService:
 
     def _llm_classify(self, email: IncomingEmail) -> str:
         prompt, model, _ = compose_request.inbox_classify(email.as_text())
-        result = self._gemini.call(prompt, model, task="INBOX_CLASSIFY")
+        t0 = time.time()
+        result = self._gemini.call(prompt, model)
+        latency_ms = int((time.time() - t0) * 1000)
+        try:
+            self._db.log_classification("INBOX_CLASSIFY", model, prompt, json.dumps(result), latency_ms)
+        except Exception:
+            logger.warning("Failed to log classification for task=INBOX_CLASSIFY", exc_info=True)
         category = result.get("category", "ignore")
         logger.info("LLM classified email from %s as %s", email.from_addr, category)
         return category
@@ -67,7 +75,13 @@ class InboxService:
         if not CHIEF_EDITOR_EMAIL:
             return None
         prompt, model, _ = compose_request.editorial_assess(email.as_text())
-        result = self._gemini.call(prompt, model, task="EDITORIAL_ASSESS")
+        t0 = time.time()
+        result = self._gemini.call(prompt, model)
+        latency_ms = int((time.time() - t0) * 1000)
+        try:
+            self._db.log_classification("EDITORIAL_ASSESS", model, prompt, json.dumps(result), latency_ms)
+        except Exception:
+            logger.warning("Failed to log classification for task=EDITORIAL_ASSESS", exc_info=True)
         if not result.get("forward", False):
             return None
         item = EditorialItem(email=email, reply_to_sender=result.get("reply", ""))

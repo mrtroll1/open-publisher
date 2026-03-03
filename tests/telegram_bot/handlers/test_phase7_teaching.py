@@ -418,9 +418,8 @@ class TestNlTeachingDetection:
 
 class TestCmdKnowledge:
 
-    @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._db")
-    def test_lists_all_entries(self, mock_db, mock_send_html):
+    def test_lists_all_entries(self, mock_db):
         from telegram_bot.flow_callbacks import cmd_knowledge
 
         mock_db.list_knowledge.return_value = [
@@ -442,8 +441,8 @@ class TestCmdKnowledge:
         asyncio.run(cmd_knowledge(msg, state))
 
         mock_db.list_knowledge.assert_called_once_with(domain=None, tier=None)
-        mock_send_html.assert_awaited_once()
-        reply = mock_send_html.call_args[0][1]
+        msg.answer.assert_awaited_once()
+        reply = msg.answer.call_args[0][0]
         # Default mode: IDs shown, no date, bold group headers
         assert "uuid-1" in reply
         assert "Правило 1" in reply
@@ -451,9 +450,8 @@ class TestCmdKnowledge:
         assert "<b>[specific] general</b>" in reply
         assert "<b>[core] tech_support</b>" in reply
 
-    @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._db")
-    def test_verbose_shows_content(self, mock_db, mock_send_html):
+    def test_verbose_shows_content(self, mock_db):
         from telegram_bot.flow_callbacks import cmd_knowledge
 
         mock_db.list_knowledge.return_value = [
@@ -470,7 +468,7 @@ class TestCmdKnowledge:
         asyncio.run(cmd_knowledge(msg, state))
 
         mock_db.list_knowledge.assert_called_once_with(domain=None, tier=None)
-        reply = mock_send_html.call_args[0][1]
+        reply = msg.answer.call_args[0][0]
         assert "uuid-1" in reply
         assert "Содержание 1" in reply
         assert "2025-06-15" in reply

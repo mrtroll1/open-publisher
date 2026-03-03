@@ -311,7 +311,7 @@ class knowledge:
     empty = "Записей не найдено."
     header = "Записи знаний ({count}):\n"
     entry = "{i}. {title}  ({source})\n   {id}"
-    entry_verbose = "{i}. {title}\n   ID: {id}\n   Источник: {source}, {date}\n```\n{content}\n```"
+    entry_verbose = "{i}. {title}\n   ID: {id}\n   Источник: {source}, {date}\n<pre>{content}</pre>"
     usage = "Использование: /knowledge [-v] [domain] [tier]"
     forget_done = "Запись удалена."
     forget_usage = "Использование: /forget <id>"

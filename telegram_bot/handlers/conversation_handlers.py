@@ -259,7 +259,7 @@ async def cmd_knowledge(message: types.Message, state: FSMContext) -> None:
             ))
         lines.append("")  # blank line between groups
 
-    await _send_html(message, "\n".join(lines).rstrip())
+    await _send(message, "\n".join(lines).rstrip(), parse_mode="HTML")
 
 
 async def cmd_forget(message: types.Message, state: FSMContext) -> None:

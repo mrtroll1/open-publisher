@@ -8,7 +8,6 @@ import re
 from decimal import Decimal
 
 from aiogram import types
-from aiogram.enums import ChatAction
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
@@ -29,7 +28,6 @@ from backend import (
     create_and_save_invoice,
     delete_invoice,
     fetch_articles,
-    find_contractor_by_id,
     find_contractor_by_telegram_id,
     find_redirect_rules_by_target,
     fuzzy_find,
@@ -58,6 +56,9 @@ from telegram_bot.handler_utils import (
     _admin_reply_map,
     _db,
     _safe_edit_text,
+    get_contractor_by_id,
+    get_current_contractor,
+    send_typing,
 )
 
 logger = logging.getLogger(__name__)
@@ -120,8 +121,7 @@ async def handle_menu(message: types.Message, state: FSMContext) -> None:
     if is_admin(message.from_user.id):
         await message.answer(replies.menu.admin)
         return
-    contractors = await get_contractors()
-    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    contractor = await get_current_contractor(message.from_user.id)
     if contractor:
         await message.answer(
             replies.menu.prompt,
@@ -135,7 +135,7 @@ async def _deliver_or_start_invoice(
     message: types.Message, state: FSMContext, contractor: Contractor,
 ) -> None:
     """Try delivering an existing invoice, or start the invoice flow."""
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    await send_typing(message.chat.id)
     try:
         delivered = await _deliver_existing_invoice(message, contractor)
     except Exception:
@@ -154,8 +154,7 @@ async def _deliver_or_start_invoice(
 
 async def handle_sign_doc(message: types.Message, state: FSMContext) -> None:
     await state.clear()
-    contractors = await get_contractors()
-    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    contractor = await get_current_contractor(message.from_user.id)
     if not contractor:
         await message.answer(replies.start.contractor)
         return
@@ -164,8 +163,7 @@ async def handle_sign_doc(message: types.Message, state: FSMContext) -> None:
 
 async def handle_update_payment_data(message: types.Message, state: FSMContext) -> None:
     await state.clear()
-    contractors = await get_contractors()
-    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    contractor = await get_current_contractor(message.from_user.id)
     if not contractor:
         await message.answer(replies.start.contractor)
         return
@@ -175,12 +173,11 @@ async def handle_update_payment_data(message: types.Message, state: FSMContext) 
 
 async def handle_manage_redirects(message: types.Message, state: FSMContext) -> None:
     await state.clear()
-    contractors = await get_contractors()
-    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    contractor = await get_current_contractor(message.from_user.id)
     if not contractor or contractor.role_code != RoleCode.REDAKTOR:
         await message.answer(replies.start.contractor)
         return
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    await send_typing(message.chat.id)
     rules = await asyncio.to_thread(find_redirect_rules_by_target, contractor.id)
     text, markup = _editor_sources_content(rules)
     await message.answer(text, reply_markup=markup)
@@ -288,7 +285,7 @@ async def handle_contractor_text(message: types.Message, state: FSMContext) -> s
     """Catch-all: lookup contractor by telegram or name/alias.
     Returns 'register' or None.
     """
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    await send_typing(message.chat.id)
     contractors = await get_contractors()
     telegram_id = message.from_user.id
 
@@ -342,8 +339,7 @@ async def handle_non_document(message: types.Message, state: FSMContext) -> None
     if current is not None:
         await message.answer(replies.generic.text_expected)
         return
-    contractors = await get_contractors()
-    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    contractor = await get_current_contractor(message.from_user.id)
     if isinstance(contractor, GlobalContractor):
         await message.answer(replies.document.pdf_reminder)
 
@@ -356,8 +352,7 @@ async def handle_document(message: types.Message, state: FSMContext) -> None:
     if is_admin(message.from_user.id):
         return
 
-    contractors = await get_contractors()
-    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    contractor = await get_current_contractor(message.from_user.id)
     sender_info = contractor.display_name if contractor else f"TG#{message.from_user.id}"
 
     drive_link = None
@@ -398,7 +393,7 @@ async def _start_invoice_flow(
     message: types.Message, state: FSMContext, contractor: Contractor,
 ) -> str | None:
     """Fetch budget + articles and prompt for amount. Returns "invoice" or None."""
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    await send_typing(message.chat.id)
     month = prev_month()
     data = await asyncio.to_thread(prepare_new_invoice_data, contractor, month)
     if not data:
@@ -486,8 +481,7 @@ async def handle_duplicate_callback(callback: CallbackQuery, state: FSMContext) 
         return
 
     contractor_id = data_str.removeprefix("dup:")
-    contractors = await get_contractors()
-    contractor = find_contractor_by_id(contractor_id, contractors)
+    contractor = await get_contractor_by_id(contractor_id)
     if not contractor:
         await callback.message.answer(replies.lookup.not_found)
         return
@@ -497,7 +491,7 @@ async def handle_duplicate_callback(callback: CallbackQuery, state: FSMContext) 
         replies.lookup.selected.format(name=contractor.display_name),
         reply_markup=None,
     )
-    await bot.send_chat_action(callback.message.chat.id, ChatAction.TYPING)
+    await send_typing(callback.message.chat.id)
 
     telegram_id = callback.from_user.id
 
@@ -519,8 +513,7 @@ async def handle_duplicate_callback(callback: CallbackQuery, state: FSMContext) 
 async def handle_linked_menu_callback(callback: CallbackQuery, state: FSMContext) -> None:
     """Handle inline button press from the linked user menu."""
     await callback.answer()
-    contractors = await get_contractors()
-    contractor = find_contractor_by_telegram_id(callback.from_user.id, contractors)
+    contractor = await get_current_contractor(callback.from_user.id)
     if not contractor:
         await callback.message.answer(replies.lookup.not_found)
         return
@@ -565,8 +558,7 @@ async def _show_editor_sources(callback: CallbackQuery, contractor: Contractor) 
 
 async def handle_editor_source_callback(callback: CallbackQuery, state: FSMContext) -> None:
     """Handle editor source management callbacks (esrc: prefix)."""
-    contractors = await get_contractors()
-    contractor = find_contractor_by_telegram_id(callback.from_user.id, contractors)
+    contractor = await get_current_contractor(callback.from_user.id)
     if not contractor:
         await callback.answer()
         await callback.message.answer(replies.lookup.not_found)
@@ -610,8 +602,7 @@ async def handle_editor_source_name(message: types.Message, state: FSMContext) -
         await message.answer(replies.editor_sources.add_cancelled)
         return "done"
 
-    contractors = await get_contractors()
-    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    contractor = await get_current_contractor(message.from_user.id)
     if not contractor:
         await message.answer(replies.lookup.not_found)
         await state.clear()
@@ -638,8 +629,7 @@ async def handle_update_data(message: types.Message, state: FSMContext) -> str |
         await message.answer(replies.linked_menu.update_cancelled)
         return "done"
 
-    contractors = await get_contractors()
-    contractor = find_contractor_by_telegram_id(message.from_user.id, contractors)
+    contractor = await get_current_contractor(message.from_user.id)
     if not contractor:
         await message.answer(replies.lookup.not_found)
         await state.clear()
@@ -668,8 +658,7 @@ async def handle_verification_code(message: types.Message, state: FSMContext) ->
     contractor_id = data.get("pending_contractor_id")
     attempts = data.get("verification_attempts", 0)
 
-    contractors = await get_contractors()
-    contractor = find_contractor_by_id(contractor_id, contractors)
+    contractor = await get_contractor_by_id(contractor_id)
     if not contractor:
         await message.answer(replies.lookup.not_found)
         await state.clear()
@@ -759,8 +748,7 @@ async def handle_amount_input(message: types.Message, state: FSMContext) -> str 
     month = data.get("invoice_month")
     default_amount = data.get("invoice_default_amount", 0)
 
-    contractors = await get_contractors()
-    contractor = find_contractor_by_id(contractor_id, contractors)
+    contractor = await get_contractor_by_id(contractor_id)
     if not contractor:
         await message.answer(replies.lookup.not_found)
         return "done"

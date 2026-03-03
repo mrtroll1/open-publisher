@@ -9,7 +9,6 @@ import tempfile
 from decimal import Decimal
 
 from aiogram import types
-from aiogram.enums import ChatAction
 from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile
 
@@ -48,6 +47,9 @@ from telegram_bot.handler_utils import (
     _save_turn,
     _send_html,
     _support_draft_map,
+    get_contractor_by_id,
+    parse_month_arg,
+    send_typing,
 )
 
 logger = logging.getLogger(__name__)
@@ -90,7 +92,7 @@ async def cmd_generate(message: types.Message, state: FSMContext) -> None:
     if not contractor:
         return
 
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    await send_typing(message.chat.id)
 
     month = prev_month()
 
@@ -161,8 +163,7 @@ async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
             month = prev_month()
             if contractor_tg:
                 caption = replies.invoice.legium_link.format(url=url)
-                contractors = await get_contractors()
-                contractor = find_contractor_by_id(contractor_id, contractors)
+                contractor = await get_contractor_by_id(contractor_id)
                 prepared = await asyncio.to_thread(prepare_existing_invoice, contractor, month) if contractor else None
                 if prepared:
                     filename = f"{contractor.display_name}+Unsigned.pdf"
@@ -239,7 +240,7 @@ async def cmd_articles(message: types.Message, state: FSMContext) -> None:
     if not contractor:
         return
 
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    await send_typing(message.chat.id)
     articles = await asyncio.to_thread(fetch_articles, contractor, month)
 
     if not articles:
@@ -295,10 +296,10 @@ async def cmd_lookup(message: types.Message, state: FSMContext) -> None:
 async def cmd_budget(message: types.Message, state: FSMContext) -> None:
     """Generate the budget payments sheet."""
     args = message.text.split(maxsplit=1)
-    month = args[1].strip() if len(args) > 1 else prev_month()
+    month = parse_month_arg(args)
 
     await message.answer(replies.admin.budget_generating.format(month=month))
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    await send_typing(message.chat.id)
 
     try:
         uc = create_compute_budget()
@@ -315,7 +316,7 @@ async def cmd_generate_invoices(message: types.Message, state: FSMContext) -> No
 
     month = prev_month()
     status_msg = await message.answer(replies.admin.batch_generating.format(month=month))
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    await send_typing(message.chat.id)
 
     contractors = await get_contractors()
 
@@ -375,7 +376,7 @@ async def cmd_send_global_invoices(message: types.Message, state: FSMContext) ->
     """Send generated global (EUR) invoice PDFs to contractors via Telegram."""
     debug = "debug" in message.text.lower().split()
 
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    await send_typing(message.chat.id)
 
     month = prev_month()
     invoices = await asyncio.to_thread(load_invoices, month)
@@ -445,7 +446,7 @@ async def cmd_send_legium_links(message: types.Message, state: FSMContext) -> No
     """Batch-send legium links to contractors whose invoices have a link but are still DRAFT."""
     debug = "debug" in message.text.lower().split()
 
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    await send_typing(message.chat.id)
 
     month = prev_month()
     invoices = await asyncio.to_thread(load_invoices, month)
@@ -503,7 +504,7 @@ async def cmd_send_legium_links(message: types.Message, state: FSMContext) -> No
 
 async def cmd_orphan_contractors(message: types.Message, state: FSMContext) -> None:
     """Show budget entries that don't match any contractor."""
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    await send_typing(message.chat.id)
 
     month = prev_month()
     contractors = await get_contractors()
@@ -540,7 +541,7 @@ async def cmd_upload_to_airtable(message: types.Message, state: FSMContext) -> N
         return
 
     await message.answer(replies.admin.upload_processing.format(rate=rate))
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    await send_typing(message.chat.id)
 
     file = await bot.get_file(message.document.file_id)
     file_bytes = await bot.download_file(file.file_path)

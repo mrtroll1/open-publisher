@@ -7,7 +7,6 @@ import logging
 from typing import Callable
 
 from aiogram import types
-from aiogram.enums import ChatAction
 from aiogram.fsm.context import FSMContext
 
 from backend.domain import compose_request
@@ -20,8 +19,7 @@ from backend.domain.services.conversation_service import (
 )
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from telegram_bot import replies
-from telegram_bot.bot_helpers import bot
-from telegram_bot.handler_utils import _db, _save_turn, _send_html
+from telegram_bot.handler_utils import _db, _save_turn, _send_html, send_typing
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +64,7 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
         return False
 
     try:
-        await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+        await send_typing(message.chat.id)
 
         # Detect teaching patterns — store before LLM call, then continue
         user_text_lower = (message.text or "").lower()

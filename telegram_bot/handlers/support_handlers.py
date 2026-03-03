@@ -8,7 +8,6 @@ import logging
 import time
 
 from aiogram import types
-from aiogram.enums import ChatAction
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
@@ -28,6 +27,7 @@ from telegram_bot.handler_utils import (
     _save_turn,
     _send_html,
     _support_draft_map,
+    send_typing,
 )
 
 logger = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ async def cmd_support(message: types.Message, state: FSMContext) -> None:
         await message.answer(replies.admin.support_no_question)
         return
 
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    await send_typing(message.chat.id)
 
     try:
         answer = await asyncio.to_thread(_answer_tech_question, text, verbose, expert)
@@ -105,7 +105,7 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
         await message.answer(replies.admin.code_no_query)
         return
 
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    await send_typing(message.chat.id)
 
     try:
         answer = await asyncio.to_thread(run_claude_code, text, verbose, expert, mode="changes")
@@ -133,7 +133,7 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
 
 
 async def cmd_health(message: types.Message, state: FSMContext) -> None:
-    await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+    await send_typing(message.chat.id)
     results = await asyncio.to_thread(run_healthchecks)
     await message.answer(format_healthcheck_results(results))
 

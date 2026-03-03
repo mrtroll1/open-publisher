@@ -1716,8 +1716,38 @@ tests/
 
 **Net result:** 1057 tests pass (2 new tests for exchange_rate_gateway class), 3 new files, ~15 files modified
 
+### Session 56 (2026-03-03) — Plan 4 Phase 8: Eliminate code duplication
+**Status:** Complete (all 6 items: 8.1-8.6)
+
+**What was done:**
+
+8.1 — Extract `send_typing` helper:
+- Added `send_typing(chat_id: int)` to `handler_utils.py`
+- Replaced 17 instances across 4 handler files (contractor, admin, support, conversation)
+- Removed `ChatAction` imports from all 4 handler files (now only in handler_utils)
+- 2 instances in flow_engine.py intentionally left (uses `message.bot.send_chat_action`, different pattern)
+
+8.2 — Extract `parse_month_arg` helper:
+- Added `parse_month_arg(args: list[str])` to `handler_utils.py`
+- Only 1 actual instance found (in cmd_budget). Plan estimated 8, but others were plain `prev_month()` calls without args parsing
+
+8.3 — Consolidate contractor lookup:
+- Added `get_current_contractor(telegram_id)` and `get_contractor_by_id(contractor_id)` to `handler_utils.py`
+- Replaced 13 instances: 12 in contractor_handlers.py, 1 in admin_handlers.py
+- 6 instances intentionally not replaced (contractors list needed for batch operations, fuzzy matching, or loop iteration)
+
+8.4 — Already done in Phase 7.7 (google_auth.py)
+
+8.5 — No genuine duplication found:
+- Reviewed all 6 `_fmt_*`/`_format_*` helpers across the codebase
+- Each works on fundamentally different data structures — no consolidation worthwhile
+
+8.6 — All 1057 tests pass
+
+**Net result:** 1057 tests pass, ~30 code pattern instances consolidated into 4 helpers
+
 ## Next up
 
-- Plan 4 Phase 7 complete → Phase 8 next (eliminate code duplication)
+- Plan 4 Phase 8 complete → Phase 9 next (break up fat methods)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

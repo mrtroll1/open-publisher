@@ -6,13 +6,14 @@ import asyncio
 import logging
 
 from aiogram import types
+from aiogram.enums import ChatAction
 from aiogram.exceptions import TelegramBadRequest
 
 from backend.wiring import create_db, create_inbox_service, create_knowledge_retriever
 from backend.domain.services.compose_request import set_retriever
-from telegram_bot.bot_helpers import get_contractors, md_to_tg_html
+from telegram_bot.bot_helpers import bot, get_contractors, md_to_tg_html, prev_month
 from telegram_bot import replies
-from backend import find_contractor, fuzzy_find
+from backend import find_contractor, find_contractor_by_id, find_contractor_by_telegram_id, fuzzy_find
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,10 @@ _admin_reply_map: dict[tuple[int, int], tuple[str, str]] = {}
 _support_draft_map: dict[tuple[int, int], str] = {}
 
 __all__ = [
+    "send_typing",
+    "parse_month_arg",
+    "get_current_contractor",
+    "get_contractor_by_id",
     "_safe_edit_text",
     "_send_html",
     "_save_turn",
@@ -39,6 +44,25 @@ __all__ = [
     "_admin_reply_map",
     "_support_draft_map",
 ]
+
+
+async def send_typing(chat_id: int) -> None:
+    await bot.send_chat_action(chat_id, ChatAction.TYPING)
+
+
+async def get_current_contractor(telegram_id: int) -> "Contractor | None":
+    contractors = await get_contractors()
+    return find_contractor_by_telegram_id(telegram_id, contractors)
+
+
+async def get_contractor_by_id(contractor_id: str) -> "Contractor | None":
+    contractors = await get_contractors()
+    return find_contractor_by_id(contractor_id, contractors)
+
+
+def parse_month_arg(args: list[str]) -> str:
+    """Extract month from command args, defaulting to prev_month()."""
+    return args[1].strip() if len(args) > 1 else prev_month()
 
 
 async def _safe_edit_text(message, text: str, **kwargs) -> None:

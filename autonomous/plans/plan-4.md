@@ -228,12 +228,12 @@ tests/
 > Goal: DRY up the repeated patterns identified in the review.
 > Rule: extract helpers, do NOT over-abstract.
 
-- [ ] 8.1 Extract `_with_typing(chat_id, coro)` helper — replaces 33 instances of chat-action + try/except
-- [ ] 8.2 Extract month-arg parsing helper — replaces 8 instances of `args[1] if len(args) > 1 else prev_month()`
-- [ ] 8.3 Consolidate contractor lookup — handlers call `ContractorService.lookup()` instead of `get_contractors()` + `find_*` (21 occurrences)
-- [ ] 8.4 Extract shared Google service factory for sheets/drive/docs gateways
-- [ ] 8.5 Consolidate markdown formatting helpers (4 separate `_fmt_*` / `_format_*` implementations)
-- [ ] 8.6 Run full test suite — all tests pass
+- [x] 8.1 Extract `send_typing(chat_id)` helper — replaced 17 instances of ChatAction.TYPING in 4 handler files
+- [x] 8.2 Extract `parse_month_arg(args)` helper — 1 actual instance (plan estimate was 8; others were plain `prev_month()` calls)
+- [x] 8.3 Consolidate contractor lookup — `get_current_contractor()` + `get_contractor_by_id()` helpers replaced 13 instances across 2 handler files
+- [x] 8.4 Extract shared Google service factory for sheets/drive/docs gateways (done in Phase 7.7)
+- [x] 8.5 No consolidation needed — 6 formatting helpers work on fundamentally different data structures, no genuine duplication
+- [x] 8.6 Run full test suite — all 1057 tests pass
 
 ---
 

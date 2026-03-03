@@ -10,18 +10,18 @@ from common.models import Contractor, Currency, RoleCode
 from backend.infrastructure.gateways.exchange_rate_gateway import fetch_eur_rub_rate
 from backend.infrastructure.gateways.redefine_gateway import RedefineGateway
 from backend.infrastructure.gateways.republic_gateway import RepublicGateway
-from backend.infrastructure.repositories.budget_repo import (
+from backend.infrastructure.repositories.sheets.budget_repo import (
     create_sheet,
     populate_sheet,
     sheet_url,
     write_pnl_section,
 )
-from backend.infrastructure.repositories.contractor_repo import (
+from backend.infrastructure.repositories.sheets.contractor_repo import (
     find_contractor,
     find_contractor_by_id,
     load_all_contractors,
 )
-from backend.infrastructure.repositories.rules_repo import (
+from backend.infrastructure.repositories.sheets.rules_repo import (
     load_redirect_rules,
     load_flat_rate_rules,
     load_article_rate_rules,

@@ -6,7 +6,7 @@ from email.mime.text import MIMEText
 
 import pytest
 
-from backend.infrastructure.gateways.email_utils import parse_email_message
+from common.email_utils import parse_email_message
 # Backward compat: _parse is still accessible
 from backend.infrastructure.gateways.email_gateway import EmailGateway
 

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from backend.infrastructure.gateways.db_gateway import DbGateway, _normalize_subject
+from backend.infrastructure.repositories.postgres import DbGateway, _normalize_subject
 
 
 @pytest.mark.parametrize(

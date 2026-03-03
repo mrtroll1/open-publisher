@@ -1,6 +1,6 @@
 import pytest
 
-from backend.infrastructure.repositories.sheets_utils import (
+from backend.infrastructure.repositories.sheets.sheets_utils import (
     index_to_column_letter,
     parse_int,
 )

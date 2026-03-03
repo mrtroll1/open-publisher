@@ -1,4 +1,4 @@
-from backend.infrastructure.gateways.db_gateway import DbGateway
+from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.gateways.embedding_gateway import EmbeddingGateway
 from common.config import SUBSCRIPTION_SERVICE_URL
 

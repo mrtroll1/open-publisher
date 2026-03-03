@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from backend.domain.services import compose_request
-from backend.infrastructure.gateways.db_gateway import DbGateway
+from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.domain.services.knowledge_retriever import KnowledgeRetriever
 

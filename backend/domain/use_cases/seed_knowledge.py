@@ -3,7 +3,7 @@
 import logging
 from pathlib import Path
 
-from backend.infrastructure.gateways.db_gateway import DbGateway
+from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.gateways.embedding_gateway import EmbeddingGateway
 
 logger = logging.getLogger(__name__)

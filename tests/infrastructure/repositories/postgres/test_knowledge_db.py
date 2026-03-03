@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from backend.infrastructure.gateways.db_gateway import DbGateway
+from backend.infrastructure.repositories.postgres import DbGateway
 
 
 def _make_gw() -> tuple[DbGateway, MagicMock]:

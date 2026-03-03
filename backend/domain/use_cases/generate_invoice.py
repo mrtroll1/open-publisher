@@ -27,8 +27,8 @@ from common.models import (
 )
 from backend.infrastructure.gateways.docs_gateway import DocsGateway
 from backend.infrastructure.gateways.drive_gateway import DriveGateway
-from backend.infrastructure.repositories.contractor_repo import increment_invoice_number
-from backend.infrastructure.repositories.invoice_repo import save_invoice
+from backend.infrastructure.repositories.sheets.contractor_repo import increment_invoice_number
+from backend.infrastructure.repositories.sheets.invoice_repo import save_invoice
 
 logger = logging.getLogger(__name__)
 

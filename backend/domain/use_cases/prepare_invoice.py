@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from common.models import Contractor, Invoice
 from backend.infrastructure.gateways.docs_gateway import DocsGateway
-from backend.infrastructure.repositories.invoice_repo import load_invoices
+from backend.infrastructure.repositories.sheets.invoice_repo import load_invoices
 
 logger = logging.getLogger(__name__)
 

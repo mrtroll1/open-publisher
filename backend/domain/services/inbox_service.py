@@ -8,7 +8,7 @@ import time
 
 from backend.domain.services import compose_request
 from backend.domain.services.tech_support_handler import TechSupportHandler
-from backend.infrastructure.gateways.db_gateway import DbGateway
+from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.gateways.email_gateway import EmailGateway
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from common.config import CHIEF_EDITOR_EMAIL, EMAIL_ADDRESS, SUPPORT_ADDRESSES

@@ -9,7 +9,7 @@ import uuid
 
 from backend.domain.services import compose_request
 from backend.domain.services.support_user_lookup import SupportUserLookup
-from backend.infrastructure.gateways.db_gateway import DbGateway
+from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.gateways.repo_gateway import RepoGateway
 from common.models import IncomingEmail, SupportDraft

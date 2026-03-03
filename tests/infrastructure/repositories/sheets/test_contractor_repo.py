@@ -1,6 +1,6 @@
 import pytest
 
-from backend.infrastructure.repositories.contractor_repo import (
+from backend.infrastructure.repositories.sheets.contractor_repo import (
     _parse_contractor,
     _similarity,
     contractor_to_row,

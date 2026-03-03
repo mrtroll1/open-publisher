@@ -16,7 +16,7 @@ from backend import (
     save_contractor,
     translate_name_to_russian,
 )
-from backend.infrastructure.gateways.db_gateway import DbGateway
+from backend.infrastructure.repositories.postgres import DbGateway
 from common.models import CONTRACTOR_CLASS_BY_TYPE, Contractor, ContractorType
 
 logger = logging.getLogger(__name__)

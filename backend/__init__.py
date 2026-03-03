@@ -1,7 +1,7 @@
 """Backend facade — re-exports everything the telegram bot needs."""
 
 # --- Contractor repository (module-level functions) ---
-from backend.infrastructure.repositories.contractor_repo import (  # noqa: F401
+from backend.infrastructure.repositories.sheets.contractor_repo import (  # noqa: F401
     bind_telegram_id,
     find_contractor,
     find_contractor_by_id,
@@ -17,14 +17,14 @@ from backend.infrastructure.repositories.contractor_repo import (  # noqa: F401
 )
 
 # --- Rules repository ---
-from backend.infrastructure.repositories.rules_repo import (  # noqa: F401
+from backend.infrastructure.repositories.sheets.rules_repo import (  # noqa: F401
     add_redirect_rule,
     find_redirect_rules_by_target,
     remove_redirect_rule,
 )
 
 # --- Invoice repository ---
-from backend.infrastructure.repositories.invoice_repo import (  # noqa: F401
+from backend.infrastructure.repositories.sheets.invoice_repo import (  # noqa: F401
     delete_invoice,
     load_invoices,
     save_invoice,
@@ -69,7 +69,7 @@ def translate_name_to_russian(name_en: str) -> str:
     result = _gemini.call(prompt, model)
     latency_ms = int((time.time() - t0) * 1000)
     try:
-        from backend.infrastructure.gateways.db_gateway import DbGateway
+        from backend.infrastructure.repositories.postgres import DbGateway
         DbGateway().log_classification("TRANSLATE_NAME", model, prompt, json.dumps(result), latency_ms)
     except Exception:
         pass
@@ -83,7 +83,7 @@ def upload_invoice_pdf(contractor, month, filename, pdf_bytes):
 
 def read_budget_amounts(month: str) -> dict:
     """Read budget sheet for a month. Returns {name_lower: (eur, rub, note)}."""
-    from backend.infrastructure.repositories.budget_repo import read_all_amounts
+    from backend.infrastructure.repositories.sheets.budget_repo import read_all_amounts
     return read_all_amounts(month)
 
 

@@ -2,7 +2,7 @@
 
 import pytest
 
-from backend.infrastructure.repositories.rules_repo import (
+from backend.infrastructure.repositories.sheets.rules_repo import (
     ArticleRateRule,
     FlatRateRule,
     RedirectRule,

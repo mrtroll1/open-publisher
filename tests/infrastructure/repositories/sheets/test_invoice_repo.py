@@ -1,7 +1,7 @@
 import pytest
 from decimal import Decimal
 
-from backend.infrastructure.repositories.invoice_repo import (
+from backend.infrastructure.repositories.sheets.invoice_repo import (
     _invoice_to_row,
     _row_to_invoice,
 )

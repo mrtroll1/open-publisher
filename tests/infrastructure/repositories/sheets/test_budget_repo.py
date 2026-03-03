@@ -2,7 +2,7 @@
 
 import pytest
 
-from backend.infrastructure.repositories.budget_repo import (
+from backend.infrastructure.repositories.sheets.budget_repo import (
     SHEET_NAME_PREFIX,
     _sheet_name,
     sheet_url,

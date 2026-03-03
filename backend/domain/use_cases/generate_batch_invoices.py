@@ -15,8 +15,8 @@ from common.models import (
     SamozanyatyContractor,
 )
 from backend.infrastructure.gateways.republic_gateway import RepublicGateway
-from backend.infrastructure.repositories.budget_repo import read_all_amounts
-from backend.infrastructure.repositories.invoice_repo import load_invoices
+from backend.infrastructure.repositories.sheets.budget_repo import read_all_amounts
+from backend.infrastructure.repositories.sheets.invoice_repo import load_invoices
 from backend.domain.use_cases.generate_invoice import GenerateInvoice
 
 logger = logging.getLogger(__name__)

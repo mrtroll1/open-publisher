@@ -1,7 +1,7 @@
 """Composition root — wires up all dependencies."""
 
 from backend.infrastructure.gateways.airtable_gateway import AirtableGateway
-from backend.infrastructure.gateways.db_gateway import DbGateway
+from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.gateways.docs_gateway import DocsGateway
 from backend.infrastructure.gateways.drive_gateway import DriveGateway
 from backend.infrastructure.gateways.email_gateway import EmailGateway

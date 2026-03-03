@@ -10,7 +10,7 @@ from email.mime.text import MIMEText
 
 from googleapiclient.discovery import build
 
-from backend.infrastructure.gateways.email_utils import parse_email_message
+from common.email_utils import parse_email_message
 from common.config import EMAIL_ADDRESS, get_gmail_creds
 from common.models import IncomingEmail
 

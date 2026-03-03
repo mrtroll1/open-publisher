@@ -8,7 +8,7 @@ from datetime import date
 
 from googleapiclient.http import MediaIoBaseDownload
 
-from backend.infrastructure.gateways.google_auth import build_google_service
+from common.google_auth import build_google_service
 from common.models import ArticleEntry
 
 logger = logging.getLogger(__name__)

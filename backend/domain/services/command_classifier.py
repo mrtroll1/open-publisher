@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass
 
 from backend.domain.services import compose_request
-from backend.infrastructure.gateways.db_gateway import DbGateway
+from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 
 logger = logging.getLogger(__name__)

@@ -26,6 +26,11 @@ class KnowledgeRetriever:
         entries = self._db.get_knowledge_by_tier("core")
         return _format_entries(entries)
 
+    def get_domain_context(self, domain: str) -> str:
+        """Core (global) + meta (domain-wide) knowledge."""
+        entries = self._db.get_domain_context(domain)
+        return _format_entries(entries)
+
     def retrieve(self, query: str, domain: str | None = None, limit: int = 5) -> str:
         embedding = self._embed.embed_one(query)
         entries = self._db.search_knowledge(embedding, domain=domain, limit=limit)

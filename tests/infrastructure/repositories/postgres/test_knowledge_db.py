@@ -173,6 +173,38 @@ class TestGetKnowledgeByTier:
 
 
 # ===================================================================
+#  get_domain_context
+# ===================================================================
+
+class TestGetDomainContext:
+
+    def test_returns_core_and_meta_entries(self):
+        gw, cur = _make_gw()
+        cur.fetchall.return_value = [
+            ("id-1", "core", "identity", "Who we are", "Republic is...", "seed"),
+            ("id-2", "meta", "tech_support", "FAQ rules", "Always check...", "seed"),
+        ]
+
+        result = gw.get_domain_context("tech_support")
+
+        assert len(result) == 2
+        assert result[0]["tier"] == "core"
+        assert result[1]["tier"] == "meta"
+        sql, params = cur.execute.call_args[0]
+        assert "tier = 'core'" in sql
+        assert "tier = 'meta'" in sql
+        assert params == ("tech_support",)
+
+    def test_empty(self):
+        gw, cur = _make_gw()
+        cur.fetchall.return_value = []
+
+        result = gw.get_domain_context("empty_domain")
+
+        assert result == []
+
+
+# ===================================================================
 #  get_knowledge_by_domain
 # ===================================================================
 

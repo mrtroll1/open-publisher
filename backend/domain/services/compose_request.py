@@ -45,7 +45,7 @@ def support_triage(email_text: str) -> tuple[str, str, list[str]]:
 
 def support_email(email_text: str, user_data: str = "") -> tuple[str, str, list[str]]:
     r = _get_retriever()
-    knowledge = r.get_core() + "\n\n" + r.retrieve(email_text, "tech_support", 5)
+    knowledge = r.get_domain_context("tech_support") + "\n\n" + r.retrieve(email_text, "tech_support", 5)
     prompt = load_template("support-email.md", {
         "KNOWLEDGE": knowledge,
         "USER_DATA": user_data,
@@ -63,7 +63,7 @@ def contractor_parse(
     text: str, fields_csv: str, context: str = "",
 ) -> tuple[str, str, list[str]]:
     r = _get_retriever()
-    knowledge = r.get_core() + "\n\n" + r.retrieve_full_domain("contractor")
+    knowledge = r.get_domain_context("contractor") + "\n\n" + r.retrieve_full_domain("contractor")
     prompt = load_template("contractor-parse.md", {
         "FIELDS": fields_csv,
         "CONTEXT": context,
@@ -94,7 +94,7 @@ def tech_support_question(
     question: str, code_context: str = "", verbose: bool = False,
 ) -> tuple[str, str, list[str]]:
     r = _get_retriever()
-    knowledge = r.get_core() + "\n\n" + r.retrieve(question, "tech_support", 5)
+    knowledge = r.get_domain_context("tech_support") + "\n\n" + r.retrieve(question, "tech_support", 5)
     verbose_text = (
         "Можешь дать развёрнутый ответ."
         if verbose

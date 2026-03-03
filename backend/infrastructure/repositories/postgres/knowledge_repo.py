@@ -80,6 +80,26 @@ class KnowledgeRepo(BasePostgresRepo):
                 rows.append(d)
             return rows
 
+    def get_domain_context(self, domain: str) -> list[dict]:
+        """Fetch core (global) + meta (domain-wide) entries for a domain."""
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT id, tier, domain, title, content, source
+                   FROM knowledge_entries
+                   WHERE is_active = TRUE
+                     AND (tier = 'core' OR (tier = 'meta' AND domain = %s))
+                   ORDER BY tier, created_at""",
+                (domain,),
+            )
+            cols = ["id", "tier", "domain", "title", "content", "source"]
+            rows = []
+            for row in cur.fetchall():
+                d = dict(zip(cols, row))
+                d["id"] = str(d["id"])
+                rows.append(d)
+            return rows
+
     def get_knowledge_by_domain(self, domain: str) -> list[dict]:
         conn = self._get_conn()
         with conn.cursor() as cur:

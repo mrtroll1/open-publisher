@@ -99,6 +99,10 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_domain
 CREATE INDEX IF NOT EXISTS idx_knowledge_tier
     ON knowledge_entries(tier, is_active);
 
+-- Migrate: core entries in non-identity domains → meta
+UPDATE knowledge_entries SET tier = 'meta'
+WHERE tier = 'core' AND domain != 'identity';
+
 CREATE TABLE IF NOT EXISTS conversations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     chat_id BIGINT NOT NULL,

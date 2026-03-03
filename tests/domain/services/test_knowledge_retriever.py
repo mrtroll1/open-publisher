@@ -83,6 +83,33 @@ class TestGetCore:
 
 
 # ===================================================================
+#  get_domain_context
+# ===================================================================
+
+class TestGetDomainContext:
+
+    def test_calls_db_with_domain(self):
+        kr, mock_db, _ = _make_retriever()
+        mock_db.get_domain_context.return_value = []
+
+        kr.get_domain_context("tech_support")
+
+        mock_db.get_domain_context.assert_called_once_with("tech_support")
+
+    def test_formats_results(self):
+        kr, mock_db, _ = _make_retriever()
+        mock_db.get_domain_context.return_value = [
+            {"title": "Global", "content": "identity stuff"},
+            {"title": "Domain", "content": "tech meta"},
+        ]
+
+        result = kr.get_domain_context("tech_support")
+
+        assert "## Global\nidentity stuff" in result
+        assert "## Domain\ntech meta" in result
+
+
+# ===================================================================
 #  retrieve
 # ===================================================================
 

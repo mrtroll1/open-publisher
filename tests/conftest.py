@@ -21,6 +21,7 @@ for _mod in (
 # Stub KnowledgeRetriever so tests don't need real embeddings / DB.
 _mock_retriever = MagicMock()
 _mock_retriever.get_core.return_value = ""
+_mock_retriever.get_domain_context.return_value = ""
 _mock_retriever.retrieve.return_value = ""
 _mock_retriever.retrieve_full_domain.return_value = ""
 

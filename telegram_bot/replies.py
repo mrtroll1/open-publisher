@@ -152,7 +152,7 @@ class menu:
     prompt = "Что хотите сделать?"
     admin = (
         "Что хотите сделать?\n\n"
-        "Команды администратора:\n"
+        "Выплаты и деньги:\n"
         "/generate <имя> — сгенерировать документ\n"
         "/generate_invoices — сгенерировать все счета\n"
         "/send_global_invoices — отправить глобальные счета\n"
@@ -161,10 +161,16 @@ class menu:
         "/budget — расчёт бюджета\n"
         "/upload_to_airtable — загрузить банковскую выписку\n"
         "/articles <имя> [YYYY-MM] — статьи контрагента\n"
-        "/lookup <имя> — информация о контрагенте\n"
+        "/lookup <имя> — информация о контрагенте\n\n"
+        "Tech:"
         "/health — проверка доступности сайтов\n"
         "/support [-e] [-v] <вопрос> — вопрос по техподдержке\n"
-        "/code [-e] [-v] <запрос> — запустить Claude Code\n"
+        "/code [-e] [-v] <запрос> — запустить Claude Code\n\n"
+        "Управление знаниями:\n"
+        "/teach <текст> — научить бота\n"
+        "/knowledge [-v] [scope] [tier] — список записей знаний\n"
+        "/kedit <id> <новый текст> — редактировать запись\n"
+        "/forget <id> — удалить запись знаний\n\n"
         "/nl <текст> — команда на естественном языке"
     )
     group = (
@@ -296,14 +302,16 @@ class editorial:
 # ── Teaching & knowledge management ──────────────────────────────────
 
 class teach:
-    stored = "Запомнил."
+    stored_fmt = "Запомнил. [{tier}] {scope}"
     usage = "Использование: /teach <текст для запоминания>"
 
 
 class knowledge:
     empty = "Записей не найдено."
     header = "Записи знаний ({count}):\n"
-    entry = "{i}. [{tier}] {scope} — {title}\n   ID: {id}\n   Источник: {source}, {date}"
+    entry = "{i}. {scope} / {title}  ({source}, {date})"
+    entry_verbose = "{i}. [{tier}] {scope} / {title}\n   ID: {id}\n   Источник: {source}, {date}\n   {content}"
+    usage = "Использование: /knowledge [-v] [scope] [tier]"
     forget_done = "Запись удалена."
     forget_usage = "Использование: /forget <id>"
     edit_done = "Запись обновлена."

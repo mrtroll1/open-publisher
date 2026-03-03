@@ -12,6 +12,9 @@ from aiogram.fsm.context import FSMContext
 from backend.domain.services import compose_request
 from backend.domain.services.compose_request import _get_retriever
 from backend.domain.services.command_classifier import CommandClassifier
+
+_VALID_SCOPES = {"general", "tech_support", "contractor", "identity", "support_triage", "email_inbox", "code"}
+_VALID_TIERS = {"core", "domain"}
 from backend.domain.services.conversation_service import (
     build_conversation_context,
     format_reply_chain as _format_reply_chain,
@@ -46,6 +49,7 @@ __all__ = [
     "cmd_knowledge",
     "cmd_forget",
     "cmd_kedit",
+    "_classify_teaching_text",
     "_format_reply_chain",
     "_handle_nl_reply",
 ]
@@ -66,12 +70,13 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
     try:
         await send_typing(message.chat.id)
 
-        # Detect teaching patterns — store before LLM call, then continue
+        # Detect teaching patterns — classify & store before LLM call, then continue
         user_text_lower = (message.text or "").lower()
         if any(kw in user_text_lower for kw in _TEACHING_KEYWORDS):
             try:
+                scope, tier = await _classify_teaching_text(message.text)
                 retriever = _get_retriever()
-                await asyncio.to_thread(retriever.store_teaching, message.text)
+                await asyncio.to_thread(retriever.store_teaching, message.text, scope=scope, tier=tier)
             except Exception:
                 logger.exception("Failed to store NL teaching")
 
@@ -158,6 +163,20 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
         object.__setattr__(message, "text", original_text)
 
 
+async def _classify_teaching_text(text: str) -> tuple[str, str]:
+    """Classify teaching text into (scope, tier) via Gemini."""
+    gemini = GeminiGateway()
+    prompt, model, keys = compose_request.classify_teaching(text)
+    result = await asyncio.to_thread(gemini.call, prompt, model)
+    scope = result.get("scope", "general")
+    tier = result.get("tier", "domain")
+    if scope not in _VALID_SCOPES:
+        scope = "general"
+    if tier not in _VALID_TIERS:
+        tier = "domain"
+    return scope, tier
+
+
 async def cmd_teach(message: types.Message, state: FSMContext) -> None:
     args = message.text.split(maxsplit=1)
     if len(args) < 2 or not args[1].strip():
@@ -166,21 +185,27 @@ async def cmd_teach(message: types.Message, state: FSMContext) -> None:
 
     text = args[1].strip()
     try:
+        scope, tier = await _classify_teaching_text(text)
         retriever = _get_retriever()
-        await asyncio.to_thread(retriever.store_teaching, text)
+        await asyncio.to_thread(retriever.store_teaching, text, scope=scope, tier=tier)
     except Exception:
         logger.exception("Failed to store teaching")
         await message.answer("Не удалось сохранить.")
         return
-    await message.answer(replies.teach.stored)
+    await message.answer(replies.teach.stored_fmt.format(scope=scope, tier=tier))
 
 
 async def cmd_knowledge(message: types.Message, state: FSMContext) -> None:
-    args = message.text.split(maxsplit=1)
-    scope = args[1].strip() if len(args) > 1 and args[1].strip() else None
+    parts = message.text.split()[1:]  
+    verbose = "-v" in parts
+    if verbose:
+        parts.remove("-v")
+
+    scope = parts[0] if len(parts) >= 1 else None
+    tier = parts[1] if len(parts) >= 2 else None
 
     try:
-        entries = await asyncio.to_thread(_db.list_knowledge, scope=scope)
+        entries = await asyncio.to_thread(_db.list_knowledge, scope=scope, tier=tier)
     except Exception:
         logger.exception("Failed to list knowledge")
         await message.answer("Ошибка при загрузке записей.")
@@ -190,15 +215,30 @@ async def cmd_knowledge(message: types.Message, state: FSMContext) -> None:
         await message.answer(replies.knowledge.empty)
         return
 
-    lines = [replies.knowledge.header.format(count=len(entries))]
+    template = replies.knowledge.entry_verbose if verbose else replies.knowledge.entry
+
+    # Group by scope for readability
+    grouped: dict[str, list[tuple[int, dict]]] = {}
     for i, e in enumerate(entries, 1):
-        date = e["created_at"].strftime("%Y-%m-%d") if e.get("created_at") else "?"
-        lines.append(replies.knowledge.entry.format(
-            i=i, tier=e["tier"], scope=e["scope"],
-            title=e["title"], id=e["id"],
-            source=e["source"], date=date,
-        ))
-    await message.answer("\n".join(lines))
+        grouped.setdefault(e["scope"], []).append((i, e))
+
+    lines = [replies.knowledge.header.format(count=len(entries))]
+    for scope_name, items in grouped.items():
+        lines.append(f"[{scope_name}]")
+        for i, e in items:
+            date = e["created_at"].strftime("%Y-%m-%d") if e.get("created_at") else "?"
+            content = e.get("content", "")
+            if content and len(content) > 120:
+                content = content[:120] + "…"
+            lines.append(template.format(
+                i=i, tier=e["tier"], scope=e["scope"],
+                title=e["title"], id=e["id"],
+                source=e["source"], date=date,
+                content=content,
+            ))
+        lines.append("")  # blank line between groups
+
+    await message.answer("\n".join(lines).rstrip())
 
 
 async def cmd_forget(message: types.Message, state: FSMContext) -> None:

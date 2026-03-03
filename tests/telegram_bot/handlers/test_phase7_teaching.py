@@ -118,8 +118,9 @@ class TestStoreTeaching:
 
 class TestCmdTeach:
 
+    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "domain"))
     @patch("telegram_bot.flow_callbacks._get_retriever")
-    def test_stores_entry_and_replies(self, mock_get_retriever):
+    def test_stores_entry_and_replies(self, mock_get_retriever, mock_classify):
         from telegram_bot.flow_callbacks import cmd_teach
 
         retriever = MagicMock()
@@ -131,10 +132,12 @@ class TestCmdTeach:
 
         asyncio.run(cmd_teach(msg, state))
 
-        retriever.store_teaching.assert_called_once_with("Клиентов зовут по имени")
+        mock_classify.assert_awaited_once_with("Клиентов зовут по имени")
+        retriever.store_teaching.assert_called_once_with("Клиентов зовут по имени", scope="general", tier="domain")
         msg.answer.assert_awaited_once()
         reply_text = msg.answer.call_args[0][0]
-        assert reply_text == "Запомнил."
+        assert "Запомнил" in reply_text
+        assert "general" in reply_text
 
     def test_no_text_shows_usage(self):
         from telegram_bot.flow_callbacks import cmd_teach
@@ -158,8 +161,9 @@ class TestCmdTeach:
         msg.answer.assert_awaited_once()
         assert "/teach" in msg.answer.call_args[0][0]
 
+    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("tech_support", "domain"))
     @patch("telegram_bot.flow_callbacks._get_retriever")
-    def test_stores_with_correct_source(self, mock_get_retriever):
+    def test_stores_with_correct_source(self, mock_get_retriever, mock_classify):
         """Verify the retriever's store_teaching (source=admin_teach) is called, not store_feedback."""
         from telegram_bot.flow_callbacks import cmd_teach
 
@@ -182,6 +186,7 @@ class TestCmdTeach:
 
 class TestNlTeachingDetection:
 
+    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "domain"))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._save_turn")
@@ -190,7 +195,7 @@ class TestNlTeachingDetection:
     @patch("telegram_bot.flow_callbacks._db")
     def test_zapomni_triggers_store(
         self, mock_db, mock_get_retriever, mock_gemini_cls,
-        mock_save_turn, mock_send_html, mock_bot,
+        mock_save_turn, mock_send_html, mock_bot, mock_classify,
     ):
         from telegram_bot.flow_callbacks import _handle_nl_reply
 
@@ -216,8 +221,11 @@ class TestNlTeachingDetection:
         result = asyncio.run(_handle_nl_reply(msg, state))
 
         assert result is True
-        retriever.store_teaching.assert_called_once_with("Запомни: клиентам отвечаем на русском")
+        retriever.store_teaching.assert_called_once_with(
+            "Запомни: клиентам отвечаем на русском", scope="general", tier="domain",
+        )
 
+    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("tech_support", "domain"))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._save_turn")
@@ -226,7 +234,7 @@ class TestNlTeachingDetection:
     @patch("telegram_bot.flow_callbacks._db")
     def test_uchti_triggers_store(
         self, mock_db, mock_get_retriever, mock_gemini_cls,
-        mock_save_turn, mock_send_html, mock_bot,
+        mock_save_turn, mock_send_html, mock_bot, mock_classify,
     ):
         from telegram_bot.flow_callbacks import _handle_nl_reply
 
@@ -254,6 +262,7 @@ class TestNlTeachingDetection:
         assert result is True
         retriever.store_teaching.assert_called_once()
 
+    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "domain"))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._save_turn")
@@ -262,7 +271,7 @@ class TestNlTeachingDetection:
     @patch("telegram_bot.flow_callbacks._db")
     def test_imey_v_vidu_triggers_store(
         self, mock_db, mock_get_retriever, mock_gemini_cls,
-        mock_save_turn, mock_send_html, mock_bot,
+        mock_save_turn, mock_send_html, mock_bot, mock_classify,
     ):
         from telegram_bot.flow_callbacks import _handle_nl_reply
 
@@ -290,6 +299,7 @@ class TestNlTeachingDetection:
         assert result is True
         retriever.store_teaching.assert_called_once()
 
+    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "domain"))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._save_turn")
@@ -298,7 +308,7 @@ class TestNlTeachingDetection:
     @patch("telegram_bot.flow_callbacks._db")
     def test_remember_triggers_store(
         self, mock_db, mock_get_retriever, mock_gemini_cls,
-        mock_save_turn, mock_send_html, mock_bot,
+        mock_save_turn, mock_send_html, mock_bot, mock_classify,
     ):
         from telegram_bot.flow_callbacks import _handle_nl_reply
 
@@ -361,6 +371,7 @@ class TestNlTeachingDetection:
         assert result is True
         retriever.store_teaching.assert_not_called()
 
+    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "domain"))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._save_turn")
@@ -369,7 +380,7 @@ class TestNlTeachingDetection:
     @patch("telegram_bot.flow_callbacks._db")
     def test_store_failure_does_not_break_reply(
         self, mock_db, mock_get_retriever, mock_gemini_cls,
-        mock_save_turn, mock_send_html, mock_bot,
+        mock_save_turn, mock_send_html, mock_bot, mock_classify,
     ):
         """Even if store_teaching raises, the NL reply flow should continue."""
         from telegram_bot.flow_callbacks import _handle_nl_reply
@@ -412,13 +423,13 @@ class TestCmdKnowledge:
         mock_db.list_knowledge.return_value = [
             {
                 "id": "uuid-1", "tier": "domain", "scope": "general",
-                "title": "Правило 1", "source": "admin_teach",
-                "created_at": datetime(2025, 6, 15),
+                "title": "Правило 1", "content": "Содержание 1",
+                "source": "admin_teach", "created_at": datetime(2025, 6, 15),
             },
             {
                 "id": "uuid-2", "tier": "core", "scope": "tech_support",
-                "title": "Правило 2", "source": "admin_feedback",
-                "created_at": datetime(2025, 7, 1),
+                "title": "Правило 2", "content": "Содержание 2",
+                "source": "admin_feedback", "created_at": datetime(2025, 7, 1),
             },
         ]
 
@@ -427,13 +438,35 @@ class TestCmdKnowledge:
 
         asyncio.run(cmd_knowledge(msg, state))
 
-        mock_db.list_knowledge.assert_called_once_with(scope=None)
+        mock_db.list_knowledge.assert_called_once_with(scope=None, tier=None)
         msg.answer.assert_awaited_once()
         reply = msg.answer.call_args[0][0]
-        assert "uuid-1" in reply
-        assert "uuid-2" in reply
-        assert "domain" in reply
+        # Default mode: no IDs shown
+        assert "uuid-1" not in reply
+        assert "Правило 1" in reply
         assert "2025-06-15" in reply
+
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_verbose_shows_ids_and_content(self, mock_db):
+        from telegram_bot.flow_callbacks import cmd_knowledge
+
+        mock_db.list_knowledge.return_value = [
+            {
+                "id": "uuid-1", "tier": "domain", "scope": "general",
+                "title": "Правило 1", "content": "Содержание 1",
+                "source": "admin_teach", "created_at": datetime(2025, 6, 15),
+            },
+        ]
+
+        msg = _make_message("/knowledge -v")
+        state = _make_state()
+
+        asyncio.run(cmd_knowledge(msg, state))
+
+        mock_db.list_knowledge.assert_called_once_with(scope=None, tier=None)
+        reply = msg.answer.call_args[0][0]
+        assert "uuid-1" in reply
+        assert "Содержание 1" in reply
 
     @patch("telegram_bot.flow_callbacks._db")
     def test_filters_by_scope(self, mock_db):
@@ -446,7 +479,20 @@ class TestCmdKnowledge:
 
         asyncio.run(cmd_knowledge(msg, state))
 
-        mock_db.list_knowledge.assert_called_once_with(scope="tech_support")
+        mock_db.list_knowledge.assert_called_once_with(scope="tech_support", tier=None)
+
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_filters_by_scope_and_tier(self, mock_db):
+        from telegram_bot.flow_callbacks import cmd_knowledge
+
+        mock_db.list_knowledge.return_value = []
+
+        msg = _make_message("/knowledge tech_support core")
+        state = _make_state()
+
+        asyncio.run(cmd_knowledge(msg, state))
+
+        mock_db.list_knowledge.assert_called_once_with(scope="tech_support", tier="core")
 
     @patch("telegram_bot.flow_callbacks._db")
     def test_empty_list(self, mock_db):

@@ -29,7 +29,7 @@ class TestModels:
             "support_email", "support_triage", "tech_search_terms",
             "contractor_parse", "translate_name", "inbox_classify",
             "editorial_assess", "tech_support_question", "classify_command",
-            "conversation_reply",
+            "classify_teaching", "conversation_reply",
         }
         assert set(_MODELS.keys()) == expected
 
@@ -67,7 +67,7 @@ class TestReturnStructure:
         prompt, model, keys = tech_search_terms("test email")
         assert isinstance(prompt, str)
         assert model == _MODELS["tech_search_terms"]
-        assert keys == ["search_terms", "needs_code"]
+        assert keys == ["needs_code"]
 
     def test_translate_name_returns_tuple(self):
         prompt, model, keys = translate_name("John Smith")

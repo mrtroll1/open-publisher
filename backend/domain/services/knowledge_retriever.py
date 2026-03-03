@@ -47,11 +47,11 @@ class KnowledgeRetriever:
             embedding=embedding,
         )
 
-    def store_teaching(self, text: str, scope: str = "general") -> str:
+    def store_teaching(self, text: str, scope: str = "general", tier: str = "domain") -> str:
         embedding = self._embed.embed_one(text)
         title = text[:60].strip()
         return self._db.save_knowledge_entry(
-            tier="domain",
+            tier=tier,
             scope=scope,
             title=title,
             content=text,

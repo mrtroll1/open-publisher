@@ -101,7 +101,7 @@ class KnowledgeRepo(BasePostgresRepo):
     def list_knowledge(self, scope: str | None = None, tier: str | None = None) -> list[dict]:
         conn = self._get_conn()
         with conn.cursor() as cur:
-            sql = """SELECT id, tier, scope, title, source, created_at
+            sql = """SELECT id, tier, scope, title, content, source, created_at
                      FROM knowledge_entries
                      WHERE is_active = TRUE"""
             params: list = []
@@ -113,7 +113,7 @@ class KnowledgeRepo(BasePostgresRepo):
                 params.append(tier)
             sql += " ORDER BY tier, scope, created_at"
             cur.execute(sql, tuple(params))
-            cols = ["id", "tier", "scope", "title", "source", "created_at"]
+            cols = ["id", "tier", "scope", "title", "content", "source", "created_at"]
             rows = []
             for row in cur.fetchall():
                 d = dict(zip(cols, row))

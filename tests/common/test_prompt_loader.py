@@ -1,8 +1,8 @@
-"""Tests for common/prompt_loader.py — template and knowledge loading."""
+"""Tests for common/prompt_loader.py — template loading."""
 
 import pytest
 
-from common.prompt_loader import load_template, load_knowledge, _TEMPLATES, _KNOWLEDGE
+from common.prompt_loader import load_template
 
 
 # ===================================================================
@@ -41,43 +41,3 @@ class TestLoadTemplate:
     def test_nonexistent_template_raises(self):
         with pytest.raises(FileNotFoundError):
             load_template("nonexistent-template-xyz.md")
-
-
-# ===================================================================
-#  load_knowledge()
-# ===================================================================
-
-class TestLoadKnowledge:
-
-    def test_loads_single_file(self):
-        text = load_knowledge("base.md")
-        assert len(text) > 0
-
-    def test_loads_multiple_files_joined(self):
-        text = load_knowledge("base.md", "email-inbox.md")
-        # Multiple files are joined with separator
-        assert "---" in text
-
-    def test_missing_file_skipped(self):
-        # Should not raise for missing files
-        text = load_knowledge("base.md", "nonexistent-file-xyz.md")
-        assert len(text) > 0
-
-    def test_all_missing_files_returns_empty(self):
-        text = load_knowledge("nonexistent1.md", "nonexistent2.md")
-        assert text == ""
-
-    def test_no_files_returns_empty(self):
-        text = load_knowledge()
-        assert text == ""
-
-    def test_replacement_in_knowledge(self):
-        text = load_knowledge(
-            "tech-support.md",
-            replacements={"SUBSCRIPTION_SERVICE_URL": "https://test.example.com"},
-        )
-        assert "https://test.example.com" in text
-
-    def test_empty_replacements_dict(self):
-        text = load_knowledge("base.md", replacements={})
-        assert len(text) > 0

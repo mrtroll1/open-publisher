@@ -14,6 +14,7 @@ _MODELS = {
     "editorial_assess": "gemini-2.5-flash",
     "tech_support_question": "gemini-2.5-flash",
     "classify_command": "gemini-2.5-flash",
+    "classify_teaching": "gemini-2.5-flash",
     "conversation_reply": "gemini-2.5-flash",
 }
 
@@ -55,7 +56,7 @@ def support_email(email_text: str, user_data: str = "") -> tuple[str, str, list[
 
 def tech_search_terms(text: str) -> tuple[str, str, list[str]]:
     prompt = load_template("tech-search-terms.md", {"EMAIL": text})
-    return prompt, _MODELS["tech_search_terms"], ["search_terms", "needs_code"]
+    return prompt, _MODELS["tech_search_terms"], ["needs_code"]
 
 
 def contractor_parse(
@@ -106,6 +107,11 @@ def tech_support_question(
         "VERBOSE": verbose_text,
     })
     return prompt, _MODELS["tech_support_question"], ["answer"]
+
+
+def classify_teaching(text: str) -> tuple[str, str, list[str]]:
+    prompt = load_template("classify-teaching.md", {"TEXT": text})
+    return prompt, _MODELS["classify_teaching"], ["scope", "tier"]
 
 
 def classify_command(text: str, commands_description: str) -> tuple[str, str, list[str]]:

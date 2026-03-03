@@ -526,7 +526,7 @@ class TestAnswerTechQuestion:
 
         mock_gemini = MagicMock()
         mock_gemini.call.side_effect = [
-            {"needs_code": False, "search_terms": []},
+            {"needs_code": False},
             {"answer": "Подписка работает так..."},
         ]
         MockGemini.return_value = mock_gemini
@@ -549,7 +549,7 @@ class TestAnswerTechQuestion:
         mock_compose.tech_search_terms.return_value = ("prompt1", "model1", [])
 
         mock_gemini = MagicMock()
-        mock_gemini.call.return_value = {"needs_code": True, "search_terms": ["def healthcheck"]}
+        mock_gemini.call.return_value = {"needs_code": True}
         MockGemini.return_value = mock_gemini
 
         mock_run_claude.return_value = "Healthcheck uses requests.get"
@@ -589,7 +589,7 @@ class TestAnswerTechQuestion:
 
         mock_gemini = MagicMock()
         mock_gemini.call.side_effect = [
-            {"needs_code": False, "search_terms": []},
+            {"needs_code": False},
             {"other_key": "value"},  # No "answer" key
         ]
         MockGemini.return_value = mock_gemini
@@ -610,7 +610,7 @@ class TestAnswerTechQuestion:
 
         mock_gemini = MagicMock()
         mock_gemini.call.side_effect = [
-            {"needs_code": False, "search_terms": []},
+            {"needs_code": False},
             {"answer": "verbose answer"},
         ]
         MockGemini.return_value = mock_gemini
@@ -628,7 +628,7 @@ class TestAnswerTechQuestion:
         mock_compose.tech_search_terms.return_value = ("p", "m", [])
 
         mock_gemini = MagicMock()
-        mock_gemini.call.return_value = {"needs_code": True, "search_terms": ["term"]}
+        mock_gemini.call.return_value = {"needs_code": True}
         MockGemini.return_value = mock_gemini
 
         mock_run_claude.return_value = "claude answer"

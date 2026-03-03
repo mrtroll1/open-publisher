@@ -16,6 +16,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY common/ common/
 COPY backend/ backend/
 COPY telegram_bot/ telegram_bot/
-COPY knowledge/ knowledge/
+COPY templates/ templates/
 
 CMD ["python", "-m", "telegram_bot.main"]

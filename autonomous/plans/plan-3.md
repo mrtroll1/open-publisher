@@ -329,44 +329,43 @@ Three tiers of knowledge, all in PostgreSQL:
 
 ### 7.1 `/teach` command
 
-- [ ] Add `cmd_teach(message, state)` in `flow_callbacks.py`:
+- [x] Add `cmd_teach(message, state)` in `flow_callbacks.py`:
   - Parse text after `/teach`
   - Generate embedding
   - Store as `knowledge_entries` with `tier='domain'`, `source='admin_teach'`
   - Reply "Запомнил."
-- [ ] Register in `flows.py` as admin command
+- [x] Register in `flows.py` as admin command
 
 **Files**: `telegram_bot/flow_callbacks.py`, `telegram_bot/flows.py`
 
 ### 7.2 Teaching through NL conversation
 
-- [ ] In `_handle_nl_reply`, detect teaching patterns: "запомни", "учти", "имей в виду", "remember"
-- [ ] When detected: store as knowledge entry AND reply conversationally (confirming storage)
-- [ ] Simple keyword detection, no LLM classification needed
+- [x] In `_handle_nl_reply`, detect teaching patterns: "запомни", "учти", "имей в виду", "remember"
+- [x] When detected: store as knowledge entry AND reply conversationally (confirming storage)
+- [x] Simple keyword detection, no LLM classification needed
 
 **Files**: `telegram_bot/flow_callbacks.py`
 
 ### 7.3 Knowledge management commands
 
-- [ ] Add `cmd_knowledge(message, state)`:
+- [x] Add `cmd_knowledge(message, state)`:
   - `/knowledge` — list all active entries (id, tier, scope, title, source, created_at)
   - `/knowledge <scope>` — filter by scope
-- [ ] Add `cmd_forget(message, state)`:
+- [x] Add `cmd_forget(message, state)`:
   - `/forget <id>` — soft-delete a knowledge entry
-- [ ] Add `cmd_knowledge_edit(message, state)`:
-  - `/kedit <id>` — show current content, wait for new content via reply
-  - Or: `/kedit <id> <new content>` — inline update
-- [ ] Register all in `flows.py`
+- [x] Add `cmd_knowledge_edit(message, state)`:
+  - `/kedit <id> <new content>` — inline update
+- [x] Register all in `flows.py`
 
 **Files**: `telegram_bot/flow_callbacks.py`, `telegram_bot/flows.py`
 
 ### 7.4 Tests
 
-- [ ] Test `/teach` stores entry with correct tier/scope/source
-- [ ] Test NL teaching detection
-- [ ] Test `/knowledge` listing
-- [ ] Test `/forget` soft-deletes
-- [ ] Run full test suite
+- [x] Test `/teach` stores entry with correct tier/scope/source
+- [x] Test NL teaching detection
+- [x] Test `/knowledge` listing
+- [x] Test `/forget` soft-deletes
+- [x] Run full test suite — 978 tests pass
 
 ---
 

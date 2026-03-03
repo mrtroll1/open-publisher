@@ -54,6 +54,10 @@ from telegram_bot.flow_callbacks import (
     cmd_orphan_contractors,
     cmd_upload_to_airtable,
     cmd_nl,
+    cmd_teach,
+    cmd_knowledge,
+    cmd_forget,
+    cmd_kedit,
 )
 
 
@@ -267,6 +271,30 @@ admin_commands = [
         description="Команда на естественном языке",
         handler=cmd_nl,
         usage="/nl <текст>",
+    ),
+    AdminCommand(
+        command="teach",
+        description="Научить бота",
+        handler=cmd_teach,
+        usage="/teach <текст>",
+    ),
+    AdminCommand(
+        command="knowledge",
+        description="Список записей знаний",
+        handler=cmd_knowledge,
+        usage="/knowledge [scope]",
+    ),
+    AdminCommand(
+        command="forget",
+        description="Удалить запись знаний",
+        handler=cmd_forget,
+        usage="/forget <id>",
+    ),
+    AdminCommand(
+        command="kedit",
+        description="Редактировать запись знаний",
+        handler=cmd_kedit,
+        usage="/kedit <id> <новый текст>",
     ),
 ]
 

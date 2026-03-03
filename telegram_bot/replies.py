@@ -293,6 +293,24 @@ class editorial:
     btn_skip = "Пропустить"
 
 
+# ── Teaching & knowledge management ──────────────────────────────────
+
+class teach:
+    stored = "Запомнил."
+    usage = "Использование: /teach <текст для запоминания>"
+
+
+class knowledge:
+    empty = "Записей не найдено."
+    header = "Записи знаний ({count}):\n"
+    entry = "{i}. [{tier}] {scope} — {title}\n   ID: {id}\n   Источник: {source}, {date}"
+    forget_done = "Запись удалена."
+    forget_usage = "Использование: /forget <id>"
+    edit_done = "Запись обновлена."
+    edit_usage = "Использование: /kedit <id> <новый текст>"
+    not_found = "Запись не найдена."
+
+
 # ── Generic ──────────────────────────────────────────────────────────
 
 class generic:

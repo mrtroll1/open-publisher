@@ -622,6 +622,8 @@ _GREETING_PREFIXES = (
     "hello", "dear", "привет", "уважаем", "hi,", "hi ",
 )
 
+_TEACHING_KEYWORDS = ("запомни", "учти", "имей в виду", "remember")
+
 
 async def _handle_draft_reply(message: types.Message, uid: str) -> None:
     draft = _inbox.get_pending_support(uid)
@@ -671,6 +673,15 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
 
     try:
         await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+
+        # Detect teaching patterns — store before LLM call, then continue
+        user_text_lower = (message.text or "").lower()
+        if any(kw in user_text_lower for kw in _TEACHING_KEYWORDS):
+            try:
+                retriever = _get_retriever()
+                await asyncio.to_thread(retriever.store_teaching, message.text)
+            except Exception:
+                logger.exception("Failed to store NL teaching")
 
         # Build conversation history
         conv_entry = await asyncio.to_thread(
@@ -969,6 +980,88 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
         await handler(message, state)
     finally:
         object.__setattr__(message, "text", original_text)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#  TEACHING & KNOWLEDGE MANAGEMENT
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+async def cmd_teach(message: types.Message, state: FSMContext) -> None:
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2 or not args[1].strip():
+        await message.answer(replies.teach.usage)
+        return
+
+    text = args[1].strip()
+    try:
+        retriever = _get_retriever()
+        await asyncio.to_thread(retriever.store_teaching, text)
+    except Exception:
+        logger.exception("Failed to store teaching")
+        await message.answer("Не удалось сохранить.")
+        return
+    await message.answer(replies.teach.stored)
+
+
+async def cmd_knowledge(message: types.Message, state: FSMContext) -> None:
+    args = message.text.split(maxsplit=1)
+    scope = args[1].strip() if len(args) > 1 and args[1].strip() else None
+
+    try:
+        entries = await asyncio.to_thread(_db.list_knowledge, scope=scope)
+    except Exception:
+        logger.exception("Failed to list knowledge")
+        await message.answer("Ошибка при загрузке записей.")
+        return
+
+    if not entries:
+        await message.answer(replies.knowledge.empty)
+        return
+
+    lines = [replies.knowledge.header.format(count=len(entries))]
+    for i, e in enumerate(entries, 1):
+        date = e["created_at"].strftime("%Y-%m-%d") if e.get("created_at") else "?"
+        lines.append(replies.knowledge.entry.format(
+            i=i, tier=e["tier"], scope=e["scope"],
+            title=e["title"], id=e["id"],
+            source=e["source"], date=date,
+        ))
+    await message.answer("\n".join(lines))
+
+
+async def cmd_forget(message: types.Message, state: FSMContext) -> None:
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2 or not args[1].strip():
+        await message.answer(replies.knowledge.forget_usage)
+        return
+
+    entry_id = args[1].strip()
+    try:
+        await asyncio.to_thread(_db.deactivate_knowledge, entry_id)
+    except Exception:
+        logger.exception("Failed to deactivate knowledge entry")
+        await message.answer(replies.knowledge.not_found)
+        return
+    await message.answer(replies.knowledge.forget_done)
+
+
+async def cmd_kedit(message: types.Message, state: FSMContext) -> None:
+    args = message.text.split(maxsplit=2)
+    if len(args) < 3 or not args[2].strip():
+        await message.answer(replies.knowledge.edit_usage)
+        return
+
+    entry_id = args[1].strip()
+    new_content = args[2].strip()
+    try:
+        retriever = _get_retriever()
+        embedding = await asyncio.to_thread(retriever._embed.embed_one, new_content)
+        await asyncio.to_thread(_db.update_knowledge_entry, entry_id, new_content, embedding)
+    except Exception:
+        logger.exception("Failed to edit knowledge entry")
+        await message.answer(replies.knowledge.not_found)
+        return
+    await message.answer(replies.knowledge.edit_done)
 
 
 def _extract_bot_mention(text: str, bot_username: str) -> str | None:

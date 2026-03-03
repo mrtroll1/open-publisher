@@ -46,3 +46,15 @@ class KnowledgeRetriever:
             source="admin_feedback",
             embedding=embedding,
         )
+
+    def store_teaching(self, text: str, scope: str = "general") -> str:
+        embedding = self._embed.embed_one(text)
+        title = text[:60].strip()
+        return self._db.save_knowledge_entry(
+            tier="domain",
+            scope=scope,
+            title=title,
+            content=text,
+            source="admin_teach",
+            embedding=embedding,
+        )

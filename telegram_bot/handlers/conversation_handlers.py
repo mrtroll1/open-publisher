@@ -22,7 +22,7 @@ from backend.domain.services.conversation_service import (
 )
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from telegram_bot import replies
-from telegram_bot.handler_utils import _db, _save_turn, _send, _send_html, send_typing
+from telegram_bot.handler_utils import _db, _kedit_pending, _save_turn, _send, _send_html, send_typing
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +49,7 @@ __all__ = [
     "cmd_knowledge",
     "cmd_forget",
     "cmd_kedit",
+    "handle_kedit_reply",
     "_classify_teaching_text",
     "_format_reply_chain",
     "_handle_nl_reply",
@@ -275,13 +276,45 @@ async def cmd_forget(message: types.Message, state: FSMContext) -> None:
 
 
 async def cmd_kedit(message: types.Message, state: FSMContext) -> None:
-    args = message.text.split(maxsplit=2)
-    if len(args) < 3 or not args[2].strip():
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2 or not args[1].strip():
         await message.answer(replies.knowledge.edit_usage)
         return
 
     entry_id = args[1].strip()
-    new_content = args[2].strip()
+    try:
+        entry = await asyncio.to_thread(_db.get_knowledge_entry, entry_id)
+    except Exception:
+        logger.exception("Failed to fetch knowledge entry")
+        await message.answer(replies.knowledge.not_found)
+        return
+    if not entry:
+        await message.answer(replies.knowledge.not_found)
+        return
+
+    header = f"[{entry['tier']}] {entry['scope']} / {entry['title']}"
+    text = f"{header}\n\n```\n{entry['content']}\n```\n\n{replies.knowledge.edit_prompt}"
+    sent = await _send_html(message, text)
+    _kedit_pending[(message.chat.id, sent.message_id)] = entry_id
+
+
+async def handle_kedit_reply(message: types.Message) -> bool:
+    """Handle a reply to a kedit message. Returns True if handled."""
+    reply = message.reply_to_message
+    if not reply or not reply.from_user or not reply.from_user.is_bot:
+        return False
+
+    key = (message.chat.id, reply.message_id)
+    entry_id = _kedit_pending.get(key)
+    if not entry_id:
+        return False
+
+    del _kedit_pending[key]
+    new_content = (message.text or "").strip()
+    if not new_content:
+        await message.answer(replies.knowledge.edit_usage)
+        return True
+
     try:
         retriever = _get_retriever()
         embedding = await asyncio.to_thread(retriever._embed.embed_one, new_content)
@@ -289,8 +322,9 @@ async def cmd_kedit(message: types.Message, state: FSMContext) -> None:
     except Exception:
         logger.exception("Failed to edit knowledge entry")
         await message.answer(replies.knowledge.not_found)
-        return
+        return True
     if not found:
         await message.answer(replies.knowledge.not_found)
-        return
+        return True
     await message.answer(replies.knowledge.edit_done)
+    return True

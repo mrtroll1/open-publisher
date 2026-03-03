@@ -193,7 +193,12 @@ async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
         del _support_draft_map[key]
         return
 
-    # 3. NL conversation fallback (lazy import to avoid circular dependency)
+    # 3. Knowledge edit reply
+    from telegram_bot.handlers.conversation_handlers import handle_kedit_reply
+    if await handle_kedit_reply(message):
+        return
+
+    # 4. NL conversation fallback (lazy import to avoid circular dependency)
     from telegram_bot.handlers.conversation_handlers import _handle_nl_reply
     await _handle_nl_reply(message, state)
 

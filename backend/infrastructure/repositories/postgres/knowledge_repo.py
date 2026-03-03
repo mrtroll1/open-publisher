@@ -121,6 +121,23 @@ class KnowledgeRepo(BasePostgresRepo):
                 rows.append(d)
             return rows
 
+    def get_knowledge_entry(self, entry_id: str) -> dict | None:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT id, tier, scope, title, content, source, created_at
+                   FROM knowledge_entries
+                   WHERE id = %s AND is_active = TRUE""",
+                (entry_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            cols = ["id", "tier", "scope", "title", "content", "source", "created_at"]
+            d = dict(zip(cols, row))
+            d["id"] = str(d["id"])
+            return d
+
     def deactivate_knowledge(self, entry_id: str) -> bool:
         """Soft-delete a knowledge entry. Returns True if an entry was actually deactivated."""
         conn = self._get_conn()

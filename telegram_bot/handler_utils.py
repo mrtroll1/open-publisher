@@ -29,6 +29,10 @@ _admin_reply_map: dict[tuple[int, int], tuple[str, str]] = {}
 # so admin can reply to a support draft message.
 _support_draft_map: dict[tuple[int, int], str] = {}
 
+# Maps (chat_id, bot_message_id) -> entry_id
+# so admin can reply to a kedit message with new content.
+_kedit_pending: dict[tuple[int, int], str] = {}
+
 __all__ = [
     "send_typing",
     "parse_month_arg",
@@ -44,6 +48,7 @@ __all__ = [
     "_inbox",
     "_admin_reply_map",
     "_support_draft_map",
+    "_kedit_pending",
 ]
 
 

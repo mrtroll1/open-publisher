@@ -586,28 +586,53 @@ class TestCmdForget:
 
 class TestCmdKedit:
 
-    @patch("telegram_bot.flow_callbacks._get_retriever")
+    @patch("telegram_bot.flow_callbacks._send_html")
+    @patch("telegram_bot.flow_callbacks._kedit_pending", {})
     @patch("telegram_bot.flow_callbacks._db")
-    def test_updates_entry(self, mock_db, mock_get_retriever):
+    def test_shows_entry_content(self, mock_db, mock_send_html):
         from telegram_bot.flow_callbacks import cmd_kedit
 
-        retriever = MagicMock()
-        retriever._embed.embed_one.return_value = [0.9, 0.8]
-        mock_get_retriever.return_value = retriever
-        mock_db.update_knowledge_entry.return_value = True
+        mock_db.get_knowledge_entry.return_value = {
+            "id": "uuid-1", "tier": "domain", "scope": "general",
+            "title": "Правило 1", "content": "Содержание записи",
+            "source": "admin_teach", "created_at": datetime(2025, 6, 15),
+        }
+        sent_msg = MagicMock()
+        sent_msg.message_id = 20
+        mock_send_html.return_value = sent_msg
 
-        msg = _make_message("/kedit uuid-1 Новое содержание записи")
+        msg = _make_message("/kedit uuid-1")
         state = _make_state()
 
         asyncio.run(cmd_kedit(msg, state))
 
-        retriever._embed.embed_one.assert_called_once_with("Новое содержание записи")
-        mock_db.update_knowledge_entry.assert_called_once_with(
-            "uuid-1", "Новое содержание записи", [0.9, 0.8],
-        )
-        msg.answer.assert_awaited_once()
-        reply = msg.answer.call_args[0][0]
-        assert "обновлена" in reply.lower()
+        mock_db.get_knowledge_entry.assert_called_once_with("uuid-1")
+        mock_send_html.assert_awaited_once()
+        text = mock_send_html.call_args[0][1]
+        assert "Содержание записи" in text
+        assert "domain" in text
+
+    @patch("telegram_bot.flow_callbacks._send_html")
+    @patch("telegram_bot.flow_callbacks._kedit_pending", {})
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_registers_pending_edit(self, mock_db, mock_send_html):
+        from telegram_bot.flow_callbacks import cmd_kedit, _kedit_pending
+
+        mock_db.get_knowledge_entry.return_value = {
+            "id": "uuid-1", "tier": "domain", "scope": "general",
+            "title": "Правило 1", "content": "Содержание записи",
+            "source": "admin_teach", "created_at": datetime(2025, 6, 15),
+        }
+        sent_msg = MagicMock()
+        sent_msg.message_id = 20
+        mock_send_html.return_value = sent_msg
+
+        msg = _make_message("/kedit uuid-1", chat_id=100)
+        state = _make_state()
+
+        asyncio.run(cmd_kedit(msg, state))
+
+        assert _kedit_pending.get((100, 20)) == "uuid-1"
 
     def test_no_args_shows_usage(self):
         from telegram_bot.flow_callbacks import cmd_kedit
@@ -620,16 +645,99 @@ class TestCmdKedit:
         msg.answer.assert_awaited_once()
         assert "/kedit" in msg.answer.call_args[0][0]
 
-    def test_only_id_no_content_shows_usage(self):
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_entry_not_found(self, mock_db):
         from telegram_bot.flow_callbacks import cmd_kedit
 
-        msg = _make_message("/kedit uuid-1")
+        mock_db.get_knowledge_entry.return_value = None
+
+        msg = _make_message("/kedit uuid-nonexistent")
         state = _make_state()
 
         asyncio.run(cmd_kedit(msg, state))
 
         msg.answer.assert_awaited_once()
-        assert "/kedit" in msg.answer.call_args[0][0]
+        reply = msg.answer.call_args[0][0]
+        assert "не найдена" in reply.lower()
+
+
+class TestHandleKeditReply:
+
+    @patch("telegram_bot.flow_callbacks._get_retriever")
+    @patch("telegram_bot.flow_callbacks._kedit_pending", {(100, 20): "uuid-1"})
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_updates_entry_on_reply(self, mock_db, mock_get_retriever):
+        from telegram_bot.flow_callbacks import handle_kedit_reply
+
+        retriever = MagicMock()
+        retriever._embed.embed_one.return_value = [0.9, 0.8]
+        mock_get_retriever.return_value = retriever
+        mock_db.update_knowledge_entry.return_value = True
+
+        msg = _make_message("Новое содержание записи", chat_id=100)
+        reply = MagicMock()
+        reply.message_id = 20
+        reply.from_user = MagicMock()
+        reply.from_user.is_bot = True
+        msg.reply_to_message = reply
+
+        result = asyncio.run(handle_kedit_reply(msg))
+
+        assert result is True
+        retriever._embed.embed_one.assert_called_once_with("Новое содержание записи")
+        mock_db.update_knowledge_entry.assert_called_once_with(
+            "uuid-1", "Новое содержание записи", [0.9, 0.8],
+        )
+        msg.answer.assert_awaited_once()
+        reply_text = msg.answer.call_args[0][0]
+        assert "обновлена" in reply_text.lower()
+
+    def test_ignores_non_reply(self):
+        from telegram_bot.flow_callbacks import handle_kedit_reply
+
+        msg = _make_message("some text")
+        msg.reply_to_message = None
+
+        result = asyncio.run(handle_kedit_reply(msg))
+
+        assert result is False
+
+    @patch("telegram_bot.flow_callbacks._kedit_pending", {})
+    def test_ignores_reply_to_non_pending(self):
+        from telegram_bot.flow_callbacks import handle_kedit_reply
+
+        msg = _make_message("some text", chat_id=100)
+        reply = MagicMock()
+        reply.message_id = 999
+        reply.from_user = MagicMock()
+        reply.from_user.is_bot = True
+        msg.reply_to_message = reply
+
+        result = asyncio.run(handle_kedit_reply(msg))
+
+        assert result is False
+
+    @patch("telegram_bot.flow_callbacks._get_retriever")
+    @patch("telegram_bot.flow_callbacks._kedit_pending", {(100, 20): "uuid-1"})
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_clears_pending_after_update(self, mock_db, mock_get_retriever):
+        from telegram_bot.flow_callbacks import handle_kedit_reply, _kedit_pending
+
+        retriever = MagicMock()
+        retriever._embed.embed_one.return_value = [0.1]
+        mock_get_retriever.return_value = retriever
+        mock_db.update_knowledge_entry.return_value = True
+
+        msg = _make_message("Updated text", chat_id=100)
+        reply = MagicMock()
+        reply.message_id = 20
+        reply.from_user = MagicMock()
+        reply.from_user.is_bot = True
+        msg.reply_to_message = reply
+
+        asyncio.run(handle_kedit_reply(msg))
+
+        assert (100, 20) not in _kedit_pending
 
 
 # ===================================================================

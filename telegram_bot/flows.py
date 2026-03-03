@@ -294,7 +294,7 @@ admin_commands = [
         command="kedit",
         description="Редактировать запись знаний",
         handler=cmd_kedit,
-        usage="/kedit <id> <новый текст>",
+        usage="/kedit <id>",
     ),
 ]
 

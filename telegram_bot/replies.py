@@ -169,7 +169,7 @@ class menu:
         "Управление знаниями:\n"
         "/teach <текст> — научить бота\n"
         "/knowledge [-v] [scope] [tier] — список записей знаний\n"
-        "/kedit <id> <новый текст> — редактировать запись\n"
+        "/kedit <id> — редактировать запись\n"
         "/forget <id> — удалить запись знаний\n\n"
         "/nl <текст> — команда на естественном языке"
     )
@@ -310,12 +310,13 @@ class knowledge:
     empty = "Записей не найдено."
     header = "Записи знаний ({count}):\n"
     entry = "{i}. {title}  ({source})\n   {id}"
-    entry_verbose = "{i}. {title}\n   ID: {id}\n   Источник: {source}, {date}\n   {content}"
+    entry_verbose = "{i}. {title}\n   ID: {id}\n   Источник: {source}, {date}\n```\n{content}\n```"
     usage = "Использование: /knowledge [-v] [scope] [tier]"
     forget_done = "Запись удалена."
     forget_usage = "Использование: /forget <id>"
     edit_done = "Запись обновлена."
-    edit_usage = "Использование: /kedit <id> <новый текст>"
+    edit_prompt = "Ответьте на это сообщение с новым текстом записи."
+    edit_usage = "Использование: /kedit <id>"
     not_found = "Запись не найдена."
 
 

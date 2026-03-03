@@ -31,8 +31,8 @@ _FROM_PATTERN = re.compile(r"^From (.+)$", re.IGNORECASE)
 class ParseBankStatement:
     """Orchestrates CSV parsing, categorization, and optional Airtable upload."""
 
-    def __init__(self):
-        self._airtable = AirtableGateway()
+    def __init__(self, airtable_gw: AirtableGateway | None = None):
+        self._airtable = airtable_gw or AirtableGateway()
 
     def execute(
         self, filepath: str | Path, aed_to_rub: float, upload: bool = False,

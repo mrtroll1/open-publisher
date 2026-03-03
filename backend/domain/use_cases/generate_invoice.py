@@ -42,9 +42,9 @@ class InvoiceResult:
 class GenerateInvoice:
     """Orchestrates the full invoice generation flow."""
 
-    def __init__(self):
-        self._docs = DocsGateway()
-        self._drive = DriveGateway()
+    def __init__(self, docs_gw: DocsGateway | None = None, drive_gw: DriveGateway | None = None):
+        self._docs = docs_gw or DocsGateway()
+        self._drive = drive_gw or DriveGateway()
 
     def create_and_save(
         self,

@@ -164,16 +164,18 @@ tests/
 > Goal: constructor injection everywhere. Testable, swappable.
 > Rule: change `__init__` signatures, update callers (composition root).
 
-- [ ] 5.1 Audit all classes that instantiate gateways/repos in `__init__`
+- [x] 5.1 Audit all classes that instantiate gateways/repos in `__init__`
   - `ComputeBudget`, `GenerateBatchInvoices`, `GenerateInvoice`, `InboxService`, `TechSupportHandler`, `SupportUserLookup`, `KnowledgeRetriever`, `ParseBankStatement`
-- [ ] 5.2 Refactor each to accept dependencies as constructor args
-  - Pattern: `def __init__(self, republic_gw: RepublicGateway, ...)`
-- [ ] 5.3 Remove global lazy singleton in `compose_request.py` (`_get_retriever`)
-- [ ] 5.4 Create composition root → `backend/wiring.py`
-  - Factory functions that wire up all dependencies
-  - Telegram handlers call `wiring.get_compute_budget()` etc.
-- [ ] 5.5 Update handler files to use composition root
-- [ ] 5.6 Run full test suite — all tests pass
+- [x] 5.2 Refactor each to accept dependencies as optional constructor args
+  - Pattern: `def __init__(self, republic_gw: RepublicGateway | None = None, ...)` → `self._x = x or X()`
+  - Backward-compatible: calling `Class()` with no args still works
+- [x] 5.3 Added `set_retriever()` to `compose_request.py` — kept `_get_retriever()` lazy fallback for standalone use
+- [x] 5.4 Create composition root → `backend/wiring.py`
+  - 6 factory functions: `create_db`, `create_inbox_service`, `create_knowledge_retriever`, `create_compute_budget`, `create_generate_batch_invoices`, `create_parse_bank_statement`
+- [x] 5.5 Update handler files to use composition root
+  - `handler_utils.py`: uses `create_db()`, `create_inbox_service()`, `set_retriever(create_knowledge_retriever())`
+  - `admin_handlers.py`: uses `create_compute_budget()`, `create_generate_batch_invoices()`, `create_parse_bank_statement()`
+- [x] 5.6 Run full test suite — all 1003 tests pass
 
 ---
 

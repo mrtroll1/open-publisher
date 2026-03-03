@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 class InboxService:
     """Classifies incoming messages and manages approval workflows."""
 
-    def __init__(self):
-        self._tech_support = TechSupportHandler()
-        self._gemini = GeminiGateway()
-        self._email_gw = EmailGateway()
-        self._db = DbGateway()
+    def __init__(self, tech_support: TechSupportHandler | None = None, gemini: GeminiGateway | None = None, email_gw: EmailGateway | None = None, db: DbGateway | None = None):
+        self._tech_support = tech_support or TechSupportHandler()
+        self._gemini = gemini or GeminiGateway()
+        self._email_gw = email_gw or EmailGateway()
+        self._db = db or DbGateway()
         self._pending_support: dict[str, SupportDraft] = {}
         self._pending_editorial: dict[str, EditorialItem] = {}
 

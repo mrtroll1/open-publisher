@@ -8,16 +8,17 @@ import logging
 from aiogram import types
 from aiogram.exceptions import TelegramBadRequest
 
-from backend.domain.inbox_service import InboxService
-from backend.infrastructure.gateways.db_gateway import DbGateway
+from backend.wiring import create_db, create_inbox_service, create_knowledge_retriever
+from backend.domain.services.compose_request import set_retriever
 from telegram_bot.bot_helpers import get_contractors, md_to_tg_html
 from telegram_bot import replies
 from backend import find_contractor, fuzzy_find
 
 logger = logging.getLogger(__name__)
 
-_db = DbGateway()
-_inbox = InboxService()
+_db = create_db()
+_inbox = create_inbox_service()
+set_retriever(create_knowledge_retriever())
 
 # Maps (admin_chat_id, bot_message_id) -> (contractor_telegram_id, contractor_id)
 # so admin can reply to a notification and the reply gets forwarded.

@@ -25,7 +25,6 @@ from backend import (
     export_pdf,
     fetch_articles,
     find_contractor_by_id,
-    GenerateBatchInvoices,
     load_invoices,
     prepare_existing_invoice,
     read_budget_amounts,
@@ -33,8 +32,7 @@ from backend import (
     update_legium_link,
 )
 from backend.domain.compose_request import _get_retriever
-from backend.domain.compute_budget import ComputeBudget
-from backend.domain.parse_bank_statement import ParseBankStatement
+from backend.wiring import create_compute_budget, create_generate_batch_invoices, create_parse_bank_statement
 from telegram_bot import replies
 from telegram_bot.bot_helpers import bot, get_contractors, prev_month
 from telegram_bot.handler_utils import (
@@ -307,7 +305,7 @@ async def cmd_budget(message: types.Message, state: FSMContext) -> None:
     await bot.send_chat_action(message.chat.id, ChatAction.TYPING)
 
     try:
-        uc = ComputeBudget()
+        uc = create_compute_budget()
         url = await asyncio.to_thread(uc.execute, month)
         await message.answer(replies.admin.budget_done.format(url=url))
     except Exception as e:
@@ -327,7 +325,7 @@ async def cmd_generate_invoices(message: types.Message, state: FSMContext) -> No
 
     try:
         batch_result = await asyncio.to_thread(
-            GenerateBatchInvoices().execute, contractors, month, debug,
+            create_generate_batch_invoices().execute, contractors, month, debug,
         )
     except ValueError as e:
         await status_msg.edit_text(str(e))
@@ -557,7 +555,7 @@ async def cmd_upload_to_airtable(message: types.Message, state: FSMContext) -> N
             tmp.write(file_bytes.read())
             tmp_path = tmp.name
 
-        uc = ParseBankStatement()
+        uc = create_parse_bank_statement()
         expenses = await asyncio.to_thread(uc.execute, tmp_path, rate, True)
 
         review_count = sum(1 for e in expenses if e.comment == "NEEDS REVIEW")

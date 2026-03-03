@@ -107,9 +107,9 @@ BLANK = PaymentEntry()
 class ComputeBudget:
     """Build the monthly payments Google Sheet."""
 
-    def __init__(self):
-        self._content = RepublicGateway()
-        self._redefine = RedefineGateway()
+    def __init__(self, republic_gw: RepublicGateway | None = None, redefine_gw: RedefineGateway | None = None):
+        self._content = republic_gw or RepublicGateway()
+        self._redefine = redefine_gw or RedefineGateway()
 
     def execute(self, month: str) -> str:
         """Generate the payments sheet for the given month. Returns the sheet URL."""

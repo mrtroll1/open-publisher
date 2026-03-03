@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 class TechSupportHandler:
     """Context gathering + LLM draft replies for tech support. No email sending."""
 
-    def __init__(self):
-        self._gemini = GeminiGateway()
-        self._user_lookup = SupportUserLookup()
+    def __init__(self, gemini: GeminiGateway | None = None, user_lookup: SupportUserLookup | None = None, db: DbGateway | None = None):
+        self._gemini = gemini or GeminiGateway()
+        self._user_lookup = user_lookup or SupportUserLookup()
         RepoGateway().ensure_repos()
-        self._db = DbGateway()
+        self._db = db or DbGateway()
         self._db.init_schema()
         self._uid_thread: dict[str, str] = {}
 

@@ -34,9 +34,9 @@ class BatchResult:
 class GenerateBatchInvoices:
     """Orchestrates batch invoice generation for all contractors."""
 
-    def __init__(self):
-        self._content = RepublicGateway()
-        self._gen = GenerateInvoice()
+    def __init__(self, republic_gw: RepublicGateway | None = None, gen_invoice: GenerateInvoice | None = None):
+        self._content = republic_gw or RepublicGateway()
+        self._gen = gen_invoice or GenerateInvoice()
 
     def execute(
         self,

@@ -14,6 +14,7 @@ from backend.domain.services.compose_request import (  # noqa: F401
     _MODELS,
     _get_retriever,
     _retriever,
+    set_retriever,
 )
 
 

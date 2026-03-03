@@ -18,9 +18,9 @@ def _format_entries(entries: list[dict]) -> str:
 
 class KnowledgeRetriever:
 
-    def __init__(self):
-        self._db = DbGateway()
-        self._embed = EmbeddingGateway()
+    def __init__(self, db: DbGateway | None = None, embed: EmbeddingGateway | None = None):
+        self._db = db or DbGateway()
+        self._embed = embed or EmbeddingGateway()
 
     def get_core(self) -> str:
         entries = self._db.get_knowledge_by_tier("core")

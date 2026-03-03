@@ -1588,8 +1588,41 @@ tests/
 - All 1003 tests pass with zero modifications to test content
 - No conftest.py changes needed — pytest discovers tests in subdirectories via `__init__.py` files
 
+### Session 53 (2026-03-03) — Plan 4 Phase 5: Standardize Dependency Injection
+**Status:** Complete (all 6 items: 5.1-5.6)
+
+**What was done:**
+- Audited all 8 classes that create gateway/repo instances in `__init__`
+- Refactored all 8 constructors to accept optional dependency args with defaults:
+  - `ComputeBudget(republic_gw=None, redefine_gw=None)`
+  - `GenerateInvoice(docs_gw=None, drive_gw=None)`
+  - `GenerateBatchInvoices(republic_gw=None, gen_invoice=None)`
+  - `ParseBankStatement(airtable_gw=None)`
+  - `SupportUserLookup(republic_gw=None, redefine_gw=None)`
+  - `KnowledgeRetriever(db=None, embed=None)`
+  - `TechSupportHandler(gemini=None, user_lookup=None, db=None)`
+  - `InboxService(tech_support=None, gemini=None, email_gw=None, db=None)`
+- Added `set_retriever()` function to `compose_request.py` alongside existing `_get_retriever()` lazy singleton
+- Created `backend/wiring.py` composition root with 6 factory functions:
+  - `create_db()`, `create_inbox_service()`, `create_knowledge_retriever()`
+  - `create_compute_budget()`, `create_generate_batch_invoices()`, `create_parse_bank_statement()`
+- Updated `handler_utils.py` to use wiring: `create_db()`, `create_inbox_service()`, `set_retriever(create_knowledge_retriever())`
+- Updated `admin_handlers.py` to use wiring: `create_compute_budget()`, `create_generate_batch_invoices()`, `create_parse_bank_statement()`
+- Updated `compose_request.py` shim to re-export `set_retriever`
+
+**Review fixes applied:**
+- Removed unused `load_knowledge` import from `compose_request.py`
+
+**Design decisions:**
+- Used optional args with defaults (`x or X()`) instead of required args — backward compatible, all existing tests and callers work unchanged
+- `_get_retriever()` lazy singleton kept as fallback for standalone use; `set_retriever()` allows wiring to inject
+- `TechSupportHandler.__init__` still calls `RepoGateway().ensure_repos()` and `db.init_schema()` — idempotent, needed for standalone instantiation
+- Double `init_schema()` (wiring + TechSupportHandler) is harmless — CREATE IF NOT EXISTS
+
+**Net result:** 1003 tests pass, zero test modifications, 1 new file (`backend/wiring.py`), 10 files modified
+
 ## Next up
 
-- Plan 4 Phase 4 complete → Phase 5 next (standardize dependency injection)
+- Plan 4 Phase 5 complete → Phase 6 next (extract business logic from handlers into backend)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

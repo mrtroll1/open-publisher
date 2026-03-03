@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from common.prompt_loader import load_knowledge, load_template
+from common.prompt_loader import load_template
 
 _MODELS = {
     "support_email": "gemini-2.5-flash",
@@ -26,6 +26,11 @@ def _get_retriever() -> KnowledgeRetriever:
         from backend.domain.services.knowledge_retriever import KnowledgeRetriever
         _retriever = KnowledgeRetriever()
     return _retriever
+
+
+def set_retriever(r: KnowledgeRetriever) -> None:
+    global _retriever
+    _retriever = r
 
 
 def support_triage(email_text: str) -> tuple[str, str, list[str]]:

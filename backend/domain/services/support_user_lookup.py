@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 
 
 class SupportUserLookup:
-    def __init__(self):
-        self._republic = RepublicGateway()
-        self._redefine = RedefineGateway()
+    def __init__(self, republic_gw: RepublicGateway | None = None, redefine_gw: RedefineGateway | None = None):
+        self._republic = republic_gw or RepublicGateway()
+        self._redefine = redefine_gw or RedefineGateway()
 
     def fetch_and_format(self, email: str, needs: list[str]) -> str:
         """Fetch requested data categories and return formatted Russian text."""

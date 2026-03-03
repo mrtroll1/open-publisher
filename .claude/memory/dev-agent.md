@@ -1746,8 +1746,41 @@ tests/
 
 **Net result:** 1057 tests pass, ~30 code pattern instances consolidated into 4 helpers
 
+### Session 57 (2026-03-03) — Plan 4 Phase 9: Break up fat methods
+**Status:** Complete (all 7 items: 9.1-9.7)
+
+**What was done:**
+
+9.1 — `parse_bank_statement._categorize_transactions()` (166 → 37 lines):
+- Extracted 8 private module-level helpers: `_handle_incoming_transfer`, `_handle_fee`, `_handle_outgoing_transfer`, `_handle_card_known_service`, `_handle_card_unknown_service`, `_handle_card_payment`, `_aggregate_swift_fees`, `_aggregate_fx_fees`
+- Orchestrator now loops and dispatches to helpers, aggregation at end
+- Backward-compat shim updated
+
+9.2 — `compute_budget._make_noted_entry()` (94 → 16 lines):
+- Promoted from nested closure to `@staticmethod`
+- Takes `redirect_bonuses` as explicit parameter
+
+9.3 — `compute_budget._build_entries()` (178 → 43 lines):
+- Extracted 6 helpers: `_load_rule_lookups`, `_match_authors`, `_classify_entries`, `_process_matched_entries`, `_process_flat_entries`, `_assemble_grouped_result`
+
+9.4 — `docs_gateway.insert_articles_table()` (82 → 26 lines):
+- Extracted 5 helpers: `_delete_placeholder_paragraph`, `_insert_empty_table`, `_collect_cell_indices`, `_build_table_data`, `_build_fill_requests`
+
+9.5 — `validate_contractor.validate_fields()` (72 → 13 lines):
+- Extracted 4 per-type validators: `_validate_person_fields`, `_validate_ip_fields`, `_validate_global_fields`, `_validate_address_ru`
+
+9.6 — `budget_service.redirect_in_budget()` (60 → 28 lines) and `unredirect_in_budget()` (72 → 26 lines):
+- Extracted 7 shared helpers: `_find_row_by_name`, `_find_source_row`, `_convert_amount`, `_pad_row`, `_add_amount_to_row`, `_subtract_amount_from_row`, `_extract_bonus_from_note`, `_restore_source_row`
+
+**Review cleanup:** Removed ~20 unnecessary docstrings added by refactoring agents (codebase convention: no docstrings on obvious private helpers)
+
+**Net result:** 1057 tests pass, 5 files refactored, all fat methods under 43 lines
+
+## Plan 4 status
+
+**ALL PHASES COMPLETE (1-9).** Plan 4 Architecture Refactor is fully done. Next sessions enter maintenance mode.
+
 ## Next up
 
-- Plan 4 Phase 8 complete → Phase 9 next (break up fat methods)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

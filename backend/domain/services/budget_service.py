@@ -26,58 +26,26 @@ def redirect_in_budget(source_name: str, target: Contractor, month: str) -> None
         return
     rows = _sheets.read(sheet_id, "A2:E200")
 
-    source_lower = source_name.lower().strip()
-    target_lower = target.display_name.lower().strip()
-    source_idx = None
-    target_idx = None
-    source_eur = 0
-    source_rub = 0
-
-    for i, row in enumerate(rows):
-        if not row or not row[0].strip():
-            continue
-        name = row[0].strip().lower()
-        if name == source_lower:
-            source_idx = i
-            source_eur = parse_int(row[2]) if len(row) > 2 else 0
-            source_rub = parse_int(row[3]) if len(row) > 3 else 0
-        if name == target_lower:
-            target_idx = i
+    source_idx, source_eur, source_rub = _find_source_row(rows, source_name)
+    target_idx = _find_row_by_name(rows, target.display_name)
 
     if source_idx is None or target_idx is None or not (source_eur or source_rub):
         logger.warning("redirect_in_budget: source=%s(%s) target=%s(%s) — skipping",
                         source_name, source_idx, target.display_name, target_idx)
         return
 
-    # Determine amount to add, converting if currencies differ
-    if target.currency == Currency.EUR:
-        add_amount = source_eur or (source_rub // EUR_RUB_RATE if source_rub else 0)
-    else:
-        add_amount = source_rub or (source_eur * EUR_RUB_RATE if source_eur else 0)
-
+    add_amount = _convert_amount(source_eur, source_rub, target.currency)
     if not add_amount:
         return
 
-    # Update target row: add amount + append to note
-    t_row = rows[target_idx] + [""] * (5 - len(rows[target_idx]))
-    old_eur = parse_int(t_row[2])
-    old_rub = parse_int(t_row[3])
-    old_note = t_row[4].strip()
-
-    if target.currency == Currency.EUR:
-        t_row[2] = str(old_eur + add_amount)
-    else:
-        t_row[3] = str(old_rub + add_amount)
-
+    t_row = _pad_row(rows[target_idx])
+    _add_amount_to_row(t_row, add_amount, target.currency)
     bonus_entry = f"{source_name} ({add_amount})"
+    old_note = t_row[4].strip()
     t_row[4] = f"{old_note}, {bonus_entry}" if old_note else bonus_entry
 
-    t_sheet_row = target_idx + 2  # +1 header, +1 for 1-based
-    _sheets.write(sheet_id, f"A{t_sheet_row}:E{t_sheet_row}", [t_row[:5]])
-
-    # Clear source row
-    s_sheet_row = source_idx + 2
-    _sheets.clear(sheet_id, f"A{s_sheet_row}:E{s_sheet_row}")
+    _sheets.write(sheet_id, f"A{target_idx + 2}:E{target_idx + 2}", [t_row[:5]])
+    _sheets.clear(sheet_id, f"A{source_idx + 2}:E{source_idx + 2}")
     logger.info("Budget: moved %s (%d) → %s", source_name, add_amount, target.display_name)
 
 
@@ -88,27 +56,75 @@ def unredirect_in_budget(source_name: str, target: Contractor, month: str) -> No
         return
     rows = _sheets.read(sheet_id, "A2:E200")
 
-    target_lower = target.display_name.lower().strip()
-    target_idx = None
-    for i, row in enumerate(rows):
-        if not row or not row[0].strip():
-            continue
-        if row[0].strip().lower() == target_lower:
-            target_idx = i
-            break
-
+    target_idx = _find_row_by_name(rows, target.display_name)
     if target_idx is None:
         return
 
-    t_row = rows[target_idx] + [""] * (5 - len(rows[target_idx]))
+    t_row = _pad_row(rows[target_idx])
     old_note = t_row[4].strip()
     if not old_note:
         return
 
-    # Parse the bonus for this source from the note: "name (amount)"
+    source_amount, new_note = _extract_bonus_from_note(old_note, source_name)
+    if not source_amount:
+        return
+
+    _subtract_amount_from_row(t_row, source_amount, target.currency)
+    t_row[4] = new_note
+    _sheets.write(sheet_id, f"A{target_idx + 2}:E{target_idx + 2}", [t_row[:5]])
+
+    _restore_source_row(sheet_id, rows, source_name, source_amount, target.currency)
+    logger.info("Budget: restored %s (%d) from %s", source_name, source_amount, target.display_name)
+
+
+# --- private helpers ---
+
+
+def _find_row_by_name(rows: list[list[str]], display_name: str) -> int | None:
+    name_lower = display_name.lower().strip()
+    for i, row in enumerate(rows):
+        if row and row[0].strip().lower() == name_lower:
+            return i
+    return None
+
+
+def _find_source_row(rows: list[list[str]], source_name: str) -> tuple[int | None, int, int]:
+    source_lower = source_name.lower().strip()
+    for i, row in enumerate(rows):
+        if not row or not row[0].strip():
+            continue
+        if row[0].strip().lower() == source_lower:
+            eur = parse_int(row[2]) if len(row) > 2 else 0
+            rub = parse_int(row[3]) if len(row) > 3 else 0
+            return i, eur, rub
+    return None, 0, 0
+
+
+def _convert_amount(source_eur: int, source_rub: int, target_currency: Currency) -> int:
+    if target_currency == Currency.EUR:
+        return source_eur or (source_rub // EUR_RUB_RATE if source_rub else 0)
+    return source_rub or (source_eur * EUR_RUB_RATE if source_eur else 0)
+
+
+def _pad_row(row: list[str]) -> list[str]:
+    return row + [""] * (5 - len(row))
+
+
+def _add_amount_to_row(row: list[str], amount: int, currency: Currency) -> None:
+    col = 2 if currency == Currency.EUR else 3
+    row[col] = str(parse_int(row[col]) + amount)
+
+
+def _subtract_amount_from_row(row: list[str], amount: int, currency: Currency) -> None:
+    col = 2 if currency == Currency.EUR else 3
+    row[col] = str(parse_int(row[col]) - amount)
+
+
+def _extract_bonus_from_note(note: str, source_name: str) -> tuple[int, str]:
+    """Parse 'name (amount)' entries from note. Returns (source_amount, cleaned_note)."""
     source_amount = 0
     new_parts = []
-    for part in old_note.split(","):
+    for part in note.split(","):
         part = part.strip()
         if "(" not in part or ")" not in part:
             new_parts.append(part)
@@ -123,33 +139,21 @@ def unredirect_in_budget(source_name: str, target: Contractor, month: str) -> No
                 new_parts.append(part)
             continue
         new_parts.append(part)
+    return source_amount, ", ".join(p for p in new_parts if p)
 
-    if not source_amount:
-        return
 
-    # Subtract from target total
-    old_eur = parse_int(t_row[2])
-    old_rub = parse_int(t_row[3])
-    if target.currency == Currency.EUR:
-        t_row[2] = str(old_eur - source_amount)
-    else:
-        t_row[3] = str(old_rub - source_amount)
-    t_row[4] = ", ".join(p for p in new_parts if p)
-
-    t_sheet_row = target_idx + 2
-    _sheets.write(sheet_id, f"A{t_sheet_row}:E{t_sheet_row}", [t_row[:5]])
-
-    # Restore source as a standalone row in the first empty slot
-    # Amount stays in target's currency (the converted value)
-    sym_col = 2 if target.currency == Currency.EUR else 3
+def _restore_source_row(
+    sheet_id: str, rows: list[list[str]], source_name: str,
+    amount: int, currency: Currency,
+) -> None:
+    """Write source back as a standalone row in the first empty slot."""
+    col = 2 if currency == Currency.EUR else 3
     new_row = [""] * 5
     new_row[0] = source_name
-    new_row[sym_col] = str(source_amount)
+    new_row[col] = str(amount)
     empty_idx = len(rows)
     for i, row in enumerate(rows):
         if not row or not row[0].strip():
             empty_idx = i
             break
-    write_row = empty_idx + 2  # +1 header, +1 for 1-based
-    _sheets.write(sheet_id, f"A{write_row}:E{write_row}", [new_row])
-    logger.info("Budget: restored %s (%d) from %s", source_name, source_amount, target.display_name)
+    _sheets.write(sheet_id, f"A{empty_idx + 2}:E{empty_idx + 2}", [new_row])

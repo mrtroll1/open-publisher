@@ -53,84 +53,99 @@ class DocsGateway:
         self, doc_id: str, placeholder: str, articles: list[ArticleEntry],
         column_headers: list[str], third_col_values: str | list[str],
     ) -> None:
-        """Replace placeholder with a table containing article data.
-
-        Steps:
-          1. Find the placeholder paragraph and delete it.
-          2. Insert an empty table at that position.
-          3. Re-read the doc to get cell indices, then fill cells bottom-right to top-left.
-        """
+        """Replace placeholder with a table containing article data."""
         docs = self._docs_service()
 
-        # --- Step 1: Find placeholder, delete the paragraph that contains it ---
+        para_start = self._delete_placeholder_paragraph(docs, doc_id, placeholder)
+        if para_start is None:
+            return
+
+        num_rows = len(articles) + 1  # +1 for header
+        self._insert_empty_table(docs, doc_id, para_start, num_rows)
+
+        doc = docs.documents().get(documentId=doc_id).execute()
+        cell_idx = self._collect_cell_indices(doc, para_start)
+        if cell_idx is None:
+            return
+
+        data = self._build_table_data(column_headers, articles, third_col_values)
+        text_requests = self._build_fill_requests(data, cell_idx)
+
+        docs.documents().batchUpdate(
+            documentId=doc_id, body={"requests": text_requests}
+        ).execute()
+        logger.info("Inserted articles table with %d rows into doc %s", len(articles), doc_id)
+
+    def _delete_placeholder_paragraph(self, docs, doc_id: str, placeholder: str) -> int | None:
+        """Find and delete the paragraph containing placeholder. Returns para startIndex."""
         doc = docs.documents().get(documentId=doc_id).execute()
         para_start = self._find_placeholder_index(doc, placeholder)
         if para_start is None:
             logger.warning("Placeholder '%s' not found, skipping table insertion", placeholder)
-            return
+            return None
 
-        # Find the end of that paragraph
         for element in doc["body"]["content"]:
             if element.get("startIndex") == para_start:
                 para_end = element["endIndex"]
                 break
         else:
             logger.warning("Could not determine paragraph end for placeholder")
-            return
+            return None
 
-        # Delete the placeholder paragraph
         docs.documents().batchUpdate(documentId=doc_id, body={"requests": [
             {"deleteContentRange": {"range": {"startIndex": para_start, "endIndex": para_end}}}
         ]}).execute()
+        return para_start
 
-        # --- Step 2: Insert an empty table at that position ---
-        num_rows = len(articles) + 1  # +1 for header
+    @staticmethod
+    def _insert_empty_table(docs, doc_id: str, index: int, num_rows: int) -> None:
         docs.documents().batchUpdate(documentId=doc_id, body={"requests": [
-            {"insertTable": {"rows": num_rows, "columns": 3, "location": {"index": para_start}}}
+            {"insertTable": {"rows": num_rows, "columns": 3, "location": {"index": index}}}
         ]}).execute()
 
-        # --- Step 3: Re-read doc, collect cell start indices, fill bottom-right to top-left ---
-        doc = docs.documents().get(documentId=doc_id).execute()
-
+    @staticmethod
+    def _collect_cell_indices(doc: dict, min_start: int) -> list[list[int]] | None:
+        """Find the first table at/after min_start and return cell start indices."""
         table_element = None
         for element in doc["body"]["content"]:
-            if "table" in element and element["startIndex"] >= para_start:
+            if "table" in element and element["startIndex"] >= min_start:
                 table_element = element
                 break
-
         if table_element is None:
             logger.error("Inserted table not found in document")
-            return
+            return None
 
         cell_idx: list[list[int]] = []
         for row in table_element["table"]["tableRows"]:
-            row_indices = []
-            for cell in row["tableCells"]:
-                row_indices.append(cell["content"][0]["startIndex"])
-            cell_idx.append(row_indices)
+            cell_idx.append([cell["content"][0]["startIndex"] for cell in row["tableCells"]])
+        return cell_idx
 
+    @staticmethod
+    def _build_table_data(
+        column_headers: list[str], articles: list[ArticleEntry],
+        third_col_values: str | list[str],
+    ) -> list[list[str]]:
         data: list[list[str]] = [column_headers]
         if isinstance(third_col_values, str):
             third_col_values = [third_col_values] * len(articles)
         for i, (article, third_val) in enumerate(zip(articles, third_col_values), 1):
             article_code = f"{article.article_id} - {article.role_code.value}"
             data.append([str(i), article_code, third_val])
+        return data
 
-        # Insert text bottom-right to top-left so indices stay valid
-        text_requests = []
+    @staticmethod
+    def _build_fill_requests(data: list[list[str]], cell_idx: list[list[int]]) -> list[dict]:
+        # Bottom-right to top-left so indices stay valid
+        requests = []
         for row in range(len(data) - 1, -1, -1):
             for col in range(2, -1, -1):
-                text_requests.append({
+                requests.append({
                     "insertText": {
                         "text": data[row][col],
                         "location": {"index": cell_idx[row][col]},
                     }
                 })
-
-        docs.documents().batchUpdate(
-            documentId=doc_id, body={"requests": text_requests}
-        ).execute()
-        logger.info("Inserted articles table with %d rows into doc %s", len(articles), doc_id)
+        return requests
 
     def export_pdf(self, doc_id: str) -> bytes:
         """Export a Google Doc as PDF bytes."""

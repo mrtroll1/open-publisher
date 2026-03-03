@@ -143,21 +143,56 @@ class ComputeBudget:
         contractors: list[Contractor],
         month: str,
     ) -> list[PaymentEntry]:
-        """Match authors to contractors, add flat contractors, group everything."""
+        lookups = self._load_rule_lookups()
+        flat_rate_rules, flat_by_id, label_by_id, rate_by_id = (
+            lookups["flat_rate_rules"], lookups["flat_by_id"],
+            lookups["label_by_id"], lookups["rate_by_id"],
+        )
 
-        # Load rules from the special rules sheet
+        matched, unmatched, redirect_bonuses = self._match_authors(
+            published_authors, contractors,
+            lookups["excludes"], lookups["redirect_targets"],
+        )
+
+        author_counts: dict[str, int] = {
+            row["author"].lower().strip(): int(row["post_count"])
+            for row in published_authors
+        }
+
+        groups = self._classify_entries(
+            matched, flat_rate_rules, contractors,
+            flat_by_id, label_by_id, rate_by_id,
+            author_counts, redirect_bonuses,
+        )
+
+        unmatched_entries = [
+            PaymentEntry(name=name, eur=DEFAULT_RATE_EUR * count)
+            for name, count in unmatched
+        ]
+
+        service_entries = groups["services"]
+        for fr in flat_rate_rules:
+            if not fr.contractor_id:
+                service_entries.append(
+                    PaymentEntry(name=fr.name, label=fr.label, eur=fr.eur, rub=fr.rub)
+                )
+
+        return self._assemble_grouped_result(groups, unmatched_entries)
+
+    @staticmethod
+    def _load_rule_lookups() -> dict:
         redirect_rules = load_redirect_rules()
         flat_rate_rules = load_flat_rate_rules()
         article_rate_rules = load_article_rate_rules()
 
-        # Build lookups
         excludes: set[str] = {r.source_name for r in redirect_rules if not r.target_id}
         redirects: dict[str, tuple[str, bool]] = {
             r.source_name: (r.target_id, r.add_to_total)
             for r in redirect_rules if r.target_id
         }
-        flat_by_id: dict[str, tuple[int, int]] = {}  # contractor_id → (eur, rub)
-        label_by_id: dict[str, str] = {}      # contractor_id → label
+
+        flat_by_id: dict[str, tuple[int, int]] = {}
+        label_by_id: dict[str, str] = {}
         for fr in flat_rate_rules:
             if fr.contractor_id:
                 flat_by_id[fr.contractor_id] = (fr.eur, fr.rub)
@@ -167,8 +202,27 @@ class ComputeBudget:
             ar.contractor_id: (ar.eur, ar.rub) for ar in article_rate_rules
         }
 
-        # 1. Pre-process redirects: resolve target IDs → contractors
-        redirect_bonuses: dict[str, list[tuple[str, int, bool]]] = {}
+        return {
+            "flat_rate_rules": flat_rate_rules,
+            "excludes": excludes,
+            "redirect_targets": redirects,
+            "flat_by_id": flat_by_id,
+            "label_by_id": label_by_id,
+            "rate_by_id": rate_by_id,
+        }
+
+    @staticmethod
+    def _match_authors(
+        published_authors: list[dict[str, str | int]],
+        contractors: list[Contractor],
+        excludes: set[str],
+        redirects: dict[str, tuple[str, bool]],
+    ) -> tuple[
+        dict[str, tuple[Contractor, int]],
+        list[tuple[str, int]],
+        dict[str, list[tuple[str, int, bool]]],
+    ]:
+        # Resolve redirect target IDs → contractors
         redirect_targets: dict[str, tuple[Contractor, bool]] = {}
         for source_name, (target_id, add_to_total) in redirects.items():
             tc = find_contractor_by_id(target_id, contractors)
@@ -177,9 +231,9 @@ class ComputeBudget:
             else:
                 logger.warning("Redirect target not found: %s → %s", source_name, target_id)
 
-        # 2. Match published authors to contractors
-        matched: dict[str, tuple[Contractor, int]] = {}  # contractor.id → (contractor, article_count)
-        unmatched: list[tuple[str, int]] = []  # (author_name, post_count)
+        redirect_bonuses: dict[str, list[tuple[str, int, bool]]] = {}
+        matched: dict[str, tuple[Contractor, int]] = {}
+        unmatched: list[tuple[str, int]] = []
 
         for row in published_authors:
             author_name = row["author"]
@@ -208,33 +262,44 @@ class ComputeBudget:
         if unmatched:
             logger.warning("Unmatched authors: %s", [name for name, _ in unmatched])
 
-        # 3. Classify all contractors into groups
-        author_entries: list[PaymentEntry] = []
-        staff_entries: list[PaymentEntry] = []
-        editor_entries: list[PaymentEntry] = []
-        service_entries: list[PaymentEntry] = []
-        chief_entries: list[PaymentEntry] = []
+        return matched, unmatched, redirect_bonuses
 
+    def _classify_entries(
+        self,
+        matched: dict[str, tuple[Contractor, int]],
+        flat_rate_rules: list,
+        contractors: list[Contractor],
+        flat_by_id: dict[str, tuple[int, int]],
+        label_by_id: dict[str, str],
+        rate_by_id: dict[str, tuple[int, int]],
+        author_counts: dict[str, int],
+        redirect_bonuses: dict[str, list[tuple[str, int, bool]]],
+    ) -> dict[str, list[PaymentEntry]]:
+        groups: dict[str, list[PaymentEntry]] = {
+            "authors": [], "staff": [], "editors": [], "services": [], "chief": [],
+        }
         seen_ids: set[str] = set()
 
-        # Build a lookup of author→post_count for flat+rate contractors
-        author_counts: dict[str, int] = {
-            row["author"].lower().strip(): int(row["post_count"])
-            for row in published_authors
-        }
+        self._process_matched_entries(
+            matched, flat_by_id, rate_by_id, label_by_id,
+            redirect_bonuses, groups, seen_ids,
+        )
+        self._process_flat_entries(
+            flat_rate_rules, contractors, flat_by_id, rate_by_id,
+            author_counts, redirect_bonuses, label_by_id, groups, seen_ids,
+        )
+        return groups
 
-        def _make_noted_entry(c: Contractor, amount: int, label: str) -> PaymentEntry:
-            """Build entry, adding redirect bonus notes to column E."""
-            bonuses = redirect_bonuses.get(c.id, [])
-            note = ", ".join(f"{name} ({amt})" for name, amt, _ in bonuses)
-            bonus_total = sum(amt for _, amt, add in bonuses if add)
-            if c.currency == Currency.EUR:
-                return PaymentEntry(name=c.display_name, label=label,
-                                    eur=amount + bonus_total, note=note)
-            return PaymentEntry(name=c.display_name, label=label,
-                                rub=amount + bonus_total, note=note)
-
-        # Process published authors first (order preserved from API)
+    def _process_matched_entries(
+        self,
+        matched: dict[str, tuple[Contractor, int]],
+        flat_by_id: dict[str, tuple[int, int]],
+        rate_by_id: dict[str, tuple[int, int]],
+        label_by_id: dict[str, str],
+        redirect_bonuses: dict[str, list[tuple[str, int, bool]]],
+        groups: dict[str, list[PaymentEntry]],
+        seen_ids: set[str],
+    ) -> None:
         for cid, (c, article_count) in matched.items():
             flat = _pick_by_currency(flat_by_id.get(cid), c.currency)
             rate = _pick_by_currency(rate_by_id.get(cid), c.currency)
@@ -243,11 +308,23 @@ class ComputeBudget:
                 continue
             seen_ids.add(cid)
             entry_label = label_by_id.get(cid, "") or _role_label(c)
-            entry = _make_noted_entry(c, amount, entry_label)
-            self._route_entry(c, entry_label, entry, flat_by_id, author_entries,
-                              staff_entries, editor_entries, service_entries, chief_entries)
+            entry = self._make_noted_entry(c, amount, entry_label, redirect_bonuses)
+            self._route_entry(c, entry_label, entry, flat_by_id,
+                              groups["authors"], groups["staff"], groups["editors"],
+                              groups["services"], groups["chief"])
 
-        # Add flat-rate contractors not already included
+    def _process_flat_entries(
+        self,
+        flat_rate_rules: list,
+        contractors: list[Contractor],
+        flat_by_id: dict[str, tuple[int, int]],
+        rate_by_id: dict[str, tuple[int, int]],
+        author_counts: dict[str, int],
+        redirect_bonuses: dict[str, list[tuple[str, int, bool]]],
+        label_by_id: dict[str, str],
+        groups: dict[str, list[PaymentEntry]],
+        seen_ids: set[str],
+    ) -> None:
         for fr in flat_rate_rules:
             if not fr.contractor_id or fr.contractor_id in seen_ids:
                 continue
@@ -270,45 +347,52 @@ class ComputeBudget:
                 continue
             seen_ids.add(fr.contractor_id)
             entry_label = fr.label or _role_label(c)
-            entry = _make_noted_entry(c, amount, entry_label)
-            self._route_entry(c, entry_label, entry, flat_by_id, author_entries,
-                              staff_entries, editor_entries, service_entries, chief_entries)
+            entry = self._make_noted_entry(c, amount, entry_label, redirect_bonuses)
+            self._route_entry(c, entry_label, entry, flat_by_id,
+                              groups["authors"], groups["staff"], groups["editors"],
+                              groups["services"], groups["chief"])
 
-        # Unmatched authors — added with default 100€ per article
-        unmatched_entries: list[PaymentEntry] = []
-        for author_name, post_count in unmatched:
-            amount = DEFAULT_RATE_EUR * post_count
-            unmatched_entries.append(
-                PaymentEntry(name=author_name, eur=amount)
-            )
+    @staticmethod
+    def _make_noted_entry(
+        c: Contractor,
+        amount: int,
+        label: str,
+        redirect_bonuses: dict[str, list[tuple[str, int, bool]]],
+    ) -> PaymentEntry:
+        """Build entry, adding redirect bonus notes to column E."""
+        bonuses = redirect_bonuses.get(c.id, [])
+        note = ", ".join(f"{name} ({amt})" for name, amt, _ in bonuses)
+        bonus_total = sum(amt for _, amt, add in bonuses if add)
+        if c.currency == Currency.EUR:
+            return PaymentEntry(name=c.display_name, label=label,
+                                eur=amount + bonus_total, note=note)
+        return PaymentEntry(name=c.display_name, label=label,
+                            rub=amount + bonus_total, note=note)
 
-        # Non-contractor flat entries (AFP, ElevenLabs, etc.)
-        for fr in flat_rate_rules:
-            if fr.contractor_id:
-                continue
-            entry = PaymentEntry(name=fr.name, label=fr.label, eur=fr.eur, rub=fr.rub)
-            service_entries.append(entry)
-
-        # Assemble final list with grouping and blank separators
+    @staticmethod
+    def _assemble_grouped_result(
+        groups: dict[str, list[PaymentEntry]],
+        unmatched_entries: list[PaymentEntry],
+    ) -> list[PaymentEntry]:
         result: list[PaymentEntry] = []
 
-        if author_entries:
-            result.extend(author_entries)
+        if groups["authors"]:
+            result.extend(groups["authors"])
             result.extend([BLANK, BLANK])
 
-        if staff_entries:
-            result.extend(staff_entries)
+        if groups["staff"]:
+            result.extend(groups["staff"])
             result.append(BLANK)
 
-        if editor_entries:
-            result.extend(editor_entries)
+        if groups["editors"]:
+            result.extend(groups["editors"])
             result.append(BLANK)
 
-        result.extend(service_entries)
+        result.extend(groups["services"])
         result.append(BLANK)
 
-        if chief_entries:
-            result.extend(chief_entries)
+        if groups["chief"]:
+            result.extend(groups["chief"])
             result.append(BLANK)
 
         if unmatched_entries:
@@ -328,7 +412,6 @@ class ComputeBudget:
         services: list[PaymentEntry],
         chief: list[PaymentEntry],
     ) -> None:
-        """Route an entry to the appropriate group based on label and role."""
         label_lower = label.lower()
         if label_lower in ("фото", "аудио"):
             services.append(entry)
@@ -349,7 +432,6 @@ class ComputeBudget:
     # ------------------------------------------------------------------
 
     def _populate_sheet(self, sheet_id: str, entries: list[PaymentEntry], month: str) -> None:
-        """Write payment entries into the copied template sheet."""
         rows: list[list[str]] = []
         for e in entries:
             if e.is_blank:
@@ -365,11 +447,7 @@ class ComputeBudget:
 
     @staticmethod
     def _build_pnl_rows(pnl_data: dict, eur_rub_rate: float) -> list[list[str]]:
-        """Build PNL rows for the budget sheet.
-
-        Each row: [name, category, EUR formula, RUB amount, ""].
-        EUR column uses a formula dividing RUB by the EUR/RUB rate in EUR_RUB_CELL.
-        """
+        # EUR column uses a Sheets formula dividing RUB by the rate in EUR_RUB_CELL
         if not pnl_data or not eur_rub_rate:
             return []
         col = "".join(c for c in EUR_RUB_CELL if c.isalpha())

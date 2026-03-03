@@ -242,13 +242,19 @@ tests/
 > Goal: no method longer than ~40 lines. Extract sub-steps with clear names.
 > Rule: extract private helpers within the same file. Don't create new files for internal decomposition.
 
-- [ ] 9.1 `parse_bank_statement._categorize_transactions()` (166 lines) → extract per-category matchers
-- [ ] 9.2 `compute_budget._make_noted_entry()` (94 lines) → separate entry building from bonus calculation
-- [ ] 9.3 `compute_budget._build_entries()` (86 lines) → separate lookup, matching, routing
-- [ ] 9.4 `docs_gateway.insert_articles_table()` (82 lines) → extract step helpers
-- [ ] 9.5 `validate_contractor.validate_fields()` (72 lines) → extract per-type validators
-- [ ] 9.6 `budget_repo.redirect_in_budget()` (60 lines) and `unredirect_in_budget()` (72 lines) → decompose (after Phase 7.4 moves orchestration out)
-- [ ] 9.7 Run full test suite — all tests pass
+- [x] 9.1 `parse_bank_statement._categorize_transactions()` (166 lines) → extract per-category matchers
+  - 8 private helpers extracted, orchestrator reduced to 37 lines
+- [x] 9.2 `compute_budget._make_noted_entry()` (94 lines) → separate entry building from bonus calculation
+  - Promoted from nested closure to @staticmethod (16 lines)
+- [x] 9.3 `compute_budget._build_entries()` (86 lines) → separate lookup, matching, routing
+  - 7 helpers extracted, orchestrator reduced to 43 lines
+- [x] 9.4 `docs_gateway.insert_articles_table()` (82 lines) → extract step helpers
+  - 5 helpers extracted, orchestrator reduced to 26 lines
+- [x] 9.5 `validate_contractor.validate_fields()` (72 lines) → extract per-type validators
+  - 4 per-type validators extracted, dispatcher reduced to 13 lines
+- [x] 9.6 `budget_service.redirect_in_budget()` (60 lines) and `unredirect_in_budget()` (72 lines) → decompose
+  - 7 shared helpers extracted, both orchestrators under 30 lines
+- [x] 9.7 Run full test suite — all 1057 tests pass
 
 ---
 

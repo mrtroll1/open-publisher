@@ -57,12 +57,11 @@ class TestRunClaudeCode:
         assert prompt_arg.startswith(_CHANGES_PREFIX)
 
     @patch("backend.domain.code_runner.subprocess.run")
-    def test_truncate_long_output(self, mock_run):
+    def test_long_output_not_truncated(self, mock_run):
         long_text = "x" * 5000
         mock_run.return_value = MagicMock(stdout=long_text, stderr="")
         result = run_claude_code("q")
-        assert len(result) == 4003  # 4000 + "..."
-        assert result.endswith("...")
+        assert len(result) == 5000
 
     @patch("backend.domain.code_runner.subprocess.run")
     def test_empty_stdout_uses_stderr(self, mock_run):

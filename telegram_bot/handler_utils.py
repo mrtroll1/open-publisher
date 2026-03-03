@@ -72,12 +72,40 @@ async def _safe_edit_text(message, text: str, **kwargs) -> None:
         pass
 
 
+_TG_MAX = 4096
+
+
+def _split_text(text: str, limit: int = _TG_MAX) -> list[str]:
+    """Split text into chunks that fit Telegram's message limit, breaking at newlines."""
+    if len(text) <= limit:
+        return [text]
+    chunks = []
+    while text:
+        if len(text) <= limit:
+            chunks.append(text)
+            break
+        cut = text.rfind("\n", 0, limit)
+        if cut <= 0:
+            cut = limit
+        chunks.append(text[:cut])
+        text = text[cut:].lstrip("\n")
+    return chunks
+
+
 async def _send_html(message: types.Message, text: str, **kwargs) -> types.Message:
-    """Send with markdown→HTML conversion; fall back to plain text on parse error."""
-    try:
-        return await message.answer(md_to_tg_html(text), parse_mode="HTML", **kwargs)
-    except TelegramBadRequest:
-        return await message.answer(text, **kwargs)
+    """Send with markdown→HTML conversion; fall back to plain text on parse error.
+
+    Splits long messages into multiple Telegram messages.
+    """
+    html = md_to_tg_html(text)
+    chunks = _split_text(html)
+    last = None
+    for chunk in chunks:
+        try:
+            last = await message.answer(chunk, parse_mode="HTML", **kwargs)
+        except TelegramBadRequest:
+            last = await message.answer(chunk, **kwargs)
+    return last
 
 
 async def _save_turn(

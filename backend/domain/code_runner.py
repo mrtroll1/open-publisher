@@ -56,8 +56,6 @@ def run_claude_code(prompt: str, verbose: bool = False, expert: bool = False,
             output = f"stderr: {result.stderr.strip()}"
         if not output:
             output = "(пустой ответ от Claude Code)"
-        if len(output) > 4000:
-            output = output[:4000] + "..."
         return output
     except subprocess.TimeoutExpired:
         return "Таймаут: Claude Code не ответил за 5 минут."

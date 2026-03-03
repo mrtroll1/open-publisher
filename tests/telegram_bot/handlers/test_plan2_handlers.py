@@ -476,7 +476,7 @@ class TestCmdSupport:
 
     @patch("telegram_bot.flow_callbacks._answer_tech_question")
     @patch("telegram_bot.flow_callbacks.bot")
-    def test_long_answer_truncated(self, mock_bot, mock_answer):
+    def test_long_answer_not_truncated(self, mock_bot, mock_answer):
         from telegram_bot.flow_callbacks import cmd_support
 
         mock_answer.return_value = "x" * 5000
@@ -487,9 +487,8 @@ class TestCmdSupport:
 
         asyncio.run(cmd_support(msg, state))
 
-        answer = msg.answer.call_args[0][0]
-        assert len(answer) <= 4003
-        assert answer.endswith("...")
+        # Long answers are split by _send_html, not truncated
+        assert msg.answer.call_count >= 2
 
     @patch("telegram_bot.flow_callbacks._answer_tech_question")
     @patch("telegram_bot.flow_callbacks.bot")

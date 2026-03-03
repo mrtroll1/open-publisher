@@ -85,8 +85,6 @@ async def cmd_support(message: types.Message, state: FSMContext) -> None:
 
     try:
         answer = await asyncio.to_thread(_answer_tech_question, text, verbose, expert)
-        if len(answer) > 4000:
-            answer = answer[:4000] + "..."
         sent = await _send_html(message, answer)
         await _save_turn(message, sent, text, answer, {"command": "tech_support"})
     except Exception as e:

@@ -105,18 +105,18 @@ class TestRetrieve:
         kr.retrieve("how to cancel?")
 
         mock_db.search_knowledge.assert_called_once_with(
-            [0.1, 0.2], scope=None, limit=5,
+            [0.1, 0.2], domain=None, limit=5,
         )
 
-    def test_passes_scope_and_limit(self):
+    def test_passes_domain_and_limit(self):
         kr, mock_db, mock_embed = _make_retriever()
         mock_embed.embed_one.return_value = [0.5]
         mock_db.search_knowledge.return_value = []
 
-        kr.retrieve("query", scope="billing", limit=3)
+        kr.retrieve("query", domain="billing", limit=3)
 
         mock_db.search_knowledge.assert_called_once_with(
-            [0.5], scope="billing", limit=3,
+            [0.5], domain="billing", limit=3,
         )
 
     @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
@@ -134,27 +134,27 @@ class TestRetrieve:
 
 
 # ===================================================================
-#  retrieve_full_scope
+#  retrieve_full_domain
 # ===================================================================
 
-class TestRetrieveFullScope:
+class TestRetrieveFullDomain:
 
-    def test_calls_db_with_scope(self):
+    def test_calls_db_with_domain(self):
         kr, mock_db, _ = _make_retriever()
-        mock_db.get_knowledge_by_scope.return_value = []
+        mock_db.get_knowledge_by_domain.return_value = []
 
-        kr.retrieve_full_scope("subscriptions")
+        kr.retrieve_full_domain("subscriptions")
 
-        mock_db.get_knowledge_by_scope.assert_called_once_with("subscriptions")
+        mock_db.get_knowledge_by_domain.assert_called_once_with("subscriptions")
 
     @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
     def test_formats_results(self):
         kr, mock_db, _ = _make_retriever()
-        mock_db.get_knowledge_by_scope.return_value = [
+        mock_db.get_knowledge_by_domain.return_value = [
             {"title": "Plans", "content": "We have plans"},
         ]
 
-        result = kr.retrieve_full_scope("subscriptions")
+        result = kr.retrieve_full_domain("subscriptions")
 
         assert result == "## Plans\nWe have plans"
 
@@ -170,13 +170,13 @@ class TestStoreFeedback:
         mock_embed.embed_one.return_value = [0.1, 0.2, 0.3]
         mock_db.save_knowledge_entry.return_value = "new-uuid-123"
 
-        result = kr.store_feedback("Don't reply to spam", scope="tech_support")
+        result = kr.store_feedback("Don't reply to spam", domain="tech_support")
 
         assert result == "new-uuid-123"
         mock_embed.embed_one.assert_called_once_with("Don't reply to spam")
         mock_db.save_knowledge_entry.assert_called_once_with(
-            tier="domain",
-            scope="tech_support",
+            tier="specific",
+            domain="tech_support",
             title="Don't reply to spam",
             content="Don't reply to spam",
             source="admin_feedback",
@@ -189,7 +189,7 @@ class TestStoreFeedback:
         mock_db.save_knowledge_entry.return_value = "uuid"
 
         long_text = "A" * 100
-        kr.store_feedback(long_text, scope="tech_support")
+        kr.store_feedback(long_text, domain="tech_support")
 
         call_kwargs = mock_db.save_knowledge_entry.call_args[1]
         assert len(call_kwargs["title"]) == 60

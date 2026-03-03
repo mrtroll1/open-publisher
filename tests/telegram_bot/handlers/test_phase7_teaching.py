@@ -80,23 +80,23 @@ class TestStoreTeaching:
         assert result == "teach-uuid-1"
         mock_embed.embed_one.assert_called_once_with("Всегда отвечай на русском")
         mock_db.save_knowledge_entry.assert_called_once_with(
-            tier="domain",
-            scope="general",
+            tier="specific",
+            domain="general",
             title="Всегда отвечай на русском",
             content="Всегда отвечай на русском",
             source="admin_teach",
             embedding=[0.1, 0.2, 0.3],
         )
 
-    def test_custom_scope(self):
+    def test_custom_domain(self):
         kr, mock_db, mock_embed = _make_retriever()
         mock_embed.embed_one.return_value = [0.5]
         mock_db.save_knowledge_entry.return_value = "uuid"
 
-        kr.store_teaching("billing rule", scope="billing")
+        kr.store_teaching("billing rule", domain="billing")
 
         call_kwargs = mock_db.save_knowledge_entry.call_args[1]
-        assert call_kwargs["scope"] == "billing"
+        assert call_kwargs["domain"] == "billing"
         assert call_kwargs["source"] == "admin_teach"
 
     def test_title_truncated_at_60_chars(self):
@@ -118,7 +118,7 @@ class TestStoreTeaching:
 
 class TestCmdTeach:
 
-    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "domain"))
+    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "specific"))
     @patch("telegram_bot.flow_callbacks._get_retriever")
     def test_stores_entry_and_replies(self, mock_get_retriever, mock_classify):
         from telegram_bot.flow_callbacks import cmd_teach
@@ -134,7 +134,7 @@ class TestCmdTeach:
 
         mock_classify.assert_awaited_once_with("Клиентов зовут по имени")
         retriever.store_teaching.assert_called_once_with(
-            "Клиентов зовут по имени", scope="general", tier="domain",
+            "Клиентов зовут по имени", domain="general", tier="specific",
         )
         msg.answer.assert_awaited_once()
         reply_text = msg.answer.call_args[0][0]
@@ -163,7 +163,7 @@ class TestCmdTeach:
         msg.answer.assert_awaited_once()
         assert "/teach" in msg.answer.call_args[0][0]
 
-    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("tech_support", "domain"))
+    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("tech_support", "specific"))
     @patch("telegram_bot.flow_callbacks._get_retriever")
     def test_stores_with_correct_source(self, mock_get_retriever, mock_classify):
         """Verify the retriever's store_teaching (source=admin_teach) is called, not store_feedback."""
@@ -188,7 +188,7 @@ class TestCmdTeach:
 
 class TestNlTeachingDetection:
 
-    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "domain"))
+    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "specific"))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._save_turn")
@@ -224,10 +224,10 @@ class TestNlTeachingDetection:
 
         assert result is True
         retriever.store_teaching.assert_called_once_with(
-            "Запомни: клиентам отвечаем на русском", scope="general", tier="domain",
+            "Запомни: клиентам отвечаем на русском", domain="general", tier="specific",
         )
 
-    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("tech_support", "domain"))
+    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("tech_support", "specific"))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._save_turn")
@@ -264,7 +264,7 @@ class TestNlTeachingDetection:
         assert result is True
         retriever.store_teaching.assert_called_once()
 
-    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "domain"))
+    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "specific"))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._save_turn")
@@ -301,7 +301,7 @@ class TestNlTeachingDetection:
         assert result is True
         retriever.store_teaching.assert_called_once()
 
-    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "domain"))
+    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "specific"))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._save_turn")
@@ -373,7 +373,7 @@ class TestNlTeachingDetection:
         assert result is True
         retriever.store_teaching.assert_not_called()
 
-    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "domain"))
+    @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "specific"))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._save_turn")
@@ -424,12 +424,12 @@ class TestCmdKnowledge:
 
         mock_db.list_knowledge.return_value = [
             {
-                "id": "uuid-1", "tier": "domain", "scope": "general",
+                "id": "uuid-1", "tier": "specific", "domain": "general",
                 "title": "Правило 1", "content": "Содержание 1",
                 "source": "admin_teach", "created_at": datetime(2025, 6, 15),
             },
             {
-                "id": "uuid-2", "tier": "core", "scope": "tech_support",
+                "id": "uuid-2", "tier": "core", "domain": "tech_support",
                 "title": "Правило 2", "content": "Содержание 2",
                 "source": "admin_feedback", "created_at": datetime(2025, 7, 1),
             },
@@ -440,14 +440,14 @@ class TestCmdKnowledge:
 
         asyncio.run(cmd_knowledge(msg, state))
 
-        mock_db.list_knowledge.assert_called_once_with(scope=None, tier=None)
+        mock_db.list_knowledge.assert_called_once_with(domain=None, tier=None)
         msg.answer.assert_awaited_once()
         reply = msg.answer.call_args[0][0]
         # Default mode: IDs shown, no date, bold group headers
         assert "uuid-1" in reply
         assert "Правило 1" in reply
         assert "2025-06-15" not in reply
-        assert "<b>[domain] general</b>" in reply
+        assert "<b>[specific] general</b>" in reply
         assert "<b>[core] tech_support</b>" in reply
 
     @patch("telegram_bot.flow_callbacks._db")
@@ -456,7 +456,7 @@ class TestCmdKnowledge:
 
         mock_db.list_knowledge.return_value = [
             {
-                "id": "uuid-1", "tier": "domain", "scope": "general",
+                "id": "uuid-1", "tier": "specific", "domain": "general",
                 "title": "Правило 1", "content": "Содержание 1",
                 "source": "admin_teach", "created_at": datetime(2025, 6, 15),
             },
@@ -467,14 +467,14 @@ class TestCmdKnowledge:
 
         asyncio.run(cmd_knowledge(msg, state))
 
-        mock_db.list_knowledge.assert_called_once_with(scope=None, tier=None)
+        mock_db.list_knowledge.assert_called_once_with(domain=None, tier=None)
         reply = msg.answer.call_args[0][0]
         assert "uuid-1" in reply
         assert "Содержание 1" in reply
         assert "2025-06-15" in reply
 
     @patch("telegram_bot.flow_callbacks._db")
-    def test_filters_by_scope(self, mock_db):
+    def test_filters_by_domain(self, mock_db):
         from telegram_bot.flow_callbacks import cmd_knowledge
 
         mock_db.list_knowledge.return_value = []
@@ -484,10 +484,10 @@ class TestCmdKnowledge:
 
         asyncio.run(cmd_knowledge(msg, state))
 
-        mock_db.list_knowledge.assert_called_once_with(scope="tech_support", tier=None)
+        mock_db.list_knowledge.assert_called_once_with(domain="tech_support", tier=None)
 
     @patch("telegram_bot.flow_callbacks._db")
-    def test_filters_by_scope_and_tier(self, mock_db):
+    def test_filters_by_domain_and_tier(self, mock_db):
         from telegram_bot.flow_callbacks import cmd_knowledge
 
         mock_db.list_knowledge.return_value = []
@@ -497,7 +497,7 @@ class TestCmdKnowledge:
 
         asyncio.run(cmd_knowledge(msg, state))
 
-        mock_db.list_knowledge.assert_called_once_with(scope="tech_support", tier="core")
+        mock_db.list_knowledge.assert_called_once_with(domain="tech_support", tier="core")
 
     @patch("telegram_bot.flow_callbacks._db")
     def test_empty_list(self, mock_db):
@@ -593,7 +593,7 @@ class TestCmdKedit:
         from telegram_bot.flow_callbacks import cmd_kedit
 
         mock_db.get_knowledge_entry.return_value = {
-            "id": "uuid-1", "tier": "domain", "scope": "general",
+            "id": "uuid-1", "tier": "specific", "domain": "general",
             "title": "Правило 1", "content": "Содержание записи",
             "source": "admin_teach", "created_at": datetime(2025, 6, 15),
         }
@@ -610,7 +610,7 @@ class TestCmdKedit:
         mock_send_html.assert_awaited_once()
         text = mock_send_html.call_args[0][1]
         assert "Содержание записи" in text
-        assert "domain" in text
+        assert "specific" in text
 
     @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._kedit_pending", {})
@@ -619,7 +619,7 @@ class TestCmdKedit:
         from telegram_bot.flow_callbacks import cmd_kedit, _kedit_pending
 
         mock_db.get_knowledge_entry.return_value = {
-            "id": "uuid-1", "tier": "domain", "scope": "general",
+            "id": "uuid-1", "tier": "specific", "domain": "general",
             "title": "Правило 1", "content": "Содержание записи",
             "source": "admin_teach", "created_at": datetime(2025, 6, 15),
         }
@@ -744,6 +744,73 @@ class TestHandleKeditReply:
 #  flows.py registration
 # ===================================================================
 
+# ===================================================================
+#  cmd_ksearch
+# ===================================================================
+
+class TestCmdKsearch:
+
+    @patch("telegram_bot.flow_callbacks._send")
+    @patch("telegram_bot.flow_callbacks._get_retriever")
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_returns_results(self, mock_db, mock_get_retriever, mock_send):
+        from telegram_bot.flow_callbacks import cmd_ksearch
+
+        retriever = MagicMock()
+        retriever._embed.embed_one.return_value = [0.1, 0.2]
+        mock_get_retriever.return_value = retriever
+        mock_db.search_knowledge.return_value = [
+            {"id": "uuid-1", "tier": "specific", "domain": "general",
+             "title": "Правило 1", "content": "Содержание", "source": "seed", "similarity": 0.92},
+        ]
+
+        msg = _make_message("/ksearch правило")
+        state = _make_state()
+
+        asyncio.run(cmd_ksearch(msg, state))
+
+        retriever._embed.embed_one.assert_called_once_with("правило")
+        mock_db.search_knowledge.assert_called_once_with([0.1, 0.2], None, 10)
+        mock_send.assert_awaited_once()
+        text = mock_send.call_args[0][1]
+        assert "Правило 1" in text
+        assert "0.92" in text
+
+    def test_no_query_shows_usage(self):
+        from telegram_bot.flow_callbacks import cmd_ksearch
+
+        msg = _make_message("/ksearch")
+        state = _make_state()
+
+        asyncio.run(cmd_ksearch(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "/ksearch" in msg.answer.call_args[0][0]
+
+    @patch("telegram_bot.flow_callbacks._get_retriever")
+    @patch("telegram_bot.flow_callbacks._db")
+    def test_empty_results(self, mock_db, mock_get_retriever):
+        from telegram_bot.flow_callbacks import cmd_ksearch
+
+        retriever = MagicMock()
+        retriever._embed.embed_one.return_value = [0.1]
+        mock_get_retriever.return_value = retriever
+        mock_db.search_knowledge.return_value = []
+
+        msg = _make_message("/ksearch несуществующее")
+        state = _make_state()
+
+        asyncio.run(cmd_ksearch(msg, state))
+
+        msg.answer.assert_awaited_once()
+        reply = msg.answer.call_args[0][0]
+        assert "не найдено" in reply.lower()
+
+
+# ===================================================================
+#  flows.py registration
+# ===================================================================
+
 class TestFlowsRegistration:
 
     def test_teach_command_registered(self):
@@ -755,6 +822,11 @@ class TestFlowsRegistration:
         from telegram_bot.flows import admin_commands
         commands = {c.command for c in admin_commands}
         assert "knowledge" in commands
+
+    def test_ksearch_command_registered(self):
+        from telegram_bot.flows import admin_commands
+        commands = {c.command for c in admin_commands}
+        assert "ksearch" in commands
 
     def test_forget_command_registered(self):
         from telegram_bot.flows import admin_commands
@@ -769,5 +841,5 @@ class TestFlowsRegistration:
     def test_not_in_group_handlers(self):
         """Teaching commands should NOT be in group command handlers."""
         from telegram_bot.flow_callbacks import _GROUP_COMMAND_HANDLERS
-        for cmd in ("teach", "knowledge", "forget", "kedit"):
+        for cmd in ("teach", "knowledge", "ksearch", "forget", "kedit"):
             assert cmd not in _GROUP_COMMAND_HANDLERS

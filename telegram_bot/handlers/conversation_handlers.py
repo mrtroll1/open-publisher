@@ -13,8 +13,7 @@ from backend.domain.services import compose_request
 from backend.domain.services.compose_request import _get_retriever
 from backend.domain.services.command_classifier import CommandClassifier
 
-_VALID_SCOPES = {"general", "tech_support", "contractor", "identity", "support_triage", "email_inbox", "code"}
-_VALID_TIERS = {"core", "domain"}
+_VALID_TIERS = {"core", "specific"}
 from backend.domain.services.conversation_service import (
     build_conversation_context,
     format_reply_chain as _format_reply_chain,
@@ -47,6 +46,7 @@ __all__ = [
     "cmd_nl",
     "cmd_teach",
     "cmd_knowledge",
+    "cmd_ksearch",
     "cmd_forget",
     "cmd_kedit",
     "handle_kedit_reply",
@@ -75,9 +75,9 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
         user_text_lower = (message.text or "").lower()
         if any(kw in user_text_lower for kw in _TEACHING_KEYWORDS):
             try:
-                scope, tier = await _classify_teaching_text(message.text)
+                domain, tier = await _classify_teaching_text(message.text)
                 retriever = _get_retriever()
-                await asyncio.to_thread(retriever.store_teaching, message.text, scope=scope, tier=tier)
+                await asyncio.to_thread(retriever.store_teaching, message.text, domain=domain, tier=tier)
             except Exception:
                 logger.exception("Failed to store NL teaching")
 
@@ -165,9 +165,9 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
 
 
 async def _classify_teaching_text(text: str) -> tuple[str, str]:
-    """Classify teaching text into (scope, tier) via Gemini.
+    """Classify teaching text into (domain, tier) via Gemini.
 
-    Fetches similar entries from the DB to give Gemini context for better classification.
+    Fetches similar entries and valid domains from the DB for context.
     """
     retriever = _get_retriever()
 
@@ -176,19 +176,25 @@ async def _classify_teaching_text(text: str) -> tuple[str, str]:
                                       retriever._embed.embed_one(text), None, 5)
     examples_lines = []
     for e in similar:
-        examples_lines.append(f"- [{e['tier']}] {e['scope']} / {e['title']}")
+        examples_lines.append(f"- [{e['tier']}] {e['domain']} / {e['title']}")
     examples = "\n".join(examples_lines) if examples_lines else ""
 
+    # Fetch valid domains from DB
+    db_domains = await asyncio.to_thread(_db.list_domains)
+    valid_domain_names = {d["name"] for d in db_domains}
+    domains_lines = [f"- **{d['name']}** — {d['description']}" for d in db_domains]
+    domains_text = "\n".join(domains_lines) if domains_lines else "(пусто)"
+
     gemini = GeminiGateway()
-    prompt, model, keys = compose_request.classify_teaching(text, examples)
+    prompt, model, keys = compose_request.classify_teaching(text, examples, domains_text)
     result = await asyncio.to_thread(gemini.call, prompt, model)
-    scope = result.get("scope", "general")
-    tier = result.get("tier", "domain")
-    if scope not in _VALID_SCOPES:
-        scope = "general"
+    domain = result.get("domain", "general")
+    tier = result.get("tier", "specific")
+    if domain not in valid_domain_names:
+        domain = "general"
     if tier not in _VALID_TIERS:
-        tier = "domain"
-    return scope, tier
+        tier = "specific"
+    return domain, tier
 
 
 async def cmd_teach(message: types.Message, state: FSMContext) -> None:
@@ -199,27 +205,27 @@ async def cmd_teach(message: types.Message, state: FSMContext) -> None:
 
     text = args[1].strip()
     try:
-        scope, tier = await _classify_teaching_text(text)
+        domain, tier = await _classify_teaching_text(text)
         retriever = _get_retriever()
-        await asyncio.to_thread(retriever.store_teaching, text, scope=scope, tier=tier)
+        await asyncio.to_thread(retriever.store_teaching, text, domain=domain, tier=tier)
     except Exception:
         logger.exception("Failed to store teaching")
         await message.answer("Не удалось сохранить.")
         return
-    await message.answer(replies.teach.stored_fmt.format(scope=scope, tier=tier))
+    await message.answer(replies.teach.stored_fmt.format(domain=domain, tier=tier))
 
 
 async def cmd_knowledge(message: types.Message, state: FSMContext) -> None:
-    parts = message.text.split()[1:]  
+    parts = message.text.split()[1:]
     verbose = "-v" in parts
     if verbose:
         parts.remove("-v")
 
-    scope = parts[0] if len(parts) >= 1 else None
+    domain = parts[0] if len(parts) >= 1 else None
     tier = parts[1] if len(parts) >= 2 else None
 
     try:
-        entries = await asyncio.to_thread(_db.list_knowledge, scope=scope, tier=tier)
+        entries = await asyncio.to_thread(_db.list_knowledge, domain=domain, tier=tier)
     except Exception:
         logger.exception("Failed to list knowledge")
         await message.answer("Ошибка при загрузке записей.")
@@ -231,22 +237,22 @@ async def cmd_knowledge(message: types.Message, state: FSMContext) -> None:
 
     template = replies.knowledge.entry_verbose if verbose else replies.knowledge.entry
 
-    # Group by (tier, scope) for readability
+    # Group by (tier, domain) for readability
     grouped: dict[tuple[str, str], list[tuple[int, dict]]] = {}
     for i, e in enumerate(entries, 1):
-        key = (e["tier"], e["scope"])
+        key = (e["tier"], e["domain"])
         grouped.setdefault(key, []).append((i, e))
 
     lines = [replies.knowledge.header.format(count=len(entries))]
-    for (tier_name, scope_name), items in grouped.items():
-        lines.append(f"<b>[{tier_name}] {scope_name}</b>")
+    for (tier_name, domain_name), items in grouped.items():
+        lines.append(f"<b>[{tier_name}] {domain_name}</b>")
         for i, e in items:
             date = e["created_at"].strftime("%Y-%m-%d") if e.get("created_at") else "?"
             content = e.get("content", "")
             if content and len(content) > 120:
                 content = content[:120] + "…"
             lines.append(template.format(
-                i=i, tier=e["tier"], scope=e["scope"],
+                i=i, tier=e["tier"], domain=e["domain"],
                 title=e["title"], id=e["id"],
                 source=e["source"], date=date,
                 content=content,
@@ -292,7 +298,7 @@ async def cmd_kedit(message: types.Message, state: FSMContext) -> None:
         await message.answer(replies.knowledge.not_found)
         return
 
-    header = f"[{entry['tier']}] {entry['scope']} / {entry['title']}"
+    header = f"[{entry['tier']}] {entry['domain']} / {entry['title']}"
     text = f"{header}\n\n```\n{entry['content']}\n```\n\n{replies.knowledge.edit_prompt}"
     sent = await _send_html(message, text)
     _kedit_pending[(message.chat.id, sent.message_id)] = entry_id
@@ -328,3 +334,35 @@ async def handle_kedit_reply(message: types.Message) -> bool:
         return True
     await message.answer(replies.knowledge.edit_done)
     return True
+
+
+async def cmd_ksearch(message: types.Message, state: FSMContext) -> None:
+    """Semantic search over knowledge entries."""
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2 or not args[1].strip():
+        await message.answer(replies.ksearch.usage)
+        return
+
+    query = args[1].strip()
+    try:
+        retriever = _get_retriever()
+        embedding = await asyncio.to_thread(retriever._embed.embed_one, query)
+        results = await asyncio.to_thread(_db.search_knowledge, embedding, None, 10)
+    except Exception:
+        logger.exception("Knowledge search failed")
+        await message.answer("Ошибка поиска.")
+        return
+
+    if not results:
+        await message.answer(replies.ksearch.empty)
+        return
+
+    lines = [replies.ksearch.header.format(count=len(results), query=query)]
+    for i, e in enumerate(results, 1):
+        sim = e.get("similarity", 0)
+        lines.append(
+            f"{i}. {e['title']}  [{e['tier']}] {e['domain']}\n"
+            f"   {e['id']}  (сходство: {sim:.2f})"
+        )
+
+    await _send(message, "\n".join(lines), parse_mode="HTML")

@@ -28,7 +28,7 @@ class TestSaveKnowledgeEntry:
         cur.fetchone.return_value = ("entry-uuid-1",)
 
         result = gw.save_knowledge_entry(
-            tier="domain", scope="editorial", title="Style guide",
+            tier="specific", domain="editorial", title="Style guide",
             content="Use active voice.", source="seed",
         )
 
@@ -36,7 +36,7 @@ class TestSaveKnowledgeEntry:
         sql, params = cur.execute.call_args[0]
         assert "INSERT INTO knowledge_entries" in sql
         assert "RETURNING id" in sql
-        assert params == ("domain", "editorial", "Style guide", "Use active voice.", "seed", None)
+        assert params == ("specific", "editorial", "Style guide", "Use active voice.", "seed", None)
 
     def test_insert_with_embedding(self):
         gw, cur = _make_gw()
@@ -44,7 +44,7 @@ class TestSaveKnowledgeEntry:
         emb = [0.1, 0.2, 0.3]
 
         result = gw.save_knowledge_entry(
-            tier="process", scope="payments", title="Invoice rules",
+            tier="process", domain="payments", title="Invoice rules",
             content="Check INN length.", source="learned", embedding=emb,
         )
 
@@ -96,10 +96,10 @@ class TestUpdateKnowledgeEntry:
 
 class TestSearchKnowledge:
 
-    def test_search_without_scope(self):
+    def test_search_without_domain(self):
         gw, cur = _make_gw()
         cur.fetchall.return_value = [
-            ("id-1", "domain", "editorial", "Title", "Content", "seed", 0.95),
+            ("id-1", "specific", "editorial", "Title", "Content", "seed", 0.95),
             ("id-2", "process", "payments", "Title2", "Content2", "learned", 0.80),
         ]
         emb = [0.1, 0.2, 0.3]
@@ -113,22 +113,22 @@ class TestSearchKnowledge:
         sql, params = cur.execute.call_args[0]
         assert "1 - (embedding <=> %s::vector) AS similarity" in sql
         assert "WHERE is_active = TRUE" in sql
-        assert "scope" not in sql.split("WHERE")[1].split("ORDER")[0] or "AND scope" not in sql
+        assert "AND domain" not in sql.split("WHERE")[1].split("ORDER")[0]
         assert params == (str(emb), str(emb), 2)
 
-    def test_search_with_scope(self):
+    def test_search_with_domain(self):
         gw, cur = _make_gw()
         cur.fetchall.return_value = [
-            ("id-3", "domain", "editorial", "T", "C", "seed", 0.9),
+            ("id-3", "specific", "editorial", "T", "C", "seed", 0.9),
         ]
         emb = [0.1, 0.2]
 
-        result = gw.search_knowledge(query_embedding=emb, scope="editorial", limit=3)
+        result = gw.search_knowledge(query_embedding=emb, domain="editorial", limit=3)
 
         assert len(result) == 1
-        assert result[0]["scope"] == "editorial"
+        assert result[0]["domain"] == "editorial"
         sql, params = cur.execute.call_args[0]
-        assert "AND scope = %s" in sql
+        assert "AND domain = %s" in sql
         assert params == (str(emb), "editorial", str(emb), 3)
 
     def test_search_empty_results(self):
@@ -149,19 +149,19 @@ class TestGetKnowledgeByTier:
     def test_returns_entries(self):
         gw, cur = _make_gw()
         cur.fetchall.return_value = [
-            ("id-1", "domain", "editorial", "Style", "Use active voice.", "seed"),
-            ("id-2", "domain", "editorial", "Tone", "Be concise.", "seed"),
+            ("id-1", "specific", "editorial", "Style", "Use active voice.", "seed"),
+            ("id-2", "specific", "editorial", "Tone", "Be concise.", "seed"),
         ]
 
-        result = gw.get_knowledge_by_tier("domain")
+        result = gw.get_knowledge_by_tier("specific")
 
         assert len(result) == 2
         assert result[0]["id"] == "id-1"
         assert result[1]["content"] == "Be concise."
         sql, params = cur.execute.call_args[0]
         assert "WHERE tier = %s AND is_active = TRUE" in sql
-        assert "ORDER BY scope, created_at" in sql
-        assert params == ("domain",)
+        assert "ORDER BY domain, created_at" in sql
+        assert params == ("specific",)
 
     def test_empty_tier(self):
         gw, cur = _make_gw()
@@ -173,32 +173,32 @@ class TestGetKnowledgeByTier:
 
 
 # ===================================================================
-#  get_knowledge_by_scope
+#  get_knowledge_by_domain
 # ===================================================================
 
-class TestGetKnowledgeByScope:
+class TestGetKnowledgeByDomain:
 
     def test_returns_entries(self):
         gw, cur = _make_gw()
         cur.fetchall.return_value = [
-            ("id-1", "domain", "payments", "Rule1", "Check INN.", "seed"),
+            ("id-1", "specific", "payments", "Rule1", "Check INN.", "seed"),
         ]
 
-        result = gw.get_knowledge_by_scope("payments")
+        result = gw.get_knowledge_by_domain("payments")
 
         assert len(result) == 1
         assert result[0]["id"] == "id-1"
-        assert result[0]["scope"] == "payments"
+        assert result[0]["domain"] == "payments"
         sql, params = cur.execute.call_args[0]
-        assert "WHERE scope = %s AND is_active = TRUE" in sql
+        assert "WHERE domain = %s AND is_active = TRUE" in sql
         assert "ORDER BY created_at" in sql
         assert params == ("payments",)
 
-    def test_empty_scope(self):
+    def test_empty_domain(self):
         gw, cur = _make_gw()
         cur.fetchall.return_value = []
 
-        result = gw.get_knowledge_by_scope("empty")
+        result = gw.get_knowledge_by_domain("empty")
 
         assert result == []
 
@@ -212,7 +212,7 @@ class TestListKnowledge:
     def test_no_filters(self):
         gw, cur = _make_gw()
         cur.fetchall.return_value = [
-            ("id-1", "domain", "editorial", "Style", "seed", "2026-01-01"),
+            ("id-1", "specific", "editorial", "Style", "Content", "seed", "2026-01-01"),
         ]
 
         result = gw.list_knowledge()
@@ -221,19 +221,19 @@ class TestListKnowledge:
         assert result[0]["id"] == "id-1"
         sql, params = cur.execute.call_args[0]
         assert "WHERE is_active = TRUE" in sql
-        assert "AND scope" not in sql
+        assert "AND domain" not in sql
         assert "AND tier" not in sql
-        assert "ORDER BY tier, scope, created_at" in sql
+        assert "ORDER BY tier, domain, created_at" in sql
         assert params == ()
 
-    def test_scope_filter(self):
+    def test_domain_filter(self):
         gw, cur = _make_gw()
         cur.fetchall.return_value = []
 
-        gw.list_knowledge(scope="editorial")
+        gw.list_knowledge(domain="editorial")
 
         sql, params = cur.execute.call_args[0]
-        assert "AND scope = %s" in sql
+        assert "AND domain = %s" in sql
         assert "AND tier" not in sql
         assert params == ("editorial",)
 
@@ -241,23 +241,77 @@ class TestListKnowledge:
         gw, cur = _make_gw()
         cur.fetchall.return_value = []
 
-        gw.list_knowledge(tier="domain")
+        gw.list_knowledge(tier="specific")
 
         sql, params = cur.execute.call_args[0]
         assert "AND tier = %s" in sql
-        assert "AND scope" not in sql
-        assert params == ("domain",)
+        assert "AND domain" not in sql
+        assert params == ("specific",)
 
     def test_both_filters(self):
         gw, cur = _make_gw()
         cur.fetchall.return_value = []
 
-        gw.list_knowledge(scope="editorial", tier="domain")
+        gw.list_knowledge(domain="editorial", tier="specific")
 
         sql, params = cur.execute.call_args[0]
-        assert "AND scope = %s" in sql
+        assert "AND domain = %s" in sql
         assert "AND tier = %s" in sql
-        assert params == ("editorial", "domain")
+        assert params == ("editorial", "specific")
+
+
+# ===================================================================
+#  list_domains
+# ===================================================================
+
+class TestListDomains:
+
+    def test_returns_domains(self):
+        gw, cur = _make_gw()
+        cur.fetchall.return_value = [
+            ("general", "General knowledge"),
+            ("tech_support", "Tech support"),
+        ]
+
+        result = gw.list_domains()
+
+        assert len(result) == 2
+        assert result[0] == {"name": "general", "description": "General knowledge"}
+        assert result[1] == {"name": "tech_support", "description": "Tech support"}
+
+    def test_empty(self):
+        gw, cur = _make_gw()
+        cur.fetchall.return_value = []
+
+        result = gw.list_domains()
+
+        assert result == []
+
+
+# ===================================================================
+#  get_or_create_domain
+# ===================================================================
+
+class TestGetOrCreateDomain:
+
+    def test_returns_name(self):
+        gw, cur = _make_gw()
+
+        result = gw.get_or_create_domain("new_domain", "Description")
+
+        assert result == "new_domain"
+        sql, params = cur.execute.call_args[0]
+        assert "INSERT INTO knowledge_domains" in sql
+        assert "ON CONFLICT (name) DO NOTHING" in sql
+        assert params == ("new_domain", "Description")
+
+    def test_default_description(self):
+        gw, cur = _make_gw()
+
+        gw.get_or_create_domain("test")
+
+        _, params = cur.execute.call_args[0]
+        assert params == ("test", "")
 
 
 # ===================================================================

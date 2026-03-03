@@ -7,14 +7,14 @@ from backend.infrastructure.repositories.postgres.base import BasePostgresRepo
 
 class KnowledgeRepo(BasePostgresRepo):
 
-    def save_knowledge_entry(self, tier: str, scope: str, title: str, content: str, source: str, embedding: list[float] | None = None) -> str:
+    def save_knowledge_entry(self, tier: str, domain: str, title: str, content: str, source: str, embedding: list[float] | None = None) -> str:
         conn = self._get_conn()
         with conn.cursor() as cur:
             cur.execute(
-                """INSERT INTO knowledge_entries (tier, scope, title, content, source, embedding)
+                """INSERT INTO knowledge_entries (tier, domain, title, content, source, embedding)
                    VALUES (%s, %s, %s, %s, %s, %s)
                    RETURNING id""",
-                (tier, scope, title, content, source, str(embedding) if embedding is not None else None),
+                (tier, domain, title, content, source, str(embedding) if embedding is not None else None),
             )
             return str(cur.fetchone()[0])
 
@@ -30,23 +30,23 @@ class KnowledgeRepo(BasePostgresRepo):
             )
             return cur.rowcount > 0
 
-    def search_knowledge(self, query_embedding: list[float], scope: str | None = None, limit: int = 5) -> list[dict]:
+    def search_knowledge(self, query_embedding: list[float], domain: str | None = None, limit: int = 5) -> list[dict]:
         conn = self._get_conn()
         emb_str = str(query_embedding)
         with conn.cursor() as cur:
-            if scope is not None:
+            if domain is not None:
                 cur.execute(
-                    """SELECT id, tier, scope, title, content, source,
+                    """SELECT id, tier, domain, title, content, source,
                               1 - (embedding <=> %s::vector) AS similarity
                        FROM knowledge_entries
-                       WHERE is_active = TRUE AND scope = %s
+                       WHERE is_active = TRUE AND domain = %s
                        ORDER BY embedding <=> %s::vector ASC
                        LIMIT %s""",
-                    (emb_str, scope, emb_str, limit),
+                    (emb_str, domain, emb_str, limit),
                 )
             else:
                 cur.execute(
-                    """SELECT id, tier, scope, title, content, source,
+                    """SELECT id, tier, domain, title, content, source,
                               1 - (embedding <=> %s::vector) AS similarity
                        FROM knowledge_entries
                        WHERE is_active = TRUE
@@ -54,7 +54,7 @@ class KnowledgeRepo(BasePostgresRepo):
                        LIMIT %s""",
                     (emb_str, emb_str, limit),
                 )
-            cols = ["id", "tier", "scope", "title", "content", "source", "similarity"]
+            cols = ["id", "tier", "domain", "title", "content", "source", "similarity"]
             rows = []
             for row in cur.fetchall():
                 d = dict(zip(cols, row))
@@ -66,13 +66,13 @@ class KnowledgeRepo(BasePostgresRepo):
         conn = self._get_conn()
         with conn.cursor() as cur:
             cur.execute(
-                """SELECT id, tier, scope, title, content, source
+                """SELECT id, tier, domain, title, content, source
                    FROM knowledge_entries
                    WHERE tier = %s AND is_active = TRUE
-                   ORDER BY scope, created_at""",
+                   ORDER BY domain, created_at""",
                 (tier,),
             )
-            cols = ["id", "tier", "scope", "title", "content", "source"]
+            cols = ["id", "tier", "domain", "title", "content", "source"]
             rows = []
             for row in cur.fetchall():
                 d = dict(zip(cols, row))
@@ -80,17 +80,17 @@ class KnowledgeRepo(BasePostgresRepo):
                 rows.append(d)
             return rows
 
-    def get_knowledge_by_scope(self, scope: str) -> list[dict]:
+    def get_knowledge_by_domain(self, domain: str) -> list[dict]:
         conn = self._get_conn()
         with conn.cursor() as cur:
             cur.execute(
-                """SELECT id, tier, scope, title, content, source
+                """SELECT id, tier, domain, title, content, source
                    FROM knowledge_entries
-                   WHERE scope = %s AND is_active = TRUE
+                   WHERE domain = %s AND is_active = TRUE
                    ORDER BY created_at""",
-                (scope,),
+                (domain,),
             )
-            cols = ["id", "tier", "scope", "title", "content", "source"]
+            cols = ["id", "tier", "domain", "title", "content", "source"]
             rows = []
             for row in cur.fetchall():
                 d = dict(zip(cols, row))
@@ -98,22 +98,22 @@ class KnowledgeRepo(BasePostgresRepo):
                 rows.append(d)
             return rows
 
-    def list_knowledge(self, scope: str | None = None, tier: str | None = None) -> list[dict]:
+    def list_knowledge(self, domain: str | None = None, tier: str | None = None) -> list[dict]:
         conn = self._get_conn()
         with conn.cursor() as cur:
-            sql = """SELECT id, tier, scope, title, content, source, created_at
+            sql = """SELECT id, tier, domain, title, content, source, created_at
                      FROM knowledge_entries
                      WHERE is_active = TRUE"""
             params: list = []
-            if scope is not None:
-                sql += " AND scope = %s"
-                params.append(scope)
+            if domain is not None:
+                sql += " AND domain = %s"
+                params.append(domain)
             if tier is not None:
                 sql += " AND tier = %s"
                 params.append(tier)
-            sql += " ORDER BY tier, scope, created_at"
+            sql += " ORDER BY tier, domain, created_at"
             cur.execute(sql, tuple(params))
-            cols = ["id", "tier", "scope", "title", "content", "source", "created_at"]
+            cols = ["id", "tier", "domain", "title", "content", "source", "created_at"]
             rows = []
             for row in cur.fetchall():
                 d = dict(zip(cols, row))
@@ -125,7 +125,7 @@ class KnowledgeRepo(BasePostgresRepo):
         conn = self._get_conn()
         with conn.cursor() as cur:
             cur.execute(
-                """SELECT id, tier, scope, title, content, source, created_at
+                """SELECT id, tier, domain, title, content, source, created_at
                    FROM knowledge_entries
                    WHERE id = %s AND is_active = TRUE""",
                 (entry_id,),
@@ -133,7 +133,7 @@ class KnowledgeRepo(BasePostgresRepo):
             row = cur.fetchone()
             if not row:
                 return None
-            cols = ["id", "tier", "scope", "title", "content", "source", "created_at"]
+            cols = ["id", "tier", "domain", "title", "content", "source", "created_at"]
             d = dict(zip(cols, row))
             d["id"] = str(d["id"])
             return d
@@ -147,3 +147,20 @@ class KnowledgeRepo(BasePostgresRepo):
                 (entry_id,),
             )
             return cur.rowcount > 0
+
+    # ── Knowledge domains ────────────────────────────────────────────
+
+    def list_domains(self) -> list[dict]:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT name, description FROM knowledge_domains ORDER BY name")
+            return [{"name": row[0], "description": row[1]} for row in cur.fetchall()]
+
+    def get_or_create_domain(self, name: str, description: str = "") -> str:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO knowledge_domains (name, description) VALUES (%s, %s) ON CONFLICT (name) DO NOTHING",
+                (name, description),
+            )
+            return name

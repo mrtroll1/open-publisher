@@ -60,7 +60,7 @@ class TestStoreAdminFeedback:
         retriever = MagicMock()
         store_admin_feedback("Don't reply to spam", "tech_support", retriever)
         retriever.store_feedback.assert_called_once_with(
-            "Don't reply to spam", scope="tech_support",
+            "Don't reply to spam", domain="tech_support",
         )
 
     def test_swallows_exception(self):
@@ -68,9 +68,9 @@ class TestStoreAdminFeedback:
         retriever.store_feedback.side_effect = RuntimeError("db error")
 
         # Should not raise
-        store_admin_feedback("text", "scope", retriever)
+        store_admin_feedback("text", "some_domain", retriever)
 
-    def test_passes_scope_through(self):
+    def test_passes_domain_through(self):
         retriever = MagicMock()
-        store_admin_feedback("text", "custom_scope", retriever)
-        retriever.store_feedback.assert_called_once_with("text", scope="custom_scope")
+        store_admin_feedback("text", "custom_domain", retriever)
+        retriever.store_feedback.assert_called_once_with("text", domain="custom_domain")

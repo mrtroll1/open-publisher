@@ -168,7 +168,8 @@ class menu:
         "/code [-e] [-v] <запрос> — запустить Claude Code\n\n"
         "Управление знаниями:\n"
         "/teach <текст> — научить бота\n"
-        "/knowledge [-v] [scope] [tier] — список записей знаний\n"
+        "/knowledge [-v] [domain] [tier] — список записей знаний\n"
+        "/ksearch <запрос> — поиск по знаниям\n"
         "/kedit <id> — редактировать запись\n"
         "/forget <id> — удалить запись знаний\n\n"
         "/nl <текст> — команда на естественном языке"
@@ -302,7 +303,7 @@ class editorial:
 # ── Teaching & knowledge management ──────────────────────────────────
 
 class teach:
-    stored_fmt = "Запомнил. [{tier}] {scope}"
+    stored_fmt = "Запомнил. [{tier}] {domain}"
     usage = "Использование: /teach <текст для запоминания>"
 
 
@@ -311,13 +312,21 @@ class knowledge:
     header = "Записи знаний ({count}):\n"
     entry = "{i}. {title}  ({source})\n   {id}"
     entry_verbose = "{i}. {title}\n   ID: {id}\n   Источник: {source}, {date}\n```\n{content}\n```"
-    usage = "Использование: /knowledge [-v] [scope] [tier]"
+    usage = "Использование: /knowledge [-v] [domain] [tier]"
     forget_done = "Запись удалена."
     forget_usage = "Использование: /forget <id>"
     edit_done = "Запись обновлена."
     edit_prompt = "Ответьте на это сообщение с новым текстом записи."
     edit_usage = "Использование: /kedit <id>"
     not_found = "Запись не найдена."
+
+
+# ── Knowledge search ────────────────────────────────────────────────
+
+class ksearch:
+    usage = "Использование: /ksearch <запрос>"
+    empty = "Ничего не найдено."
+    header = "Результаты поиска «{query}» ({count}):\n"
 
 
 # ── Generic ──────────────────────────────────────────────────────────

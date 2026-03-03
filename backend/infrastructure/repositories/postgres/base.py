@@ -74,10 +74,15 @@ CREATE TABLE IF NOT EXISTS code_tasks (
     rated_at TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS knowledge_domains (
+    name TEXT PRIMARY KEY,
+    description TEXT NOT NULL DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS knowledge_entries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tier TEXT NOT NULL DEFAULT 'domain',
-    scope TEXT NOT NULL,
+    tier TEXT NOT NULL DEFAULT 'specific',
+    domain TEXT NOT NULL,
     title TEXT NOT NULL DEFAULT '',
     content TEXT NOT NULL,
     source TEXT NOT NULL DEFAULT 'seed',
@@ -88,10 +93,45 @@ CREATE TABLE IF NOT EXISTS knowledge_entries (
 );
 CREATE INDEX IF NOT EXISTS idx_knowledge_embedding
     ON knowledge_entries USING ivfflat (embedding vector_cosine_ops) WITH (lists = 10);
-CREATE INDEX IF NOT EXISTS idx_knowledge_scope
-    ON knowledge_entries(scope, is_active);
+CREATE INDEX IF NOT EXISTS idx_knowledge_domain
+    ON knowledge_entries(domain, is_active);
 CREATE INDEX IF NOT EXISTS idx_knowledge_tier
     ON knowledge_entries(tier, is_active);
+
+-- Idempotent migration: rename scope→domain, tier "domain"→"specific", backfill domains
+DO $$
+BEGIN
+    -- Rename column scope → domain (if not yet renamed)
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'knowledge_entries' AND column_name = 'scope'
+    ) THEN
+        ALTER TABLE knowledge_entries RENAME COLUMN scope TO domain;
+    END IF;
+
+    -- Rename tier value 'domain' → 'specific'
+    UPDATE knowledge_entries SET tier = 'specific' WHERE tier = 'domain';
+
+    -- Backfill knowledge_domains from existing entries
+    INSERT INTO knowledge_domains (name, description)
+    VALUES
+        ('general', 'Общие знания, не подходящие под другие категории'),
+        ('tech_support', 'Техподдержка, FAQ, функции продукта, настройки подписки'),
+        ('contractor', 'Контрагенты, платёжные данные, правила выплат, договоры'),
+        ('identity', 'Правила и принципы Republic как организации'),
+        ('support_triage', 'Правила классификации и маршрутизации обращений'),
+        ('email_inbox', 'Правила обработки входящей почты'),
+        ('code', 'Контекст для разработки, кодовая база')
+    ON CONFLICT (name) DO NOTHING;
+
+    -- Also backfill any domains that exist in entries but not in the list above
+    INSERT INTO knowledge_domains (name)
+    SELECT DISTINCT domain FROM knowledge_entries
+    WHERE domain IS NOT NULL
+    ON CONFLICT (name) DO NOTHING;
+END $$;
+
+DROP INDEX IF EXISTS idx_knowledge_scope;
 
 CREATE TABLE IF NOT EXISTS conversations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

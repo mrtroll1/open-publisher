@@ -968,7 +968,7 @@ class TestHandleDraftReply:
 
         mock_inbox.skip_support.assert_called_once_with("uid-1")
         retriever.store_feedback.assert_called_once_with(
-            "Не отвечай на такие письма", scope="tech_support",
+            "Не отвечай на такие письма", domain="tech_support",
         )
         msg.reply.assert_awaited_once_with(replies.tech_support.feedback_noted)
 

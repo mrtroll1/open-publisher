@@ -179,7 +179,7 @@ class TestRetrieverCalls:
         r = MagicMock()
         r.get_core.return_value = "core-kb"
         r.retrieve.return_value = "relevant-kb"
-        r.retrieve_full_scope.return_value = "full-kb"
+        r.retrieve_full_domain.return_value = "full-kb"
         return r
 
     def test_support_email_calls_get_core_and_retrieve(self):
@@ -196,18 +196,18 @@ class TestRetrieverCalls:
         r.get_core.assert_called_once()
         r.retrieve.assert_called_once_with("how to reset?", "tech_support", 5)
 
-    def test_support_triage_calls_retrieve_full_scope(self):
+    def test_support_triage_calls_retrieve_full_domain(self):
         r = self._make_retriever()
         with patch("backend.domain.services.compose_request._get_retriever", return_value=r):
             support_triage("billing issue")
-        r.retrieve_full_scope.assert_called_once_with("support_triage")
+        r.retrieve_full_domain.assert_called_once_with("support_triage")
 
-    def test_contractor_parse_calls_get_core_and_retrieve_full_scope(self):
+    def test_contractor_parse_calls_get_core_and_retrieve_full_domain(self):
         r = self._make_retriever()
         with patch("backend.domain.services.compose_request._get_retriever", return_value=r):
             contractor_parse("text", "name_en")
         r.get_core.assert_called_once()
-        r.retrieve_full_scope.assert_called_once_with("contractor")
+        r.retrieve_full_domain.assert_called_once_with("contractor")
 
 
 # ===================================================================

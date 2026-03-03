@@ -26,33 +26,33 @@ class KnowledgeRetriever:
         entries = self._db.get_knowledge_by_tier("core")
         return _format_entries(entries)
 
-    def retrieve(self, query: str, scope: str | None = None, limit: int = 5) -> str:
+    def retrieve(self, query: str, domain: str | None = None, limit: int = 5) -> str:
         embedding = self._embed.embed_one(query)
-        entries = self._db.search_knowledge(embedding, scope=scope, limit=limit)
+        entries = self._db.search_knowledge(embedding, domain=domain, limit=limit)
         return _format_entries(entries)
 
-    def retrieve_full_scope(self, scope: str) -> str:
-        entries = self._db.get_knowledge_by_scope(scope)
+    def retrieve_full_domain(self, domain: str) -> str:
+        entries = self._db.get_knowledge_by_domain(domain)
         return _format_entries(entries)
 
-    def store_feedback(self, text: str, scope: str) -> str:
+    def store_feedback(self, text: str, domain: str) -> str:
         embedding = self._embed.embed_one(text)
         title = text[:60].strip()
         return self._db.save_knowledge_entry(
-            tier="domain",
-            scope=scope,
+            tier="specific",
+            domain=domain,
             title=title,
             content=text,
             source="admin_feedback",
             embedding=embedding,
         )
 
-    def store_teaching(self, text: str, scope: str = "general", tier: str = "domain") -> str:
+    def store_teaching(self, text: str, domain: str = "general", tier: str = "specific") -> str:
         embedding = self._embed.embed_one(text)
         title = text[:60].strip()
         return self._db.save_knowledge_entry(
             tier=tier,
-            scope=scope,
+            domain=domain,
             title=title,
             content=text,
             source="admin_teach",

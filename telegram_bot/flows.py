@@ -56,6 +56,7 @@ from telegram_bot.flow_callbacks import (
     cmd_nl,
     cmd_teach,
     cmd_knowledge,
+    cmd_ksearch,
     cmd_forget,
     cmd_kedit,
 )
@@ -282,7 +283,13 @@ admin_commands = [
         command="knowledge",
         description="Список записей знаний",
         handler=cmd_knowledge,
-        usage="/knowledge [scope]",
+        usage="/knowledge [domain]",
+    ),
+    AdminCommand(
+        command="ksearch",
+        description="Поиск по знаниям",
+        handler=cmd_ksearch,
+        usage="/ksearch <запрос>",
     ),
     AdminCommand(
         command="forget",

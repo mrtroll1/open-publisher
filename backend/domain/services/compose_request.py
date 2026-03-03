@@ -35,7 +35,7 @@ def set_retriever(r: KnowledgeRetriever) -> None:
 
 
 def support_triage(email_text: str) -> tuple[str, str, list[str]]:
-    knowledge = _get_retriever().retrieve_full_scope("support_triage")
+    knowledge = _get_retriever().retrieve_full_domain("support_triage")
     prompt = load_template("support-triage.md", {
         "KNOWLEDGE": knowledge,
         "EMAIL": email_text,
@@ -63,7 +63,7 @@ def contractor_parse(
     text: str, fields_csv: str, context: str = "",
 ) -> tuple[str, str, list[str]]:
     r = _get_retriever()
-    knowledge = r.get_core() + "\n\n" + r.retrieve_full_scope("contractor")
+    knowledge = r.get_core() + "\n\n" + r.retrieve_full_domain("contractor")
     prompt = load_template("contractor-parse.md", {
         "FIELDS": fields_csv,
         "CONTEXT": context,
@@ -109,12 +109,13 @@ def tech_support_question(
     return prompt, _MODELS["tech_support_question"], ["answer"]
 
 
-def classify_teaching(text: str, examples: str = "") -> tuple[str, str, list[str]]:
+def classify_teaching(text: str, examples: str = "", domains: str = "") -> tuple[str, str, list[str]]:
     prompt = load_template("classify-teaching.md", {
         "TEXT": text,
         "EXAMPLES": examples or "(пусто)",
+        "DOMAINS": domains or "(пусто)",
     })
-    return prompt, _MODELS["classify_teaching"], ["scope", "tier"]
+    return prompt, _MODELS["classify_teaching"], ["domain", "tier"]
 
 
 def classify_command(text: str, commands_description: str) -> tuple[str, str, list[str]]:

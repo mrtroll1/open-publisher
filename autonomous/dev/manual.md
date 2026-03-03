@@ -11,6 +11,6 @@ python -m backend.domain.use_cases.seed_knowledge
 ```
 This seeds 19 knowledge entries from the existing `.md` files into the `knowledge_entries` table. Requires:
 - Running Postgres with pgvector extension
-- `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) configured for embedding generation
+- `GEMINI_API_KEY` configured for embedding generation
 - One-time operation, idempotent (skips if entries already exist)
 

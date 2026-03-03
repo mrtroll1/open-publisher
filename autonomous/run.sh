@@ -1,24 +1,36 @@
 #!/bin/bash
 # Autonomous Claude Code runner
-# Launches Claude every 30 minutes for 12 hours to work on the current plan.
-# Usage: ./autonomous/run.sh <plan-name>
-# Example: ./autonomous/run.sh my-feature
+# Launches Claude every 30 minutes to work on the current plan.
+# Usage: ./autonomous/run.sh <plan-name> [duration]
+# Example: ./autonomous/run.sh my-feature        # runs for 6h (default)
+#          ./autonomous/run.sh my-feature 2h      # runs for 2 hours
+#          ./autonomous/run.sh my-feature 12h     # runs for 12 hours
 
 set -euo pipefail
 
 if [ $# -eq 0 ]; then
-    echo "Usage: ./autonomous/run.sh <plan-name>"
-    echo "Plan file must exist at autonomous/plans/<plan-name>.md"
+    echo "Usage: ./autonomous/run.sh <plan-name> [duration]"
+    echo "  duration: Xh format (default: 6h)"
+    echo "  Plan file must exist at autonomous/plans/<plan-name>.md"
     exit 1
 fi
 
 PLAN_NAME="$1"
+DURATION_ARG="${2:-6h}"
+
+# Parse duration (Xh format)
+if [[ ! "$DURATION_ARG" =~ ^[0-9]+h$ ]]; then
+    echo "ERROR: Duration must be in Xh format (e.g. 2h, 6h, 12h)"
+    exit 1
+fi
+TOTAL_HOURS="${DURATION_ARG%h}"
+
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_DIR="$ROOT_DIR/autonomous/logs"
 PROMPT_FILE="$ROOT_DIR/.claude/autonomous-prompt.md"
 PLAN_FILE="$ROOT_DIR/autonomous/plans/${PLAN_NAME}.md"
-ITERATIONS=24
 INTERVAL=1800  # 30 minutes
+ITERATIONS=$(( TOTAL_HOURS * 3600 / INTERVAL ))
 MAX_TURNS=80
 
 # Verify we're on the right branch
@@ -115,7 +127,7 @@ log() {
 
 log "=== RUN STARTED ==="
 log "Plan: $PLAN_NAME ($PLAN_FILE)"
-log "Sessions: $ITERATIONS x ${INTERVAL}s, max $MAX_TURNS turns each"
+log "Duration: ${TOTAL_HOURS}h | Sessions: $ITERATIONS x ${INTERVAL}s, max $MAX_TURNS turns each"
 log ""
 
 # Also start the detailed last-run log (overwritten each run)

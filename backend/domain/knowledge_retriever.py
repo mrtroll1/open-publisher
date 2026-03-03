@@ -1,60 +1,31 @@
-from backend.infrastructure.gateways.db_gateway import DbGateway
-from backend.infrastructure.gateways.embedding_gateway import EmbeddingGateway
-from common.config import SUBSCRIPTION_SERVICE_URL
+"""Backward-compatible shim — moved to backend.domain.services.knowledge_retriever
+
+Includes __setattr__ propagation so that @patch("backend.domain.knowledge_retriever.X")
+in tests also patches the actual services module where X is used.
+"""
+
+import sys as _sys
+import types as _types
+
+import backend.domain.services.knowledge_retriever as _real_module
+
+from backend.domain.services.knowledge_retriever import *  # noqa: F401,F403
+from backend.domain.services.knowledge_retriever import _format_entries  # noqa: F401
 
 
-def _format_entries(entries: list[dict]) -> str:
-    parts = []
-    for e in entries:
-        title = e.get("title", "")
-        content = e["content"]
-        if title:
-            parts.append(f"## {title}\n{content}")
-        else:
-            parts.append(content)
-    result = "\n\n".join(parts)
-    return result.replace("{{SUBSCRIPTION_SERVICE_URL}}", SUBSCRIPTION_SERVICE_URL)
+class _PatchProxyModule(_types.ModuleType):
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+        if name in _real_module.__dict__:
+            _real_module.__dict__[name] = value
+
+    def __delattr__(self, name):
+        super().__delattr__(name)
+        if name in _real_module.__dict__:
+            try:
+                del _real_module.__dict__[name]
+            except KeyError:
+                pass
 
 
-class KnowledgeRetriever:
-
-    def __init__(self):
-        self._db = DbGateway()
-        self._embed = EmbeddingGateway()
-
-    def get_core(self) -> str:
-        entries = self._db.get_knowledge_by_tier("core")
-        return _format_entries(entries)
-
-    def retrieve(self, query: str, scope: str | None = None, limit: int = 5) -> str:
-        embedding = self._embed.embed_one(query)
-        entries = self._db.search_knowledge(embedding, scope=scope, limit=limit)
-        return _format_entries(entries)
-
-    def retrieve_full_scope(self, scope: str) -> str:
-        entries = self._db.get_knowledge_by_scope(scope)
-        return _format_entries(entries)
-
-    def store_feedback(self, text: str, scope: str) -> str:
-        embedding = self._embed.embed_one(text)
-        title = text[:60].strip()
-        return self._db.save_knowledge_entry(
-            tier="domain",
-            scope=scope,
-            title=title,
-            content=text,
-            source="admin_feedback",
-            embedding=embedding,
-        )
-
-    def store_teaching(self, text: str, scope: str = "general") -> str:
-        embedding = self._embed.embed_one(text)
-        title = text[:60].strip()
-        return self._db.save_knowledge_entry(
-            tier="domain",
-            scope=scope,
-            title=title,
-            content=text,
-            source="admin_teach",
-            embedding=embedding,
-        )
+_sys.modules[__name__].__class__ = _PatchProxyModule

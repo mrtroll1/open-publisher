@@ -110,15 +110,15 @@ tests/
 > Goal: make the convention explicit — use-cases have one `execute()`, services have query/action methods, utilities are module-level functions.
 > Rule: directory move + minor interface cleanup. No logic changes.
 
-- [ ] 3.1 Create `backend/domain/services/` and `backend/domain/use_cases/`
-- [ ] 3.2 Move use-case files → `use_cases/`
+- [x] 3.1 Create `backend/domain/services/` and `backend/domain/use_cases/`
+- [x] 3.2 Move use-case files → `use_cases/`
   - `compute_budget.py`, `generate_batch_invoices.py`, `generate_invoice.py`, `parse_bank_statement.py`, `prepare_invoice.py`, `seed_knowledge.py`
-- [ ] 3.3 Move service files → `services/`
+- [x] 3.3 Move service files → `services/`
   - `inbox_service.py`, `tech_support_handler.py`, `support_user_lookup.py`, `knowledge_retriever.py`, `command_classifier.py`, `compose_request.py`
-- [ ] 3.4 Keep utility files in `domain/` root (or create `domain/utils/`)
+- [x] 3.4 Keep utility files in `domain/` root (or create `domain/utils/`)
   - `validate_contractor.py`, `resolve_amount.py`, `healthcheck.py`, `code_runner.py`
-- [ ] 3.5 Update all imports across codebase
-- [ ] 3.6 Run full test suite — all tests pass
+- [x] 3.5 Update all imports across codebase
+- [x] 3.6 Run full test suite — all tests pass
 
 ---
 

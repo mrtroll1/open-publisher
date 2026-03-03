@@ -1541,8 +1541,26 @@ Phase 6.4 — Tests:
 
 **Net result:** 1003 tests pass, zero test modifications, 8 new files + 5 shims
 
+### Session 51 (2026-03-03) — Plan 4 Phase 3: Separate domain/ into services/ and use_cases/
+**Status:** Complete (all 6 items: 3.1-3.6)
+
+**What was done:**
+- Created `backend/domain/services/` and `backend/domain/use_cases/` subdirectories with `__init__.py`
+- Moved 6 use-case files to `use_cases/`: `compute_budget.py`, `generate_batch_invoices.py`, `generate_invoice.py`, `parse_bank_statement.py`, `prepare_invoice.py`, `seed_knowledge.py`
+- Moved 6 service files to `services/`: `inbox_service.py`, `tech_support_handler.py`, `support_user_lookup.py`, `knowledge_retriever.py`, `command_classifier.py`, `compose_request.py`
+- Kept 4 utility files in `domain/` root: `validate_contractor.py`, `resolve_amount.py`, `healthcheck.py`, `code_runner.py`
+- All old locations replaced with backward-compatible re-export shims
+- Shims that are targets of test `@patch` calls use `_PatchProxyModule` pattern (propagates setattr to real module)
+- Simple shims used for `command_classifier.py` and `compute_budget.py` (no test patches on module-level names)
+- Internal cross-references updated within moved files (e.g., `inbox_service` → `from backend.domain.services import compose_request`)
+- `compose_request.py` lazy import of `KnowledgeRetriever` kept using old path for test compatibility
+- `seed_knowledge.py` `KNOWLEDGE_DIR` path updated with extra `.parent` for new depth
+- Zero test files or files outside `backend/domain/` modified
+
+**Net result:** 1003 tests pass, 12 new files (6 services + 6 use_cases) + 12 shims at old locations
+
 ## Next up
 
-- Plan 4 Phase 2 complete → start Phase 3 next session (separate domain/ into services/ and use_cases/)
+- Plan 4 Phase 3 complete → start Phase 4 next session (restructure tests to mirror source)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

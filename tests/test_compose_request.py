@@ -261,7 +261,7 @@ class TestGetRetrieverSingleton:
             fake_module = MagicMock()
             fake_module.KnowledgeRetriever.return_value = instance
 
-            with patch.dict(sys.modules, {"backend.domain.knowledge_retriever": fake_module}):
+            with patch.dict(sys.modules, {"backend.domain.services.knowledge_retriever": fake_module}):
                 result1 = mod._get_retriever()
                 result2 = mod._get_retriever()
 

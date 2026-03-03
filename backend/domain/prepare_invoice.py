@@ -1,38 +1,30 @@
-"""Helpers for preparing already-generated invoices for delivery."""
+"""Backward-compatible shim — moved to backend.domain.use_cases.prepare_invoice
 
-from __future__ import annotations
+Includes __setattr__ propagation so that @patch("backend.domain.prepare_invoice.X")
+in tests also patches the actual use_cases module where X is used.
+"""
 
-import logging
-from dataclasses import dataclass
+import sys as _sys
+import types as _types
 
-from common.models import Contractor, Invoice
-from backend.infrastructure.gateways.docs_gateway import DocsGateway
-from backend.infrastructure.repositories.invoice_repo import load_invoices
+import backend.domain.use_cases.prepare_invoice as _real_module
 
-logger = logging.getLogger(__name__)
-
-
-@dataclass
-class PreparedInvoice:
-    pdf_bytes: bytes
-    invoice: Invoice
-    contractor: Contractor
+from backend.domain.use_cases.prepare_invoice import *  # noqa: F401,F403
 
 
-def prepare_existing_invoice(contractor: Contractor, month: str) -> PreparedInvoice | None:
-    """Load a previously generated invoice and export its PDF.
+class _PatchProxyModule(_types.ModuleType):
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+        if name in _real_module.__dict__:
+            _real_module.__dict__[name] = value
 
-    Returns None if no invoice exists or PDF export fails.
-    """
-    invoices = load_invoices(month)
-    inv = next((i for i in invoices if i.contractor_id == contractor.id), None)
-    if not inv or not inv.doc_id:
-        return None
+    def __delattr__(self, name):
+        super().__delattr__(name)
+        if name in _real_module.__dict__:
+            try:
+                del _real_module.__dict__[name]
+            except KeyError:
+                pass
 
-    try:
-        pdf_bytes = DocsGateway().export_pdf(inv.doc_id)
-    except Exception as e:
-        logger.error("Failed to export PDF for %s: %s", contractor.display_name, e)
-        return None
 
-    return PreparedInvoice(pdf_bytes=pdf_bytes, invoice=inv, contractor=contractor)
+_sys.modules[__name__].__class__ = _PatchProxyModule

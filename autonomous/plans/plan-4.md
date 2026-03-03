@@ -127,7 +127,7 @@ tests/
 > Goal: tests/ directory mirrors the source tree.
 > Rule: move files, fix imports if any. No test logic changes.
 
-- [ ] 4.1 Create directory structure:
+- [x] 4.1 Create directory structure:
   ```
   tests/domain/services/
   tests/domain/use_cases/
@@ -138,24 +138,24 @@ tests/
   tests/telegram_bot/engine/
   tests/common/
   ```
-- [ ] 4.2 Move domain service tests → `tests/domain/services/`
-  - `test_inbox_service.py`, `test_tech_support_handler.py`, `test_knowledge_retriever.py`
-- [ ] 4.3 Move domain use-case tests → `tests/domain/use_cases/`
-  - `test_compute_budget.py`, `test_generate_invoice.py`, `test_generate_batch_invoices.py`, `test_parse_bank_statement.py`, `test_prepare_invoice.py`, `test_seed_knowledge.py`, `test_compose_request.py`, `test_validate_contractor.py`, `test_resolve_amount.py`, `test_healthcheck.py`, `test_command_classifier.py`, `test_code_runner.py`, `test_support_user_lookup.py`
-- [ ] 4.4 Move gateway tests → `tests/infrastructure/gateways/`
+- [x] 4.2 Move domain service tests → `tests/domain/services/`
+  - `test_inbox_service.py`, `test_tech_support_handler.py`, `test_knowledge_retriever.py`, `test_compose_request.py`, `test_command_classifier.py`, `test_support_user_lookup.py`
+- [x] 4.3 Move domain use-case tests → `tests/domain/use_cases/`
+  - `test_compute_budget.py`, `test_generate_invoice.py`, `test_generate_batch_invoices.py`, `test_parse_bank_statement.py`, `test_prepare_invoice.py`, `test_seed_knowledge.py`, `test_validate_contractor.py`, `test_resolve_amount.py`, `test_healthcheck.py`, `test_code_runner.py`
+- [x] 4.4 Move gateway tests → `tests/infrastructure/gateways/`
   - `test_gemini_gateway.py`, `test_email_gateway.py`, `test_email_parse.py`, `test_docs_gateway.py`, `test_airtable_gateway.py`, `test_republic_gateway.py`, `test_repo_gateway.py`, `test_embedding_gateway.py`, `test_exchange_rate_gateway.py`
-- [ ] 4.5 Move postgres repo tests → `tests/infrastructure/repositories/postgres/`
-  - `test_db_gateway.py` (split to match new stores), `test_knowledge_db.py`
-- [ ] 4.6 Move sheets repo tests → `tests/infrastructure/repositories/sheets/`
+- [x] 4.5 Move postgres repo tests → `tests/infrastructure/repositories/postgres/`
+  - `test_db_gateway.py`, `test_knowledge_db.py`
+- [x] 4.6 Move sheets repo tests → `tests/infrastructure/repositories/sheets/`
   - `test_contractor_repo.py`, `test_invoice_repo.py`, `test_budget_repo.py`, `test_rules_repo.py`, `test_sheets_utils.py`
-- [ ] 4.7 Move telegram bot tests → `tests/telegram_bot/`
+- [x] 4.7 Move telegram bot tests → `tests/telegram_bot/`
   - `handlers/`: `test_plan2_handlers.py`, `test_flow_callbacks_helpers.py`, `test_phase7_teaching.py`
   - `engine/`: `test_flow_engine.py`, `test_flow_dsl.py`, `test_flows_structure.py`
   - `test_bot_helpers.py`
-- [ ] 4.8 Move common tests → `tests/common/`
+- [x] 4.8 Move common tests → `tests/common/`
   - `test_models.py`, `test_models_properties.py`, `test_prompt_loader.py`
-- [ ] 4.9 Add `__init__.py` to all new test directories
-- [ ] 4.10 Run full test suite — all tests pass
+- [x] 4.9 Add `__init__.py` to all new test directories
+- [x] 4.10 Run full test suite — all 1003 tests pass
 
 ---
 

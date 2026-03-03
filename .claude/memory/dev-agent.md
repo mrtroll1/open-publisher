@@ -1559,8 +1559,37 @@ Phase 6.4 — Tests:
 
 **Net result:** 1003 tests pass, 12 new files (6 services + 6 use_cases) + 12 shims at old locations
 
+### Session 52 (2026-03-03) — Plan 4 Phase 4: Restructure tests to mirror source
+**Status:** Complete (all 10 items: 4.1-4.10)
+
+**What was done:**
+- Moved all 42 test files from the flat `tests/` directory into subdirectories that mirror the source tree
+- Created 12 new `__init__.py` files for all new test directories
+- Used `git mv` for all moves to preserve git history
+- No test file contents modified — pure move-only
+
+**Test directory structure now:**
+```
+tests/
+├── conftest.py, __init__.py           (unchanged at root)
+├── domain/services/                   (6 files: inbox, tech_support, knowledge_retriever, compose_request, command_classifier, support_user_lookup)
+├── domain/use_cases/                  (10 files: compute_budget, generate_invoice, generate_batch, parse_bank, prepare_invoice, seed_knowledge, resolve_amount, validate_contractor, healthcheck, code_runner)
+├── infrastructure/gateways/           (9 files: gemini, email, email_parse, docs, airtable, republic, repo, embedding, exchange_rate)
+├── infrastructure/repositories/postgres/  (2 files: db_gateway, knowledge_db)
+├── infrastructure/repositories/sheets/    (5 files: contractor_repo, invoice_repo, budget_repo, rules_repo, sheets_utils)
+├── telegram_bot/handlers/             (3 files: plan2_handlers, flow_callbacks_helpers, phase7_teaching)
+├── telegram_bot/engine/               (3 files: flow_engine, flow_dsl, flows_structure)
+├── telegram_bot/test_bot_helpers.py
+└── common/                            (3 files: models, models_properties, prompt_loader)
+```
+
+**Notes:**
+- Plan originally placed compose_request, command_classifier, support_user_lookup under use_cases — corrected to services (they're multi-method service modules, not single-execute use cases)
+- All 1003 tests pass with zero modifications to test content
+- No conftest.py changes needed — pytest discovers tests in subdirectories via `__init__.py` files
+
 ## Next up
 
-- Plan 4 Phase 3 complete → start Phase 4 next session (restructure tests to mirror source)
+- Plan 4 Phase 4 complete → Phase 5 next (standardize dependency injection)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

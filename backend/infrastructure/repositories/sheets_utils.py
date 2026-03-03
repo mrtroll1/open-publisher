@@ -1,18 +1,3 @@
-from __future__ import annotations
+"""Backward-compatible shim — moved to backend.infrastructure.repositories.sheets.sheets_utils"""
 
-
-def index_to_column_letter(idx: int) -> str:
-    result = ""
-    idx += 1
-    while idx > 0:
-        idx -= 1
-        result = chr(65 + (idx % 26)) + result
-        idx //= 26
-    return result
-
-
-def parse_int(val: str) -> int:
-    try:
-        return int(val.strip()) if val.strip() else 0
-    except ValueError:
-        return 0
+from backend.infrastructure.repositories.sheets.sheets_utils import *  # noqa: F401,F403

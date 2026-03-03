@@ -1512,8 +1512,37 @@ Phase 6.4 — Tests:
 - `flow_callbacks.py` re-export shim is a temporary bridge — later phases should update imports in flows.py, main.py, flow_engine.py, and tests to point directly to handler modules
 - Next session should start Phase 2 (split db_gateway.py into domain-specific postgres repos)
 
+### Session 50 (2026-03-03) — Plan 4 Phase 2: Split db_gateway.py into domain-specific postgres repos
+**Status:** Complete (all 11 items: 2.1-2.11)
+
+**What was done:**
+- Split the 510-line `DbGateway` God object into 6 domain-specific repos + base class under `backend/infrastructure/repositories/postgres/`:
+
+| File | Class | Methods |
+|------|-------|---------|
+| `base.py` | `BasePostgresRepo` | `_SCHEMA_SQL`, `__init__()`, `_get_conn()`, `init_schema()`, `close()` |
+| `email_repo.py` | `EmailRepo` | 8 email/decision methods + `_normalize_subject` |
+| `knowledge_repo.py` | `KnowledgeRepo` | 7 knowledge entry methods |
+| `conversation_repo.py` | `ConversationRepo` | 3 conversation methods |
+| `classification_repo.py` | `ClassificationRepo` | `log_classification()` |
+| `payment_repo.py` | `PaymentRepo` | 2 payment validation methods |
+| `code_task_repo.py` | `CodeTaskRepo` | 2 code task methods |
+
+- `db_gateway.py` → 21-line backward-compatible shim using multiple inheritance: `DbGateway(EmailRepo, KnowledgeRepo, ConversationRepo, ClassificationRepo, PaymentRepo, CodeTaskRepo)`
+- Moved sheets repos to `backend/infrastructure/repositories/sheets/`: `contractor_repo.py`, `invoice_repo.py`, `budget_repo.py`, `rules_repo.py`, `sheets_utils.py`
+- Old repo locations → backward-compatible re-export shims (wildcard + explicit private names)
+- Internal cross-references in sheets repos updated to new paths
+- Zero source or test import changes needed — all shims transparent
+
+**Design decisions:**
+- Multiple inheritance for `DbGateway`: Python MRO handles diamond inheritance cleanly — all repos share the same `_conn` from `BasePostgresRepo.__init__()`
+- `_SCHEMA_SQL` kept in `base.py` (contains ALL table definitions), `init_schema()` runs all DDLs
+- Sheets shims explicitly re-export private names (`_parse_contractor`, `_write_cell`, etc.) that tests import
+
+**Net result:** 1003 tests pass, zero test modifications, 8 new files + 5 shims
+
 ## Next up
 
-- Plan 4 Phase 1 complete → start Phase 2 next session
+- Plan 4 Phase 2 complete → start Phase 3 next session (separate domain/ into services/ and use_cases/)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

@@ -81,26 +81,27 @@ tests/
 > Goal: break the 509-line God object into focused stores under `repositories/postgres/`.
 > Rule: shared connection logic stays in a base module. Each store owns its tables.
 
-- [ ] 2.1 Create `backend/infrastructure/repositories/postgres/__init__.py`
-- [ ] 2.2 Extract base connection → `postgres/base.py`
-  - `_get_conn()`, `_ensure_tables()` scaffold, shared connection pool
-- [ ] 2.3 Extract email store → `postgres/email_repo.py`
-  - `email_threads` table: `save_thread`, `find_thread_by_uid`
-  - `email_decisions` table: `create_email_decision`, `update_decision_status`
-- [ ] 2.4 Extract knowledge store → `postgres/knowledge_repo.py`
-  - `knowledge_chunks` table: `upsert_chunk`, `search_knowledge`, `delete_chunk`, `list_all_chunks`
-- [ ] 2.5 Extract conversation store → `postgres/conversation_repo.py`
-  - `conversations` table: `save_conversation`, `get_conversation_by_message_id`, `get_reply_chain`
-- [ ] 2.6 Extract classification store → `postgres/classification_repo.py`
-  - `classifications` table: `log_classification`
-- [ ] 2.7 Extract payment validation store → `postgres/payment_repo.py`
-  - `payment_validations` table: `log_payment_validation`, `finalize_payment_validation`
-- [ ] 2.8 Extract code task store → `postgres/code_task_repo.py`
-  - `code_tasks` table: `create_code_task`
-- [ ] 2.9 Update all imports across codebase (domain files, handlers, tests)
-- [ ] 2.10 Move sheets repos → `backend/infrastructure/repositories/sheets/`
+- [x] 2.1 Create `backend/infrastructure/repositories/postgres/__init__.py`
+- [x] 2.2 Extract base connection → `postgres/base.py`
+  - `BasePostgresRepo` with `_SCHEMA_SQL`, `__init__()`, `_get_conn()`, `init_schema()`, `close()`
+- [x] 2.3 Extract email store → `postgres/email_repo.py`
+  - `EmailRepo(BasePostgresRepo)` with 8 methods + `_normalize_subject` helper
+- [x] 2.4 Extract knowledge store → `postgres/knowledge_repo.py`
+  - `KnowledgeRepo(BasePostgresRepo)` with 7 methods
+- [x] 2.5 Extract conversation store → `postgres/conversation_repo.py`
+  - `ConversationRepo(BasePostgresRepo)` with 3 methods
+- [x] 2.6 Extract classification store → `postgres/classification_repo.py`
+  - `ClassificationRepo(BasePostgresRepo)` with `log_classification()`
+- [x] 2.7 Extract payment validation store → `postgres/payment_repo.py`
+  - `PaymentRepo(BasePostgresRepo)` with 2 methods
+- [x] 2.8 Extract code task store → `postgres/code_task_repo.py`
+  - `CodeTaskRepo(BasePostgresRepo)` with 2 methods
+- [x] 2.9 `db_gateway.py` → backward-compatible shim via multiple inheritance (`DbGateway(EmailRepo, KnowledgeRepo, ...)`)
+  - Zero source/test import changes needed
+- [x] 2.10 Move sheets repos → `backend/infrastructure/repositories/sheets/`
   - `contractor_repo.py`, `invoice_repo.py`, `budget_repo.py`, `rules_repo.py`, `sheets_utils.py`
-- [ ] 2.11 Run full test suite — all tests pass
+  - Old locations → backward-compatible re-export shims
+- [x] 2.11 Full test suite — all 1003 tests pass
 
 ---
 

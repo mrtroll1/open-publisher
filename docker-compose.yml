@@ -20,7 +20,6 @@ services:
       - ./config/business_config.json:/app/config/business_config.json:ro
       - ./config/tech_config.json:/app/config/tech_config.json:ro
       - ./repos:/opt/repos
-      - ./templates/claude-code-context.md:/opt/repos/CLAUDE.md:ro
       - ${CLAUDE_AUTH_DIR}/.claude:/root/.claude
       - ${CLAUDE_AUTH_DIR}/.claude.json:/root/.claude.json
 

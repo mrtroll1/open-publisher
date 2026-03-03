@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import subprocess
+from pathlib import Path
 
 from common.config import REPOS_DIR
 
@@ -30,6 +31,17 @@ _CHANGES_PREFIX = (
 )
 
 
+def _write_claude_md() -> None:
+    """Write CLAUDE.md from DB knowledge (scope=code) into REPOS_DIR."""
+    try:
+        from backend.domain.services.compose_request import _get_retriever
+        context = _get_retriever().retrieve_full_scope("code")
+        if context:
+            Path(REPOS_DIR, "CLAUDE.md").write_text(context, encoding="utf-8")
+    except Exception:
+        logger.debug("Could not write CLAUDE.md from DB", exc_info=True)
+
+
 def run_claude_code(prompt: str, verbose: bool = False, expert: bool = False,
                     mode: str = "explore") -> str:
     if verbose:
@@ -40,6 +52,7 @@ def run_claude_code(prompt: str, verbose: bool = False, expert: bool = False,
         full_prompt = _EXPLORE_EXPERT_PREFIX + prompt
     else:
         full_prompt = _EXPLORE_USER_PREFIX + prompt
+    _write_claude_md()
     try:
         result = subprocess.run(
             ["claude", "-p", full_prompt, "--max-turns", "5"],

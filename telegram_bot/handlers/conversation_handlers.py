@@ -22,7 +22,7 @@ from backend.domain.services.conversation_service import (
 )
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from telegram_bot import replies
-from telegram_bot.handler_utils import _db, _save_turn, _send_html, send_typing
+from telegram_bot.handler_utils import _db, _save_turn, _send, _send_html, send_typing
 
 logger = logging.getLogger(__name__)
 
@@ -238,7 +238,7 @@ async def cmd_knowledge(message: types.Message, state: FSMContext) -> None:
             ))
         lines.append("")  # blank line between groups
 
-    await message.answer("\n".join(lines).rstrip())
+    await _send(message, "\n".join(lines).rstrip())
 
 
 async def cmd_forget(message: types.Message, state: FSMContext) -> None:

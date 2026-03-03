@@ -35,6 +35,7 @@ __all__ = [
     "get_current_contractor",
     "get_contractor_by_id",
     "_safe_edit_text",
+    "_send",
     "_send_html",
     "_save_turn",
     "_parse_flags",
@@ -90,6 +91,15 @@ def _split_text(text: str, limit: int = _TG_MAX) -> list[str]:
         chunks.append(text[:cut])
         text = text[cut:].lstrip("\n")
     return chunks
+
+
+async def _send(message: types.Message, text: str, **kwargs) -> types.Message:
+    """Send plain text, splitting long messages into multiple Telegram messages."""
+    chunks = _split_text(text)
+    last = None
+    for chunk in chunks:
+        last = await message.answer(chunk, **kwargs)
+    return last
 
 
 async def _send_html(message: types.Message, text: str, **kwargs) -> types.Message:

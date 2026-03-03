@@ -25,6 +25,7 @@ from telegram_bot.handler_utils import (
     _parse_flags,
     _safe_edit_text,
     _save_turn,
+    _send,
     _send_html,
     _support_draft_map,
     send_typing,
@@ -133,7 +134,7 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
 async def cmd_health(message: types.Message, state: FSMContext) -> None:
     await send_typing(message.chat.id)
     results = await asyncio.to_thread(run_healthchecks)
-    await message.answer(format_healthcheck_results(results))
+    await _send(message, format_healthcheck_results(results))
 
 
 async def handle_code_rate_callback(callback: CallbackQuery) -> None:

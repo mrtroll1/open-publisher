@@ -45,6 +45,7 @@ from telegram_bot.handler_utils import (
     _find_contractor_or_suggest,
     _inbox,
     _save_turn,
+    _send,
     _send_html,
     _support_draft_map,
     get_contractor_by_id,
@@ -290,7 +291,7 @@ async def cmd_lookup(message: types.Message, state: FSMContext) -> None:
     lines.append(f"Номер счёта: {contractor.invoice_number}")
     lines.append(f"Банковские данные: {bank_status}")
 
-    await message.answer("\n".join(lines))
+    await _send(message, "\n".join(lines))
 
 
 async def cmd_budget(message: types.Message, state: FSMContext) -> None:
@@ -347,7 +348,7 @@ async def cmd_generate_invoices(message: types.Message, state: FSMContext) -> No
         parts.append(replies.admin.batch_errors.format(
             errors="\n".join(f"  - {e}" for e in batch_result.errors),
         ))
-    await message.answer("\n\n".join(parts))
+    await _send(message, "\n\n".join(parts))
 
     # Send PDFs to admin
     for pdf_bytes, contractor, invoice in batch_result.generated:
@@ -439,7 +440,7 @@ async def cmd_send_global_invoices(message: types.Message, state: FSMContext) ->
         parts.append(replies.admin.batch_errors.format(
             errors="\n".join(f"  - {e}" for e in errors),
         ))
-    await message.answer("\n\n".join(parts))
+    await _send(message, "\n\n".join(parts))
 
 
 async def cmd_send_legium_links(message: types.Message, state: FSMContext) -> None:
@@ -499,7 +500,7 @@ async def cmd_send_legium_links(message: types.Message, state: FSMContext) -> No
         parts.append(replies.admin.batch_errors.format(
             errors="\n".join(f"  - {e}" for e in errors),
         ))
-    await message.answer("\n\n".join(parts))
+    await _send(message, "\n\n".join(parts))
 
 
 async def cmd_orphan_contractors(message: types.Message, state: FSMContext) -> None:

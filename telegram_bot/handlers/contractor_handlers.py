@@ -56,6 +56,7 @@ from telegram_bot.handler_utils import (
     _admin_reply_map,
     _db,
     _safe_edit_text,
+    _send,
     get_contractor_by_id,
     get_current_contractor,
     send_typing,
@@ -263,7 +264,7 @@ async def handle_data_input(message: types.Message, state: FSMContext) -> str | 
         if warnings:
             parts.append("\n".join(f"  ⚠ {w}" for w in warnings))
         parts.append(replies.registration.send_corrections)
-        await message.answer("\n\n".join(parts))
+        await _send(message, "\n\n".join(parts))
         return None
 
     # For Global contractors, translate name to Russian and add as alias

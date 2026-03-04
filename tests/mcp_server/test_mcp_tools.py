@@ -349,3 +349,203 @@ class TestListKnowledge:
         mem.list_knowledge.assert_called_once_with(
             domain=None, tier=None,
         )
+
+    def test_both_domain_and_tier_filters(self):
+        mem = _make_mock()
+        mem.list_knowledge.return_value = [
+            {"id": "x", "title": "X", "content": "body"},
+        ]
+        _setup(mem)
+
+        result = srv.list_knowledge(domain="editorial", tier="meta")
+
+        assert result == {"entries": [
+            {"id": "x", "title": "X", "content": "body"},
+        ]}
+        mem.list_knowledge.assert_called_once_with(
+            domain="editorial", tier="meta",
+        )
+
+    def test_empty_tier_becomes_none(self):
+        mem = _make_mock()
+        mem.list_knowledge.return_value = []
+        _setup(mem)
+
+        srv.list_knowledge(tier="")
+
+        mem.list_knowledge.assert_called_once_with(
+            domain=None, tier=None,
+        )
+
+    def test_empty_domain_becomes_none(self):
+        mem = _make_mock()
+        mem.list_knowledge.return_value = []
+        _setup(mem)
+
+        srv.list_knowledge(domain="")
+
+        mem.list_knowledge.assert_called_once_with(
+            domain=None, tier=None,
+        )
+
+
+# ===================================================================
+#  remember — additional edge cases
+# ===================================================================
+
+class TestRememberEdgeCases:
+
+    def test_negative_expires_in_days_still_computes(self):
+        """Negative days is truthy so expires_at gets set (edge case)."""
+        mem = _make_mock()
+        mem.remember.return_value = "id"
+        _setup(mem)
+
+        srv.remember("fact", domain="d", expires_in_days=-1)
+
+        expires_at = mem.remember.call_args[1]["expires_at"]
+        # Should be a datetime in the past
+        assert expires_at is not None
+        assert expires_at < datetime.now(timezone.utc)
+
+    def test_custom_tier_passed_through(self):
+        mem = _make_mock()
+        mem.remember.return_value = "id"
+        _setup(mem)
+
+        srv.remember("fact", domain="d", tier="core")
+
+        assert mem.remember.call_args[1]["tier"] == "core"
+
+    def test_custom_source_passed_through(self):
+        mem = _make_mock()
+        mem.remember.return_value = "id"
+        _setup(mem)
+
+        srv.remember("fact", domain="d", source="custom_pipeline")
+
+        assert mem.remember.call_args[1]["source"] == "custom_pipeline"
+
+    def test_entity_name_empty_string_skips_lookup(self):
+        """Empty entity_name should not trigger find_entity."""
+        mem = _make_mock()
+        mem.remember.return_value = "id"
+        _setup(mem)
+
+        srv.remember("fact", domain="d", entity_name="")
+
+        mem.find_entity.assert_not_called()
+        assert mem.remember.call_args[1]["entity_id"] is None
+
+
+# ===================================================================
+#  recall — additional edge cases
+# ===================================================================
+
+class TestRecallEdgeCases:
+
+    def test_custom_limit(self):
+        mem = _make_mock()
+        mem.recall.return_value = []
+        _setup(mem)
+
+        srv.recall("q", limit=20)
+
+        mem.recall.assert_called_once_with("q", domain=None, limit=20)
+
+    def test_empty_results(self):
+        mem = _make_mock()
+        mem.recall.return_value = []
+        _setup(mem)
+
+        result = srv.recall("nonexistent query")
+
+        assert result == {"results": []}
+
+    def test_multiple_results_returned(self):
+        mem = _make_mock()
+        mem.recall.return_value = [
+            {"id": "1", "title": "A", "content": "a", "similarity": 0.9},
+            {"id": "2", "title": "B", "content": "b", "similarity": 0.7},
+            {"id": "3", "title": "C", "content": "c", "similarity": 0.5},
+        ]
+        _setup(mem)
+
+        result = srv.recall("query")
+
+        assert len(result["results"]) == 3
+
+
+# ===================================================================
+#  add_entity — additional edge cases
+# ===================================================================
+
+class TestAddEntityEdgeCases:
+
+    def test_default_summary_empty(self):
+        mem = _make_mock()
+        mem.add_entity.return_value = "id"
+        _setup(mem)
+
+        srv.add_entity("organization", "Acme Corp")
+
+        mem.add_entity.assert_called_once_with(
+            "organization", "Acme Corp", summary="",
+        )
+
+
+# ===================================================================
+#  entity_note — resolve_entity uses _get_memory
+# ===================================================================
+
+class TestEntityNoteEdgeCases:
+
+    def test_entity_note_uses_resolve_entity_internally(self):
+        """entity_note calls _resolve_entity which uses find_entity(query=...)."""
+        mem = _make_mock()
+        mem.find_entity.return_value = {"id": "e99", "name": "Bob"}
+        mem.remember.return_value = "note-99"
+        _setup(mem)
+
+        result = srv.entity_note("Bob", "Important note", domain="tech")
+
+        assert result == {"id": "note-99"}
+        mem.find_entity.assert_called_once_with(query="Bob")
+        mem.remember.assert_called_once_with(
+            "Important note", domain="tech", entity_id="e99",
+        )
+
+
+# ===================================================================
+#  get_context — additional edge cases
+# ===================================================================
+
+class TestGetContextEdgeCases:
+
+    def test_query_passed_through(self):
+        mem = _make_mock()
+        mem.get_context.return_value = {
+            "environment": "", "knowledge": "k",
+            "user_context": "", "domains": [],
+        }
+        _setup(mem)
+
+        srv.get_context(query="billing invoices")
+
+        mem.get_context.assert_called_once_with(
+            environment=None, query="billing invoices",
+        )
+
+    def test_both_environment_and_query(self):
+        mem = _make_mock()
+        mem.get_context.return_value = {
+            "environment": "ctx", "knowledge": "k",
+            "user_context": "", "domains": ["d"],
+        }
+        _setup(mem)
+
+        srv.get_context(environment="editorial", query="articles")
+
+        mem.get_context.assert_called_once_with(
+            environment="editorial", query="articles",
+        )

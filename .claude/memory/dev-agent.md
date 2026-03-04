@@ -2303,6 +2303,31 @@ Phase 8.5 — Scheduled pipeline runner:
 
 **Net result:** 1494 tests pass, 3 bugs fixed
 
+### Session 77 (2026-03-04) — Maintenance: Write Tests (round 15) + Spot Bugs (round 11)
+**Status:** Complete
+
+**Write Tests:**
+- Extended `tests/domain/use_cases/test_run_knowledge_pipelines.py` with 7 new edge case tests:
+  - No environments, extraction exceptions (continue on failure), multiple envs×multiple bindings, all empty bindings, constructor wiring
+- Extended `tests/mcp_server/test_mcp_tools.py` with 13 new edge case tests:
+  - Domain/tier empty-string-to-None coercion, entity name edge cases, negative expires_in_days, custom limit/source/tier, recall empty/multiple results
+- Created `tests/telegram_bot/test_handler_utils.py` with 20 new tests:
+  - `_split_text` (7): empty, exact limit, newline/hard splitting, content preservation
+  - `_parse_flags` (10): all flag combos, empty, flag-only, mid-text non-match
+  - `parse_month_arg` (3): default, explicit, whitespace
+
+**Spot Bugs (round 11):**
+- Found and fixed 1 bug in `run_knowledge_pipelines.py`:
+  - Missing try/except around `extractor.execute()` — one chat's failure would crash the entire scheduled pipeline
+  - Fix: wrapped in try/except with `logger.exception()`, pipeline continues to next chat
+- Thorough review of all Plan 5-8 handler wiring, MCP server tools, use case modules: no other bugs found
+- All `asyncio.to_thread()` wrapping verified correct
+- All positional arguments verified matching
+
+**Supervisor review:** Clean. Removed 2 unused imports (logging in test file, MagicMock in test file). Zero logic issues.
+
+**Net result:** 1534 tests pass (+40 new), 1 bug fixed
+
 ## Next up
 
 - All plans (5-8) complete. Maintenance mode continues.
@@ -2311,5 +2336,6 @@ Phase 8.5 — Scheduled pipeline runner:
 - Plan 7 section 7.5: Verification (7.5.1 done, 7.5.2-7.5.5 are manual)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion
-- Remaining test gaps: run_knowledge_pipelines.py edge cases (2 tests only), thin gateway wrappers (drive, sheets, redefine) — postgres repos now covered
-- Bug-spotting rounds: 10 total (last round found 3 bugs in Plan 5-8 code, still productive)
+- Remaining test gaps: thin gateway wrappers (drive, sheets, redefine) — all other modules now covered
+- Bug-spotting rounds: 11 total (last round found 1 bug in pipeline runner, previous rounds still productive)
+- run_knowledge_pipelines.py now at 9 tests (was 2), MCP tools at 40 tests (was 27), handler_utils pure functions now at 20 tests (was 0)

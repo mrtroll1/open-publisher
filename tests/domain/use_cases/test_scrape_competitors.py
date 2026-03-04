@@ -3,6 +3,12 @@ from unittest.mock import MagicMock, call
 from backend.domain.use_cases.scrape_competitors import ScrapeCompetitors
 
 
+def _mock_retriever():
+    r = MagicMock()
+    r.get_core.return_value = ""
+    return r
+
+
 # ===================================================================
 #  execute — creates entity and knowledge entry
 # ===================================================================
@@ -18,7 +24,7 @@ class TestScrapeCreatesEntityAndKnowledge:
         gemini = MagicMock()
         gemini.call.return_value = {"summary": "Competitor analysis summary"}
 
-        scraper = ScrapeCompetitors(memory=memory, gemini=gemini)
+        scraper = ScrapeCompetitors(memory=memory, gemini=gemini, retriever=_mock_retriever())
         sources = [{
             "name": "Meduza",
             "url": "https://meduza.io",
@@ -54,7 +60,7 @@ class TestScrapeReusesExistingEntity:
         gemini = MagicMock()
         gemini.call.return_value = {"summary": "Updated analysis"}
 
-        scraper = ScrapeCompetitors(memory=memory, gemini=gemini)
+        scraper = ScrapeCompetitors(memory=memory, gemini=gemini, retriever=_mock_retriever())
         sources = [{
             "name": "Meduza",
             "url": "https://meduza.io/2026",
@@ -78,7 +84,7 @@ class TestScrapeReusesExistingEntity:
         gemini = MagicMock()
         gemini.call.return_value = {"summary": "Analysis"}
 
-        scraper = ScrapeCompetitors(memory=memory, gemini=gemini)
+        scraper = ScrapeCompetitors(memory=memory, gemini=gemini, retriever=_mock_retriever())
         sources = [
             {"name": "Meduza", "url": "https://meduza.io", "content": "Content A"},
             {"name": "The Bell", "url": "https://thebell.io", "content": "Content B"},
@@ -105,7 +111,7 @@ class TestScrapeUpdatesBySourceUrl:
         gemini = MagicMock()
         gemini.call.return_value = {"summary": "Updated summary"}
 
-        scraper = ScrapeCompetitors(memory=memory, gemini=gemini)
+        scraper = ScrapeCompetitors(memory=memory, gemini=gemini, retriever=_mock_retriever())
         sources = [{
             "name": "Meduza",
             "url": "https://meduza.io/specific-page",
@@ -120,7 +126,7 @@ class TestScrapeUpdatesBySourceUrl:
         memory = MagicMock()
         gemini = MagicMock()
 
-        scraper = ScrapeCompetitors(memory=memory, gemini=gemini)
+        scraper = ScrapeCompetitors(memory=memory, gemini=gemini, retriever=_mock_retriever())
         result = scraper.execute([])
 
         assert result == []
@@ -136,7 +142,7 @@ class TestScrapeUpdatesBySourceUrl:
         gemini = MagicMock()
         gemini.call.return_value = {"raw_parsed": "unexpected"}
 
-        scraper = ScrapeCompetitors(memory=memory, gemini=gemini)
+        scraper = ScrapeCompetitors(memory=memory, gemini=gemini, retriever=_mock_retriever())
         sources = [{
             "name": "Novaya",
             "url": "https://novayagazeta.eu",

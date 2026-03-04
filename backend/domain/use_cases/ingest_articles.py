@@ -7,11 +7,18 @@ from backend.domain.services.memory_service import MemoryService
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 
 
+def _get_retriever():
+    from backend.domain.services.knowledge_retriever import KnowledgeRetriever
+    return KnowledgeRetriever()
+
+
 class IngestArticles:
 
-    def __init__(self, memory: MemoryService, gemini: GeminiGateway | None = None):
+    def __init__(self, memory: MemoryService, gemini: GeminiGateway | None = None,
+                 retriever=None):
         self._memory = memory
         self._gemini = gemini or GeminiGateway()
+        self._retriever = retriever or _get_retriever()
 
     def execute(self, articles: list[dict], domain: str = "editorial") -> list[str]:
         """Process articles. Returns list of entry UUIDs (created or updated).
@@ -37,7 +44,9 @@ class IngestArticles:
         return entry_ids
 
     def _summarize(self, article: dict) -> str:
-        prompt = load_template("summarize-article.md", {
+        core = self._retriever.get_core()
+        prompt = load_template("knowledge/summarize-article.md", {
+            "CORE_KNOWLEDGE": core,
             "TITLE": article["title"],
             "CONTENT": article["content"][:8000],
         })

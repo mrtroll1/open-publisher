@@ -209,6 +209,20 @@ class TestRetrieverCalls:
         r.get_domain_context.assert_called_once_with("contractor")
         r.retrieve_full_domain.assert_called_once_with("contractor")
 
+    def test_inbox_classify_calls_get_core(self):
+        r = self._make_retriever()
+        r.get_core.return_value = "core-knowledge"
+        with patch("backend.domain.services.compose_request._get_retriever", return_value=r):
+            prompt, _, _ = inbox_classify("test email")
+        r.get_core.assert_called_once()
+
+    def test_editorial_assess_calls_get_core(self):
+        r = self._make_retriever()
+        r.get_core.return_value = "core-knowledge"
+        with patch("backend.domain.services.compose_request._get_retriever", return_value=r):
+            prompt, _, _ = editorial_assess("test email")
+        r.get_core.assert_called_once()
+
 
 # ===================================================================
 #  conversation_reply()

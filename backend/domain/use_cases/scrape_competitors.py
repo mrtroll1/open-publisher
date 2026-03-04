@@ -7,11 +7,18 @@ from backend.domain.services.memory_service import MemoryService
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 
 
+def _get_retriever():
+    from backend.domain.services.knowledge_retriever import KnowledgeRetriever
+    return KnowledgeRetriever()
+
+
 class ScrapeCompetitors:
 
-    def __init__(self, memory: MemoryService, gemini: GeminiGateway | None = None):
+    def __init__(self, memory: MemoryService, gemini: GeminiGateway | None = None,
+                 retriever=None):
         self._memory = memory
         self._gemini = gemini or GeminiGateway()
+        self._retriever = retriever or _get_retriever()
 
     def execute(self, sources: list[dict]) -> list[str]:
         """Process competitor sources.
@@ -43,7 +50,9 @@ class ScrapeCompetitors:
         return entry_ids
 
     def _summarize(self, source: dict) -> str:
-        prompt = load_template("summarize-competitor.md", {
+        core = self._retriever.get_core()
+        prompt = load_template("knowledge/summarize-competitor.md", {
+            "CORE_KNOWLEDGE": core,
             "NAME": source["name"],
             "URL": source["url"],
             "CONTENT": source["content"][:8000],

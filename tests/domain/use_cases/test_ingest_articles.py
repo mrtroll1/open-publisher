@@ -3,6 +3,12 @@ from unittest.mock import MagicMock, patch
 from backend.domain.use_cases.ingest_articles import IngestArticles
 
 
+def _mock_retriever():
+    r = MagicMock()
+    r.get_core.return_value = ""
+    return r
+
+
 # ===================================================================
 #  execute — creates entries
 # ===================================================================
@@ -15,7 +21,7 @@ class TestIngestCreatesEntries:
         memory.remember.side_effect = ["id-1", "id-2"]
         gemini = MagicMock()
 
-        ingest = IngestArticles(memory=memory, gemini=gemini)
+        ingest = IngestArticles(memory=memory, gemini=gemini, retriever=_mock_retriever())
         articles = [
             {"title": "Author A — 5 публикаций за 2026-02", "url": "republic://authors/A/2026-02"},
             {"title": "Author B — 3 публикаций за 2026-02", "url": "republic://authors/B/2026-02"},
@@ -40,7 +46,7 @@ class TestIngestCreatesEntries:
         memory.remember.return_value = "id-1"
         gemini = MagicMock()
 
-        ingest = IngestArticles(memory=memory, gemini=gemini)
+        ingest = IngestArticles(memory=memory, gemini=gemini, retriever=_mock_retriever())
         articles = [{"title": "Test", "url": "https://example.com/1"}]
         ingest.execute(articles, domain="custom_domain")
 
@@ -50,7 +56,7 @@ class TestIngestCreatesEntries:
         memory = MagicMock()
         gemini = MagicMock()
 
-        ingest = IngestArticles(memory=memory, gemini=gemini)
+        ingest = IngestArticles(memory=memory, gemini=gemini, retriever=_mock_retriever())
         result = ingest.execute([])
 
         assert result == []
@@ -70,7 +76,7 @@ class TestIngestUpdatesExistingByUrl:
         memory.remember.return_value = "existing-id"
         gemini = MagicMock()
 
-        ingest = IngestArticles(memory=memory, gemini=gemini)
+        ingest = IngestArticles(memory=memory, gemini=gemini, retriever=_mock_retriever())
         articles = [{"title": "Updated title", "url": "https://example.com/article/1"}]
         result = ingest.execute(articles)
 
@@ -91,7 +97,7 @@ class TestIngestSummarizesViaLlm:
         gemini = MagicMock()
         gemini.call.return_value = {"summary": "LLM-generated summary"}
 
-        ingest = IngestArticles(memory=memory, gemini=gemini)
+        ingest = IngestArticles(memory=memory, gemini=gemini, retriever=_mock_retriever())
         articles = [{
             "title": "Big Article",
             "url": "https://example.com/big",
@@ -110,7 +116,7 @@ class TestIngestSummarizesViaLlm:
         gemini = MagicMock()
         gemini.call.return_value = {"raw_parsed": "something unexpected"}
 
-        ingest = IngestArticles(memory=memory, gemini=gemini)
+        ingest = IngestArticles(memory=memory, gemini=gemini, retriever=_mock_retriever())
         articles = [{
             "title": "Fallback Article",
             "url": "https://example.com/fallback",
@@ -127,7 +133,7 @@ class TestIngestSummarizesViaLlm:
         memory.remember.return_value = "id-no-llm"
         gemini = MagicMock()
 
-        ingest = IngestArticles(memory=memory, gemini=gemini)
+        ingest = IngestArticles(memory=memory, gemini=gemini, retriever=_mock_retriever())
         articles = [{"title": "No content", "url": "https://example.com/empty", "content": ""}]
         ingest.execute(articles)
 

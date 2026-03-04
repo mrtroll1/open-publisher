@@ -36,7 +36,7 @@ def set_retriever(r: KnowledgeRetriever) -> None:
 
 def support_triage(email_text: str) -> tuple[str, str, list[str]]:
     knowledge = _get_retriever().retrieve_full_domain("support_triage")
-    prompt = load_template("support-triage.md", {
+    prompt = load_template("email/support-triage.md", {
         "KNOWLEDGE": knowledge,
         "EMAIL": email_text,
     })
@@ -46,7 +46,7 @@ def support_triage(email_text: str) -> tuple[str, str, list[str]]:
 def support_email(email_text: str, user_data: str = "") -> tuple[str, str, list[str]]:
     r = _get_retriever()
     knowledge = r.get_domain_context("tech_support") + "\n\n" + r.retrieve(email_text, domain="tech_support", limit=5)
-    prompt = load_template("support-email.md", {
+    prompt = load_template("email/support-email.md", {
         "KNOWLEDGE": knowledge,
         "USER_DATA": user_data,
         "EMAIL": email_text,
@@ -55,7 +55,7 @@ def support_email(email_text: str, user_data: str = "") -> tuple[str, str, list[
 
 
 def tech_search_terms(text: str) -> tuple[str, str, list[str]]:
-    prompt = load_template("tech-search-terms.md", {"EMAIL": text})
+    prompt = load_template("email/tech-search-terms.md", {"EMAIL": text})
     return prompt, _MODELS["tech_search_terms"], ["needs_code"]
 
 
@@ -64,7 +64,7 @@ def contractor_parse(
 ) -> tuple[str, str, list[str]]:
     r = _get_retriever()
     knowledge = r.get_domain_context("contractor") + "\n\n" + r.retrieve_full_domain("contractor")
-    prompt = load_template("contractor-parse.md", {
+    prompt = load_template("contractor/contractor-parse.md", {
         "FIELDS": fields_csv,
         "CONTEXT": context,
         "INPUT": text,
@@ -76,17 +76,25 @@ def contractor_parse(
 
 
 def inbox_classify(email_text: str) -> tuple[str, str, list[str]]:
-    prompt = load_template("inbox-classify.md", {"EMAIL": email_text})
+    core = _get_retriever().get_core()
+    prompt = load_template("email/inbox-classify.md", {
+        "CORE_KNOWLEDGE": core,
+        "EMAIL": email_text,
+    })
     return prompt, _MODELS["inbox_classify"], ["category", "reason"]
 
 
 def editorial_assess(email_text: str) -> tuple[str, str, list[str]]:
-    prompt = load_template("editorial-assess.md", {"EMAIL": email_text})
+    core = _get_retriever().get_core()
+    prompt = load_template("email/editorial-assess.md", {
+        "CORE_KNOWLEDGE": core,
+        "EMAIL": email_text,
+    })
     return prompt, _MODELS["editorial_assess"], ["forward", "reply"]
 
 
 def translate_name(name_en: str) -> tuple[str, str, list[str]]:
-    prompt = load_template("translate-name.md", {"NAME": name_en})
+    prompt = load_template("contractor/translate-name.md", {"NAME": name_en})
     return prompt, _MODELS["translate_name"], ["translated_name"]
 
 
@@ -100,7 +108,7 @@ def tech_support_question(
         if verbose
         else "Отвечай кратко, 1-3 абзаца."
     )
-    prompt = load_template("tech-support-question.md", {
+    prompt = load_template("chat/tech-support-question.md", {
         "KNOWLEDGE": knowledge,
         "QUESTION": question,
         "CODE_CONTEXT": code_context,
@@ -110,7 +118,7 @@ def tech_support_question(
 
 
 def classify_teaching(text: str, examples: str = "", domains: str = "") -> tuple[str, str, list[str]]:
-    prompt = load_template("classify-teaching.md", {
+    prompt = load_template("knowledge/classify-teaching.md", {
         "TEXT": text,
         "EXAMPLES": examples or "(пусто)",
         "DOMAINS": domains or "(пусто)",
@@ -119,7 +127,7 @@ def classify_teaching(text: str, examples: str = "", domains: str = "") -> tuple
 
 
 def classify_command(text: str, commands_description: str) -> tuple[str, str, list[str]]:
-    prompt = load_template("classify-command.md", {
+    prompt = load_template("chat/classify-command.md", {
         "COMMANDS": commands_description,
         "TEXT": text,
     })
@@ -137,7 +145,7 @@ def conversation_reply(
         if verbose
         else "Отвечай кратко и по делу."
     )
-    prompt = load_template("conversation.md", {
+    prompt = load_template("chat/conversation.md", {
         "VERBOSE": verbose_text,
         "ENVIRONMENT": environment_context or "(контекст не указан)",
         "USER_CONTEXT": user_context or "",

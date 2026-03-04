@@ -3,6 +3,12 @@ from unittest.mock import MagicMock
 from backend.domain.use_cases.extract_conversation_knowledge import ExtractConversationKnowledge
 
 
+def _mock_retriever():
+    r = MagicMock()
+    r.get_core.return_value = ""
+    return r
+
+
 # ===================================================================
 #  execute — stores extracted facts
 # ===================================================================
@@ -31,7 +37,9 @@ class TestExtractStoresFacts:
             ]
         }
 
-        extractor = ExtractConversationKnowledge(memory=memory, db=db, gemini=gemini)
+        extractor = ExtractConversationKnowledge(
+            memory=memory, db=db, gemini=gemini, retriever=_mock_retriever(),
+        )
         result = extractor.execute(chat_id=100, since_hours=24)
 
         assert result == ["id-1", "id-2"]
@@ -64,7 +72,9 @@ class TestExtractSkipsShortConversations:
         memory = MagicMock()
         gemini = MagicMock()
 
-        extractor = ExtractConversationKnowledge(memory=memory, db=db, gemini=gemini)
+        extractor = ExtractConversationKnowledge(
+            memory=memory, db=db, gemini=gemini, retriever=_mock_retriever(),
+        )
         result = extractor.execute(chat_id=100, since_hours=24)
 
         assert result == []
@@ -99,7 +109,9 @@ class TestExtractDeduplicatesViaRemember:
             ]
         }
 
-        extractor = ExtractConversationKnowledge(memory=memory, db=db, gemini=gemini)
+        extractor = ExtractConversationKnowledge(
+            memory=memory, db=db, gemini=gemini, retriever=_mock_retriever(),
+        )
         result = extractor.execute(chat_id=100)
 
         assert memory.remember.call_count == 2
@@ -125,7 +137,9 @@ class TestExtractNoFacts:
         gemini = MagicMock()
         gemini.call.return_value = {"facts": []}
 
-        extractor = ExtractConversationKnowledge(memory=memory, db=db, gemini=gemini)
+        extractor = ExtractConversationKnowledge(
+            memory=memory, db=db, gemini=gemini, retriever=_mock_retriever(),
+        )
         result = extractor.execute(chat_id=100)
 
         assert result == []
@@ -155,7 +169,9 @@ class TestExtractDefaultDomain:
             "facts": [{"text": "some fact"}]
         }
 
-        extractor = ExtractConversationKnowledge(memory=memory, db=db, gemini=gemini)
+        extractor = ExtractConversationKnowledge(
+            memory=memory, db=db, gemini=gemini, retriever=_mock_retriever(),
+        )
         extractor.execute(chat_id=100)
 
         assert memory.remember.call_args[1]["domain"] == "general"

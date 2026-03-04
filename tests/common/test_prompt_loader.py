@@ -13,16 +13,16 @@ class TestLoadTemplate:
 
     def test_loads_existing_template(self):
         # translate-name.md is a known small template
-        text = load_template("translate-name.md")
+        text = load_template("contractor/translate-name.md")
         assert "{{NAME}}" in text or "translated_name" in text
 
     def test_replacement_applied(self):
-        text = load_template("translate-name.md", {"NAME": "John Smith"})
+        text = load_template("contractor/translate-name.md", {"NAME": "John Smith"})
         assert "John Smith" in text
         assert "{{NAME}}" not in text
 
     def test_multiple_replacements(self):
-        text = load_template("support-email.md", {
+        text = load_template("email/support-email.md", {
             "KNOWLEDGE": "TEST_KNOWLEDGE",
             "USER_DATA": "TEST_USER_DATA",
             "EMAIL": "TEST_EMAIL",
@@ -31,11 +31,11 @@ class TestLoadTemplate:
         assert "TEST_EMAIL" in text
 
     def test_no_replacements_leaves_placeholders(self):
-        text = load_template("translate-name.md")
+        text = load_template("contractor/translate-name.md")
         assert "{{NAME}}" in text
 
     def test_empty_replacements_dict(self):
-        text = load_template("translate-name.md", {})
+        text = load_template("contractor/translate-name.md", {})
         assert "{{NAME}}" in text
 
     def test_nonexistent_template_raises(self):

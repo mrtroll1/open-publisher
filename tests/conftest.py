@@ -13,7 +13,7 @@ for _mod in (
     "googleapiclient", "googleapiclient.discovery", "googleapiclient.http",
     "psycopg2",
     "pyairtable",
-    "google.genai", "google.genai.types",
+    "google.genai", "google.genai.types", "google.genai.errors",
 ):
     sys.modules.setdefault(_mod, MagicMock())
 

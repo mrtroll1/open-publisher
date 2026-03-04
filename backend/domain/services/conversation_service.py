@@ -46,6 +46,7 @@ def generate_nl_reply(
     verbose: bool = False,
     environment: str = "",
     allowed_domains: list[str] | None = None,
+    user_context: str = "",
 ) -> str:
     """Build knowledge context, call LLM, return reply text."""
     if allowed_domains is not None:
@@ -59,6 +60,7 @@ def generate_nl_reply(
     prompt, model, _ = compose_request.conversation_reply(
         message_text, conversation_history, knowledge_context,
         verbose=verbose, environment_context=environment,
+        user_context=user_context,
     )
 
     if gemini is None:

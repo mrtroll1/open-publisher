@@ -234,3 +234,35 @@ class TestGenerateNlReply:
         mock_retriever.get_core.assert_called_once()
         mock_retriever.retrieve.assert_called_once_with("q")
         mock_retriever.get_multi_domain_context.assert_not_called()
+
+    @patch("backend.domain.services.conversation_service.compose_request")
+    def test_user_context_passed_to_compose_request(self, mock_compose_mod):
+        from backend.domain.services.conversation_service import generate_nl_reply
+
+        mock_compose_mod.conversation_reply.return_value = ("p", "m", ["reply"])
+        mock_gemini = MagicMock()
+        mock_gemini.call.return_value = {"reply": "ok"}
+        mock_retriever = MagicMock()
+        mock_retriever.get_core.return_value = ""
+        mock_retriever.retrieve.return_value = ""
+
+        generate_nl_reply("q", "h", mock_retriever, gemini=mock_gemini, user_context="## Иван\nАвтор")
+
+        call_kwargs = mock_compose_mod.conversation_reply.call_args
+        assert call_kwargs[1]["user_context"] == "## Иван\nАвтор"
+
+    @patch("backend.domain.services.conversation_service.compose_request")
+    def test_user_context_defaults_to_empty(self, mock_compose_mod):
+        from backend.domain.services.conversation_service import generate_nl_reply
+
+        mock_compose_mod.conversation_reply.return_value = ("p", "m", ["reply"])
+        mock_gemini = MagicMock()
+        mock_gemini.call.return_value = {"reply": "ok"}
+        mock_retriever = MagicMock()
+        mock_retriever.get_core.return_value = ""
+        mock_retriever.retrieve.return_value = ""
+
+        generate_nl_reply("q", "h", mock_retriever, gemini=mock_gemini)
+
+        call_kwargs = mock_compose_mod.conversation_reply.call_args
+        assert call_kwargs[1]["user_context"] == ""

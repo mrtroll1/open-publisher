@@ -10,7 +10,7 @@ from aiogram.enums import ChatAction
 from aiogram.exceptions import TelegramBadRequest
 
 from backend.wiring import create_db, create_inbox_service, create_knowledge_retriever
-from backend.domain.services.compose_request import set_retriever
+from backend.domain.services.compose_request import set_retriever, _get_retriever
 from telegram_bot.bot_helpers import bot, get_contractors, md_to_tg_html, prev_month
 from telegram_bot import replies
 from backend import find_contractor, find_contractor_by_id, find_contractor_by_telegram_id, fuzzy_find
@@ -39,6 +39,7 @@ __all__ = [
     "get_current_contractor",
     "get_contractor_by_id",
     "resolve_environment",
+    "resolve_entity_context",
     "_safe_edit_text",
     "_send",
     "_send_html",
@@ -63,6 +64,14 @@ def resolve_environment(chat_id: int) -> tuple[str, list[str] | None]:
     if env is None:
         return "", None
     return env["system_context"], env.get("allowed_domains")
+
+
+def resolve_entity_context(user_id: int) -> str:
+    """Look up entity by telegram_user_id, return formatted context or empty string."""
+    entity = _db.find_entity_by_external_id("telegram_user_id", user_id)
+    if not entity:
+        return ""
+    return _get_retriever().get_entity_context(entity["id"])
 
 
 async def get_current_contractor(telegram_id: int) -> "Contractor | None":

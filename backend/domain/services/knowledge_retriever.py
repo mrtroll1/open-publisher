@@ -65,6 +65,35 @@ class KnowledgeRetriever:
             embedding=embedding,
         )
 
+    def get_entity_context(self, entity_id: str) -> str:
+        """Fetch entity summary + entity-linked knowledge entries. Format as markdown."""
+        entity = self._db.get_entity(entity_id)
+        if not entity:
+            return ""
+        parts = []
+        if entity.get("summary"):
+            parts.append(f"## {entity['name']}\n{entity['summary']}")
+        entries = self._db.get_entity_knowledge(entity_id, limit=5)
+        if entries:
+            parts.append(_format_entries(entries))
+        return "\n\n".join(parts)
+
+    def store_entity_knowledge(self, entity_id: str, text: str,
+                                domain: str = "general") -> str:
+        """Store a knowledge entry linked to an entity. Dedup-aware."""
+        embedding = self._embed.embed_one(text)
+        existing = self._db.search_knowledge(embedding, domain=domain, limit=1)
+        if existing and existing[0].get("similarity", 0) > 0.90:
+            entry_id = existing[0]["id"]
+            self._db.update_knowledge_entry(entry_id, text, embedding)
+            return entry_id
+        title = text[:60].strip()
+        return self._db.save_knowledge_entry(
+            tier="specific", domain=domain, title=title,
+            content=text, source="admin_teach",
+            embedding=embedding, entity_id=entity_id,
+        )
+
     def store_teaching(self, text: str, domain: str = "general", tier: str = "specific") -> str:
         embedding = self._embed.embed_one(text)
         existing = self._db.search_knowledge(embedding, domain=domain, limit=1)

@@ -6,6 +6,9 @@
 ## Окружение
 {{ENVIRONMENT}}
 
+## О собеседнике
+{{USER_CONTEXT}}
+
 ## Контекст
 {{KNOWLEDGE}}
 

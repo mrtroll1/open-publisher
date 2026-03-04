@@ -254,6 +254,22 @@ class TestConversationReply:
         prompt, _, _ = conversation_reply("hi", "hist", "kb", environment_context="")
         assert "(контекст не указан)" in prompt
 
+    def test_user_context_included(self):
+        prompt, _, _ = conversation_reply(
+            "hi", "hist", "kb", user_context="## Иван\nАвтор Republic",
+        )
+        assert "## Иван" in prompt
+        assert "Автор Republic" in prompt
+
+    def test_backward_compat_without_user_context(self):
+        prompt, model, keys = conversation_reply("hi", "hist", "kb")
+        assert "О собеседнике" in prompt
+        assert keys == ["reply"]
+
+    def test_empty_user_context(self):
+        prompt, _, _ = conversation_reply("hi", "hist", "kb", user_context="")
+        assert "О собеседнике" in prompt
+
 
 # ===================================================================
 #  _get_retriever() lazy singleton

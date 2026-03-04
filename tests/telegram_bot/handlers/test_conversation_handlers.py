@@ -72,6 +72,7 @@ class TestCmdNl:
         msg.answer.assert_awaited_once()
         assert "не удалось" in msg.answer.call_args[0][0].lower()
 
+    @patch("telegram_bot.handlers.conversation_handlers.resolve_entity_context", return_value="")
     @patch("telegram_bot.handlers.conversation_handlers.resolve_environment", return_value=("", None))
     @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
     @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
@@ -83,7 +84,7 @@ class TestCmdNl:
     def test_unclassified_generates_rag_reply(
         self, MockClassifier, MockGemini, mock_typing,
         mock_save, mock_send_html, mock_get_retriever, mock_generate,
-        mock_resolve_env,
+        mock_resolve_env, mock_resolve_entity,
     ):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
         from backend.domain.services.command_classifier import ClassificationResult
@@ -106,6 +107,7 @@ class TestCmdNl:
         mock_send_html.assert_awaited_once()
         assert "Вот что я знаю" in mock_send_html.call_args[0][1]
 
+    @patch("telegram_bot.handlers.conversation_handlers.resolve_entity_context", return_value="")
     @patch("telegram_bot.handlers.conversation_handlers.resolve_environment", return_value=("", None))
     @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
     @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
@@ -117,7 +119,7 @@ class TestCmdNl:
     def test_unclassified_saves_turn_with_nl_rag(
         self, MockClassifier, MockGemini, mock_typing,
         mock_save, mock_send_html, mock_get_retriever, mock_generate,
-        mock_resolve_env,
+        mock_resolve_env, mock_resolve_entity,
     ):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
         from backend.domain.services.command_classifier import ClassificationResult
@@ -315,6 +317,7 @@ class TestHandleNlReplyNewModule:
         result = asyncio.run(_handle_nl_reply(msg, state))
         assert result is False
 
+    @patch("telegram_bot.handlers.conversation_handlers.resolve_entity_context", return_value="")
     @patch("telegram_bot.handlers.conversation_handlers.resolve_environment", return_value=("", None))
     @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
     @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
@@ -327,7 +330,7 @@ class TestHandleNlReplyNewModule:
     def test_happy_path(
         self, mock_db, mock_get_retriever, mock_typing,
         mock_save, mock_send_html, mock_build, mock_generate, MockGemini,
-        mock_resolve_env,
+        mock_resolve_env, mock_resolve_entity,
     ):
         from telegram_bot.handlers.conversation_handlers import _handle_nl_reply
 
@@ -358,6 +361,7 @@ class TestHandleNlReplyNewModule:
         mock_save.assert_awaited_once()
 
     @patch("telegram_bot.handlers.conversation_handlers.is_admin", return_value=True)
+    @patch("telegram_bot.handlers.conversation_handlers.resolve_entity_context", return_value="")
     @patch("telegram_bot.handlers.conversation_handlers.resolve_environment", return_value=("", None))
     @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
     @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
@@ -370,7 +374,7 @@ class TestHandleNlReplyNewModule:
     def test_teaching_keyword_stores(
         self, mock_db, mock_get_retriever, mock_typing,
         mock_save, mock_send_html, mock_build, mock_generate, MockGemini,
-        mock_resolve_env, mock_is_admin,
+        mock_resolve_env, mock_resolve_entity, mock_is_admin,
     ):
         from telegram_bot.handlers.conversation_handlers import _handle_nl_reply
 
@@ -399,6 +403,7 @@ class TestHandleNlReplyNewModule:
         retriever.store_teaching.assert_called_once()
 
     @patch("telegram_bot.handlers.conversation_handlers.is_admin", return_value=False)
+    @patch("telegram_bot.handlers.conversation_handlers.resolve_entity_context", return_value="")
     @patch("telegram_bot.handlers.conversation_handlers.resolve_environment", return_value=("", None))
     @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
     @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
@@ -411,7 +416,7 @@ class TestHandleNlReplyNewModule:
     def test_teaching_keywords_ignored_for_non_admin(
         self, mock_db, mock_get_retriever, mock_typing,
         mock_save, mock_send_html, mock_build, mock_generate, MockGemini,
-        mock_resolve_env, mock_is_admin,
+        mock_resolve_env, mock_resolve_entity, mock_is_admin,
     ):
         from telegram_bot.handlers.conversation_handlers import _handle_nl_reply
 
@@ -439,6 +444,7 @@ class TestHandleNlReplyNewModule:
         assert result is True
         retriever.store_teaching.assert_not_called()
 
+    @patch("telegram_bot.handlers.conversation_handlers.resolve_entity_context", return_value="")
     @patch("telegram_bot.handlers.conversation_handlers.resolve_environment",
            return_value=("Ты бот редакции", ["editorial", "general"]))
     @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
@@ -452,7 +458,7 @@ class TestHandleNlReplyNewModule:
     def test_environment_resolved_and_passed(
         self, mock_db, mock_get_retriever, mock_typing,
         mock_save, mock_send_html, mock_build, mock_generate, MockGemini,
-        mock_resolve_env,
+        mock_resolve_env, mock_resolve_entity,
     ):
         from telegram_bot.handlers.conversation_handlers import _handle_nl_reply
 
@@ -486,6 +492,7 @@ class TestHandleNlReplyNewModule:
 
 class TestCmdNlEnvironment:
 
+    @patch("telegram_bot.handlers.conversation_handlers.resolve_entity_context", return_value="")
     @patch("telegram_bot.handlers.conversation_handlers.resolve_environment",
            return_value=("env context", ["domain1"]))
     @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
@@ -498,7 +505,7 @@ class TestCmdNlEnvironment:
     def test_cmd_nl_passes_environment(
         self, MockClassifier, MockGemini, mock_typing,
         mock_save, mock_send_html, mock_get_retriever, mock_generate,
-        mock_resolve_env,
+        mock_resolve_env, mock_resolve_entity,
     ):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
         from backend.domain.services.command_classifier import ClassificationResult

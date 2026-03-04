@@ -1994,8 +1994,35 @@ Phase 5.8 — Bot commands for environment management:
 - `search_entities` uses same `str()` conversion for vector as `search_knowledge`
 - `get_entity_knowledge` fetches from knowledge_entries WHERE entity_id matches
 
+### Session 66 (2026-03-04) — Plan 6 Phases 6.5-6.6: Entity-aware Retrieval + Prompt Threading
+**Status:** Complete (all items: 6.5.1-6.5.4, 6.6.1-6.6.6)
+
+**What was done:**
+
+Phase 6.5 — Entity-aware retrieval:
+- Added `get_entity_context(entity_id)` to `knowledge_retriever.py`:
+  - Fetches entity by ID, formats summary as `## {name}\n{summary}`, appends linked knowledge entries via `_format_entries`
+  - Returns empty string if entity not found or has no content
+- Added `store_entity_knowledge(entity_id, text, domain)` to `knowledge_retriever.py`:
+  - Same dedup pattern as `store_teaching` (embed → search similarity > 0.90 → update or create new)
+  - Passes `entity_id` to `save_knowledge_entry`
+- 10 new tests: 5 for get_entity_context (formats, missing entity, no summary, no entries, entries-only), 5 for store_entity_knowledge (happy path, dedup, new when different, default domain, title truncation)
+
+Phase 6.6 — Thread entity context into prompt:
+- Added `## О собеседнике` / `{{USER_CONTEXT}}` section to `templates/conversation.md` between Окружение and Контекст
+- Added `user_context: str = ""` param to `compose_request.conversation_reply()`, passed to template
+- Added `user_context: str = ""` param to `conversation_service.generate_nl_reply()`, forwarded to compose_request
+- Added `resolve_entity_context(user_id)` helper to `handler_utils.py` — looks up entity by `telegram_user_id`, uses `_get_retriever()` singleton to get formatted context
+- Updated all 3 call sites: `_handle_nl_reply`, `cmd_nl`, `handle_group_message` — each resolves entity context and passes as `user_context`
+- 5 new tests for threading (2 in test_conversation_service, 3 in test_compose_request), plus patches in handler tests
+
+**Review fix applied:**
+- Supervisor fixed `resolve_entity_context` to use `_get_retriever()` singleton instead of creating a new `KnowledgeRetriever()` each call
+
+**Net result:** 1294 tests pass (+15 new)
+
 ## Next up
 
-- Plan 6 sections 6.5-6.9 remain: entity-aware retrieval, prompt threading, bot commands, auto-link contractors, verification
+- Plan 6 sections 6.7-6.9 remain: bot commands for entity management, auto-link contractors, verification
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

@@ -406,3 +406,156 @@ class TestStoreTeaching:
         assert result == "new-id"
         mock_db.update_knowledge_entry.assert_not_called()
         mock_db.save_knowledge_entry.assert_called_once()
+
+
+# ===================================================================
+#  get_entity_context
+# ===================================================================
+
+class TestGetEntityContext:
+
+    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    def test_formats_correctly(self):
+        kr, mock_db, _ = _make_retriever()
+        mock_db.get_entity.return_value = {
+            "id": "e1", "name": "Иван Иванов", "summary": "Автор и редактор",
+        }
+        mock_db.get_entity_knowledge.return_value = [
+            {"title": "Заметка", "content": "Важная информация"},
+        ]
+
+        result = kr.get_entity_context("e1")
+
+        assert "## Иван Иванов" in result
+        assert "Автор и редактор" in result
+        assert "## Заметка" in result
+        assert "Важная информация" in result
+        mock_db.get_entity.assert_called_once_with("e1")
+        mock_db.get_entity_knowledge.assert_called_once_with("e1", limit=5)
+
+    def test_missing_entity_returns_empty(self):
+        kr, mock_db, _ = _make_retriever()
+        mock_db.get_entity.return_value = None
+
+        result = kr.get_entity_context("nonexistent")
+
+        assert result == ""
+        mock_db.get_entity_knowledge.assert_not_called()
+
+    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    def test_no_summary_no_entries(self):
+        kr, mock_db, _ = _make_retriever()
+        mock_db.get_entity.return_value = {
+            "id": "e2", "name": "Test", "summary": "",
+        }
+        mock_db.get_entity_knowledge.return_value = []
+
+        result = kr.get_entity_context("e2")
+
+        assert result == ""
+
+    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    def test_summary_only_no_entries(self):
+        kr, mock_db, _ = _make_retriever()
+        mock_db.get_entity.return_value = {
+            "id": "e3", "name": "Alice", "summary": "A developer",
+        }
+        mock_db.get_entity_knowledge.return_value = []
+
+        result = kr.get_entity_context("e3")
+
+        assert result == "## Alice\nA developer"
+
+    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    def test_entries_only_no_summary(self):
+        kr, mock_db, _ = _make_retriever()
+        mock_db.get_entity.return_value = {
+            "id": "e4", "name": "Bob",
+        }
+        mock_db.get_entity_knowledge.return_value = [
+            {"title": "Note", "content": "Something"},
+        ]
+
+        result = kr.get_entity_context("e4")
+
+        assert result == "## Note\nSomething"
+
+
+# ===================================================================
+#  store_entity_knowledge
+# ===================================================================
+
+class TestStoreEntityKnowledge:
+
+    def test_happy_path(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.1, 0.2, 0.3]
+        mock_db.search_knowledge.return_value = []
+        mock_db.save_knowledge_entry.return_value = "new-entity-kb-id"
+
+        result = kr.store_entity_knowledge("entity-1", "Entity specific info", domain="editorial")
+
+        assert result == "new-entity-kb-id"
+        mock_embed.embed_one.assert_called_once_with("Entity specific info")
+        mock_db.save_knowledge_entry.assert_called_once_with(
+            tier="specific",
+            domain="editorial",
+            title="Entity specific info",
+            content="Entity specific info",
+            source="admin_teach",
+            embedding=[0.1, 0.2, 0.3],
+            entity_id="entity-1",
+        )
+
+    def test_deduplicates_similar(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.4, 0.5]
+        mock_db.search_knowledge.return_value = [
+            {"id": "existing-id", "similarity": 0.95},
+        ]
+
+        result = kr.store_entity_knowledge("entity-1", "Updated info")
+
+        assert result == "existing-id"
+        mock_db.update_knowledge_entry.assert_called_once_with(
+            "existing-id", "Updated info", [0.4, 0.5],
+        )
+        mock_db.save_knowledge_entry.assert_not_called()
+
+    def test_creates_new_when_different(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.7]
+        mock_db.search_knowledge.return_value = [
+            {"id": "other-id", "similarity": 0.40},
+        ]
+        mock_db.save_knowledge_entry.return_value = "new-id"
+
+        result = kr.store_entity_knowledge("entity-2", "Completely new info")
+
+        assert result == "new-id"
+        mock_db.update_knowledge_entry.assert_not_called()
+        mock_db.save_knowledge_entry.assert_called_once()
+
+    def test_default_domain_is_general(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.1]
+        mock_db.search_knowledge.return_value = []
+        mock_db.save_knowledge_entry.return_value = "id"
+
+        kr.store_entity_knowledge("entity-1", "Some text")
+
+        call_kwargs = mock_db.save_knowledge_entry.call_args[1]
+        assert call_kwargs["domain"] == "general"
+
+    def test_title_truncated_at_60_chars(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.5]
+        mock_db.search_knowledge.return_value = []
+        mock_db.save_knowledge_entry.return_value = "id"
+
+        long_text = "A" * 100
+        kr.store_entity_knowledge("entity-1", long_text)
+
+        call_kwargs = mock_db.save_knowledge_entry.call_args[1]
+        assert len(call_kwargs["title"]) == 60
+        assert call_kwargs["content"] == long_text

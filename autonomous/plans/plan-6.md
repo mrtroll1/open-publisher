@@ -155,7 +155,7 @@
 
 > When the brain knows WHO it's talking to, entity-linked knowledge gets loaded.
 
-- [ ] 6.5.1 Add method to `KnowledgeRetriever`:
+- [x] 6.5.1 Add method to `KnowledgeRetriever`:
   ```python
   def get_entity_context(self, entity_id: str) -> str:
       """Fetch entity summary + entity-linked knowledge entries. Format as markdown."""
@@ -170,7 +170,7 @@
           parts.append(_format_entries(entries))
       return "\n\n".join(parts)
   ```
-- [ ] 6.5.2 Add method to `KnowledgeRetriever`:
+- [x] 6.5.2 Add method to `KnowledgeRetriever`:
   ```python
   def store_entity_knowledge(self, entity_id: str, text: str,
                               domain: str = "general") -> str:
@@ -190,11 +190,11 @@
           embedding=embedding, entity_id=entity_id,
       )
   ```
-- [ ] 6.5.3 Write tests:
+- [x] 6.5.3 Write tests:
   - `test_get_entity_context_formats_correctly`
   - `test_get_entity_context_missing_entity`
   - `test_store_entity_knowledge`
-- [ ] 6.5.4 Run `pytest` — all tests pass
+- [x] 6.5.4 Run `pytest` — all tests pass (1294 tests)
 
 ---
 
@@ -202,7 +202,7 @@
 
 > Layer 4 of the prompt stack: WHO am I talking to?
 
-- [ ] 6.6.1 Update `compose_request.conversation_reply()`:
+- [x] 6.6.1 Update `compose_request.conversation_reply()`:
   - Confirm `user_context` param exists from Phase 5 (it was added as param but may concatenate into ENVIRONMENT)
   - If not yet a separate template slot, add `{{USER_CONTEXT}}` to `conversation.md`:
     ```markdown
@@ -210,10 +210,10 @@
     {{USER_CONTEXT}}
     ```
   - Pass through in `conversation_reply`: `"USER_CONTEXT": user_context or ""`
-- [ ] 6.6.2 Update `generate_nl_reply()`:
+- [x] 6.6.2 Update `generate_nl_reply()`:
   - Add parameter: `user_context: str = ""`
   - Pass to `compose_request.conversation_reply(..., user_context=user_context)`
-- [ ] 6.6.3 Create helper in `handler_utils.py`:
+- [x] 6.6.3 Create helper in `handler_utils.py`:
   ```python
   def _resolve_entity_context(user_id: int) -> str:
       """Look up entity by telegram_user_id, return formatted context or empty string."""
@@ -223,12 +223,12 @@
       retriever = _get_retriever()
       return retriever.get_entity_context(entity["id"])
   ```
-- [ ] 6.6.4 Update all 3 call sites of `generate_nl_reply` to resolve and pass entity context:
+- [x] 6.6.4 Update all 3 call sites of `generate_nl_reply` to resolve and pass entity context:
   1. `conversation_handlers.py:_handle_nl_reply` — `user_context=_resolve_entity_context(message.from_user.id)`
   2. `conversation_handlers.py:cmd_nl` — same
   3. `router.py:handle_group_message` — same
-- [ ] 6.6.5 Update tests for new parameter threading
-- [ ] 6.6.6 Run `pytest` — all tests pass
+- [x] 6.6.5 Update tests for new parameter threading
+- [x] 6.6.6 Run `pytest` — all tests pass (1294 tests)
 
 ---
 

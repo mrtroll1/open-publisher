@@ -1,22 +1,26 @@
 #!/bin/bash
 # Autonomous Claude Code runner
-# Launches Claude every 30 minutes to work on the current plan.
-# Usage: ./autonomous/run.sh <plan-name> [duration]
-# Example: ./autonomous/run.sh my-feature        # runs for 6h (default)
-#          ./autonomous/run.sh my-feature 2h      # runs for 2 hours
-#          ./autonomous/run.sh my-feature 12h     # runs for 12 hours
+# Launches Claude every 30 minutes to work through plan files sequentially.
+# Advances to the next plan when the current one has no unchecked items.
+#
+# Usage: ./autonomous/run.sh <duration> <plan1> [plan2] [plan3] ...
+# Example: ./autonomous/run.sh 6h plan-5
+#          ./autonomous/run.sh 12h plan-5 plan-6 plan-7 plan-8
 
 set -euo pipefail
 
-if [ $# -eq 0 ]; then
-    echo "Usage: ./autonomous/run.sh <plan-name> [duration]"
-    echo "  duration: Xh format (default: 6h)"
-    echo "  Plan file must exist at autonomous/plans/<plan-name>.md"
+if [ $# -lt 2 ]; then
+    echo "Usage: ./autonomous/run.sh <duration> <plan1> [plan2] [plan3] ..."
+    echo "  duration: Xh format (e.g. 6h, 12h)"
+    echo "  Plan files must exist at autonomous/plans/<name>.md"
+    echo ""
+    echo "Example: ./autonomous/run.sh 12h plan-5 plan-6 plan-7 plan-8"
     exit 1
 fi
 
-PLAN_NAME="$1"
-DURATION_ARG="${2:-6h}"
+DURATION_ARG="$1"
+shift
+PLAN_NAMES=("$@")
 
 # Parse duration (Xh format)
 if [[ ! "$DURATION_ARG" =~ ^[0-9]+h$ ]]; then
@@ -28,7 +32,6 @@ TOTAL_HOURS="${DURATION_ARG%h}"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_DIR="$ROOT_DIR/autonomous/logs"
 PROMPT_FILE="$ROOT_DIR/.claude/autonomous-prompt.md"
-PLAN_FILE="$ROOT_DIR/autonomous/plans/${PLAN_NAME}.md"
 INTERVAL=1800  # 30 minutes
 ITERATIONS=$(( TOTAL_HOURS * 3600 / INTERVAL ))
 MAX_TURNS=80
@@ -40,12 +43,38 @@ if [ "$CURRENT_BRANCH" != "claude-autonomous" ]; then
     exit 1
 fi
 
-# Verify plan file exists
-if [ ! -f "$PLAN_FILE" ]; then
-    echo "ERROR: Plan file not found: $PLAN_FILE"
-    echo "Create a plan first using the planner agent."
-    exit 1
-fi
+# Verify all plan files exist
+PLAN_FILES=()
+for name in "${PLAN_NAMES[@]}"; do
+    pf="$ROOT_DIR/autonomous/plans/${name}.md"
+    if [ ! -f "$pf" ]; then
+        echo "ERROR: Plan file not found: $pf"
+        exit 1
+    fi
+    PLAN_FILES+=("$pf")
+done
+
+# --- Helpers ---
+
+plan_is_complete() {
+    # Returns 0 (true) if plan has no unchecked items
+    local plan_file="$1"
+    if grep -q '\- \[ \]' "$plan_file"; then
+        return 1  # has unchecked items
+    fi
+    return 0  # all checked (or no checkboxes at all)
+}
+
+get_current_plan() {
+    # Find the first incomplete plan, or return empty if all done
+    for pf in "${PLAN_FILES[@]}"; do
+        if ! plan_is_complete "$pf"; then
+            echo "$pf"
+            return
+        fi
+    done
+    echo ""  # all plans complete
+}
 
 # --- Permissions ---
 
@@ -123,10 +152,17 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') | $1" | tee -a "$RUN_LOG"
 }
 
+# --- Build plan queue description ---
+
+PLAN_QUEUE=""
+for idx in "${!PLAN_NAMES[@]}"; do
+    PLAN_QUEUE="${PLAN_QUEUE}  $((idx+1)). ${PLAN_NAMES[$idx]} (${PLAN_FILES[$idx]})"$'\n'
+done
+
 # --- Run loop ---
 
 log "=== RUN STARTED ==="
-log "Plan: $PLAN_NAME ($PLAN_FILE)"
+log "Plans: ${PLAN_NAMES[*]}"
 log "Duration: ${TOTAL_HOURS}h | Sessions: $ITERATIONS x ${INTERVAL}s, max $MAX_TURNS turns each"
 log ""
 
@@ -134,7 +170,7 @@ log ""
 cp /dev/null "$LAST_RUN_LOG"
 echo "=== Detailed log for run $RUN_ID ===" >> "$LAST_RUN_LOG"
 echo "Started: $(date)" >> "$LAST_RUN_LOG"
-echo "Plan: $PLAN_FILE" >> "$LAST_RUN_LOG"
+echo "Plans: ${PLAN_NAMES[*]}" >> "$LAST_RUN_LOG"
 echo "" >> "$LAST_RUN_LOG"
 
 COMPLETED=0
@@ -144,13 +180,24 @@ for i in $(seq 1 $ITERATIONS); do
     SESSION_DETAIL="$LOG_DIR/session-${RUN_ID}-$(printf '%02d' $i).log"
     SESSION_START=$(date +%s)
 
-    log "--- Session $i/$ITERATIONS started ---"
-    echo "====== SESSION $i/$ITERATIONS at $(date) ======" >> "$LAST_RUN_LOG"
+    # Determine current plan (first incomplete one)
+    CURRENT_PLAN=$(get_current_plan)
+    if [ -z "$CURRENT_PLAN" ]; then
+        log "All plans complete! Stopping early."
+        break
+    fi
+
+    CURRENT_PLAN_NAME=$(basename "$CURRENT_PLAN" .md)
+    log "--- Session $i/$ITERATIONS started [plan: $CURRENT_PLAN_NAME] ---"
+    echo "====== SESSION $i/$ITERATIONS [plan: $CURRENT_PLAN_NAME] at $(date) ======" >> "$LAST_RUN_LOG"
 
     PROMPT=$(cat "$PROMPT_FILE")
     PROMPT="$PROMPT
 
-[Session $i of $ITERATIONS. Plan file: $PLAN_FILE]"
+[Session $i of $ITERATIONS. Current plan file: $CURRENT_PLAN]
+
+Plan queue (work through in order, advance when current plan has no unchecked items):
+$PLAN_QUEUE"
 
     cd "$ROOT_DIR"
 
@@ -173,6 +220,11 @@ for i in $(seq 1 $ITERATIONS); do
     else
         STATUS="OK"
         COMPLETED=$(( COMPLETED + 1 ))
+    fi
+
+    # Check if current plan just completed
+    if plan_is_complete "$CURRENT_PLAN"; then
+        log ">>> Plan $CURRENT_PLAN_NAME is now COMPLETE <<<"
     fi
 
     # Changelog: what commits were made during this session?
@@ -201,6 +253,16 @@ done
 log ""
 log "=== RUN FINISHED ==="
 log "Completed: $COMPLETED | Failed: $FAILED  | Total: $ITERATIONS"
+
+# Final plan status
+for idx in "${!PLAN_FILES[@]}"; do
+    if plan_is_complete "${PLAN_FILES[$idx]}"; then
+        log "  ${PLAN_NAMES[$idx]}: DONE"
+    else
+        REMAINING_ITEMS=$(grep -c '\- \[ \]' "${PLAN_FILES[$idx]}" || true)
+        log "  ${PLAN_NAMES[$idx]}: ${REMAINING_ITEMS} items remaining"
+    fi
+done
 
 echo "=== Run finished at $(date) ===" >> "$LAST_RUN_LOG"
 echo "Completed: $COMPLETED | Failed: $FAILED " >> "$LAST_RUN_LOG"

@@ -2182,9 +2182,37 @@ Phase 8.7 — RAG similarity threshold:
 
 **Net result:** 1389 tests pass (+10 new)
 
+### Session 72 (2026-03-04) — Plan 8 Phases 8.2 + 8.3: Article ingestion + Competitor scraper
+**Status:** Complete (all items: 8.2.1-8.2.5, 8.3.1-8.3.5)
+
+**What was done:**
+
+Phase 8.2 — Article ingestion pipeline:
+- Created `backend/domain/use_cases/ingest_articles.py` — `IngestArticles` class with `execute()` and `_summarize()`
+- When article has `content`, uses LLM summarization via `summarize-article.md` template
+- When no content (metadata-only), stores title as-is without LLM call
+- Created `templates/summarize-article.md` — Russian prompt, returns `{"summary": "..."}`
+- Added `cmd_ingest_articles` handler in `admin_handlers.py`:
+  - Uses `RepublicGateway.fetch_published_authors(month)` — API only returns author names + post counts (no article content/titles)
+  - Builds metadata-only entries with titles like `"Author — N публикаций за month"` and synthetic URLs `republic://authors/{name}/{month}`
+  - Passes to `IngestArticles.execute()` which stores without LLM summarization
+- Registered `ingest_articles` in `router.py:_ADMIN_COMMANDS`
+- Added reply strings to `replies.py`
+- 7 tests in `tests/domain/use_cases/test_ingest_articles.py`
+
+Phase 8.3 — Competitor scraper pipeline:
+- Created `backend/domain/use_cases/scrape_competitors.py` — `ScrapeCompetitors` class
+- `execute()` auto-creates `competitors` domain via `memory.add_domain()`, then for each source: find/create entity → LLM summarize → `memory.remember()` with `entity_id` and `source_url`
+- Created `templates/summarize-competitor.md` — Russian prompt for competitor analysis
+- 6 tests in `tests/domain/use_cases/test_scrape_competitors.py`
+
+**Supervisor review:** One dead reply string (`ingest_articles_usage`) removed. No other issues.
+
+**Net result:** 1402 tests pass (+13 new)
+
 ## Next up
 
-- Plan 8 sections 8.2-8.5: Article ingestion, competitor scraper skeleton, conversation extraction, scheduled pipeline runner
+- Plan 8 sections 8.4-8.5: Conversation knowledge extraction, scheduled pipeline runner
 - Plan 8 section 8.8: Verification
 - Plan 7 sections 7.4.2-7.4.3: Manual MCP server testing (user must do)
 - Plan 7 section 7.5: Verification (7.5.1 done, 7.5.2-7.5.5 are manual)

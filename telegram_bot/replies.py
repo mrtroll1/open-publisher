@@ -267,6 +267,10 @@ class admin:
     orphans_none = "Все записи в бюджете за {month} совпадают с контрагентами."
     orphans_found = "В бюджете за {month}, но нет привязанного контрагента ({count}):\n{lines}"
     sync_entities_done = "Синхронизация завершена: создано {created}, обновлено {updated}."
+    ingest_articles_start = "Загружаю статьи за {month}..."
+    ingest_articles_no_authors = "Авторов за {month} не найдено."
+    ingest_articles_done = "Загружено {count} записей за {month} ({authors} авторов)."
+    ingest_articles_error = "Ошибка загрузки статей: {error}"
 
 
 # ── Notifications (admin-facing) ────────────────────────────────────

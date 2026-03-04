@@ -46,6 +46,7 @@ from telegram_bot.handler_utils import (
     _db,
     _find_contractor_or_suggest,
     _inbox,
+    _memory,
     _save_turn,
     _send,
     _send_html,
@@ -72,6 +73,7 @@ __all__ = [
     "cmd_orphan_contractors",
     "cmd_upload_to_airtable",
     "cmd_sync_entities",
+    "cmd_ingest_articles",
     "cmd_chatid",
     "cmd_articles",
     "cmd_lookup",
@@ -589,3 +591,43 @@ async def cmd_sync_entities(message: types.Message, state: FSMContext) -> None:
     )
 
     await message.answer(replies.admin.sync_entities_done.format(created=created, updated=updated))
+
+
+async def cmd_ingest_articles(message: types.Message, state: FSMContext) -> None:
+    """Fetch published articles for a month and store in knowledge base."""
+    args = message.text.split(maxsplit=1)
+    month = parse_month_arg(args)
+
+    await message.answer(replies.admin.ingest_articles_start.format(month=month))
+    await send_typing(message.chat.id)
+
+    try:
+        from backend.infrastructure.gateways.republic_gateway import RepublicGateway
+        from backend.domain.use_cases.ingest_articles import IngestArticles
+
+        republic = RepublicGateway()
+        authors = await asyncio.to_thread(republic.fetch_published_authors, month)
+        if not authors:
+            await message.answer(replies.admin.ingest_articles_no_authors.format(month=month))
+            return
+
+        # Build article dicts from author metadata
+        # The API only provides author names and post counts, not article content.
+        articles = []
+        for a in authors:
+            author_name = a["author"]
+            post_count = a["post_count"]
+            articles.append({
+                "title": f"{author_name} — {post_count} публикаций за {month}",
+                "url": f"republic://authors/{author_name}/{month}",
+            })
+
+        ingest = IngestArticles(memory=_memory)
+        entry_ids = await asyncio.to_thread(ingest.execute, articles)
+
+        await message.answer(replies.admin.ingest_articles_done.format(
+            count=len(entry_ids), month=month, authors=len(authors),
+        ))
+    except Exception as e:
+        logger.exception("Article ingestion failed")
+        await message.answer(replies.admin.ingest_articles_error.format(error=e))

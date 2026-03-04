@@ -48,7 +48,7 @@
 > Reads Republic articles (via existing infrastructure) and stores summaries
 > as knowledge entries. Each article becomes a `specific` entry in `editorial` domain.
 
-- [ ] 8.2.1 Create `backend/domain/use_cases/ingest_articles.py`:
+- [x] 8.2.1 Create `backend/domain/use_cases/ingest_articles.py`:
   ```python
   class IngestArticles:
       """Fetch recent articles, summarize via LLM, store in brain."""
@@ -81,7 +81,7 @@
           result = self._gemini.call(prompt)
           return result.get("summary", article["title"])
   ```
-- [ ] 8.2.2 Create `templates/summarize-article.md`:
+- [x] 8.2.2 Create `templates/summarize-article.md`:
   ```markdown
   Суммаризируй статью для внутренней базы знаний редакции.
   Сохрани ключевые факты, имена, цифры. Максимум 200 слов.
@@ -94,12 +94,12 @@
 
   Верни JSON: {"summary": "<суммари>"}
   ```
-- [ ] 8.2.3 Add admin command `/ingest_articles [month]` that fetches articles and runs pipeline
-- [ ] 8.2.4 Write tests:
+- [x] 8.2.3 Add admin command `/ingest_articles [month]` that fetches articles and runs pipeline
+- [x] 8.2.4 Write tests:
   - `test_ingest_creates_entries`
   - `test_ingest_updates_existing_by_url`
   - `test_ingest_summarizes_via_llm`
-- [ ] 8.2.5 Run `pytest` — all tests pass
+- [x] 8.2.5 Run `pytest` — all tests pass (1402 tests)
 
 ---
 
@@ -108,7 +108,7 @@
 > Architecture-ready skeleton for scraping competitor content.
 > Same pattern as article ingestion: crawl → summarize → `memory.remember()`.
 
-- [ ] 8.3.1 Create `backend/domain/use_cases/scrape_competitors.py`:
+- [x] 8.3.1 Create `backend/domain/use_cases/scrape_competitors.py`:
   ```python
   class ScrapeCompetitors:
       """Scrape competitor websites, store observations in brain."""
@@ -154,13 +154,13 @@
           result = self._gemini.call(prompt)
           return result.get("summary", f"{source['name']}: {source['url']}")
   ```
-- [ ] 8.3.2 Create `templates/summarize-competitor.md`
-- [ ] 8.3.3 Ensure `competitors` domain exists: add to seed data or rely on `get_or_create_domain`
-- [ ] 8.3.4 Write tests (mock the LLM, verify remember calls):
+- [x] 8.3.2 Create `templates/summarize-competitor.md`
+- [x] 8.3.3 Ensure `competitors` domain exists: auto-created via `memory.add_domain()` in `execute()`
+- [x] 8.3.4 Write tests (mock the LLM, verify remember calls):
   - `test_scrape_creates_entity_and_knowledge`
   - `test_scrape_reuses_existing_entity`
   - `test_scrape_updates_by_source_url`
-- [ ] 8.3.5 Run `pytest` — all tests pass
+- [x] 8.3.5 Run `pytest` — all tests pass (1402 tests)
 
 ---
 

@@ -636,23 +636,14 @@ async def cmd_ingest_articles(message: types.Message, state: FSMContext) -> None
 
 
 async def cmd_extract_knowledge(message: types.Message, state: FSMContext) -> None:
-    """Extract memorable facts from recent conversations in this chat."""
-    args = message.text.split(maxsplit=1)
-    hours = 24
-    if len(args) > 1:
-        try:
-            hours = int(args[1].strip())
-        except ValueError:
-            await message.answer(replies.admin.extract_knowledge_usage)
-            return
-
-    await message.answer(replies.admin.extract_knowledge_start.format(hours=hours))
+    """Extract memorable facts from unprocessed conversations in this chat."""
+    await message.answer(replies.admin.extract_knowledge_start)
     await send_typing(message.chat.id)
 
     try:
         extractor = ExtractConversationKnowledge(memory=_memory, db=_db)
         entry_ids = await asyncio.to_thread(
-            extractor.execute, message.chat.id, since_hours=hours,
+            extractor.execute, message.chat.id,
         )
         await message.answer(replies.admin.extract_knowledge_done.format(count=len(entry_ids)))
     except Exception as e:

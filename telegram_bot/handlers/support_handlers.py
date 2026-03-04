@@ -29,6 +29,7 @@ from telegram_bot.handler_utils import (
     _send_html,
     _support_draft_map,
     send_typing,
+    ThinkingMessage,
 )
 
 logger = logging.getLogger(__name__)
@@ -82,11 +83,10 @@ async def cmd_support(message: types.Message, state: FSMContext) -> None:
         await message.answer(replies.admin.support_no_question)
         return
 
-    await send_typing(message.chat.id)
-
     try:
-        answer = await asyncio.to_thread(_answer_tech_question, text, verbose, expert)
-        sent = await _send_html(message, answer)
+        async with ThinkingMessage(message, "Ищу ответ...") as thinking:
+            answer = await asyncio.to_thread(_answer_tech_question, text, verbose, expert)
+            sent = await thinking.finish_long(answer)
         await _save_turn(message, sent, text, answer, {"command": "tech_support"})
     except Exception as e:
         logger.exception("Support question failed")
@@ -104,27 +104,26 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
         await message.answer(replies.admin.code_no_query)
         return
 
-    await send_typing(message.chat.id)
-
     try:
-        answer = await asyncio.to_thread(run_claude_code, text, verbose, expert, mode="changes")
-        # Save to DB and build rating keyboard
-        reply_markup = None
-        try:
-            task_id = await asyncio.to_thread(
-                _db.create_code_task,
-                requested_by=str(message.from_user.id),
-                input_text=text,
-                output_text=answer,
-                verbose=verbose,
-            )
-            reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text=str(i), callback_data=f"code_rate:{task_id}:{i}")
-                for i in range(1, 6)
-            ]])
-        except Exception:
-            logger.exception("Failed to save code task to DB")
-        sent = await _send_html(message, answer, reply_markup=reply_markup)
+        async with ThinkingMessage(message, "Запускаю Claude Code...") as thinking:
+            answer = await asyncio.to_thread(run_claude_code, text, verbose, expert, mode="changes")
+            # Save to DB and build rating keyboard
+            reply_markup = None
+            try:
+                task_id = await asyncio.to_thread(
+                    _db.create_code_task,
+                    requested_by=str(message.from_user.id),
+                    input_text=text,
+                    output_text=answer,
+                    verbose=verbose,
+                )
+                reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text=str(i), callback_data=f"code_rate:{task_id}:{i}")
+                    for i in range(1, 6)
+                ]])
+            except Exception:
+                logger.exception("Failed to save code task to DB")
+            sent = await thinking.finish_long(answer, reply_markup=reply_markup)
         await _save_turn(message, sent, text, answer, {"command": "code"})
     except Exception as e:
         logger.exception("Claude Code execution failed")

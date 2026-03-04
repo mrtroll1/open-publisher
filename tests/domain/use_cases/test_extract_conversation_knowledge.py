@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
 from backend.domain.use_cases.extract_conversation_knowledge import ExtractConversationKnowledge
@@ -6,11 +7,17 @@ from backend.domain.use_cases.extract_conversation_knowledge import ExtractConve
 def _mock_retriever():
     r = MagicMock()
     r.get_core.return_value = ""
+    r.retrieve.return_value = ""
     return r
 
 
+def _msgs(*pairs):
+    """Build message dicts with ids. pairs = [("user", "text"), ...]"""
+    return [{"id": f"id-{i}", "role": r, "content": c} for i, (r, c) in enumerate(pairs)]
+
+
 # ===================================================================
-#  execute — stores extracted facts
+#  execute — stores extracted facts and marks conversations
 # ===================================================================
 
 class TestExtractStoresFacts:
@@ -18,31 +25,31 @@ class TestExtractStoresFacts:
     def test_extract_stores_facts(self):
         """Mock DB returns 5+ messages, mock gemini returns facts, verify remember() called."""
         db = MagicMock()
-        db.get_recent_conversations.return_value = [
-            {"role": "user", "content": "Привет, нужно обсудить оплату"},
-            {"role": "assistant", "content": "Конечно, слушаю"},
-            {"role": "user", "content": "Ставка автора Иванова — 5000 рублей за статью"},
-            {"role": "assistant", "content": "Запомнил"},
-            {"role": "user", "content": "И ещё: редактор Петрова теперь работает по понедельникам"},
-        ]
+        db.get_unextracted_conversations.return_value = _msgs(
+            ("user", "Привет, нужно обсудить оплату"),
+            ("assistant", "Конечно, слушаю"),
+            ("user", "Ставка автора Иванова — 5000 рублей за статью"),
+            ("assistant", "Запомнил"),
+            ("user", "И ещё: редактор Петрова теперь работает по понедельникам"),
+        )
 
         memory = MagicMock()
-        memory.remember.side_effect = ["id-1", "id-2"]
+        memory.remember.side_effect = ["eid-1", "eid-2"]
 
         gemini = MagicMock()
         gemini.call.return_value = {
             "facts": [
-                {"text": "Ставка автора Иванова — 5000 рублей за статью", "domain": "payments"},
-                {"text": "Редактор Петрова работает по понедельникам", "domain": "editorial"},
+                {"text": "Ставка автора Иванова — 5000 рублей за статью", "domain": "payments", "permanent": True},
+                {"text": "Редактор Петрова работает по понедельникам", "domain": "editorial", "permanent": False},
             ]
         }
 
         extractor = ExtractConversationKnowledge(
             memory=memory, db=db, gemini=gemini, retriever=_mock_retriever(),
         )
-        result = extractor.execute(chat_id=100, since_hours=24)
+        result = extractor.execute(chat_id=100)
 
-        assert result == ["id-1", "id-2"]
+        assert result == ["eid-1", "eid-2"]
         assert memory.remember.call_count == 2
 
         first_call = memory.remember.call_args_list[0][1]
@@ -50,9 +57,16 @@ class TestExtractStoresFacts:
         assert first_call["domain"] == "payments"
         assert first_call["source"] == "conversation_extract"
         assert first_call["tier"] == "specific"
+        assert first_call["expires_at"] is None  # permanent
 
         second_call = memory.remember.call_args_list[1][1]
         assert second_call["domain"] == "editorial"
+        assert second_call["expires_at"] is not None  # transient
+
+        # Conversations marked as extracted
+        db.mark_conversations_extracted.assert_called_once()
+        marked_ids = db.mark_conversations_extracted.call_args[0][0]
+        assert len(marked_ids) == 5
 
 
 # ===================================================================
@@ -64,10 +78,10 @@ class TestExtractSkipsShortConversations:
     def test_extract_skips_short_conversations(self):
         """Less than 3 messages → return empty list without calling LLM."""
         db = MagicMock()
-        db.get_recent_conversations.return_value = [
-            {"role": "user", "content": "Привет"},
-            {"role": "assistant", "content": "Здравствуйте"},
-        ]
+        db.get_unextracted_conversations.return_value = _msgs(
+            ("user", "Привет"),
+            ("assistant", "Здравствуйте"),
+        )
 
         memory = MagicMock()
         gemini = MagicMock()
@@ -75,11 +89,12 @@ class TestExtractSkipsShortConversations:
         extractor = ExtractConversationKnowledge(
             memory=memory, db=db, gemini=gemini, retriever=_mock_retriever(),
         )
-        result = extractor.execute(chat_id=100, since_hours=24)
+        result = extractor.execute(chat_id=100)
 
         assert result == []
         gemini.call.assert_not_called()
         memory.remember.assert_not_called()
+        db.mark_conversations_extracted.assert_not_called()
 
 
 # ===================================================================
@@ -92,11 +107,9 @@ class TestExtractDeduplicatesViaRemember:
         """Dedup is handled by MemoryService, not this class.
         We just verify remember() is called for each fact."""
         db = MagicMock()
-        db.get_recent_conversations.return_value = [
-            {"role": "user", "content": "msg1"},
-            {"role": "assistant", "content": "msg2"},
-            {"role": "user", "content": "msg3"},
-        ]
+        db.get_unextracted_conversations.return_value = _msgs(
+            ("user", "msg1"), ("assistant", "msg2"), ("user", "msg3"),
+        )
 
         memory = MagicMock()
         memory.remember.return_value = "same-id"
@@ -125,13 +138,11 @@ class TestExtractDeduplicatesViaRemember:
 class TestExtractNoFacts:
 
     def test_extract_returns_empty_when_no_facts(self):
-        """LLM returns empty facts list → no remember calls."""
+        """LLM returns empty facts list → no remember calls, but conversations still marked."""
         db = MagicMock()
-        db.get_recent_conversations.return_value = [
-            {"role": "user", "content": "ок"},
-            {"role": "assistant", "content": "хорошо"},
-            {"role": "user", "content": "спасибо"},
-        ]
+        db.get_unextracted_conversations.return_value = _msgs(
+            ("user", "ок"), ("assistant", "хорошо"), ("user", "спасибо"),
+        )
 
         memory = MagicMock()
         gemini = MagicMock()
@@ -144,6 +155,8 @@ class TestExtractNoFacts:
 
         assert result == []
         memory.remember.assert_not_called()
+        # Conversations are still marked as extracted even with no facts
+        db.mark_conversations_extracted.assert_called_once()
 
 
 # ===================================================================
@@ -155,11 +168,9 @@ class TestExtractDefaultDomain:
     def test_extract_uses_general_domain_when_missing(self):
         """If fact has no domain key, default to 'general'."""
         db = MagicMock()
-        db.get_recent_conversations.return_value = [
-            {"role": "user", "content": "msg1"},
-            {"role": "assistant", "content": "msg2"},
-            {"role": "user", "content": "msg3"},
-        ]
+        db.get_unextracted_conversations.return_value = _msgs(
+            ("user", "msg1"), ("assistant", "msg2"), ("user", "msg3"),
+        )
 
         memory = MagicMock()
         memory.remember.return_value = "id-1"
@@ -175,3 +186,111 @@ class TestExtractDefaultDomain:
         extractor.execute(chat_id=100)
 
         assert memory.remember.call_args[1]["domain"] == "general"
+
+
+# ===================================================================
+#  execute — permanent vs transient expires_at
+# ===================================================================
+
+class TestExtractExpiresAt:
+
+    def test_permanent_fact_has_no_expiry(self):
+        db = MagicMock()
+        db.get_unextracted_conversations.return_value = _msgs(
+            ("user", "msg1"), ("assistant", "msg2"), ("user", "msg3"),
+        )
+
+        memory = MagicMock()
+        memory.remember.return_value = "id-1"
+
+        gemini = MagicMock()
+        gemini.call.return_value = {
+            "facts": [{"text": "permanent fact", "domain": "general", "permanent": True}]
+        }
+
+        extractor = ExtractConversationKnowledge(
+            memory=memory, db=db, gemini=gemini, retriever=_mock_retriever(),
+        )
+        extractor.execute(chat_id=100)
+
+        assert memory.remember.call_args[1]["expires_at"] is None
+
+    def test_transient_fact_expires_in_30_days(self):
+        db = MagicMock()
+        db.get_unextracted_conversations.return_value = _msgs(
+            ("user", "msg1"), ("assistant", "msg2"), ("user", "msg3"),
+        )
+
+        memory = MagicMock()
+        memory.remember.return_value = "id-1"
+
+        gemini = MagicMock()
+        gemini.call.return_value = {
+            "facts": [{"text": "transient fact", "domain": "general", "permanent": False}]
+        }
+
+        extractor = ExtractConversationKnowledge(
+            memory=memory, db=db, gemini=gemini, retriever=_mock_retriever(),
+        )
+        before = datetime.utcnow()
+        extractor.execute(chat_id=100)
+
+        expires_at = memory.remember.call_args[1]["expires_at"]
+        assert expires_at is not None
+        assert expires_at - before >= timedelta(days=29)
+        assert expires_at - before <= timedelta(days=31)
+
+    def test_missing_permanent_defaults_to_transient(self):
+        db = MagicMock()
+        db.get_unextracted_conversations.return_value = _msgs(
+            ("user", "msg1"), ("assistant", "msg2"), ("user", "msg3"),
+        )
+
+        memory = MagicMock()
+        memory.remember.return_value = "id-1"
+
+        gemini = MagicMock()
+        gemini.call.return_value = {
+            "facts": [{"text": "no permanent key", "domain": "general"}]
+        }
+
+        extractor = ExtractConversationKnowledge(
+            memory=memory, db=db, gemini=gemini, retriever=_mock_retriever(),
+        )
+        extractor.execute(chat_id=100)
+
+        assert memory.remember.call_args[1]["expires_at"] is not None
+
+
+# ===================================================================
+#  _extract_facts — passes existing knowledge to prompt
+# ===================================================================
+
+class TestExtractExistingKnowledge:
+
+    def test_existing_knowledge_passed_to_template(self):
+        db = MagicMock()
+        db.get_unextracted_conversations.return_value = _msgs(
+            ("user", "msg1"), ("assistant", "msg2"), ("user", "msg3"),
+        )
+
+        memory = MagicMock()
+        memory.remember.return_value = "id-1"
+
+        gemini = MagicMock()
+        gemini.call.return_value = {"facts": []}
+
+        retriever = MagicMock()
+        retriever.get_core.return_value = ""
+        retriever.retrieve.return_value = "- existing fact 1\n- existing fact 2"
+
+        extractor = ExtractConversationKnowledge(
+            memory=memory, db=db, gemini=gemini, retriever=retriever,
+        )
+        extractor.execute(chat_id=100)
+
+        retriever.retrieve.assert_called_once()
+        # The prompt passed to gemini should contain existing knowledge
+        prompt = gemini.call.call_args[0][0]
+        assert "existing fact 1" in prompt
+        assert "existing fact 2" in prompt

@@ -175,6 +175,18 @@ SUPPORT_ADDRESSES: list[str] = _tech.get("support_addresses", [])
 EDITORIAL_CHAT_ID = int(os.getenv("EDITORIAL_CHAT_ID", "0"))
 BOT_USERNAME = os.getenv("BOT_USERNAME", "")
 
+# --- Scheduling intervals (seconds) ---
+KNOWLEDGE_PIPELINE_INTERVAL = int(os.getenv("KNOWLEDGE_PIPELINE_INTERVAL", 6 * 3600))
+EMAIL_POLL_INTERVAL = int(os.getenv("EMAIL_POLL_INTERVAL", 60))
+EMAIL_RECENT_WINDOW = int(os.getenv("EMAIL_RECENT_WINDOW", 120))
+EMAIL_IDLE_TIMEOUT = int(os.getenv("EMAIL_IDLE_TIMEOUT", 300))
+EMAIL_ERROR_RETRY_DELAY = int(os.getenv("EMAIL_ERROR_RETRY_DELAY", 30))
+
+# --- Knowledge expiry (days) ---
+EXPIRY_CONVERSATION_FACTS_DAYS = int(os.getenv("EXPIRY_CONVERSATION_FACTS_DAYS", 30))
+EXPIRY_ARTICLE_SUMMARY_DAYS = int(os.getenv("EXPIRY_ARTICLE_SUMMARY_DAYS", 90))
+EXPIRY_COMPETITOR_SUMMARY_DAYS = int(os.getenv("EXPIRY_COMPETITOR_SUMMARY_DAYS", 90))
+
 # --- Healthcheck ---
 HEALTHCHECK_DOMAINS = [
     d.strip() for d in os.getenv("HEALTHCHECK_DOMAINS", "republicmag.io,redefine.media").split(",") if d.strip()

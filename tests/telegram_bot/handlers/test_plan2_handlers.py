@@ -86,6 +86,21 @@ def _make_state() -> MagicMock:
     return AsyncMock()
 
 
+def _mock_thinking_message_class():
+    """Return a mock ThinkingMessage class that acts as a pass-through async context manager."""
+    sent = MagicMock(message_id=11)
+    thinking = AsyncMock()
+    thinking.finish_long = AsyncMock(return_value=sent)
+    thinking.finish = AsyncMock(return_value=sent)
+    thinking.update = AsyncMock()
+    thinking.__aenter__ = AsyncMock(return_value=thinking)
+    thinking.__aexit__ = AsyncMock(return_value=False)
+    cls = MagicMock(return_value=thinking)
+    cls._instance = thinking
+    cls._sent = sent
+    return cls
+
+
 # ===================================================================
 #  handle_group_message — explicit /command dispatch
 # ===================================================================
@@ -228,12 +243,22 @@ class TestHandleGroupMessageNaturalLanguage:
 
         msg.answer.assert_not_awaited()
 
+    @patch("telegram_bot.flow_callbacks.resolve_entity_context", return_value="")
+    @patch("telegram_bot.flow_callbacks.resolve_environment", return_value=("", None))
+    @patch("telegram_bot.flow_callbacks.ThinkingMessage")
     @patch("telegram_bot.flow_callbacks.BOT_USERNAME", "republic_bot")
     @patch("telegram_bot.flow_callbacks.CommandClassifier")
     @patch("telegram_bot.flow_callbacks.GeminiGateway")
-    def test_classification_returns_none_no_dispatch(self, MockGemini, MockClassifier):
+    def test_classification_returns_none_no_dispatch(
+        self, MockGemini, MockClassifier, MockThinking,
+        mock_resolve_env, mock_resolve_entity,
+    ):
         from telegram_bot.flow_callbacks import handle_group_message
         from backend.domain.services.command_classifier import ClassificationResult
+        from backend.domain.services.conversation_service import generate_nl_reply
+
+        mock_tm = _mock_thinking_message_class()
+        MockThinking.side_effect = mock_tm
 
         mock_instance = MagicMock()
         mock_instance.classify.return_value = ClassificationResult(classified=None, reply="")
@@ -245,7 +270,8 @@ class TestHandleGroupMessageNaturalLanguage:
 
         asyncio.run(handle_group_message(msg, state, config))
 
-        msg.answer.assert_not_awaited()
+        # ThinkingMessage is used for the RAG reply path
+        mock_tm._instance.finish_long.assert_awaited_once()
 
     @patch("telegram_bot.flow_callbacks.BOT_USERNAME", "republic_bot")
     @patch("telegram_bot.flow_callbacks.CommandClassifier")
@@ -374,13 +400,16 @@ class TestCmdHealth:
 
 class TestCmdSupport:
 
+    @patch("telegram_bot.flow_callbacks.ThinkingMessage")
     @patch("telegram_bot.flow_callbacks._answer_tech_question")
     @patch("telegram_bot.flow_callbacks.bot")
-    def test_valid_question(self, mock_bot, mock_answer):
+    def test_valid_question(self, mock_bot, mock_answer, MockThinking):
         from telegram_bot.flow_callbacks import cmd_support
 
         mock_answer.return_value = "Ответ на вопрос"
         mock_bot.send_chat_action = AsyncMock()
+        mock_tm = _mock_thinking_message_class()
+        MockThinking.side_effect = mock_tm
 
         msg = _make_message("/support как работает подписка?")
         state = _make_state()
@@ -388,7 +417,8 @@ class TestCmdSupport:
         asyncio.run(cmd_support(msg, state))
 
         mock_answer.assert_called_once_with("как работает подписка?", False, False)
-        msg.answer.assert_awaited_once_with("Ответ на вопрос", parse_mode="HTML")
+        mock_tm._instance.finish_long.assert_awaited_once()
+        assert "Ответ на вопрос" in mock_tm._instance.finish_long.call_args[0][0]
 
     def test_no_question_shows_usage(self):
         from telegram_bot.flow_callbacks import cmd_support
@@ -645,15 +675,18 @@ class TestAnswerTechQuestion:
 class TestCmdCode:
     """cmd_code uses a LOCAL import of DbGateway, so we patch at the source module."""
 
+    @patch("telegram_bot.flow_callbacks.ThinkingMessage")
     @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
-    def test_successful_run_with_db_save(self, mock_bot, mock_run, mock_db):
+    def test_successful_run_with_db_save(self, mock_bot, mock_run, mock_db, MockThinking):
         from telegram_bot.flow_callbacks import cmd_code
 
         mock_run.return_value = "Code result"
         mock_db.create_code_task.return_value = "task-abc-123"
         mock_bot.send_chat_action = AsyncMock()
+        mock_tm = _mock_thinking_message_class()
+        MockThinking.side_effect = mock_tm
 
         msg = _make_message("/code check tests")
         state = _make_state()
@@ -662,8 +695,8 @@ class TestCmdCode:
 
         mock_run.assert_called_once_with("check tests", False, False, mode="changes")
         mock_db.create_code_task.assert_called_once()
-        msg.answer.assert_awaited_once()
-        call_kwargs = msg.answer.call_args
+        mock_tm._instance.finish_long.assert_awaited_once()
+        call_kwargs = mock_tm._instance.finish_long.call_args
         assert call_kwargs[0][0] == "Code result"
         assert call_kwargs[1]["reply_markup"] is not None
 
@@ -755,25 +788,28 @@ class TestCmdCode:
 
         mock_run.assert_called_once_with("-v", False, False, mode="changes")
 
+    @patch("telegram_bot.flow_callbacks.ThinkingMessage")
     @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
-    def test_db_save_failure_still_sends_answer(self, mock_bot, mock_run, mock_db):
+    def test_db_save_failure_still_sends_answer(self, mock_bot, mock_run, mock_db, MockThinking):
         from telegram_bot.flow_callbacks import cmd_code
 
         mock_run.return_value = "Code result"
         mock_db.create_code_task.side_effect = RuntimeError("DB down")
         mock_bot.send_chat_action = AsyncMock()
+        mock_tm = _mock_thinking_message_class()
+        MockThinking.side_effect = mock_tm
 
         msg = _make_message("/code test")
         state = _make_state()
 
         asyncio.run(cmd_code(msg, state))
 
-        msg.answer.assert_awaited_once()
-        assert msg.answer.call_args[0][0] == "Code result"
+        mock_tm._instance.finish_long.assert_awaited_once()
+        assert mock_tm._instance.finish_long.call_args[0][0] == "Code result"
         # DB failed, so reply_markup should be None
-        assert msg.answer.call_args[1]["reply_markup"] is None
+        assert mock_tm._instance.finish_long.call_args[1]["reply_markup"] is None
 
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")

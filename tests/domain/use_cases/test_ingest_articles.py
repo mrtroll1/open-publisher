@@ -1,3 +1,4 @@
+from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 from backend.domain.use_cases.ingest_articles import IngestArticles
@@ -139,3 +140,26 @@ class TestIngestSummarizesViaLlm:
 
         gemini.call.assert_not_called()
         assert memory.remember.call_args[1]["text"] == "No content"
+
+
+# ===================================================================
+#  execute — expires_at is set to 90 days
+# ===================================================================
+
+class TestIngestExpiresAt:
+
+    def test_ingest_sets_90_day_expiry(self):
+        """Articles should expire after 90 days."""
+        memory = MagicMock()
+        memory.remember.return_value = "id-1"
+        gemini = MagicMock()
+
+        ingest = IngestArticles(memory=memory, gemini=gemini, retriever=_mock_retriever())
+        articles = [{"title": "Test", "url": "https://example.com/1"}]
+        ingest.execute(articles)
+
+        expires_at = memory.remember.call_args[1]["expires_at"]
+        assert expires_at is not None
+        from datetime import datetime
+        delta = expires_at - datetime.utcnow()
+        assert timedelta(days=89) <= delta <= timedelta(days=91)

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
+from common.config import EXPIRY_ARTICLE_SUMMARY_DAYS
 from common.prompt_loader import load_template
 from backend.domain.services.memory_service import MemoryService
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
@@ -39,6 +42,7 @@ class IngestArticles:
                 source="article_ingest",
                 source_url=article.get("url") or None,
                 tier="specific",
+                expires_at=datetime.utcnow() + timedelta(days=EXPIRY_ARTICLE_SUMMARY_DAYS),
             )
             entry_ids.append(entry_id)
         return entry_ids

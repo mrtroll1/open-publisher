@@ -761,7 +761,7 @@ class TestCmdExtractKnowledge:
 
     @patch("telegram_bot.handlers.admin_handlers.send_typing", new_callable=AsyncMock)
     @patch("telegram_bot.handlers.admin_handlers.ExtractConversationKnowledge")
-    def test_default_hours(self, mock_cls, mock_typing):
+    def test_extracts_unprocessed_conversations(self, mock_cls, mock_typing):
         from telegram_bot.handlers.admin_handlers import cmd_extract_knowledge
 
         instance = MagicMock()
@@ -771,32 +771,9 @@ class TestCmdExtractKnowledge:
         msg = _make_message("/extract_knowledge")
         asyncio.run(cmd_extract_knowledge(msg, _make_state()))
 
-        instance.execute.assert_called_once_with(100, since_hours=24)
+        instance.execute.assert_called_once_with(100)
         calls = [c[0][0] for c in msg.answer.call_args_list]
         assert any("2" in c for c in calls)
-
-    @patch("telegram_bot.handlers.admin_handlers.send_typing", new_callable=AsyncMock)
-    @patch("telegram_bot.handlers.admin_handlers.ExtractConversationKnowledge")
-    def test_custom_hours(self, mock_cls, mock_typing):
-        from telegram_bot.handlers.admin_handlers import cmd_extract_knowledge
-
-        instance = MagicMock()
-        instance.execute.return_value = []
-        mock_cls.return_value = instance
-
-        msg = _make_message("/extract_knowledge 48")
-        asyncio.run(cmd_extract_knowledge(msg, _make_state()))
-
-        instance.execute.assert_called_once_with(100, since_hours=48)
-
-    def test_invalid_hours_shows_usage(self):
-        from telegram_bot.handlers.admin_handlers import cmd_extract_knowledge
-
-        msg = _make_message("/extract_knowledge abc")
-        asyncio.run(cmd_extract_knowledge(msg, _make_state()))
-
-        msg.answer.assert_awaited_once()
-        assert msg.answer.call_args[0][0] == replies.admin.extract_knowledge_usage
 
     @patch("telegram_bot.handlers.admin_handlers.send_typing", new_callable=AsyncMock)
     @patch("telegram_bot.handlers.admin_handlers.ExtractConversationKnowledge")

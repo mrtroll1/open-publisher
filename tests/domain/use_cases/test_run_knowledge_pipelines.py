@@ -29,9 +29,9 @@ class TestRunPipelinesExtractsForAllEnvironments:
         run_scheduled_pipelines(memory, db)
 
         assert instance.execute.call_count == 3
-        instance.execute.assert_any_call(100, since_hours=24)
-        instance.execute.assert_any_call(200, since_hours=24)
-        instance.execute.assert_any_call(300, since_hours=24)
+        instance.execute.assert_any_call(100)
+        instance.execute.assert_any_call(200)
+        instance.execute.assert_any_call(300)
 
 
 # ===================================================================
@@ -60,7 +60,7 @@ class TestRunPipelinesSkipsEnvsWithoutBindings:
         run_scheduled_pipelines(memory, db)
 
         assert instance.execute.call_count == 1
-        instance.execute.assert_called_once_with(500, since_hours=24)
+        instance.execute.assert_called_once_with(500)
 
 
 # ===================================================================
@@ -114,9 +114,9 @@ class TestRunPipelinesExtractionException:
 
         # All 3 chats attempted despite the middle one failing
         assert instance.execute.call_count == 3
-        instance.execute.assert_any_call(100, since_hours=24)
-        instance.execute.assert_any_call(200, since_hours=24)
-        instance.execute.assert_any_call(300, since_hours=24)
+        instance.execute.assert_any_call(100)
+        instance.execute.assert_any_call(200)
+        instance.execute.assert_any_call(300)
 
     @patch("backend.domain.use_cases.run_knowledge_pipelines.ExtractConversationKnowledge")
     def test_multiple_exceptions_all_logged(self, mock_cls):
@@ -168,11 +168,7 @@ class TestRunPipelinesMultipleEnvsMultipleBindings:
 
         assert instance.execute.call_count == 5
         expected_calls = [
-            call(10, since_hours=24),
-            call(20, since_hours=24),
-            call(30, since_hours=24),
-            call(40, since_hours=24),
-            call(50, since_hours=24),
+            call(10), call(20), call(30), call(40), call(50),
         ]
         instance.execute.assert_has_calls(expected_calls, any_order=False)
 

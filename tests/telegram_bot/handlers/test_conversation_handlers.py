@@ -29,6 +29,21 @@ def _make_state(active=False) -> AsyncMock:
     return state
 
 
+def _mock_thinking_message_class():
+    """Return a mock ThinkingMessage class that acts as a pass-through async context manager."""
+    sent = MagicMock(message_id=11)
+    thinking = AsyncMock()
+    thinking.finish_long = AsyncMock(return_value=sent)
+    thinking.finish = AsyncMock(return_value=sent)
+    thinking.update = AsyncMock()
+    thinking.__aenter__ = AsyncMock(return_value=thinking)
+    thinking.__aexit__ = AsyncMock(return_value=False)
+    cls = MagicMock(return_value=thinking)
+    cls._instance = thinking
+    cls._sent = sent
+    return cls
+
+
 # ===================================================================
 #  cmd_nl
 # ===================================================================
@@ -76,61 +91,58 @@ class TestCmdNl:
     @patch("telegram_bot.handlers.conversation_handlers.resolve_environment", return_value=("", None))
     @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
     @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
-    @patch("telegram_bot.handlers.conversation_handlers._send_html", new_callable=AsyncMock)
     @patch("telegram_bot.handlers.conversation_handlers._save_turn", new_callable=AsyncMock)
-    @patch("telegram_bot.handlers.conversation_handlers.send_typing", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers.ThinkingMessage")
     @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
     @patch("telegram_bot.handlers.conversation_handlers.CommandClassifier")
     def test_unclassified_generates_rag_reply(
-        self, MockClassifier, MockGemini, mock_typing,
-        mock_save, mock_send_html, mock_get_retriever, mock_generate,
+        self, MockClassifier, MockGemini, MockThinking,
+        mock_save, mock_get_retriever, mock_generate,
         mock_resolve_env, mock_resolve_entity,
     ):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
         from backend.domain.services.command_classifier import ClassificationResult
 
+        mock_tm = _mock_thinking_message_class()
+        MockThinking.side_effect = mock_tm
+
         MockClassifier.return_value.classify.return_value = ClassificationResult(
             classified=None, reply="",
         )
         mock_generate.return_value = "Вот что я знаю по этому вопросу."
-        sent_msg = MagicMock()
-        sent_msg.message_id = 11
-        mock_send_html.return_value = sent_msg
 
         msg = _make_message("/nl что-то непонятное")
         state = _make_state()
 
         asyncio.run(cmd_nl(msg, state))
 
-        mock_typing.assert_awaited_once()
         mock_generate.assert_called_once()
-        mock_send_html.assert_awaited_once()
-        assert "Вот что я знаю" in mock_send_html.call_args[0][1]
+        mock_tm._instance.finish_long.assert_awaited_once()
+        assert "Вот что я знаю" in mock_tm._instance.finish_long.call_args[0][0]
 
     @patch("telegram_bot.handlers.conversation_handlers.resolve_entity_context", return_value="")
     @patch("telegram_bot.handlers.conversation_handlers.resolve_environment", return_value=("", None))
     @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
     @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
-    @patch("telegram_bot.handlers.conversation_handlers._send_html", new_callable=AsyncMock)
     @patch("telegram_bot.handlers.conversation_handlers._save_turn", new_callable=AsyncMock)
-    @patch("telegram_bot.handlers.conversation_handlers.send_typing", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers.ThinkingMessage")
     @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
     @patch("telegram_bot.handlers.conversation_handlers.CommandClassifier")
     def test_unclassified_saves_turn_with_nl_rag(
-        self, MockClassifier, MockGemini, mock_typing,
-        mock_save, mock_send_html, mock_get_retriever, mock_generate,
+        self, MockClassifier, MockGemini, MockThinking,
+        mock_save, mock_get_retriever, mock_generate,
         mock_resolve_env, mock_resolve_entity,
     ):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
         from backend.domain.services.command_classifier import ClassificationResult
 
+        mock_tm = _mock_thinking_message_class()
+        MockThinking.side_effect = mock_tm
+
         MockClassifier.return_value.classify.return_value = ClassificationResult(
             classified=None, reply="",
         )
         mock_generate.return_value = "Ответ"
-        sent_msg = MagicMock()
-        sent_msg.message_id = 11
-        mock_send_html.return_value = sent_msg
 
         msg = _make_message("/nl что-то непонятное")
         state = _make_state()
@@ -141,27 +153,26 @@ class TestCmdNl:
         meta = mock_save.call_args[0][4]
         assert meta["command"] == "nl_rag"
 
-    @patch("telegram_bot.handlers.support_handlers.send_typing", new_callable=AsyncMock)
-    @patch("telegram_bot.handlers.support_handlers._send_html", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.support_handlers.ThinkingMessage")
     @patch("telegram_bot.handlers.support_handlers._save_turn", new_callable=AsyncMock)
     @patch("telegram_bot.handlers.support_handlers._answer_tech_question")
     @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
     @patch("telegram_bot.handlers.conversation_handlers.CommandClassifier")
     def test_classified_dispatches_to_handler(
         self, MockClassifier, MockGemini,
-        mock_answer, mock_save, mock_send_html, mock_typing,
+        mock_answer, mock_save, MockThinking,
     ):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
         from backend.domain.services.command_classifier import ClassificationResult, ClassifiedCommand
+
+        mock_tm = _mock_thinking_message_class()
+        MockThinking.side_effect = mock_tm
 
         MockClassifier.return_value.classify.return_value = ClassificationResult(
             classified=ClassifiedCommand(command="support", args="как поменять пароль?"),
             reply="",
         )
         mock_answer.return_value = "Вот ответ"
-        sent_msg = MagicMock()
-        sent_msg.message_id = 11
-        mock_send_html.return_value = sent_msg
 
         msg = _make_message("/nl как поменять пароль?")
         state = _make_state()
@@ -322,17 +333,19 @@ class TestHandleNlReplyNewModule:
     @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
     @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
     @patch("telegram_bot.handlers.conversation_handlers.build_conversation_context")
-    @patch("telegram_bot.handlers.conversation_handlers._send_html", new_callable=AsyncMock)
     @patch("telegram_bot.handlers.conversation_handlers._save_turn", new_callable=AsyncMock)
-    @patch("telegram_bot.handlers.conversation_handlers.send_typing", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers.ThinkingMessage")
     @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
     @patch("telegram_bot.handlers.conversation_handlers._db")
     def test_happy_path(
-        self, mock_db, mock_get_retriever, mock_typing,
-        mock_save, mock_send_html, mock_build, mock_generate, MockGemini,
+        self, mock_db, mock_get_retriever, MockThinking,
+        mock_save, mock_build, mock_generate, MockGemini,
         mock_resolve_env, mock_resolve_entity,
     ):
         from telegram_bot.handlers.conversation_handlers import _handle_nl_reply
+
+        mock_tm = _mock_thinking_message_class()
+        MockThinking.side_effect = mock_tm
 
         msg = AsyncMock()
         msg.text = "Какая цена подписки?"
@@ -348,16 +361,11 @@ class TestHandleNlReplyNewModule:
         mock_build.return_value = ([{"role": "user", "content": "hi"}], "parent-id")
         mock_generate.return_value = "Подписка стоит 500 руб."
 
-        sent = MagicMock()
-        sent.message_id = 11
-        mock_send_html.return_value = sent
-
         state = _make_state()
         result = asyncio.run(_handle_nl_reply(msg, state))
 
         assert result is True
-        mock_typing.assert_awaited_once()
-        mock_send_html.assert_awaited_once()
+        mock_tm._instance.finish_long.assert_awaited_once()
         mock_save.assert_awaited_once()
 
     @patch("telegram_bot.handlers.conversation_handlers.is_admin", return_value=True)
@@ -366,18 +374,20 @@ class TestHandleNlReplyNewModule:
     @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
     @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
     @patch("telegram_bot.handlers.conversation_handlers.build_conversation_context")
-    @patch("telegram_bot.handlers.conversation_handlers._send_html", new_callable=AsyncMock)
     @patch("telegram_bot.handlers.conversation_handlers._save_turn", new_callable=AsyncMock)
-    @patch("telegram_bot.handlers.conversation_handlers.send_typing", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers.ThinkingMessage")
     @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
     @patch("telegram_bot.handlers.conversation_handlers._db")
     @patch("telegram_bot.handlers.conversation_handlers._memory")
     def test_teaching_keyword_stores(
-        self, mock_memory, mock_db, mock_get_retriever, mock_typing,
-        mock_save, mock_send_html, mock_build, mock_generate, MockGemini,
+        self, mock_memory, mock_db, mock_get_retriever, MockThinking,
+        mock_save, mock_build, mock_generate, MockGemini,
         mock_resolve_env, mock_resolve_entity, mock_is_admin,
     ):
         from telegram_bot.handlers.conversation_handlers import _handle_nl_reply
+
+        mock_tm = _mock_thinking_message_class()
+        MockThinking.side_effect = mock_tm
 
         msg = AsyncMock()
         msg.text = "Запомни: клиентам отвечаем на русском"
@@ -392,7 +402,6 @@ class TestHandleNlReplyNewModule:
 
         mock_build.return_value = ([], None)
         mock_generate.return_value = "Запомнил!"
-        mock_send_html.return_value = MagicMock(message_id=11)
 
         state = _make_state()
         result = asyncio.run(_handle_nl_reply(msg, state))
@@ -406,18 +415,20 @@ class TestHandleNlReplyNewModule:
     @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
     @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
     @patch("telegram_bot.handlers.conversation_handlers.build_conversation_context")
-    @patch("telegram_bot.handlers.conversation_handlers._send_html", new_callable=AsyncMock)
     @patch("telegram_bot.handlers.conversation_handlers._save_turn", new_callable=AsyncMock)
-    @patch("telegram_bot.handlers.conversation_handlers.send_typing", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers.ThinkingMessage")
     @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
     @patch("telegram_bot.handlers.conversation_handlers._db")
     @patch("telegram_bot.handlers.conversation_handlers._memory")
     def test_teaching_keywords_ignored_for_non_admin(
-        self, mock_memory, mock_db, mock_get_retriever, mock_typing,
-        mock_save, mock_send_html, mock_build, mock_generate, MockGemini,
+        self, mock_memory, mock_db, mock_get_retriever, MockThinking,
+        mock_save, mock_build, mock_generate, MockGemini,
         mock_resolve_env, mock_resolve_entity, mock_is_admin,
     ):
         from telegram_bot.handlers.conversation_handlers import _handle_nl_reply
+
+        mock_tm = _mock_thinking_message_class()
+        MockThinking.side_effect = mock_tm
 
         msg = AsyncMock()
         msg.text = "Запомни: клиентам отвечаем на русском"
@@ -432,7 +443,6 @@ class TestHandleNlReplyNewModule:
 
         mock_build.return_value = ([], None)
         mock_generate.return_value = "Ответ"
-        mock_send_html.return_value = MagicMock(message_id=11)
 
         state = _make_state()
         result = asyncio.run(_handle_nl_reply(msg, state))
@@ -446,17 +456,19 @@ class TestHandleNlReplyNewModule:
     @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
     @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
     @patch("telegram_bot.handlers.conversation_handlers.build_conversation_context")
-    @patch("telegram_bot.handlers.conversation_handlers._send_html", new_callable=AsyncMock)
     @patch("telegram_bot.handlers.conversation_handlers._save_turn", new_callable=AsyncMock)
-    @patch("telegram_bot.handlers.conversation_handlers.send_typing", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers.ThinkingMessage")
     @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
     @patch("telegram_bot.handlers.conversation_handlers._db")
     def test_environment_resolved_and_passed(
-        self, mock_db, mock_get_retriever, mock_typing,
-        mock_save, mock_send_html, mock_build, mock_generate, MockGemini,
+        self, mock_db, mock_get_retriever, MockThinking,
+        mock_save, mock_build, mock_generate, MockGemini,
         mock_resolve_env, mock_resolve_entity,
     ):
         from telegram_bot.handlers.conversation_handlers import _handle_nl_reply
+
+        mock_tm = _mock_thinking_message_class()
+        MockThinking.side_effect = mock_tm
 
         msg = AsyncMock()
         msg.text = "Вопрос"
@@ -471,7 +483,6 @@ class TestHandleNlReplyNewModule:
 
         mock_build.return_value = ("history", "parent-id")
         mock_generate.return_value = "Ответ бота"
-        mock_send_html.return_value = MagicMock(message_id=11)
 
         state = _make_state()
         asyncio.run(_handle_nl_reply(msg, state))
@@ -493,24 +504,25 @@ class TestCmdNlEnvironment:
            return_value=("env context", ["domain1"]))
     @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
     @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
-    @patch("telegram_bot.handlers.conversation_handlers._send_html", new_callable=AsyncMock)
     @patch("telegram_bot.handlers.conversation_handlers._save_turn", new_callable=AsyncMock)
-    @patch("telegram_bot.handlers.conversation_handlers.send_typing", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers.ThinkingMessage")
     @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
     @patch("telegram_bot.handlers.conversation_handlers.CommandClassifier")
     def test_cmd_nl_passes_environment(
-        self, MockClassifier, MockGemini, mock_typing,
-        mock_save, mock_send_html, mock_get_retriever, mock_generate,
+        self, MockClassifier, MockGemini, MockThinking,
+        mock_save, mock_get_retriever, mock_generate,
         mock_resolve_env, mock_resolve_entity,
     ):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
         from backend.domain.services.command_classifier import ClassificationResult
 
+        mock_tm = _mock_thinking_message_class()
+        MockThinking.side_effect = mock_tm
+
         MockClassifier.return_value.classify.return_value = ClassificationResult(
             classified=None, reply="",
         )
         mock_generate.return_value = "Ответ"
-        mock_send_html.return_value = MagicMock(message_id=11)
 
         msg = _make_message("/nl вопрос")
         state = _make_state()

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
+from common.config import EXPIRY_COMPETITOR_SUMMARY_DAYS
 from common.prompt_loader import load_template
 from backend.domain.services.memory_service import MemoryService
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
@@ -45,6 +48,7 @@ class ScrapeCompetitors:
                 source_url=source["url"],
                 entity_id=entity_id,
                 tier="specific",
+                expires_at=datetime.utcnow() + timedelta(days=EXPIRY_COMPETITOR_SUMMARY_DAYS),
             )
             entry_ids.append(entry_id)
         return entry_ids

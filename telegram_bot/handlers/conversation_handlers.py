@@ -20,7 +20,7 @@ from backend.domain.services.conversation_service import (
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from telegram_bot import replies
 from telegram_bot.bot_helpers import is_admin
-from telegram_bot.handler_utils import _db, _kedit_pending, _memory, _save_turn, _send, _send_html, resolve_environment, resolve_entity_context, send_typing
+from telegram_bot.handler_utils import _db, _kedit_pending, _memory, _save_turn, _send, _send_html, resolve_environment, resolve_entity_context, send_typing, ThinkingMessage
 
 logger = logging.getLogger(__name__)
 
@@ -79,35 +79,34 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
         return False
 
     try:
-        await send_typing(message.chat.id)
+        async with ThinkingMessage(message) as thinking:
+            # Detect teaching patterns — classify & store before LLM call, then continue
+            user_text_lower = (message.text or "").lower()
+            if any(kw in user_text_lower for kw in _TEACHING_KEYWORDS):
+                if is_admin(message.from_user.id):
+                    try:
+                        await asyncio.to_thread(_memory.teach, message.text)
+                    except Exception:
+                        logger.exception("Failed to store NL teaching")
 
-        # Detect teaching patterns — classify & store before LLM call, then continue
-        user_text_lower = (message.text or "").lower()
-        if any(kw in user_text_lower for kw in _TEACHING_KEYWORDS):
-            if is_admin(message.from_user.id):
-                try:
-                    await asyncio.to_thread(_memory.teach, message.text)
-                except Exception:
-                    logger.exception("Failed to store NL teaching")
+            # Build conversation history
+            history, parent_id = await asyncio.to_thread(
+                build_conversation_context,
+                message.chat.id, reply.message_id, reply.text or "", _db,
+            )
 
-        # Build conversation history
-        history, parent_id = await asyncio.to_thread(
-            build_conversation_context,
-            message.chat.id, reply.message_id, reply.text or "", _db,
-        )
+            # Generate reply via LLM
+            retriever = _get_retriever()
+            env_ctx, env_domains = await asyncio.to_thread(resolve_environment, message.chat.id)
+            user_ctx = await asyncio.to_thread(resolve_entity_context, message.from_user.id)
+            answer = await asyncio.to_thread(
+                generate_nl_reply,
+                message.text, history, retriever, GeminiGateway(),
+                environment=env_ctx, allowed_domains=env_domains,
+                user_context=user_ctx,
+            )
 
-        # Generate reply via LLM
-        retriever = _get_retriever()
-        env_ctx, env_domains = await asyncio.to_thread(resolve_environment, message.chat.id)
-        user_ctx = await asyncio.to_thread(resolve_entity_context, message.from_user.id)
-        answer = await asyncio.to_thread(
-            generate_nl_reply,
-            message.text, history, retriever, GeminiGateway(),
-            environment=env_ctx, allowed_domains=env_domains,
-            user_context=user_ctx,
-        )
-
-        sent = await _send_html(message, answer, reply_to_message_id=message.message_id)
+            sent = await thinking.finish_long(answer, reply_to_message_id=message.message_id)
         await _save_turn(message, sent, message.text, answer, {"command": "nl_reply"},
                          parent_id=parent_id)
         return True
@@ -137,16 +136,16 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
 
     if not result.classified:
         try:
-            await send_typing(message.chat.id)
-            retriever = _get_retriever()
-            env_ctx, env_domains = await asyncio.to_thread(resolve_environment, message.chat.id)
-            user_ctx = await asyncio.to_thread(resolve_entity_context, message.from_user.id)
-            answer = await asyncio.to_thread(
-                generate_nl_reply, text, "", retriever, GeminiGateway(),
-                environment=env_ctx, allowed_domains=env_domains,
-                user_context=user_ctx,
-            )
-            sent = await _send_html(message, answer)
+            async with ThinkingMessage(message) as thinking:
+                retriever = _get_retriever()
+                env_ctx, env_domains = await asyncio.to_thread(resolve_environment, message.chat.id)
+                user_ctx = await asyncio.to_thread(resolve_entity_context, message.from_user.id)
+                answer = await asyncio.to_thread(
+                    generate_nl_reply, text, "", retriever, GeminiGateway(),
+                    environment=env_ctx, allowed_domains=env_domains,
+                    user_context=user_ctx,
+                )
+                sent = await thinking.finish_long(answer)
             await _save_turn(message, sent, text, answer, {"command": "nl_rag"})
         except Exception:
             logger.exception("RAG reply failed in cmd_nl")

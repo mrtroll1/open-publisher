@@ -17,7 +17,8 @@ register_all(dp)
 
 
 async def knowledge_pipeline_task():
-    """Run knowledge pipelines every 6 hours."""
+    """Run knowledge pipelines periodically."""
+    from common.config import KNOWLEDGE_PIPELINE_INTERVAL
     from backend.wiring import create_memory_service, create_db
     from backend.domain.use_cases.run_knowledge_pipelines import run_scheduled_pipelines
     memory = create_memory_service()
@@ -27,7 +28,7 @@ async def knowledge_pipeline_task():
             await asyncio.to_thread(run_scheduled_pipelines, memory, db)
         except Exception:
             logger.exception("Knowledge pipeline failed")
-        await asyncio.sleep(6 * 3600)
+        await asyncio.sleep(KNOWLEDGE_PIPELINE_INTERVAL)
 
 
 async def main():

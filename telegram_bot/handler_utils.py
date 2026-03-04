@@ -36,6 +36,7 @@ _kedit_pending: dict[tuple[int, int], str] = {}
 
 __all__ = [
     "send_typing",
+    "ThinkingMessage",
     "parse_month_arg",
     "get_current_contractor",
     "get_contractor_by_id",
@@ -59,6 +60,48 @@ __all__ = [
 
 async def send_typing(chat_id: int) -> None:
     await bot.send_chat_action(chat_id, ChatAction.TYPING)
+
+
+class ThinkingMessage:
+    """Async context manager that shows a status message while processing."""
+
+    def __init__(self, message: types.Message, initial_text: str = "Думаю..."):
+        self._message = message
+        self._initial_text = initial_text
+        self._status_msg: types.Message | None = None
+
+    async def __aenter__(self) -> "ThinkingMessage":
+        self._status_msg = await self._message.answer(self._initial_text)
+        return self
+
+    async def update(self, text: str) -> None:
+        """Edit the status message in place."""
+        if self._status_msg:
+            try:
+                await self._status_msg.edit_text(text)
+            except TelegramBadRequest:
+                pass
+
+    async def finish(self, text: str, **kwargs) -> types.Message:
+        """Edit the status message with the final short reply."""
+        if self._status_msg:
+            try:
+                await self._status_msg.edit_text(text, **kwargs)
+            except TelegramBadRequest:
+                pass
+        return self._status_msg
+
+    async def finish_long(self, text: str, **kwargs) -> types.Message:
+        """Delete status message, send full reply via _send_html (supports chunking)."""
+        if self._status_msg:
+            try:
+                await self._status_msg.delete()
+            except TelegramBadRequest:
+                pass
+        return await _send_html(self._message, text, **kwargs)
+
+    async def __aexit__(self, *exc) -> None:
+        pass
 
 
 def resolve_environment_record(chat_id: int) -> dict | None:

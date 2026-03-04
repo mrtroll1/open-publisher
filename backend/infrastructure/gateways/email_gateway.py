@@ -16,8 +16,7 @@ from common.models import IncomingEmail
 
 logger = logging.getLogger(__name__)
 
-_POLL_INTERVAL = 60  # seconds between polls
-_RECENT_WINDOW = 120  # fetch emails no older than this (seconds), 2x poll for overlap safety
+from common.config import EMAIL_POLL_INTERVAL as _POLL_INTERVAL, EMAIL_RECENT_WINDOW as _RECENT_WINDOW
 
 
 class EmailGateway:

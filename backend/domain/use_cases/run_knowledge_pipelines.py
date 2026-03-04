@@ -19,7 +19,7 @@ def run_scheduled_pipelines(memory: MemoryService, db: DbGateway) -> None:
         bindings = db.get_bindings_for_environment(env["name"])
         for chat_id in bindings:
             try:
-                extractor.execute(chat_id, since_hours=24)
+                extractor.execute(chat_id)
             except Exception:
                 logger.exception("Pipeline extraction failed for chat %s in env %s",
                                  chat_id, env["name"])

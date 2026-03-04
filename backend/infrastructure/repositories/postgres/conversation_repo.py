@@ -54,6 +54,32 @@ class ConversationRepo(BasePostgresRepo):
             cols = [desc[0] for desc in cur.description]
             return [dict(zip(cols, row)) for row in cur.fetchall()]
 
+    def get_unextracted_conversations(self, chat_id: int) -> list[dict]:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT id, role, content, created_at
+                   FROM conversations
+                   WHERE chat_id = %s AND knowledge_extracted_at IS NULL
+                   ORDER BY created_at""",
+                (chat_id,),
+            )
+            cols = [desc[0] for desc in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+    def mark_conversations_extracted(self, conversation_ids: list[str]) -> None:
+        if not conversation_ids:
+            return
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """UPDATE conversations
+                   SET knowledge_extracted_at = NOW()
+                   WHERE id = ANY(%s)""",
+                (conversation_ids,),
+            )
+            conn.commit()
+
     def get_reply_chain(self, conversation_id: str, depth: int = 20) -> list[dict]:
         conn = self._get_conn()
         chain: list[dict] = []

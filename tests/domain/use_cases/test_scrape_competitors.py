@@ -1,3 +1,4 @@
+from datetime import timedelta
 from unittest.mock import MagicMock, call
 
 from backend.domain.use_cases.scrape_competitors import ScrapeCompetitors
@@ -152,3 +153,32 @@ class TestScrapeUpdatesBySourceUrl:
 
         assert result == ["entry-fallback"]
         assert memory.remember.call_args[1]["text"] == "Novaya: https://novayagazeta.eu"
+
+
+# ===================================================================
+#  execute — expires_at is set to 90 days
+# ===================================================================
+
+class TestScrapeExpiresAt:
+
+    def test_scrape_sets_90_day_expiry(self):
+        """Competitor summaries should expire after 90 days."""
+        memory = MagicMock()
+        memory.find_entity.return_value = {"id": "entity-1", "name": "Meduza"}
+        memory.remember.return_value = "entry-1"
+        gemini = MagicMock()
+        gemini.call.return_value = {"summary": "Analysis"}
+
+        scraper = ScrapeCompetitors(memory=memory, gemini=gemini, retriever=_mock_retriever())
+        sources = [{
+            "name": "Meduza",
+            "url": "https://meduza.io",
+            "content": "Content",
+        }]
+        scraper.execute(sources)
+
+        expires_at = memory.remember.call_args[1]["expires_at"]
+        assert expires_at is not None
+        from datetime import datetime
+        delta = expires_at - datetime.utcnow()
+        assert timedelta(days=89) <= delta <= timedelta(days=91)

@@ -118,6 +118,10 @@ CREATE INDEX IF NOT EXISTS idx_conv_chat ON conversations(chat_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_conv_msg ON conversations(chat_id, message_id);
 CREATE INDEX IF NOT EXISTS idx_conv_reply ON conversations(reply_to_id);
 
+-- Migrate: add knowledge_extracted_at (default NOW so existing rows are "already extracted")
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS knowledge_extracted_at TIMESTAMP DEFAULT NOW();
+CREATE INDEX IF NOT EXISTS idx_conv_unextracted ON conversations(chat_id, knowledge_extracted_at) WHERE knowledge_extracted_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS environments (
     name         TEXT PRIMARY KEY,
     description  TEXT NOT NULL DEFAULT '',

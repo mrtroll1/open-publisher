@@ -30,7 +30,7 @@ class IngestArticles:
                 text=summary,
                 domain=domain,
                 source="article_ingest",
-                source_url=article.get("url", ""),
+                source_url=article.get("url") or None,
                 tier="specific",
             )
             entry_ids.append(entry_id)

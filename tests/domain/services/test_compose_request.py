@@ -187,14 +187,14 @@ class TestRetrieverCalls:
         with patch("backend.domain.services.compose_request._get_retriever", return_value=r):
             support_email("my email text")
         r.get_domain_context.assert_called_once_with("tech_support")
-        r.retrieve.assert_called_once_with("my email text", "tech_support", 5)
+        r.retrieve.assert_called_once_with("my email text", domain="tech_support", limit=5)
 
     def test_tech_support_question_calls_domain_context_and_retrieve(self):
         r = self._make_retriever()
         with patch("backend.domain.services.compose_request._get_retriever", return_value=r):
             tech_support_question("how to reset?")
         r.get_domain_context.assert_called_once_with("tech_support")
-        r.retrieve.assert_called_once_with("how to reset?", "tech_support", 5)
+        r.retrieve.assert_called_once_with("how to reset?", domain="tech_support", limit=5)
 
     def test_support_triage_calls_retrieve_full_domain(self):
         r = self._make_retriever()

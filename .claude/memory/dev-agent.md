@@ -2278,6 +2278,31 @@ Phase 8.5 — Scheduled pipeline runner:
 
 **Net result:** 46 new tests (1494 total), all passing
 
+### Session 76 (2026-03-04) — Maintenance: Spot Bugs (round 10 — Plans 5-8)
+**Status:** Complete
+
+**What was done:**
+- Thorough code review across all Plan 5-8 files (16 files: repos, services, use cases, MCP server, handlers)
+- Found and fixed 3 confirmed bugs:
+
+1. **CRITICAL: Positional argument mismatch in `retrieve()` calls** (`compose_request.py` lines 48, 97):
+   - When `domains` param was added to `KnowledgeRetriever.retrieve()` between `domain` and `limit`, two existing callers using positional args `r.retrieve(text, "tech_support", 5)` sent `5` to `domains` instead of `limit`
+   - Would crash in production with PostgreSQL type error (`WHERE domain = ANY(5)`)
+   - **Fix**: Changed to keyword args `r.retrieve(text, domain="tech_support", limit=5)`
+
+2. **Event loop blocking in async handlers** (`conversation_handlers.py` lines 99-100, 140-141; `router.py` lines 274-275):
+   - `resolve_environment()` and `resolve_entity_context()` (sync DB calls) called directly in 3 async handler functions without `asyncio.to_thread()`
+   - **Fix**: Wrapped all 3 call sites with `await asyncio.to_thread(...)`
+
+3. **Empty string stored as `source_url`** (`ingest_articles.py` line 33):
+   - `article.get("url", "")` stored `""` in DB when no URL present, polluting the partial index
+   - **Fix**: Changed to `article.get("url") or None`
+
+- Updated 2 test assertions in `test_compose_request.py` to match keyword-arg fix
+- Supervisor verified: no missed call sites, all fixes minimal and correct
+
+**Net result:** 1494 tests pass, 3 bugs fixed
+
 ## Next up
 
 - All plans (5-8) complete. Maintenance mode continues.
@@ -2287,3 +2312,4 @@ Phase 8.5 — Scheduled pipeline runner:
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion
 - Remaining test gaps: run_knowledge_pipelines.py edge cases (2 tests only), thin gateway wrappers (drive, sheets, redefine) — postgres repos now covered
+- Bug-spotting rounds: 10 total (last round found 3 bugs in Plan 5-8 code, still productive)

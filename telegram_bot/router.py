@@ -271,8 +271,8 @@ async def handle_group_message(
 
             await send_typing(message.chat.id)
             retriever = _get_retriever()
-            env_ctx, env_domains = resolve_environment(message.chat.id)
-            user_ctx = resolve_entity_context(message.from_user.id)
+            env_ctx, env_domains = await asyncio.to_thread(resolve_environment, message.chat.id)
+            user_ctx = await asyncio.to_thread(resolve_entity_context, message.from_user.id)
             answer = await asyncio.to_thread(
                 generate_nl_reply, clean_text, "", retriever, GeminiGateway(),
                 environment=env_ctx, allowed_domains=env_domains,

@@ -2210,10 +2210,35 @@ Phase 8.3 — Competitor scraper pipeline:
 
 **Net result:** 1402 tests pass (+13 new)
 
+### Session 73 (2026-03-04) — Plan 8 Phases 8.4 + 8.5: Conversation knowledge extraction + Scheduled pipeline runner
+**Status:** Complete (all items: 8.4.1-8.4.6, 8.5.1-8.5.5, 8.8.1 + 8.8.6)
+
+**What was done:**
+
+Phase 8.4 — Conversation knowledge extraction:
+- Created `backend/domain/use_cases/extract_conversation_knowledge.py` — `ExtractConversationKnowledge` class
+- `execute(chat_id, since_hours=24)` — fetches recent convos, skips if <3 messages, builds transcript, LLM extracts facts, stores via `memory.remember()`
+- Added `get_recent_conversations(chat_id, hours)` to `ConversationRepo` — queries `conversations` table with interval filter
+- Created `templates/extract-facts.md` — Russian prompt for fact extraction (not summaries)
+- Added `cmd_extract_knowledge` handler in `admin_handlers.py` + router registration + reply strings
+- 5 use case tests + 4 handler tests
+
+Phase 8.5 — Scheduled pipeline runner:
+- Created `backend/domain/use_cases/run_knowledge_pipelines.py` — `run_scheduled_pipelines(memory, db)` iterates all environments and their bindings, runs extraction per chat
+- `get_bindings_for_environment()` already existed in EnvironmentRepo (plan 8.5.2 was pre-done)
+- Added `knowledge_pipeline_task()` to `main.py` — runs every 6 hours via `asyncio.to_thread()`
+- 2 tests for pipeline runner
+
+**Supervisor review fixes:**
+- Removed unused `environment` parameter from `execute()` (dead code)
+- Fixed SQL interval from `INTERVAL '%s hours'` to `%s * INTERVAL '1 hour'` (standard PostgreSQL pattern)
+
+**Net result:** 1413 tests pass (+11 new)
+
 ## Next up
 
-- Plan 8 sections 8.4-8.5: Conversation knowledge extraction, scheduled pipeline runner
-- Plan 8 section 8.8: Verification
+- Plan 8 sections 8.8.2-8.8.5: Manual verification (user must do)
+- Plan 8 is now COMPLETE (all automated items done)
 - Plan 7 sections 7.4.2-7.4.3: Manual MCP server testing (user must do)
 - Plan 7 section 7.5: Verification (7.5.1 done, 7.5.2-7.5.5 are manual)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries

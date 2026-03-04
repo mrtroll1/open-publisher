@@ -37,3 +37,11 @@ This seeds 19 knowledge entries from the existing `.md` files into the `knowledg
 3. Configure Claude Code: copy `claude_mcp_config.json` to `~/.claude/` and update paths/credentials
 4. Test round-trip: use `remember` + `recall` tools in Claude to verify
 
+## Plan 8: Active Knowledge Agents
+
+### Manual verification after deploy
+1. `/ingest_articles` → articles stored as knowledge entries
+2. `/extract_knowledge 48` → facts extracted from recent conversations
+3. Ask bot about recently ingested article content → should retrieve via RAG
+4. Verify low-similarity RAG results are filtered out
+

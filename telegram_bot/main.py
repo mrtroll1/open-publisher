@@ -16,6 +16,20 @@ dp = Dispatcher()
 register_all(dp)
 
 
+async def knowledge_pipeline_task():
+    """Run knowledge pipelines every 6 hours."""
+    from backend.wiring import create_memory_service, create_db
+    from backend.domain.use_cases.run_knowledge_pipelines import run_scheduled_pipelines
+    memory = create_memory_service()
+    db = create_db()
+    while True:
+        try:
+            await asyncio.to_thread(run_scheduled_pipelines, memory, db)
+        except Exception:
+            logger.exception("Knowledge pipeline failed")
+        await asyncio.sleep(6 * 3600)
+
+
 async def main():
     logging.basicConfig(
         level=logging.INFO,
@@ -24,6 +38,7 @@ async def main():
     logger.info("Starting bot...")
     await set_bot_commands(bot)
     asyncio.create_task(email_listener_task())
+    asyncio.create_task(knowledge_pipeline_task())
     await dp.start_polling(bot)
 
 

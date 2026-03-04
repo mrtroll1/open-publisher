@@ -38,6 +38,7 @@ from backend.domain.services.admin_service import (
 )
 from backend.domain.use_cases import sync_contractor_entities
 from backend.infrastructure.gateways.embedding_gateway import EmbeddingGateway
+from backend.domain.use_cases.extract_conversation_knowledge import ExtractConversationKnowledge
 from backend.wiring import create_compute_budget, create_generate_batch_invoices, create_parse_bank_statement
 from telegram_bot import replies
 from telegram_bot.bot_helpers import bot, get_contractors, prev_month
@@ -74,6 +75,7 @@ __all__ = [
     "cmd_upload_to_airtable",
     "cmd_sync_entities",
     "cmd_ingest_articles",
+    "cmd_extract_knowledge",
     "cmd_chatid",
     "cmd_articles",
     "cmd_lookup",
@@ -631,3 +633,28 @@ async def cmd_ingest_articles(message: types.Message, state: FSMContext) -> None
     except Exception as e:
         logger.exception("Article ingestion failed")
         await message.answer(replies.admin.ingest_articles_error.format(error=e))
+
+
+async def cmd_extract_knowledge(message: types.Message, state: FSMContext) -> None:
+    """Extract memorable facts from recent conversations in this chat."""
+    args = message.text.split(maxsplit=1)
+    hours = 24
+    if len(args) > 1:
+        try:
+            hours = int(args[1].strip())
+        except ValueError:
+            await message.answer(replies.admin.extract_knowledge_usage)
+            return
+
+    await message.answer(replies.admin.extract_knowledge_start.format(hours=hours))
+    await send_typing(message.chat.id)
+
+    try:
+        extractor = ExtractConversationKnowledge(memory=_memory, db=_db)
+        entry_ids = await asyncio.to_thread(
+            extractor.execute, message.chat.id, since_hours=hours,
+        )
+        await message.answer(replies.admin.extract_knowledge_done.format(count=len(entry_ids)))
+    except Exception as e:
+        logger.exception("Knowledge extraction failed")
+        await message.answer(replies.admin.extract_knowledge_error.format(error=e))

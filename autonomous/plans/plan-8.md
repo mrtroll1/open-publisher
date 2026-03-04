@@ -169,7 +169,7 @@
 > Periodically extract key facts from conversation history into knowledge entries.
 > This is the "learn from conversations" pathway.
 
-- [ ] 8.4.1 Create `backend/domain/use_cases/extract_conversation_knowledge.py`:
+- [x] 8.4.1 Create `backend/domain/use_cases/extract_conversation_knowledge.py`:
   ```python
   class ExtractConversationKnowledge:
       """Extract memorable facts from recent conversations, store in brain."""
@@ -209,12 +209,12 @@
           result = self._gemini.call(prompt)
           return result.get("facts", [])
   ```
-- [ ] 8.4.2 Add `get_recent_conversations` method to `ConversationRepo`:
+- [x] 8.4.2 Add `get_recent_conversations` method to `ConversationRepo`:
   ```python
   def get_recent_conversations(self, chat_id: int, hours: int = 24) -> list[dict]:
       """Fetch conversations from last N hours for a chat."""
   ```
-- [ ] 8.4.3 Create `templates/extract-facts.md`:
+- [x] 8.4.3 Create `templates/extract-facts.md`:
   ```markdown
   Извлеки запоминающиеся факты из переписки.
   Это НЕ пересказ — только конкретные факты, решения, предпочтения, инструкции.
@@ -227,12 +227,12 @@
   Верни JSON: {"facts": [{"text": "<факт>", "domain": "<домен>"}]}
   Домены: tech_support, editorial, contractor, payments, identity, general
   ```
-- [ ] 8.4.4 Add admin command `/extract_knowledge [hours]` — runs extraction on current chat
-- [ ] 8.4.5 Write tests:
+- [x] 8.4.4 Add admin command `/extract_knowledge [hours]` — runs extraction on current chat
+- [x] 8.4.5 Write tests:
   - `test_extract_stores_facts`
   - `test_extract_skips_short_conversations`
   - `test_extract_deduplicates_via_remember`
-- [ ] 8.4.6 Run `pytest` — all tests pass
+- [x] 8.4.6 Run `pytest` — all tests pass
 
 ---
 
@@ -241,7 +241,7 @@
 > Pipelines run on a schedule (or can be triggered manually).
 > Keep it simple: a cron-like background task in the bot, not a separate service.
 
-- [ ] 8.5.1 Create `backend/domain/use_cases/run_knowledge_pipelines.py`:
+- [x] 8.5.1 Create `backend/domain/use_cases/run_knowledge_pipelines.py`:
   ```python
   async def run_scheduled_pipelines(memory: MemoryService, db: DbGateway):
       """Run all scheduled knowledge pipelines. Called periodically."""
@@ -256,8 +256,8 @@
       # 2. Future: article ingestion, competitor scraping, etc.
       # Each pipeline is a simple function call to execute()
   ```
-- [ ] 8.5.2 Add `get_environment_bindings(environment: str) -> list[dict]` to `EnvironmentRepo`
-- [ ] 8.5.3 Wire into bot's background tasks (alongside `email_listener_task` in `main.py`):
+- [x] 8.5.2 Already existed as `get_bindings_for_environment` in `EnvironmentRepo`
+- [x] 8.5.3 Wire into bot's background tasks (alongside `email_listener_task` in `main.py`):
   ```python
   async def knowledge_pipeline_task():
       """Run knowledge pipelines every 6 hours."""
@@ -270,8 +270,8 @@
               logger.exception("Knowledge pipeline failed")
           await asyncio.sleep(6 * 3600)  # every 6 hours
   ```
-- [ ] 8.5.4 Write tests
-- [ ] 8.5.5 Run `pytest` — all tests pass
+- [x] 8.5.4 Write tests
+- [x] 8.5.5 Run `pytest` — all tests pass
 
 ---
 
@@ -309,12 +309,12 @@
 
 ## 8.8 Verification
 
-- [ ] 8.8.1 Run full `pytest` suite — all tests pass
+- [x] 8.8.1 Run full `pytest` suite — all tests pass (1413 tests)
 - [ ] 8.8.2 Manual: `/ingest_articles` → articles stored as knowledge entries
 - [ ] 8.8.3 Manual: `/extract_knowledge 48` → facts extracted from recent conversations
 - [ ] 8.8.4 Manual: ask bot about recently ingested article content → should retrieve via RAG
 - [ ] 8.8.5 Manual: verify low-similarity RAG results are filtered out
-- [ ] 8.8.6 Commit: `feat: add knowledge pipelines + conversation safety valve + RAG threshold`
+- [x] 8.8.6 Commit: `feat: add knowledge pipelines + conversation safety valve + RAG threshold`
 
 ---
 

@@ -41,6 +41,19 @@ class ConversationRepo(BasePostgresRepo):
                 result["reply_to_id"] = str(result["reply_to_id"])
             return result
 
+    def get_recent_conversations(self, chat_id: int, hours: int = 24) -> list[dict]:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT role, content, created_at
+                   FROM conversations
+                   WHERE chat_id = %s AND created_at >= NOW() - %s * INTERVAL '1 hour'
+                   ORDER BY created_at""",
+                (chat_id, hours),
+            )
+            cols = [desc[0] for desc in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
+
     def get_reply_chain(self, conversation_id: str, depth: int = 20) -> list[dict]:
         conn = self._get_conn()
         chain: list[dict] = []

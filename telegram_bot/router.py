@@ -36,7 +36,7 @@ from telegram_bot.handlers.admin_handlers import (
     cmd_generate, cmd_chatid, cmd_articles, cmd_lookup, cmd_budget,
     cmd_generate_invoices, cmd_send_global_invoices, cmd_send_legium_links,
     cmd_orphan_contractors, cmd_upload_to_airtable, cmd_sync_entities,
-    cmd_ingest_articles,
+    cmd_ingest_articles, cmd_extract_knowledge,
     handle_admin_reply,
 )
 from telegram_bot.handlers.contractor_handlers import (
@@ -125,6 +125,7 @@ _ADMIN_COMMANDS: dict[str, Callable] = {
     "upload_to_airtable": cmd_upload_to_airtable,
     "sync_entities": cmd_sync_entities,
     "ingest_articles": cmd_ingest_articles,
+    "extract_knowledge": cmd_extract_knowledge,
     "chatid": cmd_chatid,
     "health": cmd_health,
     "support": cmd_support,

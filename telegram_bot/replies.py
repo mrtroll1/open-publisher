@@ -271,6 +271,10 @@ class admin:
     ingest_articles_no_authors = "Авторов за {month} не найдено."
     ingest_articles_done = "Загружено {count} записей за {month} ({authors} авторов)."
     ingest_articles_error = "Ошибка загрузки статей: {error}"
+    extract_knowledge_usage = "Использование: /extract_knowledge [часы]\nПо умолчанию: 24 часа"
+    extract_knowledge_start = "Извлекаю факты из переписки за {hours} ч..."
+    extract_knowledge_done = "Извлечено фактов: {count}"
+    extract_knowledge_error = "Ошибка извлечения: {error}"
 
 
 # ── Notifications (admin-facing) ────────────────────────────────────

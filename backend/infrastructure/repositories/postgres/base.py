@@ -162,6 +162,9 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
+CREATE INDEX IF NOT EXISTS idx_knowledge_source_url
+    ON knowledge_entries(source_url) WHERE source_url IS NOT NULL;
+
 DO $$ BEGIN
     ALTER TABLE knowledge_entries ADD COLUMN expires_at TIMESTAMP;
 EXCEPTION WHEN duplicate_column THEN NULL;

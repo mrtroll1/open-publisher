@@ -30,6 +30,13 @@ class MemoryService:
                  source_url: str | None = None,
                  expires_at: datetime | None = None) -> str:
         embedding = self._embed.embed_one(text)
+        # URL-based dedup: same source_url → update existing entry
+        if source_url:
+            by_url = self._db.find_by_source_url(source_url)
+            if by_url:
+                self._db.update_knowledge_entry(by_url["id"], text, embedding)
+                return by_url["id"]
+        # Embedding-based dedup: very similar content → update
         existing = self._db.search_knowledge(embedding, domain=domain, limit=1)
         if existing and existing[0].get("similarity", 0) > 0.90:
             entry_id = existing[0]["id"]

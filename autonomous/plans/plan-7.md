@@ -281,7 +281,7 @@
 
 ## 7.5 Verification
 
-- [ ] 7.5.1 Run full `pytest` suite — all tests pass
+- [x] 7.5.1 Run full `pytest` suite — all tests pass (1379 tests, 3.43s)
 - [ ] 7.5.2 Manual: `python -m mcp_server` → starts without errors
 - [ ] 7.5.3 Manual test round-trip:
   - Call `remember("Republic публикует политическую аналитику", "editorial", source="manual")`

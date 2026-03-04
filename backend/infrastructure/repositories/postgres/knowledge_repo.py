@@ -244,6 +244,26 @@ class KnowledgeRepo(BasePostgresRepo):
             cur.execute("SELECT name, description FROM knowledge_domains ORDER BY name")
             return [{"name": row[0], "description": row[1]} for row in cur.fetchall()]
 
+    def find_by_source_url(self, source_url: str) -> dict | None:
+        """Find active knowledge entry by source_url. Returns most recent if multiple."""
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT id, tier, domain, title, content, source, source_url
+                   FROM knowledge_entries
+                   WHERE source_url = %s AND is_active = TRUE
+                   ORDER BY created_at DESC
+                   LIMIT 1""",
+                (source_url,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            cols = ["id", "tier", "domain", "title", "content", "source", "source_url"]
+            d = dict(zip(cols, row))
+            d["id"] = str(d["id"])
+            return d
+
     def get_or_create_domain(self, name: str, description: str = "") -> str:
         conn = self._get_conn()
         with conn.cursor() as cur:

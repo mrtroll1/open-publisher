@@ -686,7 +686,7 @@ class TestHandleNlReply:
 
         assert result is True
         mock_db.get_conversation_by_message_id.assert_called_once_with(100, 9)
-        mock_db.get_reply_chain.assert_called_once_with("conv-uuid-1", depth=10)
+        mock_db.get_reply_chain.assert_called_once_with("conv-uuid-1", depth=20)
         mock_gemini.call.assert_called_once()
         mock_send_html.assert_awaited_once()
         # Verify reply_to_message_id kwarg

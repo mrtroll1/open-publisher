@@ -41,7 +41,7 @@ class ConversationRepo(BasePostgresRepo):
                 result["reply_to_id"] = str(result["reply_to_id"])
             return result
 
-    def get_reply_chain(self, conversation_id: str, depth: int = 10) -> list[dict]:
+    def get_reply_chain(self, conversation_id: str, depth: int = 20) -> list[dict]:
         conn = self._get_conn()
         chain: list[dict] = []
         current_id = conversation_id

@@ -9,10 +9,10 @@
 
 ## 8.0 Pre-flight
 
-- [ ] 8.0.1 Confirm Phases 5-7 are complete (environments, entities, MemoryService, MCP)
-- [ ] 8.0.2 Verify `memory.remember()` deduplication works (similarity > 0.90 → update)
-- [ ] 8.0.3 Verify `source_url` dedup path works (same URL → update, not insert)
-- [ ] 8.0.4 Run `pytest` — all tests pass (baseline)
+- [x] 8.0.1 Confirm Phases 5-7 are complete (environments, entities, MemoryService, MCP)
+- [x] 8.0.2 Verify `memory.remember()` deduplication works (similarity > 0.90 → update)
+- [x] 8.0.3 Verify `source_url` dedup path works (same URL → update, not insert) — NOT present yet, added in 8.1
+- [x] 8.0.4 Run `pytest` — all tests pass (baseline: 1379 tests)
 
 ---
 
@@ -21,25 +21,25 @@
 > Before building crawlers, ensure `remember()` can dedup by URL (not just embedding similarity).
 > A crawler re-visiting the same page should update the existing entry, not create a new one.
 
-- [ ] 8.1.1 Add method to `KnowledgeRepo`:
+- [x] 8.1.1 Add method to `KnowledgeRepo`:
   ```python
   def find_by_source_url(self, source_url: str) -> dict | None:
       """Find active knowledge entry by source_url. Returns most recent if multiple."""
   ```
-- [ ] 8.1.2 Update `MemoryService.remember()`:
+- [x] 8.1.2 Update `MemoryService.remember()`:
   - If `source_url` is provided, check `find_by_source_url` first
   - If found, update content + re-embed (idempotent re-crawl)
   - If not found, fall through to embedding dedup, then insert
-- [ ] 8.1.3 Add index:
+- [x] 8.1.3 Add index:
   ```sql
   CREATE INDEX IF NOT EXISTS idx_knowledge_source_url
       ON knowledge_entries(source_url) WHERE source_url IS NOT NULL;
   ```
-- [ ] 8.1.4 Write tests:
+- [x] 8.1.4 Write tests:
   - `test_remember_with_source_url_deduplicates`
   - `test_remember_source_url_updates_content`
   - `test_remember_different_urls_creates_separate`
-- [ ] 8.1.5 Run `pytest` — all tests pass
+- [x] 8.1.5 Run `pytest` — all tests pass
 
 ---
 
@@ -280,33 +280,16 @@
 > Simple truncation for long conversations. No LLM summarization — just keep
 > recent N messages and note how many were omitted.
 
-- [ ] 8.6.1 Update `build_conversation_context()` in `conversation_service.py`:
-  ```python
-  def build_conversation_context(
-      chat_id: int, reply_message_id: int, reply_text: str,
-      db: DbGateway, max_verbatim: int = 8,
-  ) -> tuple[str, str | None]:
-      conv_entry = db.get_conversation_by_message_id(chat_id, reply_message_id)
-      if not conv_entry:
-          return f"assistant: {reply_text}", None
-
-      chain = db.get_reply_chain(conv_entry["id"], depth=20)
-
-      if len(chain) <= max_verbatim:
-          return format_reply_chain(chain), conv_entry["id"]
-
-      # Keep last max_verbatim messages, note omission
-      recent = chain[-max_verbatim:]
-      skipped = len(chain) - max_verbatim
-      header = f"[{skipped} предыдущих сообщений опущено]\n"
-      return header + format_reply_chain(recent), conv_entry["id"]
-  ```
-- [ ] 8.6.2 Update `get_reply_chain` depth from 10 to 20 (since we now truncate ourselves)
-- [ ] 8.6.3 Write tests:
+- [x] 8.6.1 Update `build_conversation_context()` in `conversation_service.py`:
+  - Added `max_verbatim: int = 8` parameter
+  - Long chains truncated to last N messages with `[{skipped} предыдущих сообщений опущено]` header
+  - Updated `get_reply_chain` call to `depth=20`
+- [x] 8.6.2 Update `get_reply_chain` depth from 10 to 20 (since we now truncate ourselves)
+- [x] 8.6.3 Write tests:
   - `test_long_chain_truncated`
   - `test_short_chain_not_truncated`
   - `test_truncation_preserves_recent_messages`
-- [ ] 8.6.4 Run `pytest` — all tests pass
+- [x] 8.6.4 Run `pytest` — all tests pass
 
 ---
 
@@ -314,23 +297,13 @@
 
 > Filter out low-relevance results to reduce noise.
 
-- [ ] 8.7.1 Update `KnowledgeRetriever.retrieve()`:
-  ```python
-  def retrieve(self, query: str, domain: str | None = None,
-               domains: list[str] | None = None,
-               limit: int = 5, min_similarity: float = 0.3) -> str:
-      embedding = self._embed.embed_one(query)
-      if domains:
-          entries = self._db.search_knowledge_multi_domain(embedding, domains, limit)
-      else:
-          entries = self._db.search_knowledge(embedding, domain, limit)
-      entries = [e for e in entries if e.get("similarity", 0) >= min_similarity]
-      return _format_entries(entries)
-  ```
-- [ ] 8.7.2 Write tests:
+- [x] 8.7.1 Update `KnowledgeRetriever.retrieve()`:
+  - Added `min_similarity: float = 0.3` parameter
+  - Filters entries with `similarity < min_similarity` after DB query
+- [x] 8.7.2 Write tests:
   - `test_retrieve_filters_low_similarity`
   - `test_retrieve_keeps_high_similarity`
-- [ ] 8.7.3 Run `pytest` — all tests pass
+- [x] 8.7.3 Run `pytest` — all tests pass
 
 ---
 

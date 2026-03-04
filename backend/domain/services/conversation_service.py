@@ -22,6 +22,7 @@ def build_conversation_context(
     reply_message_id: int,
     reply_text: str,
     db: DbGateway,
+    max_verbatim: int = 8,
 ) -> tuple[str, str | None]:
     """Look up conversation chain from DB; bootstrap from reply text if not found.
 
@@ -30,8 +31,13 @@ def build_conversation_context(
     conv_entry = db.get_conversation_by_message_id(chat_id, reply_message_id)
 
     if conv_entry:
-        chain = db.get_reply_chain(conv_entry["id"], depth=10)
-        history = format_reply_chain(chain)
+        chain = db.get_reply_chain(conv_entry["id"], depth=20)
+        if len(chain) > max_verbatim:
+            skipped = len(chain) - max_verbatim
+            chain = chain[-max_verbatim:]
+            history = f"[{skipped} предыдущих сообщений опущено]\n" + format_reply_chain(chain)
+        else:
+            history = format_reply_chain(chain)
         return history, conv_entry["id"]
 
     history = f"assistant: {reply_text}"

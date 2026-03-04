@@ -69,6 +69,7 @@ class TestRemember:
         from datetime import datetime
         svc, mock_db, mock_embed, _, _ = _make_service()
         mock_embed.embed_one.return_value = [0.1]
+        mock_db.find_by_source_url.return_value = None
         mock_db.search_knowledge.return_value = []
         mock_db.save_knowledge_entry.return_value = "id"
         exp = datetime(2026, 12, 31)
@@ -83,6 +84,49 @@ class TestRemember:
         assert call_kwargs["entity_id"] == "e1"
         assert call_kwargs["source_url"] == "https://example.com"
         assert call_kwargs["expires_at"] == exp
+
+    def test_remember_with_source_url_deduplicates(self):
+        svc, mock_db, mock_embed, _, _ = _make_service()
+        mock_embed.embed_one.return_value = [0.1, 0.2]
+        mock_db.find_by_source_url.return_value = {"id": "url-existing-id"}
+
+        result = svc.remember("New content", domain="general",
+                              source_url="https://example.com/page")
+
+        assert result == "url-existing-id"
+        mock_db.find_by_source_url.assert_called_once_with("https://example.com/page")
+        mock_db.update_knowledge_entry.assert_called_once_with(
+            "url-existing-id", "New content", [0.1, 0.2],
+        )
+        mock_db.save_knowledge_entry.assert_not_called()
+        # Embedding dedup should be skipped when URL dedup hits
+        mock_db.search_knowledge.assert_not_called()
+
+    def test_remember_source_url_updates_content(self):
+        svc, mock_db, mock_embed, _, _ = _make_service()
+        mock_embed.embed_one.return_value = [0.3, 0.4]
+        mock_db.find_by_source_url.return_value = {"id": "page-id"}
+
+        svc.remember("Updated page content", domain="editorial",
+                     source_url="https://example.com/article")
+
+        mock_db.update_knowledge_entry.assert_called_once_with(
+            "page-id", "Updated page content", [0.3, 0.4],
+        )
+
+    def test_remember_different_urls_creates_separate(self):
+        svc, mock_db, mock_embed, _, _ = _make_service()
+        mock_embed.embed_one.return_value = [0.5]
+        mock_db.find_by_source_url.return_value = None
+        mock_db.search_knowledge.return_value = []
+        mock_db.save_knowledge_entry.return_value = "new-id"
+
+        result = svc.remember("Content A", domain="general",
+                              source_url="https://example.com/new-page")
+
+        assert result == "new-id"
+        mock_db.find_by_source_url.assert_called_once_with("https://example.com/new-page")
+        mock_db.save_knowledge_entry.assert_called_once()
 
 
 # ===================================================================

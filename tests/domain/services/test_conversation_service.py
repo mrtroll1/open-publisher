@@ -57,7 +57,7 @@ class TestBuildConversationContext:
         assert parent_id == "conv-1"
         assert "user: question" in history
         assert "assistant: answer" in history
-        db.get_reply_chain.assert_called_once_with("conv-1", depth=10)
+        db.get_reply_chain.assert_called_once_with("conv-1", depth=20)
 
     def test_conv_not_found_bootstraps_from_reply_text(self):
         db = MagicMock()
@@ -77,6 +77,55 @@ class TestBuildConversationContext:
 
         assert parent_id is None
         assert history == "assistant: "
+
+    def test_long_chain_truncated(self):
+        db = MagicMock()
+        db.get_conversation_by_message_id.return_value = {"id": "conv-long"}
+        chain = [{"role": "user" if i % 2 == 0 else "assistant", "content": f"msg-{i}"}
+                 for i in range(12)]
+        db.get_reply_chain.return_value = chain
+
+        history, parent_id = self._build(100, 42, "answer", db)
+
+        assert parent_id == "conv-long"
+        assert "[4 предыдущих сообщений опущено]" in history
+        # Last 8 messages should be present
+        assert "msg-4" in history
+        assert "msg-11" in history
+        # First 4 should be omitted
+        assert "msg-0" not in history.split("\n", 1)[1]
+        assert "msg-3" not in history.split("\n", 1)[1]
+
+    def test_short_chain_not_truncated(self):
+        db = MagicMock()
+        db.get_conversation_by_message_id.return_value = {"id": "conv-short"}
+        chain = [{"role": "user", "content": "hi"},
+                 {"role": "assistant", "content": "hello"}]
+        db.get_reply_chain.return_value = chain
+
+        history, parent_id = self._build(100, 42, "hello", db)
+
+        assert "опущено" not in history
+        assert "user: hi" in history
+        assert "assistant: hello" in history
+
+    def test_truncation_preserves_recent_messages(self):
+        db = MagicMock()
+        db.get_conversation_by_message_id.return_value = {"id": "conv-trunc"}
+        chain = [{"role": "user" if i % 2 == 0 else "assistant", "content": f"msg_{i:03d}"}
+                 for i in range(15)]
+        db.get_reply_chain.return_value = chain
+
+        history, parent_id = self._build(100, 42, "answer", db)
+
+        assert "[7 предыдущих сообщений опущено]" in history
+        # Last 8 preserved
+        for i in range(7, 15):
+            assert f"msg_{i:03d}" in history
+        # First 7 absent from message body
+        lines_after_header = history.split("\n", 1)[1]
+        for i in range(7):
+            assert f"msg_{i:03d}" not in lines_after_header
 
 
 # ===================================================================

@@ -151,13 +151,45 @@ class TestRetrieve:
         kr, mock_db, mock_embed = _make_retriever()
         mock_embed.embed_one.return_value = [0.1]
         mock_db.search_knowledge.return_value = [
-            {"title": "Billing", "content": "Info about billing"},
-            {"content": "Extra detail"},
+            {"title": "Billing", "content": "Info about billing", "similarity": 0.9},
+            {"content": "Extra detail", "similarity": 0.8},
         ]
 
         result = kr.retrieve("billing question")
 
         assert result == "## Billing\nInfo about billing\n\nExtra detail"
+
+    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    def test_retrieve_filters_low_similarity(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.1]
+        mock_db.search_knowledge.return_value = [
+            {"title": "Good", "content": "Relevant", "similarity": 0.8},
+            {"title": "Bad", "content": "Noise", "similarity": 0.15},
+            {"title": "Borderline", "content": "Maybe", "similarity": 0.29},
+        ]
+
+        result = kr.retrieve("query")
+
+        assert "Relevant" in result
+        assert "Noise" not in result
+        assert "Maybe" not in result
+
+    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    def test_retrieve_keeps_high_similarity(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.1]
+        mock_db.search_knowledge.return_value = [
+            {"title": "A", "content": "First", "similarity": 0.95},
+            {"title": "B", "content": "Second", "similarity": 0.30},
+            {"title": "C", "content": "Third", "similarity": 0.50},
+        ]
+
+        result = kr.retrieve("query")
+
+        assert "First" in result
+        assert "Second" in result
+        assert "Third" in result
 
 
 # ===================================================================
@@ -224,8 +256,8 @@ class TestRetrieveWithDomainsList:
         kr, mock_db, mock_embed = _make_retriever()
         mock_embed.embed_one.return_value = [0.1]
         mock_db.search_knowledge_multi_domain.return_value = [
-            {"title": "A", "content": "From editorial"},
-            {"title": "B", "content": "From payments"},
+            {"title": "A", "content": "From editorial", "similarity": 0.85},
+            {"title": "B", "content": "From payments", "similarity": 0.75},
         ]
 
         result = kr.retrieve("multi query", domains=["editorial", "payments"])

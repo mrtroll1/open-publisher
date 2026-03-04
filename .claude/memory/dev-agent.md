@@ -2152,8 +2152,40 @@ Phase 7.4.1 — Config example:
 
 **Net result:** 1379 tests pass (+23 new)
 
+### Session 71 (2026-03-04) — Plan 8 Phases 8.0-8.1 + 8.6 + 8.7: Source-URL dedup + Conversation safety valve + RAG threshold
+**Status:** Complete (all items: 8.0.1-8.0.4, 8.1.1-8.1.5, 8.6.1-8.6.4, 8.7.1-8.7.3)
+
+**What was done:**
+
+Phase 8.0 — Pre-flight:
+- Confirmed Phases 5-7 complete
+- Verified `remember()` has embedding similarity > 0.90 dedup
+- Confirmed `source_url` dedup was NOT present (added in 8.1)
+- Baseline: 1379 tests pass
+
+Phase 8.1 — Source-URL deduplication:
+- Added `find_by_source_url(source_url)` to `knowledge_repo.py` — queries `WHERE source_url = %s AND is_active = TRUE`, returns most recent
+- Updated `MemoryService.remember()` — URL dedup check happens FIRST (before embedding dedup). If URL match found, updates content + re-embeds, returns immediately
+- Added `idx_knowledge_source_url` partial index to `base.py` schema
+- 5 new tests: URL dedup hits, content update verification, different URLs create separate, repo find/not-found
+
+Phase 8.6 — Conversation history safety valve:
+- Updated `build_conversation_context()` — added `max_verbatim: int = 8` parameter. Long chains truncated to last N messages with `[{skipped} предыдущих сообщений опущено]` header
+- Changed `get_reply_chain` default depth from 10 to 20 in conversation_repo.py
+- 3 new tests, 2 existing tests updated for depth=20
+
+Phase 8.7 — RAG similarity threshold:
+- Updated `KnowledgeRetriever.retrieve()` — added `min_similarity: float = 0.3` parameter, filters entries after DB query
+- 2 new tests, 2 existing tests updated with similarity values
+
+**Review:** Supervisor passed cleanly. Zero issues.
+
+**Net result:** 1389 tests pass (+10 new)
+
 ## Next up
 
+- Plan 8 sections 8.2-8.5: Article ingestion, competitor scraper skeleton, conversation extraction, scheduled pipeline runner
+- Plan 8 section 8.8: Verification
 - Plan 7 sections 7.4.2-7.4.3: Manual MCP server testing (user must do)
 - Plan 7 section 7.5: Verification (7.5.1 done, 7.5.2-7.5.5 are manual)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries

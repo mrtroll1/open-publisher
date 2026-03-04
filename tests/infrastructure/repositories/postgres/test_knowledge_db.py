@@ -539,3 +539,36 @@ class TestSaveKnowledgeEntryProvenance:
         assert "entity_id" in sql
         assert params == ("specific", "contractor", "About contractor", "Contractor info.", "admin",
                           None, "entity-uuid-123", None, None, None)
+
+
+# ===================================================================
+#  find_by_source_url
+# ===================================================================
+
+class TestFindBySourceUrl:
+
+    def test_find_by_source_url(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = (
+            "entry-uuid-url", "specific", "editorial", "Article", "Content here", "web", "https://example.com/article",
+        )
+
+        result = gw.find_by_source_url("https://example.com/article")
+
+        assert result is not None
+        assert result["id"] == "entry-uuid-url"
+        assert result["source_url"] == "https://example.com/article"
+        assert result["content"] == "Content here"
+        sql, params = cur.execute.call_args[0]
+        assert "WHERE source_url = %s AND is_active = TRUE" in sql
+        assert "ORDER BY created_at DESC" in sql
+        assert "LIMIT 1" in sql
+        assert params == ("https://example.com/article",)
+
+    def test_find_by_source_url_not_found(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = None
+
+        result = gw.find_by_source_url("https://example.com/nonexistent")
+
+        assert result is None

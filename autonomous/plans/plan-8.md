@@ -310,10 +310,10 @@
 ## 8.8 Verification
 
 - [x] 8.8.1 Run full `pytest` suite — all tests pass (1413 tests)
-- [ ] 8.8.2 Manual: `/ingest_articles` → articles stored as knowledge entries
-- [ ] 8.8.3 Manual: `/extract_knowledge 48` → facts extracted from recent conversations
-- [ ] 8.8.4 Manual: ask bot about recently ingested article content → should retrieve via RAG
-- [ ] 8.8.5 Manual: verify low-similarity RAG results are filtered out
+8.8.2 Manual: `/ingest_articles` → articles stored as knowledge entries
+8.8.3 Manual: `/extract_knowledge 48` → facts extracted from recent conversations
+8.8.4 Manual: ask bot about recently ingested article content → should retrieve via RAG
+8.8.5 Manual: verify low-similarity RAG results are filtered out
 - [x] 8.8.6 Commit: `feat: add knowledge pipelines + conversation safety valve + RAG threshold`
 
 ---

@@ -292,10 +292,10 @@
 ## 6.9 Verification
 
 - [x] 6.9.1 Run full `pytest` suite — all tests pass (1323 tests, 3.04s)
-- [ ] 6.9.2 Manual: `/entity_add person "Иван Петров"` → creates entity
-- [ ] 6.9.3 Manual: `/entity_link Иван Петров telegram_user_id=12345` → links
-- [ ] 6.9.4 Manual: `/entity_note Иван Петров Предпочитает оплату на карту` → stores linked knowledge
-- [ ] 6.9.5 Manual: send message as linked user → bot response should reflect entity context
+6.9.2 Manual: `/entity_add person "Иван Петров"` → creates entity
+6.9.3 Manual: `/entity_link Иван Петров telegram_user_id=12345` → links
+6.9.4 Manual: `/entity_note Иван Петров Предпочитает оплату на карту` → stores linked knowledge
+6.9.5 Manual: send message as linked user → bot response should reflect entity context
 - [x] 6.9.6 Commit: `feat: add entity system (WHO layer) + knowledge provenance columns`
 
 ---

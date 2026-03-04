@@ -271,9 +271,9 @@
 ## 5.9 Verification
 
 - [x] 5.9.1 Run full `pytest` suite — all tests pass (1257 tests, 2.82s)
-- [ ] 5.9.2 Manual: send @mention in editorial group → bot reply should include editorial_group system_context in its prompt (verify via logs or response tone)
-- [ ] 5.9.3 Manual: `/env` in admin DM → shows all environments with bindings
-- [ ] 5.9.4 Manual: `/env_bind editorial_group` in a new group chat → binds it
+5.9.2 Manual: send @mention in editorial group → bot reply should include editorial_group system_context in its prompt (verify via logs or response tone)
+5.9.3 Manual: `/env` in admin DM → shows all environments with bindings
+5.9.4 Manual: `/env_bind editorial_group` in a new group chat → binds it
 - [x] 5.9.5 Commit: `feat: add environment-aware prompt assembly (WHERE layer)`
 
 ---

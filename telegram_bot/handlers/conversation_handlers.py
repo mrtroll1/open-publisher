@@ -84,9 +84,7 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
         if any(kw in user_text_lower for kw in _TEACHING_KEYWORDS):
             if is_admin(message.from_user.id):
                 try:
-                    domain, tier = await _classify_teaching_text(message.text)
-                    retriever = _get_retriever()
-                    await asyncio.to_thread(retriever.store_teaching, message.text, domain=domain, tier=tier)
+                    await asyncio.to_thread(_memory.teach, message.text)
                 except Exception:
                     logger.exception("Failed to store NL teaching")
 
@@ -203,8 +201,7 @@ async def cmd_teach(message: types.Message, state: FSMContext) -> None:
     text = args[1].strip()
     try:
         domain, tier = await _classify_teaching_text(text)
-        retriever = _get_retriever()
-        await asyncio.to_thread(retriever.store_teaching, text, domain=domain, tier=tier)
+        await asyncio.to_thread(_memory.teach, text, domain, tier)
     except Exception:
         logger.exception("Failed to store teaching")
         await message.answer("Не удалось сохранить.")
@@ -222,7 +219,7 @@ async def cmd_knowledge(message: types.Message, state: FSMContext) -> None:
     tier = parts[1] if len(parts) >= 2 else None
 
     try:
-        entries = await asyncio.to_thread(_db.list_knowledge, domain=domain, tier=tier)
+        entries = await asyncio.to_thread(_memory.list_knowledge, domain=domain, tier=tier)
     except Exception:
         logger.exception("Failed to list knowledge")
         await message.answer("Ошибка при загрузке записей.")
@@ -267,7 +264,7 @@ async def cmd_forget(message: types.Message, state: FSMContext) -> None:
 
     entry_id = args[1].strip()
     try:
-        found = await asyncio.to_thread(_db.deactivate_knowledge, entry_id)
+        found = await asyncio.to_thread(_memory.deactivate_entry, entry_id)
     except Exception:
         logger.exception("Failed to deactivate knowledge entry")
         await message.answer(replies.knowledge.not_found)
@@ -286,7 +283,7 @@ async def cmd_kedit(message: types.Message, state: FSMContext) -> None:
 
     entry_id = args[1].strip()
     try:
-        entry = await asyncio.to_thread(_db.get_knowledge_entry, entry_id)
+        entry = await asyncio.to_thread(_memory.get_entry, entry_id)
     except Exception:
         logger.exception("Failed to fetch knowledge entry")
         await message.answer(replies.knowledge.not_found)
@@ -319,9 +316,7 @@ async def handle_kedit_reply(message: types.Message) -> bool:
         return True
 
     try:
-        retriever = _get_retriever()
-        embedding = await asyncio.to_thread(retriever._embed.embed_one, new_content)
-        found = await asyncio.to_thread(_db.update_knowledge_entry, entry_id, new_content, embedding)
+        found = await asyncio.to_thread(_memory.update_entry, entry_id, new_content)
     except Exception:
         logger.exception("Failed to edit knowledge entry")
         await message.answer(replies.knowledge.not_found)
@@ -342,9 +337,7 @@ async def cmd_ksearch(message: types.Message, state: FSMContext) -> None:
 
     query = args[1].strip()
     try:
-        retriever = _get_retriever()
-        embedding = await asyncio.to_thread(retriever._embed.embed_one, query)
-        results = await asyncio.to_thread(_db.search_knowledge, embedding, None, 10)
+        results = await asyncio.to_thread(_memory.recall, query, limit=10)
     except Exception:
         logger.exception("Knowledge search failed")
         await message.answer("Ошибка поиска.")
@@ -371,7 +364,7 @@ async def cmd_env(message: types.Message, state: FSMContext) -> None:
     name = args[1].strip() if len(args) > 1 and args[1].strip() else None
 
     if name:
-        env = await asyncio.to_thread(_db.get_environment, name)
+        env = await asyncio.to_thread(_memory.get_environment, name=name)
         if not env:
             await message.answer(replies.env.not_found)
             return
@@ -388,7 +381,7 @@ async def cmd_env(message: types.Message, state: FSMContext) -> None:
         await _send(message, text, parse_mode="HTML")
         return
 
-    envs = await asyncio.to_thread(_db.list_environments)
+    envs = await asyncio.to_thread(_memory.list_environments)
     if not envs:
         await message.answer(replies.env.empty)
         return
@@ -427,7 +420,7 @@ async def cmd_env_edit(message: types.Message, state: FSMContext) -> None:
     else:
         parsed_value = value
 
-    ok = await asyncio.to_thread(_db.update_environment, name, **{field: parsed_value})
+    ok = await asyncio.to_thread(_memory.update_environment, name, **{field: parsed_value})
     if not ok:
         await message.answer(replies.env.update_failed.format(name=name))
         return
@@ -442,7 +435,7 @@ async def cmd_env_bind(message: types.Message, state: FSMContext) -> None:
         return
 
     name = args[1].strip()
-    env = await asyncio.to_thread(_db.get_environment, name)
+    env = await asyncio.to_thread(_memory.get_environment, name=name)
     if not env:
         await message.answer(replies.env.not_found)
         return
@@ -511,7 +504,7 @@ async def cmd_entity_add(message: types.Message, state: FSMContext) -> None:
         return
 
     try:
-        await asyncio.to_thread(_db.save_entity, kind, name)
+        await asyncio.to_thread(_memory.add_entity, kind, name)
     except Exception:
         logger.exception("Entity add failed")
         await message.answer("Не удалось создать сущность.")
@@ -542,17 +535,16 @@ async def cmd_entity_link(message: types.Message, state: FSMContext) -> None:
     entity_name = " ".join(name_parts)
 
     try:
-        entities = await asyncio.to_thread(_db.find_entities_by_name, entity_name, 1)
+        entity = await asyncio.to_thread(_memory.find_entity, query=entity_name)
     except Exception:
         logger.exception("Entity link search failed")
         await message.answer(replies.entity.not_found)
         return
 
-    if not entities:
+    if not entity:
         await message.answer(replies.entity.not_found)
         return
 
-    entity = entities[0]
     merged = {**(entity.get("external_ids") or {}), **kv_pairs}
 
     try:
@@ -574,20 +566,21 @@ async def cmd_entity_note(message: types.Message, state: FSMContext) -> None:
     text = args[2].strip()
 
     try:
-        entities = await asyncio.to_thread(_db.find_entities_by_name, entity_name, 1)
+        entity = await asyncio.to_thread(_memory.find_entity, query=entity_name)
     except Exception:
         logger.exception("Entity note search failed")
         await message.answer(replies.entity.not_found)
         return
 
-    if not entities:
+    if not entity:
         await message.answer(replies.entity.not_found)
         return
 
-    entity = entities[0]
     try:
-        retriever = _get_retriever()
-        await asyncio.to_thread(retriever.store_entity_knowledge, entity["id"], text)
+        await asyncio.to_thread(
+            _memory.remember, text, "general",
+            source="admin_teach", entity_id=entity["id"],
+        )
     except Exception:
         logger.exception("Entity note store failed")
         await message.answer("Не удалось сохранить заметку.")

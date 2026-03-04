@@ -2091,9 +2091,29 @@ Phase 6.9 — Verification:
 - `get_context()` returns `{environment: str, knowledge: str, user_context: str, domains: list}` — ready for prompt assembly
 - `_memory` in handler_utils.py is the singleton, separate from `_db` and `_inbox`
 
+### Session 69 (2026-03-04) — Plan 7 Phase 7.2: Refactor handlers to use MemoryService
+**Status:** Complete (all items: 7.2.1-7.2.8)
+
+**What was done:**
+- `handler_utils.py`: `resolve_environment()` now uses `_memory.get_environment(chat_id=...)` instead of `_db.get_environment_by_chat_id()`. `resolve_entity_context()` uses `_memory.find_entity()` for entity lookup, still uses `_get_retriever().get_entity_context()` for formatting.
+- `conversation_handlers.py`: 11 functions refactored:
+  - `cmd_teach` → uses `_memory.teach(text, domain, tier)` instead of `_get_retriever().store_teaching()`
+  - `_handle_nl_reply` teaching block → single `_memory.teach(message.text)` replaces classify+store two-step
+  - Entity commands: `cmd_entity_add` → `_memory.add_entity()`, `cmd_entity_link` → `_memory.find_entity()`, `cmd_entity_note` → `_memory.find_entity()` + `_memory.remember()`
+  - Knowledge commands: `cmd_knowledge` → `_memory.list_knowledge()`, `cmd_forget` → `_memory.deactivate_entry()`, `cmd_kedit` → `_memory.get_entry()`, `handle_kedit_reply` → `_memory.update_entry()`, `cmd_ksearch` → `_memory.recall()`
+  - Env commands: `cmd_env` → `_memory.list_environments()` / `_memory.get_environment()`, `cmd_env_edit` → `_memory.update_environment()`, `cmd_env_bind` → `_memory.get_environment()`
+- `memory_service.py`: Added "tier" field to `recall()` output dicts for cmd_ksearch display
+- Tests updated: mock patches in `test_conversation_handlers.py` and `test_phase7_teaching.py` now mock `_memory` instead of `_db`/`_get_retriever`
+- NOT refactored (per 7.2.6): `generate_nl_reply`, `compose_request`, prompt assembly pipeline
+- Some ops still use `_db` directly where MemoryService lacks equivalents: `_db.update_entity()` (external_ids merge), `_db.list_entities()`, `_db.find_entities_by_name()`, `_db.bind_chat()`, `_db.get_bindings_for_environment()`
+
+**Review:** Supervisor passed cleanly. Zero issues.
+
+**Net result:** 1356 tests pass
+
 ## Next up
 
-- Plan 7 section 7.2: Refactor handlers to use MemoryService (replace direct KnowledgeRetriever/DbGateway calls)
 - Plan 7 section 7.3: MCP Server (expose MemoryService as MCP tools)
+- Plan 7 section 7.4: Claude Desktop/Code integration
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

@@ -60,6 +60,7 @@ class MemoryService:
                 "content": e["content"],
                 "similarity": e.get("similarity", 0),
                 "domain": e.get("domain", ""),
+                "tier": e.get("tier", ""),
             })
         return results
 

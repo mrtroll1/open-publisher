@@ -62,7 +62,7 @@ async def send_typing(chat_id: int) -> None:
 
 def resolve_environment(chat_id: int) -> tuple[str, list[str] | None]:
     """Return (system_context, allowed_domains) for a chat, or ("", None) if unbound."""
-    env = _db.get_environment_by_chat_id(chat_id)
+    env = _memory.get_environment(chat_id=chat_id)
     if env is None:
         return "", None
     return env["system_context"], env.get("allowed_domains")
@@ -70,7 +70,7 @@ def resolve_environment(chat_id: int) -> tuple[str, list[str] | None]:
 
 def resolve_entity_context(user_id: int) -> str:
     """Look up entity by telegram_user_id, return formatted context or empty string."""
-    entity = _db.find_entity_by_external_id("telegram_user_id", user_id)
+    entity = _memory.find_entity(external_key="telegram_user_id", external_value=str(user_id))
     if not entity:
         return ""
     return _get_retriever().get_entity_context(entity["id"])

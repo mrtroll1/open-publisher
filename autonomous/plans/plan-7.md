@@ -131,16 +131,16 @@
 > KnowledgeRetriever / DbGateway for memory operations.
 > This keeps the brain's API surface unified.
 
-- [ ] 7.2.1 Update `handler_utils.py`:
+- [x] 7.2.1 Update `handler_utils.py`:
   - Add `_memory: MemoryService` singleton alongside existing `_db`
   - Add `_get_memory() -> MemoryService` lazy getter
-- [ ] 7.2.2 Refactor `_resolve_environment()` (from Phase 5) to use `_memory.get_context(chat_id=...)` instead of direct DB calls
-- [ ] 7.2.3 Refactor `cmd_teach` to use `_memory.teach(text)` instead of direct classifier + retriever calls
-- [ ] 7.2.4 Refactor `_handle_nl_reply` teaching block to use `_memory.remember(...)` instead of direct `store_teaching`
-- [ ] 7.2.5 Refactor entity commands (Phase 6.7) to use `_memory.add_entity()`, `_memory.find_entity()`, etc.
-- [ ] 7.2.6 Do NOT refactor `generate_nl_reply` or `compose_request` — these are prompt assembly, not memory API
-- [ ] 7.2.7 Update test patches where needed
-- [ ] 7.2.8 Run `pytest` — all tests pass
+- [x] 7.2.2 Refactor `_resolve_environment()` (from Phase 5) to use `_memory.get_context(chat_id=...)` instead of direct DB calls
+- [x] 7.2.3 Refactor `cmd_teach` to use `_memory.teach(text)` instead of direct classifier + retriever calls
+- [x] 7.2.4 Refactor `_handle_nl_reply` teaching block to use `_memory.remember(...)` instead of direct `store_teaching`
+- [x] 7.2.5 Refactor entity commands (Phase 6.7) to use `_memory.add_entity()`, `_memory.find_entity()`, etc.
+- [x] 7.2.6 Do NOT refactor `generate_nl_reply` or `compose_request` — these are prompt assembly, not memory API
+- [x] 7.2.7 Update test patches where needed
+- [x] 7.2.8 Run `pytest` — all tests pass (1356 tests)
 
 ---
 

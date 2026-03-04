@@ -2377,6 +2377,42 @@ Phase 8.5 — Scheduled pipeline runner:
 
 **Net result:** 1604 tests pass (+44 new). `knowledge_repo.py` now fully covered — was the largest untested repo module.
 
+### Session 80 (2026-03-04) — Maintenance: Write Tests (round 18 — router.py + base.py)
+**Status:** Complete
+
+**What was done:**
+- Created 2 new test files for the two most critical untested areas in the codebase:
+
+**`tests/telegram_bot/test_router.py`** — 39 tests across 9 classes:
+  - `TestRegistries` (6): _DM_COMMANDS keys (5), _ADMIN_COMMANDS (28), _FSM_HANDLERS (7 states), _FSM_TRANSITIONS (9 tuples), _FSM_ENTRY_MESSAGES (waiting_type), all FSM handler states exist on ContractorStates
+  - `TestRouteTextGroupMessages` (4): editorial group dispatches, non-editorial ignored, no DM fallthrough, EDITORIAL_CHAT_ID=0 skips
+  - `TestRouteTextCommands` (7): DM command dispatch, @bot suffix strip, admin commands for admin, non-admin skips admin, no fallthrough to catch-all, unknown cmd returns, DM priority over admin
+  - `TestRouteTextAdminReply` (3): admin reply dispatches, non-admin falls through, no fallthrough
+  - `TestRouteTextFsmState` (2): active state dispatches to _route_fsm, no fallthrough
+  - `TestRouteTextCatchAll` (4): free text to handle_contractor_text, non-None triggers transition, None no transition, TYPING action sent
+  - `TestApplyFsmTransition` (7): end clears state, no message on None, target sets state, transition message sent, entry message sent, unknown key noop, end doesn't call set_state
+  - `TestRouteFsm` (4): handler dispatch + transition, None no transition, unknown state early return, TYPING sent
+  - `TestRegisterAll` (2): correct handler counts, callback handlers match source functions in order
+
+**`tests/infrastructure/repositories/postgres/test_base.py`** — 14 tests across 4 classes:
+  - `TestInit` (1): _conn starts as None
+  - `TestGetConn` (4): creates connection with DATABASE_URL + autocommit, reuses open, reconnects closed, second call reuses
+  - `TestInitSchema` (1): executes _SCHEMA_SQL + calls _seed_bindings
+  - `TestSeedBindings` (5): editorial + admin bindings, skips editorial when 0, editorial-only when no admins, no inserts when both falsy, ON CONFLICT DO NOTHING
+  - `TestClose` (3): closes open + sets None, noop on None, noop on already-closed
+
+**Supervisor review:** 3 issues found and fixed:
+- Removed unused `call` import from both files
+- Replaced hollow `test_callback_prefixes_registered` (duplicate assertion) with `test_callback_handlers_match_source` that verifies actual handler functions in registration order
+
+**Net result:** 53 new tests (1657 total), all passing in 3.55s
+
+**Notes:**
+- `router.py` was the most critical untested area — main routing logic (5-priority dispatch) now has comprehensive coverage
+- `base.py` was entirely untested — connection pooling, schema init, and seed_bindings now covered
+- `_extract_bot_mention`, `_dispatch_group_command`, `handle_group_message` already tested in test_flow_callbacks_helpers.py
+- Router tests verify routing logic only (all handlers mocked), not handler internals
+
 ## Next up
 
 - All plans (5-8) complete. Maintenance mode continues.
@@ -2385,6 +2421,6 @@ Phase 8.5 — Scheduled pipeline runner:
 - Plan 7 section 7.5: Verification (7.5.1 done, 7.5.2-7.5.5 are manual)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion
-- Remaining test gaps: thin gateway wrappers (drive, sheets, redefine), router.py, base.py — knowledge_repo now covered
-- Bug-spotting rounds: 11 total (last round found 1 bug in pipeline runner, previous rounds still productive)
-- compute_budget.py now at 62 tests (was 36), MCP tools at 40, handler_utils at 20, knowledge_repo at 44
+- Remaining test gaps: thin gateway wrappers (drive, sheets, redefine) — router.py and base.py now covered
+- Bug-spotting rounds: 11 total (last round found 1 bug in pipeline runner)
+- 4 sessions remaining (21-24): continue writing tests for remaining gaps, final bug-spotting round

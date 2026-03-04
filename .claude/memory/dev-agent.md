@@ -2328,6 +2328,28 @@ Phase 8.5 — Scheduled pipeline runner:
 
 **Net result:** 1534 tests pass (+40 new), 1 bug fixed
 
+### Session 78 (2026-03-04) — Maintenance: Write Tests (round 16 — compute_budget helpers)
+**Status:** Complete
+
+**What was done:**
+- Added 26 new tests to `tests/domain/use_cases/test_compute_budget.py` for previously untested helper functions:
+
+| Class | Tests | Covers |
+|---|---|---|
+| `TestPickByCurrency` | 5 | None input, EUR/RUB selection, zero treated as absent, both zero |
+| `TestPaymentEntryIsBlank` | 2 | name present → not blank, BLANK constant → is_blank |
+| `TestMatchAuthors` | 8 | basic match, unmatched, excluded, redirected, accumulates counts, redirect target not found, RUB redirect, mixed scenario |
+| `TestMakeNotedEntry` | 4 | no bonuses, add_to_total=True, add_to_total=False, RUB currency |
+| `TestAssembleGroupedResult` | 4 | empty groups, authors only, all groups populated, unmatched appended |
+| `TestPopulateSheet` | 3 | blank entry row, normal entry row, zero eur/rub → empty string |
+
+- `_match_authors` tests mock `find_contractor` and `find_contractor_by_id` at the module path
+- `_populate_sheet` tests mock `populate_sheet` and use `__new__` to bypass `ComputeBudget.__init__`
+
+**Supervisor review:** Zero issues found. All tests test real production logic. Style matches existing patterns.
+
+**Net result:** 1560 tests pass (+26 new), `compute_budget.py` test ratio improved from 0.5x to ~1.1x
+
 ## Next up
 
 - All plans (5-8) complete. Maintenance mode continues.
@@ -2338,4 +2360,4 @@ Phase 8.5 — Scheduled pipeline runner:
 - `_test_ternary.py` stray empty file in project root — needs manual deletion
 - Remaining test gaps: thin gateway wrappers (drive, sheets, redefine) — all other modules now covered
 - Bug-spotting rounds: 11 total (last round found 1 bug in pipeline runner, previous rounds still productive)
-- run_knowledge_pipelines.py now at 9 tests (was 2), MCP tools at 40 tests (was 27), handler_utils pure functions now at 20 tests (was 0)
+- compute_budget.py now at 62 tests (was 36), MCP tools at 40, handler_utils at 20

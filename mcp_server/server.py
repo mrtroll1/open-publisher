@@ -110,7 +110,7 @@ def list_knowledge(domain: str = "", tier: str = "") -> dict:
 
 # ── MCP registration ─────────────────────────────────────────────
 
-mcp = FastMCP(name="republic-brain")
+mcp = FastMCP(name="open-publisher")
 
 mcp.tool()(remember)
 mcp.tool()(recall)

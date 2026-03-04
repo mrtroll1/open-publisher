@@ -264,11 +264,7 @@ async def handle_group_message(
             sent = await _send_html(message, answer, reply_to_message_id=message.message_id)
             await _save_turn(message, sent, clean_text, answer, {"command": "nl_rag"})
         except Exception:
-            logger.exception("RAG fallback failed in group chat")
-            if result.reply:
-                sent = await _send_html(message, result.reply)
-                await _save_turn(message, sent, clean_text, result.reply,
-                                 {"command": "nl_fallback"})
+            logger.exception("RAG reply failed in group chat")
         return
 
     await _dispatch_group_command(

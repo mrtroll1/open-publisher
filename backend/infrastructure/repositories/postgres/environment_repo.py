@@ -83,6 +83,15 @@ class EnvironmentRepo(BasePostgresRepo):
             cur.execute(sql, tuple(params))
             return cur.rowcount > 0
 
+    def get_bindings_for_environment(self, environment: str) -> list[int]:
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT chat_id FROM environment_bindings WHERE environment = %s ORDER BY chat_id",
+                (environment,),
+            )
+            return [row[0] for row in cur.fetchall()]
+
     def bind_chat(self, chat_id: int, environment: str) -> None:
         conn = self._get_conn()
         with conn.cursor() as cur:

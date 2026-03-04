@@ -1938,8 +1938,41 @@ tests/
 
 **Net result:** 1240 tests pass (+9 new)
 
+### Session 64 (2026-03-04) — Plan 5 Phases 5.7-5.8: Teaching Dedup + Env Bot Commands
+**Status:** Complete (all items: 5.7.1-5.7.4, 5.8.1-5.8.4)
+
+**What was done:**
+
+Phase 5.7 — Teaching deduplication:
+- Modified `store_teaching()` and `store_feedback()` in `knowledge_retriever.py`:
+  - Both now embed text, search for existing entries with `limit=1`, check `similarity > 0.90`
+  - If high similarity match found → `update_knowledge_entry()` instead of creating new
+  - If no match or low similarity → falls through to `save_knowledge_entry()` as before
+- Added 6 dedup tests in `test_knowledge_retriever.py` (including boundary test for exactly 0.90)
+- Updated existing `store_feedback` and teaching tests to mock `search_knowledge.return_value = []`
+- Updated `test_phase7_teaching.py` tests similarly
+
+Phase 5.8 — Bot commands for environment management:
+- Added `get_bindings_for_environment()` method to `environment_repo.py` — returns list of chat_ids bound to a given environment
+- Added `class env:` reply strings to `replies.py` (usage, not_found, empty, updated, update_failed, bound)
+- Added 3 handlers to `conversation_handlers.py`:
+  - `cmd_env` — lists all environments or shows details for one (with bound chat_ids, system_context)
+  - `cmd_env_edit` — updates a field (description/system_context/allowed_domains) on a named environment; allowed_domains accepts comma-separated values
+  - `cmd_env_bind` — binds current chat to a named environment with existence validation
+- Registered all 3 in `router.py:_ADMIN_COMMANDS`
+- Added 10 tests in `test_conversation_handlers.py` covering list/details/edit/bind paths
+
+**Net result:** 1257 tests pass (+17 new)
+
+**Notes:**
+- Dedup uses strict `> 0.90` (not `>=`) — exactly 0.90 creates a new entry
+- `cmd_env_edit` uses `split(maxsplit=3)` to capture multi-word values
+- `cmd_env_bind` validates environment exists before binding
+
 ## Next up
 
-- Plan 5 continues with 5.7 (teaching dedup), 5.8 (bot commands for env management), 5.9 (verification)
+- Plan 5 has 3 remaining manual verification items (5.9.2-5.9.4) — these require live deployment
+- Plan 5 is effectively complete from an automation standpoint
+- Next session should start Plan 6
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

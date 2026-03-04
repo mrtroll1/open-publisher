@@ -49,6 +49,7 @@ from telegram_bot.handlers.contractor_handlers import (
 )
 from telegram_bot.handlers.conversation_handlers import (
     cmd_nl, cmd_teach, cmd_knowledge, cmd_ksearch, cmd_forget, cmd_kedit,
+    cmd_env, cmd_env_edit, cmd_env_bind,
 )
 
 logger = logging.getLogger(__name__)
@@ -130,6 +131,9 @@ _ADMIN_COMMANDS: dict[str, Callable] = {
     "ksearch": cmd_ksearch,
     "forget": cmd_forget,
     "kedit": cmd_kedit,
+    "env": cmd_env,
+    "env_edit": cmd_env_edit,
+    "env_bind": cmd_env_bind,
 }
 
 

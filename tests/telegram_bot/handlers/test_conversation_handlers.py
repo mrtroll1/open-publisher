@@ -518,3 +518,191 @@ class TestCmdNlEnvironment:
         call_kwargs = mock_generate.call_args
         assert call_kwargs[1]["environment"] == "env context"
         assert call_kwargs[1]["allowed_domains"] == ["domain1"]
+
+
+# ===================================================================
+#  cmd_env
+# ===================================================================
+
+class TestCmdEnv:
+
+    @patch("telegram_bot.handlers.conversation_handlers._send", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_env_lists_all(self, mock_db, mock_send):
+        from telegram_bot.handlers.conversation_handlers import cmd_env
+
+        mock_db.list_environments.return_value = [
+            {
+                "name": "admin_dm",
+                "description": "Admin chat",
+                "system_context": "Full access.",
+                "allowed_domains": None,
+            },
+            {
+                "name": "editorial_group",
+                "description": "Editorial",
+                "system_context": "Group context.",
+                "allowed_domains": ["tech_support", "editorial"],
+            },
+        ]
+        mock_db.get_bindings_for_environment.return_value = []
+
+        msg = _make_message("/env")
+        state = _make_state()
+        asyncio.run(cmd_env(msg, state))
+
+        mock_db.list_environments.assert_called_once()
+        mock_send.assert_awaited_once()
+        text = mock_send.call_args[0][1]
+        assert "admin_dm" in text
+        assert "editorial_group" in text
+
+    @patch("telegram_bot.handlers.conversation_handlers._send", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_env_shows_details(self, mock_db, mock_send):
+        from telegram_bot.handlers.conversation_handlers import cmd_env
+
+        mock_db.get_environment.return_value = {
+            "name": "admin_dm",
+            "description": "Admin chat",
+            "system_context": "Full access context.",
+            "allowed_domains": ["payments"],
+        }
+        mock_db.get_bindings_for_environment.return_value = [12345, 67890]
+
+        msg = _make_message("/env admin_dm")
+        state = _make_state()
+        asyncio.run(cmd_env(msg, state))
+
+        mock_db.get_environment.assert_called_once_with("admin_dm")
+        mock_send.assert_awaited_once()
+        text = mock_send.call_args[0][1]
+        assert "admin_dm" in text
+        assert "Full access context." in text
+        assert "12345" in text
+        assert "67890" in text
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_env_not_found(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_env
+
+        mock_db.get_environment.return_value = None
+
+        msg = _make_message("/env nonexistent")
+        state = _make_state()
+        asyncio.run(cmd_env(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "не найдено" in msg.answer.call_args[0][0].lower()
+
+
+# ===================================================================
+#  cmd_env_edit
+# ===================================================================
+
+class TestCmdEnvEdit:
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_env_edit_updates_system_context(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_env_edit
+
+        mock_db.update_environment.return_value = True
+
+        msg = _make_message("/env_edit admin_dm system_context New context here")
+        state = _make_state()
+        asyncio.run(cmd_env_edit(msg, state))
+
+        mock_db.update_environment.assert_called_once_with(
+            "admin_dm", system_context="New context here",
+        )
+        msg.answer.assert_awaited_once()
+        assert "обновлено" in msg.answer.call_args[0][0].lower()
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_env_edit_updates_allowed_domains(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_env_edit
+
+        mock_db.update_environment.return_value = True
+
+        msg = _make_message("/env_edit editorial_group allowed_domains tech_support, editorial, payments")
+        state = _make_state()
+        asyncio.run(cmd_env_edit(msg, state))
+
+        mock_db.update_environment.assert_called_once_with(
+            "editorial_group",
+            allowed_domains=["tech_support", "editorial", "payments"],
+        )
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_env_edit_invalid_field(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_env_edit
+
+        msg = _make_message("/env_edit admin_dm bogus_field value")
+        state = _make_state()
+        asyncio.run(cmd_env_edit(msg, state))
+
+        mock_db.update_environment.assert_not_called()
+        msg.answer.assert_awaited_once()
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_env_edit_no_args_shows_usage(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_env_edit
+
+        msg = _make_message("/env_edit")
+        state = _make_state()
+        asyncio.run(cmd_env_edit(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "env_edit" in msg.answer.call_args[0][0].lower()
+
+
+# ===================================================================
+#  cmd_env_bind
+# ===================================================================
+
+class TestCmdEnvBind:
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_env_bind_binds_current_chat(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_env_bind
+
+        mock_db.get_environment.return_value = {
+            "name": "editorial_group",
+            "description": "Editorial",
+            "system_context": "Group context.",
+            "allowed_domains": ["editorial"],
+        }
+
+        msg = _make_message("/env_bind editorial_group", chat_id=555)
+        state = _make_state()
+        asyncio.run(cmd_env_bind(msg, state))
+
+        mock_db.get_environment.assert_called_once_with("editorial_group")
+        mock_db.bind_chat.assert_called_once_with(555, "editorial_group")
+        msg.answer.assert_awaited_once()
+        assert "editorial_group" in msg.answer.call_args[0][0]
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_env_bind_not_found(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_env_bind
+
+        mock_db.get_environment.return_value = None
+
+        msg = _make_message("/env_bind nonexistent")
+        state = _make_state()
+        asyncio.run(cmd_env_bind(msg, state))
+
+        mock_db.bind_chat.assert_not_called()
+        msg.answer.assert_awaited_once()
+        assert "не найдено" in msg.answer.call_args[0][0].lower()
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_env_bind_no_args_shows_usage(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_env_bind
+
+        msg = _make_message("/env_bind")
+        state = _make_state()
+        asyncio.run(cmd_env_bind(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "env_bind" in msg.answer.call_args[0][0].lower()

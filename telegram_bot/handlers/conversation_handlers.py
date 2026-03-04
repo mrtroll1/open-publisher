@@ -51,6 +51,9 @@ __all__ = [
     "cmd_forget",
     "cmd_kedit",
     "handle_kedit_reply",
+    "cmd_env",
+    "cmd_env_edit",
+    "cmd_env_bind",
     "_classify_teaching_text",
     "_format_reply_chain",
     "_handle_nl_reply",
@@ -380,3 +383,89 @@ async def cmd_ksearch(message: types.Message, state: FSMContext) -> None:
         )
 
     await _send(message, "\n".join(lines), parse_mode="HTML")
+
+
+async def cmd_env(message: types.Message, state: FSMContext) -> None:
+    """List environments or show details: /env [name]"""
+    args = message.text.split(maxsplit=1)
+    name = args[1].strip() if len(args) > 1 and args[1].strip() else None
+
+    if name:
+        env = await asyncio.to_thread(_db.get_environment, name)
+        if not env:
+            await message.answer(replies.env.not_found)
+            return
+        bindings = await asyncio.to_thread(_db.get_bindings_for_environment, name)
+        domains = ", ".join(env["allowed_domains"]) if env.get("allowed_domains") else "—"
+        chats = ", ".join(str(c) for c in bindings) if bindings else "—"
+        text = (
+            f"<b>{env['name']}</b>\n"
+            f"Описание: {env['description']}\n"
+            f"Домены: {domains}\n"
+            f"Чаты: {chats}\n\n"
+            f"system_context:\n<pre>{env['system_context']}</pre>"
+        )
+        await _send(message, text, parse_mode="HTML")
+        return
+
+    envs = await asyncio.to_thread(_db.list_environments)
+    if not envs:
+        await message.answer(replies.env.empty)
+        return
+
+    lines = []
+    for e in envs:
+        domains = ", ".join(e["allowed_domains"]) if e.get("allowed_domains") else "—"
+        bindings = await asyncio.to_thread(_db.get_bindings_for_environment, e["name"])
+        chats = ", ".join(str(c) for c in bindings) if bindings else "—"
+        lines.append(
+            f"<b>{e['name']}</b> — {e['description']}\n"
+            f"  домены: {domains}\n"
+            f"  чаты: {chats}"
+        )
+    await _send(message, "\n\n".join(lines), parse_mode="HTML")
+
+
+async def cmd_env_edit(message: types.Message, state: FSMContext) -> None:
+    """Edit environment field: /env_edit <name> <field> <value>"""
+    args = message.text.split(maxsplit=3)
+    if len(args) < 4:
+        await message.answer(replies.env.edit_usage)
+        return
+
+    name = args[1].strip()
+    field = args[2].strip()
+    value = args[3].strip()
+
+    allowed_fields = {"description", "system_context", "allowed_domains"}
+    if field not in allowed_fields:
+        await message.answer(replies.env.edit_usage)
+        return
+
+    if field == "allowed_domains":
+        parsed_value = [d.strip() for d in value.split(",") if d.strip()]
+    else:
+        parsed_value = value
+
+    ok = await asyncio.to_thread(_db.update_environment, name, **{field: parsed_value})
+    if not ok:
+        await message.answer(replies.env.update_failed.format(name=name))
+        return
+    await message.answer(replies.env.updated.format(name=name, field=field))
+
+
+async def cmd_env_bind(message: types.Message, state: FSMContext) -> None:
+    """Bind current chat to environment: /env_bind <name>"""
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2 or not args[1].strip():
+        await message.answer(replies.env.bind_usage)
+        return
+
+    name = args[1].strip()
+    env = await asyncio.to_thread(_db.get_environment, name)
+    if not env:
+        await message.answer(replies.env.not_found)
+        return
+
+    await asyncio.to_thread(_db.bind_chat, message.chat.id, name)
+    await message.answer(replies.env.bound.format(name=name))

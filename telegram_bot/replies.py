@@ -329,6 +329,19 @@ class ksearch:
     header = "Результаты поиска «{query}» ({count}):\n"
 
 
+# ── Environment management ─────────────────────────────────────────
+
+class env:
+    usage = "Использование: /env [name] — список всех или детали одного окружения"
+    edit_usage = "Использование: /env_edit <name> <field> <value>\nПоля: description, system_context, allowed_domains"
+    bind_usage = "Использование: /env_bind <name>"
+    not_found = "Окружение не найдено."
+    empty = "Окружений не найдено."
+    updated = "Окружение «{name}» обновлено: {field}"
+    update_failed = "Не удалось обновить окружение «{name}»."
+    bound = "Чат привязан к окружению «{name}»."
+
+
 # ── Generic ──────────────────────────────────────────────────────────
 
 class generic:

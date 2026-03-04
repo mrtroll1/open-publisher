@@ -50,6 +50,11 @@ class KnowledgeRetriever:
 
     def store_feedback(self, text: str, domain: str) -> str:
         embedding = self._embed.embed_one(text)
+        existing = self._db.search_knowledge(embedding, domain=domain, limit=1)
+        if existing and existing[0].get("similarity", 0) > 0.90:
+            entry_id = existing[0]["id"]
+            self._db.update_knowledge_entry(entry_id, text, embedding)
+            return entry_id
         title = text[:60].strip()
         return self._db.save_knowledge_entry(
             tier="specific",
@@ -62,6 +67,11 @@ class KnowledgeRetriever:
 
     def store_teaching(self, text: str, domain: str = "general", tier: str = "specific") -> str:
         embedding = self._embed.embed_one(text)
+        existing = self._db.search_knowledge(embedding, domain=domain, limit=1)
+        if existing and existing[0].get("similarity", 0) > 0.90:
+            entry_id = existing[0]["id"]
+            self._db.update_knowledge_entry(entry_id, text, embedding)
+            return entry_id
         title = text[:60].strip()
         return self._db.save_knowledge_entry(
             tier=tier,

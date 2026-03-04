@@ -73,6 +73,7 @@ class TestStoreTeaching:
     def test_happy_path(self):
         kr, mock_db, mock_embed = _make_retriever()
         mock_embed.embed_one.return_value = [0.1, 0.2, 0.3]
+        mock_db.search_knowledge.return_value = []
         mock_db.save_knowledge_entry.return_value = "teach-uuid-1"
 
         result = kr.store_teaching("Всегда отвечай на русском")
@@ -91,6 +92,7 @@ class TestStoreTeaching:
     def test_custom_domain(self):
         kr, mock_db, mock_embed = _make_retriever()
         mock_embed.embed_one.return_value = [0.5]
+        mock_db.search_knowledge.return_value = []
         mock_db.save_knowledge_entry.return_value = "uuid"
 
         kr.store_teaching("billing rule", domain="billing")
@@ -102,6 +104,7 @@ class TestStoreTeaching:
     def test_title_truncated_at_60_chars(self):
         kr, mock_db, mock_embed = _make_retriever()
         mock_embed.embed_one.return_value = [0.5]
+        mock_db.search_knowledge.return_value = []
         mock_db.save_knowledge_entry.return_value = "uuid"
 
         long_text = "А" * 100

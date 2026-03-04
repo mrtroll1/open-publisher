@@ -219,7 +219,7 @@
 > Before storing a new teaching, check embedding similarity against existing entries.
 > If match > 0.90, update existing entry instead of creating duplicate.
 
-- [ ] 5.7.1 Modify `KnowledgeRetriever.store_teaching()` (knowledge_retriever.py, line 55):
+- [x] 5.7.1 Modify `KnowledgeRetriever.store_teaching()` (knowledge_retriever.py, line 55):
   ```python
   def store_teaching(self, text: str, domain: str = "general", tier: str = "specific") -> str:
       embedding = self._embed.embed_one(text)
@@ -234,11 +234,11 @@
           content=text, source="admin_teach", embedding=embedding,
       )
   ```
-- [ ] 5.7.2 Same for `store_feedback()` (line 43) — apply identical dedup logic.
-- [ ] 5.7.3 Write tests:
+- [x] 5.7.2 Same for `store_feedback()` (line 43) — apply identical dedup logic.
+- [x] 5.7.3 Write tests:
   - `test_store_teaching_deduplicates_similar`
   - `test_store_teaching_creates_new_when_different`
-- [ ] 5.7.4 Run `pytest` — all tests pass
+- [x] 5.7.4 Run `pytest` — all tests pass
 
 ---
 
@@ -246,7 +246,7 @@
 
 > Admin should be able to manage environments via Telegram, not just SQL.
 
-- [ ] 5.8.1 Add commands to `conversation_handlers.py`:
+- [x] 5.8.1 Add commands to `conversation_handlers.py`:
   ```python
   async def cmd_env(message: types.Message, state: FSMContext) -> None:
       """List environments or show details: /env [name]"""
@@ -258,23 +258,23 @@
   async def cmd_env_bind(message: types.Message, state: FSMContext) -> None:
       """Bind current chat to environment: /env_bind <name>"""
   ```
-- [ ] 5.8.2 Register in `router.py:_ADMIN_COMMANDS` dict
-- [ ] 5.8.3 Write tests for each command:
+- [x] 5.8.2 Register in `router.py:_ADMIN_COMMANDS` dict
+- [x] 5.8.3 Write tests for each command:
   - `test_cmd_env_lists_all`
   - `test_cmd_env_shows_details`
   - `test_cmd_env_edit_updates_system_context`
   - `test_cmd_env_bind_binds_current_chat`
-- [ ] 5.8.4 Run `pytest` — all tests pass
+- [x] 5.8.4 Run `pytest` — all tests pass
 
 ---
 
 ## 5.9 Verification
 
-- [ ] 5.9.1 Run full `pytest` suite — all tests pass
+- [x] 5.9.1 Run full `pytest` suite — all tests pass (1257 tests, 2.82s)
 - [ ] 5.9.2 Manual: send @mention in editorial group → bot reply should include editorial_group system_context in its prompt (verify via logs or response tone)
 - [ ] 5.9.3 Manual: `/env` in admin DM → shows all environments with bindings
 - [ ] 5.9.4 Manual: `/env_bind editorial_group` in a new group chat → binds it
-- [ ] 5.9.5 Commit: `feat: add environment-aware prompt assembly (WHERE layer)`
+- [x] 5.9.5 Commit: `feat: add environment-aware prompt assembly (WHERE layer)`
 
 ---
 

@@ -269,6 +269,7 @@ class TestStoreFeedback:
     def test_happy_path(self):
         kr, mock_db, mock_embed = _make_retriever()
         mock_embed.embed_one.return_value = [0.1, 0.2, 0.3]
+        mock_db.search_knowledge.return_value = []
         mock_db.save_knowledge_entry.return_value = "new-uuid-123"
 
         result = kr.store_feedback("Don't reply to spam", domain="tech_support")
@@ -287,6 +288,7 @@ class TestStoreFeedback:
     def test_title_truncated_at_60_chars(self):
         kr, mock_db, mock_embed = _make_retriever()
         mock_embed.embed_one.return_value = [0.5]
+        mock_db.search_knowledge.return_value = []
         mock_db.save_knowledge_entry.return_value = "uuid"
 
         long_text = "A" * 100
@@ -295,3 +297,112 @@ class TestStoreFeedback:
         call_kwargs = mock_db.save_knowledge_entry.call_args[1]
         assert len(call_kwargs["title"]) == 60
         assert call_kwargs["content"] == long_text
+
+    def test_deduplicates_similar(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.1, 0.2]
+        mock_db.search_knowledge.return_value = [
+            {"id": "existing-id", "similarity": 0.95},
+        ]
+
+        result = kr.store_feedback("Updated feedback", domain="tech_support")
+
+        assert result == "existing-id"
+        mock_db.update_knowledge_entry.assert_called_once_with(
+            "existing-id", "Updated feedback", [0.1, 0.2],
+        )
+        mock_db.save_knowledge_entry.assert_not_called()
+
+    def test_creates_new_when_different(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.1, 0.2]
+        mock_db.search_knowledge.return_value = [
+            {"id": "other-id", "similarity": 0.50},
+        ]
+        mock_db.save_knowledge_entry.return_value = "new-id"
+
+        result = kr.store_feedback("Brand new feedback", domain="tech_support")
+
+        assert result == "new-id"
+        mock_db.update_knowledge_entry.assert_not_called()
+        mock_db.save_knowledge_entry.assert_called_once()
+
+
+# ===================================================================
+#  store_teaching
+# ===================================================================
+
+class TestStoreTeaching:
+
+    def test_happy_path(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.4, 0.5]
+        mock_db.search_knowledge.return_value = []
+        mock_db.save_knowledge_entry.return_value = "teach-uuid"
+
+        result = kr.store_teaching("Always greet in Russian", domain="general", tier="meta")
+
+        assert result == "teach-uuid"
+        mock_db.save_knowledge_entry.assert_called_once_with(
+            tier="meta",
+            domain="general",
+            title="Always greet in Russian",
+            content="Always greet in Russian",
+            source="admin_teach",
+            embedding=[0.4, 0.5],
+        )
+
+    def test_deduplicates_similar(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.3]
+        mock_db.search_knowledge.return_value = [
+            {"id": "old-teaching-id", "similarity": 0.92},
+        ]
+
+        result = kr.store_teaching("Updated teaching", domain="general")
+
+        assert result == "old-teaching-id"
+        mock_db.update_knowledge_entry.assert_called_once_with(
+            "old-teaching-id", "Updated teaching", [0.3],
+        )
+        mock_db.save_knowledge_entry.assert_not_called()
+
+    def test_creates_new_when_different(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.7]
+        mock_db.search_knowledge.return_value = [
+            {"id": "unrelated-id", "similarity": 0.40},
+        ]
+        mock_db.save_knowledge_entry.return_value = "new-teach-id"
+
+        result = kr.store_teaching("Completely new topic", domain="payments")
+
+        assert result == "new-teach-id"
+        mock_db.update_knowledge_entry.assert_not_called()
+        mock_db.save_knowledge_entry.assert_called_once()
+
+    def test_creates_new_when_no_existing(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.1]
+        mock_db.search_knowledge.return_value = []
+        mock_db.save_knowledge_entry.return_value = "fresh-id"
+
+        result = kr.store_teaching("First teaching ever")
+
+        assert result == "fresh-id"
+        mock_db.save_knowledge_entry.assert_called_once()
+
+    def test_boundary_similarity_090_does_not_dedup(self):
+        """Similarity exactly 0.90 should NOT trigger dedup (> 0.90 required)."""
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.5]
+        mock_db.search_knowledge.return_value = [
+            {"id": "boundary-id", "similarity": 0.90},
+        ]
+        mock_db.save_knowledge_entry.return_value = "new-id"
+
+        result = kr.store_teaching("Borderline similar")
+
+        assert result == "new-id"
+        mock_db.update_knowledge_entry.assert_not_called()
+        mock_db.save_knowledge_entry.assert_called_once()

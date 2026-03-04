@@ -988,3 +988,621 @@ class TestCmdEntityNote:
 
         msg.answer.assert_awaited_once()
         assert "entity_note" in msg.answer.call_args[0][0].lower()
+
+
+# ===================================================================
+#  cmd_teach
+# ===================================================================
+
+class TestCmdTeach:
+
+    def test_no_args_shows_usage(self):
+        from telegram_bot.handlers.conversation_handlers import cmd_teach
+
+        msg = _make_message("/teach")
+        state = _make_state()
+        asyncio.run(cmd_teach(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "/teach" in msg.answer.call_args[0][0]
+
+    def test_whitespace_only_shows_usage(self):
+        from telegram_bot.handlers.conversation_handlers import cmd_teach
+
+        msg = _make_message("/teach   ")
+        state = _make_state()
+        asyncio.run(cmd_teach(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "/teach" in msg.answer.call_args[0][0]
+
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    @patch("telegram_bot.handlers.conversation_handlers._classify_teaching_text", new_callable=AsyncMock)
+    def test_stores_classified_teaching(self, mock_classify, mock_memory):
+        from telegram_bot.handlers.conversation_handlers import cmd_teach
+
+        mock_classify.return_value = ("tech_support", "core")
+
+        msg = _make_message("/teach some important knowledge")
+        state = _make_state()
+        asyncio.run(cmd_teach(msg, state))
+
+        mock_classify.assert_awaited_once_with("some important knowledge")
+        mock_memory.teach.assert_called_once_with(
+            "some important knowledge", "tech_support", "core",
+        )
+        msg.answer.assert_awaited_once()
+        text = msg.answer.call_args[0][0]
+        assert "tech_support" in text
+        assert "core" in text
+
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    @patch("telegram_bot.handlers.conversation_handlers._classify_teaching_text", new_callable=AsyncMock)
+    def test_exception_shows_error(self, mock_classify, mock_memory):
+        from telegram_bot.handlers.conversation_handlers import cmd_teach
+
+        mock_classify.side_effect = Exception("LLM down")
+
+        msg = _make_message("/teach some text")
+        state = _make_state()
+        asyncio.run(cmd_teach(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "не удалось сохранить" in msg.answer.call_args[0][0].lower()
+
+
+# ===================================================================
+#  cmd_knowledge
+# ===================================================================
+
+class TestCmdKnowledge:
+
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    def test_empty_entries(self, mock_memory):
+        from telegram_bot.handlers.conversation_handlers import cmd_knowledge
+
+        mock_memory.list_knowledge.return_value = []
+
+        msg = _make_message("/knowledge")
+        state = _make_state()
+        asyncio.run(cmd_knowledge(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "не найдено" in msg.answer.call_args[0][0].lower()
+
+    @patch("telegram_bot.handlers.conversation_handlers._send", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    def test_lists_entries(self, mock_memory, mock_send):
+        from telegram_bot.handlers.conversation_handlers import cmd_knowledge
+        from datetime import datetime
+
+        mock_memory.list_knowledge.return_value = [
+            {
+                "id": "id-1", "title": "Title One", "tier": "core",
+                "domain": "general", "source": "admin_teach",
+                "content": "Short content", "created_at": datetime(2025, 1, 15),
+            },
+            {
+                "id": "id-2", "title": "Title Two", "tier": "core",
+                "domain": "general", "source": "extraction",
+                "content": "Another", "created_at": datetime(2025, 2, 10),
+            },
+        ]
+
+        msg = _make_message("/knowledge")
+        state = _make_state()
+        asyncio.run(cmd_knowledge(msg, state))
+
+        mock_memory.list_knowledge.assert_called_once_with(domain=None, tier=None)
+        mock_send.assert_awaited_once()
+        text = mock_send.call_args[0][1]
+        assert "2" in text  # count
+        assert "Title One" in text
+        assert "Title Two" in text
+        assert "[core] general" in text
+
+    @patch("telegram_bot.handlers.conversation_handlers._send", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    def test_verbose_flag(self, mock_memory, mock_send):
+        from telegram_bot.handlers.conversation_handlers import cmd_knowledge
+        from datetime import datetime
+
+        mock_memory.list_knowledge.return_value = [
+            {
+                "id": "id-1", "title": "Title One", "tier": "core",
+                "domain": "general", "source": "admin_teach",
+                "content": "Verbose content here", "created_at": datetime(2025, 1, 15),
+            },
+        ]
+
+        msg = _make_message("/knowledge -v")
+        state = _make_state()
+        asyncio.run(cmd_knowledge(msg, state))
+
+        mock_send.assert_awaited_once()
+        text = mock_send.call_args[0][1]
+        # Verbose template includes ID, source, date, and <pre> content
+        assert "ID: id-1" in text
+        assert "Источник:" in text
+        assert "<pre>" in text
+        assert "Verbose content here" in text
+
+    @patch("telegram_bot.handlers.conversation_handlers._send", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    def test_domain_filter(self, mock_memory, mock_send):
+        from telegram_bot.handlers.conversation_handlers import cmd_knowledge
+        from datetime import datetime
+
+        mock_memory.list_knowledge.return_value = [
+            {
+                "id": "id-1", "title": "Title", "tier": "core",
+                "domain": "tech_support", "source": "admin_teach",
+                "content": "content", "created_at": datetime(2025, 1, 1),
+            },
+        ]
+
+        msg = _make_message("/knowledge tech_support")
+        state = _make_state()
+        asyncio.run(cmd_knowledge(msg, state))
+
+        mock_memory.list_knowledge.assert_called_once_with(
+            domain="tech_support", tier=None,
+        )
+
+    @patch("telegram_bot.handlers.conversation_handlers._send", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    def test_domain_and_tier_filter(self, mock_memory, mock_send):
+        from telegram_bot.handlers.conversation_handlers import cmd_knowledge
+        from datetime import datetime
+
+        mock_memory.list_knowledge.return_value = [
+            {
+                "id": "id-1", "title": "Title", "tier": "core",
+                "domain": "tech_support", "source": "admin_teach",
+                "content": "content", "created_at": datetime(2025, 1, 1),
+            },
+        ]
+
+        msg = _make_message("/knowledge tech_support core")
+        state = _make_state()
+        asyncio.run(cmd_knowledge(msg, state))
+
+        mock_memory.list_knowledge.assert_called_once_with(
+            domain="tech_support", tier="core",
+        )
+
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    def test_exception_shows_error(self, mock_memory):
+        from telegram_bot.handlers.conversation_handlers import cmd_knowledge
+
+        mock_memory.list_knowledge.side_effect = Exception("DB down")
+
+        msg = _make_message("/knowledge")
+        state = _make_state()
+        asyncio.run(cmd_knowledge(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "ошибка" in msg.answer.call_args[0][0].lower()
+
+    @patch("telegram_bot.handlers.conversation_handlers._send", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    def test_long_content_truncated(self, mock_memory, mock_send):
+        from telegram_bot.handlers.conversation_handlers import cmd_knowledge
+        from datetime import datetime
+
+        long_content = "A" * 200
+        mock_memory.list_knowledge.return_value = [
+            {
+                "id": "id-1", "title": "Title", "tier": "core",
+                "domain": "general", "source": "admin_teach",
+                "content": long_content, "created_at": datetime(2025, 1, 1),
+            },
+        ]
+
+        # Verbose mode includes content in output, where truncation is visible
+        msg = _make_message("/knowledge -v")
+        state = _make_state()
+        asyncio.run(cmd_knowledge(msg, state))
+
+        mock_send.assert_awaited_once()
+        text = mock_send.call_args[0][1]
+        # Content should be truncated to 120 chars + "…"
+        assert "A" * 120 + "…" in text
+        assert "A" * 121 not in text.replace("…", "")
+
+
+# ===================================================================
+#  cmd_ksearch
+# ===================================================================
+
+class TestCmdKsearch:
+
+    def test_no_args_shows_usage(self):
+        from telegram_bot.handlers.conversation_handlers import cmd_ksearch
+
+        msg = _make_message("/ksearch")
+        state = _make_state()
+        asyncio.run(cmd_ksearch(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "/ksearch" in msg.answer.call_args[0][0]
+
+    @patch("telegram_bot.handlers.conversation_handlers._send", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    def test_returns_results(self, mock_memory, mock_send):
+        from telegram_bot.handlers.conversation_handlers import cmd_ksearch
+
+        mock_memory.recall.return_value = [
+            {
+                "id": "id-1", "title": "Result One",
+                "tier": "core", "domain": "general",
+                "similarity": 0.85,
+            },
+            {
+                "id": "id-2", "title": "Result Two",
+                "tier": "supplementary", "domain": "tech_support",
+                "similarity": 0.72,
+            },
+        ]
+
+        msg = _make_message("/ksearch how to reset password")
+        state = _make_state()
+        asyncio.run(cmd_ksearch(msg, state))
+
+        mock_memory.recall.assert_called_once_with(
+            "how to reset password", limit=10,
+        )
+        mock_send.assert_awaited_once()
+        text = mock_send.call_args[0][1]
+        assert "how to reset password" in text
+        assert "2" in text  # count
+        assert "Result One" in text
+        assert "Result Two" in text
+        assert "0.85" in text
+        assert "0.72" in text
+
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    def test_no_results(self, mock_memory):
+        from telegram_bot.handlers.conversation_handlers import cmd_ksearch
+
+        mock_memory.recall.return_value = []
+
+        msg = _make_message("/ksearch obscure query")
+        state = _make_state()
+        asyncio.run(cmd_ksearch(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "не найдено" in msg.answer.call_args[0][0].lower()
+
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    def test_exception_shows_error(self, mock_memory):
+        from telegram_bot.handlers.conversation_handlers import cmd_ksearch
+
+        mock_memory.recall.side_effect = Exception("Search failed")
+
+        msg = _make_message("/ksearch some query")
+        state = _make_state()
+        asyncio.run(cmd_ksearch(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "ошибка поиска" in msg.answer.call_args[0][0].lower()
+
+
+# ===================================================================
+#  cmd_forget
+# ===================================================================
+
+class TestCmdForget:
+
+    def test_no_args_shows_usage(self):
+        from telegram_bot.handlers.conversation_handlers import cmd_forget
+
+        msg = _make_message("/forget")
+        state = _make_state()
+        asyncio.run(cmd_forget(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "/forget" in msg.answer.call_args[0][0]
+
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    def test_deactivates_entry(self, mock_memory):
+        from telegram_bot.handlers.conversation_handlers import cmd_forget
+
+        mock_memory.deactivate_entry.return_value = True
+
+        msg = _make_message("/forget abc-123-def")
+        state = _make_state()
+        asyncio.run(cmd_forget(msg, state))
+
+        mock_memory.deactivate_entry.assert_called_once_with("abc-123-def")
+        msg.answer.assert_awaited_once()
+        assert "удалена" in msg.answer.call_args[0][0].lower()
+
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    def test_not_found(self, mock_memory):
+        from telegram_bot.handlers.conversation_handlers import cmd_forget
+
+        mock_memory.deactivate_entry.return_value = False
+
+        msg = _make_message("/forget nonexistent-id")
+        state = _make_state()
+        asyncio.run(cmd_forget(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "не найдена" in msg.answer.call_args[0][0].lower()
+
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    def test_exception_shows_not_found(self, mock_memory):
+        from telegram_bot.handlers.conversation_handlers import cmd_forget
+
+        mock_memory.deactivate_entry.side_effect = Exception("DB error")
+
+        msg = _make_message("/forget some-id")
+        state = _make_state()
+        asyncio.run(cmd_forget(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "не найдена" in msg.answer.call_args[0][0].lower()
+
+
+# ===================================================================
+#  cmd_kedit
+# ===================================================================
+
+class TestCmdKedit:
+
+    def test_no_args_shows_usage(self):
+        from telegram_bot.handlers.conversation_handlers import cmd_kedit
+
+        msg = _make_message("/kedit")
+        state = _make_state()
+        asyncio.run(cmd_kedit(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "/kedit" in msg.answer.call_args[0][0]
+
+    @patch("telegram_bot.handlers.conversation_handlers._kedit_pending", {})
+    @patch("telegram_bot.handlers.conversation_handlers._send_html", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    def test_shows_entry_for_editing(self, mock_memory, mock_send_html):
+        from telegram_bot.handlers.conversation_handlers import cmd_kedit, _kedit_pending
+
+        mock_memory.get_entry.return_value = {
+            "id": "entry-123",
+            "tier": "core",
+            "domain": "general",
+            "title": "Important fact",
+            "content": "The actual content here",
+        }
+        sent_msg = MagicMock()
+        sent_msg.message_id = 55
+        mock_send_html.return_value = sent_msg
+
+        msg = _make_message("/kedit entry-123", chat_id=100)
+        state = _make_state()
+        asyncio.run(cmd_kedit(msg, state))
+
+        mock_memory.get_entry.assert_called_once_with("entry-123")
+        mock_send_html.assert_awaited_once()
+        text = mock_send_html.call_args[0][1]
+        assert "Important fact" in text
+        assert "The actual content here" in text
+        assert "Ответьте на это сообщение" in text
+        # Check that entry is stored in _kedit_pending
+        assert _kedit_pending[(100, 55)] == "entry-123"
+
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    def test_not_found(self, mock_memory):
+        from telegram_bot.handlers.conversation_handlers import cmd_kedit
+
+        mock_memory.get_entry.return_value = None
+
+        msg = _make_message("/kedit nonexistent-id")
+        state = _make_state()
+        asyncio.run(cmd_kedit(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "не найдена" in msg.answer.call_args[0][0].lower()
+
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    def test_exception_shows_not_found(self, mock_memory):
+        from telegram_bot.handlers.conversation_handlers import cmd_kedit
+
+        mock_memory.get_entry.side_effect = Exception("DB error")
+
+        msg = _make_message("/kedit some-id")
+        state = _make_state()
+        asyncio.run(cmd_kedit(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "не найдена" in msg.answer.call_args[0][0].lower()
+
+
+# ===================================================================
+#  handle_kedit_reply
+# ===================================================================
+
+class TestHandleKeditReply:
+
+    def test_no_reply_returns_false(self):
+        from telegram_bot.handlers.conversation_handlers import handle_kedit_reply
+
+        msg = _make_message("new content")
+        msg.reply_to_message = None
+
+        result = asyncio.run(handle_kedit_reply(msg))
+        assert result is False
+
+    def test_not_from_bot_returns_false(self):
+        from telegram_bot.handlers.conversation_handlers import handle_kedit_reply
+
+        msg = _make_message("new content")
+        msg.reply_to_message = MagicMock()
+        msg.reply_to_message.from_user = MagicMock()
+        msg.reply_to_message.from_user.is_bot = False
+
+        result = asyncio.run(handle_kedit_reply(msg))
+        assert result is False
+
+    @patch("telegram_bot.handlers.conversation_handlers._kedit_pending", {})
+    def test_no_pending_returns_false(self):
+        from telegram_bot.handlers.conversation_handlers import handle_kedit_reply
+
+        msg = _make_message("new content", chat_id=100)
+        msg.reply_to_message = MagicMock()
+        msg.reply_to_message.from_user = MagicMock()
+        msg.reply_to_message.from_user.is_bot = True
+        msg.reply_to_message.message_id = 999
+
+        result = asyncio.run(handle_kedit_reply(msg))
+        assert result is False
+
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    @patch("telegram_bot.handlers.conversation_handlers._kedit_pending",
+           {(100, 55): "entry-123"})
+    def test_updates_entry(self, mock_memory):
+        from telegram_bot.handlers.conversation_handlers import handle_kedit_reply, _kedit_pending
+
+        mock_memory.update_entry.return_value = True
+
+        msg = _make_message("Updated content here", chat_id=100)
+        msg.reply_to_message = MagicMock()
+        msg.reply_to_message.from_user = MagicMock()
+        msg.reply_to_message.from_user.is_bot = True
+        msg.reply_to_message.message_id = 55
+
+        result = asyncio.run(handle_kedit_reply(msg))
+
+        assert result is True
+        mock_memory.update_entry.assert_called_once_with("entry-123", "Updated content here")
+        msg.answer.assert_awaited_once()
+        assert "обновлена" in msg.answer.call_args[0][0].lower()
+        # Pending should be cleaned up
+        assert (100, 55) not in _kedit_pending
+
+    @patch("telegram_bot.handlers.conversation_handlers._memory")
+    @patch("telegram_bot.handlers.conversation_handlers._kedit_pending",
+           {(100, 55): "entry-123"})
+    def test_update_not_found(self, mock_memory):
+        from telegram_bot.handlers.conversation_handlers import handle_kedit_reply
+
+        mock_memory.update_entry.return_value = False
+
+        msg = _make_message("Updated content", chat_id=100)
+        msg.reply_to_message = MagicMock()
+        msg.reply_to_message.from_user = MagicMock()
+        msg.reply_to_message.from_user.is_bot = True
+        msg.reply_to_message.message_id = 55
+
+        result = asyncio.run(handle_kedit_reply(msg))
+
+        assert result is True
+        msg.answer.assert_awaited_once()
+        assert "не найдена" in msg.answer.call_args[0][0].lower()
+
+    @patch("telegram_bot.handlers.conversation_handlers._kedit_pending",
+           {(100, 55): "entry-123"})
+    def test_empty_content_shows_usage(self):
+        from telegram_bot.handlers.conversation_handlers import handle_kedit_reply
+
+        msg = _make_message("", chat_id=100)
+        msg.reply_to_message = MagicMock()
+        msg.reply_to_message.from_user = MagicMock()
+        msg.reply_to_message.from_user.is_bot = True
+        msg.reply_to_message.message_id = 55
+
+        result = asyncio.run(handle_kedit_reply(msg))
+
+        assert result is True
+        msg.answer.assert_awaited_once()
+        assert "/kedit" in msg.answer.call_args[0][0]
+
+
+# ===================================================================
+#  resolve_environment (handler_utils)
+# ===================================================================
+
+class TestResolveEnvironment:
+
+    @patch("telegram_bot.handler_utils._memory")
+    def test_unbound_returns_defaults(self, mock_memory):
+        from telegram_bot.handler_utils import resolve_environment
+
+        mock_memory.get_environment.return_value = None
+
+        result = resolve_environment(chat_id=100)
+
+        mock_memory.get_environment.assert_called_once_with(chat_id=100)
+        assert result == ("", None)
+
+    @patch("telegram_bot.handler_utils._memory")
+    def test_bound_returns_context(self, mock_memory):
+        from telegram_bot.handler_utils import resolve_environment
+
+        mock_memory.get_environment.return_value = {
+            "system_context": "You are an editorial bot.",
+            "allowed_domains": ["editorial", "general"],
+        }
+
+        result = resolve_environment(chat_id=200)
+
+        assert result == ("You are an editorial bot.", ["editorial", "general"])
+
+    @patch("telegram_bot.handler_utils._memory")
+    def test_no_domains(self, mock_memory):
+        from telegram_bot.handler_utils import resolve_environment
+
+        mock_memory.get_environment.return_value = {
+            "system_context": "Admin context",
+        }
+
+        result = resolve_environment(chat_id=300)
+
+        assert result == ("Admin context", None)
+
+
+# ===================================================================
+#  resolve_entity_context (handler_utils)
+# ===================================================================
+
+class TestResolveEntityContext:
+
+    @patch("telegram_bot.handler_utils._memory")
+    def test_entity_not_found(self, mock_memory):
+        from telegram_bot.handler_utils import resolve_entity_context
+
+        mock_memory.find_entity.return_value = None
+
+        result = resolve_entity_context(user_id=42)
+
+        mock_memory.find_entity.assert_called_once_with(
+            external_key="telegram_user_id", external_value="42",
+        )
+        assert result == ""
+
+    @patch("telegram_bot.handler_utils._get_retriever")
+    @patch("telegram_bot.handler_utils._memory")
+    def test_entity_found_returns_context(self, mock_memory, mock_get_retriever):
+        from telegram_bot.handler_utils import resolve_entity_context
+
+        mock_memory.find_entity.return_value = {"id": "e-1", "name": "Alice"}
+        mock_retriever = MagicMock()
+        mock_retriever.get_entity_context.return_value = "Alice is the editor-in-chief."
+        mock_get_retriever.return_value = mock_retriever
+
+        result = resolve_entity_context(user_id=42)
+
+        mock_retriever.get_entity_context.assert_called_once_with("e-1")
+        assert result == "Alice is the editor-in-chief."
+
+    @patch("telegram_bot.handler_utils._memory")
+    def test_passes_correct_external_key(self, mock_memory):
+        from telegram_bot.handler_utils import resolve_entity_context
+
+        mock_memory.find_entity.return_value = None
+
+        resolve_entity_context(user_id=999)
+
+        call_kwargs = mock_memory.find_entity.call_args
+        assert call_kwargs[1]["external_key"] == "telegram_user_id"
+        assert call_kwargs[1]["external_value"] == "999"

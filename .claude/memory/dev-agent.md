@@ -2235,11 +2235,37 @@ Phase 8.5 — Scheduled pipeline runner:
 
 **Net result:** 1413 tests pass (+11 new)
 
+### Session 74 (2026-03-04) — Maintenance: Write Tests (round 13 — knowledge management commands)
+**Status:** Complete
+
+**What was done:**
+- Added 35 new tests to `tests/telegram_bot/handlers/test_conversation_handlers.py` covering previously untested knowledge management commands and handler utilities:
+
+| Class | Tests | Covers |
+|---|---|---|
+| `TestCmdTeach` | 4 | no args, classified store, exception error, whitespace-only |
+| `TestCmdKnowledge` | 7 | empty, grouped listing, verbose flag, domain filter, domain+tier, exception, content truncation at 120 |
+| `TestCmdKsearch` | 4 | no args, results with similarity, empty results, exception |
+| `TestCmdForget` | 4 | no args, deactivate, not found, exception |
+| `TestCmdKedit` | 4 | no args, shows entry + stores in _kedit_pending, not found, exception |
+| `TestHandleKeditReply` | 6 | no reply, not from bot, no pending, updates entry + cleanup, update not found, empty content |
+| `TestResolveEnvironment` | 3 | unbound defaults, bound returns context, no domains |
+| `TestResolveEntityContext` | 3 | not found, found returns context, correct external_key |
+
+**Net result:** 35 new tests (1448 total), all passing in 3.08s
+
+**Notes:**
+- These were the last untested user-facing knowledge management features (cmd_teach, cmd_knowledge, cmd_ksearch, cmd_forget, cmd_kedit, handle_kedit_reply)
+- resolve_environment and resolve_entity_context in handler_utils.py were previously only used as patch targets, now have direct unit tests
+- Supervisor found zero issues
+- Test file grew from 44 to 79 tests
+
 ## Next up
 
+- All plans (5-8) complete. Maintenance mode continues.
 - Plan 8 sections 8.8.2-8.8.5: Manual verification (user must do)
-- Plan 8 is now COMPLETE (all automated items done)
 - Plan 7 sections 7.4.2-7.4.3: Manual MCP server testing (user must do)
 - Plan 7 section 7.5: Verification (7.5.1 done, 7.5.2-7.5.5 are manual)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion
+- Remaining test gaps: run_knowledge_pipelines.py edge cases (2 tests only), thin gateway wrappers (drive, sheets, redefine)

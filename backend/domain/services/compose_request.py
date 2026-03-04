@@ -5,17 +5,17 @@ from __future__ import annotations
 from common.prompt_loader import load_template
 
 _MODELS = {
-    "support_email": "gemini-2.5-flash",
+    "support_email": "gemini-3-flash-preview",
     "support_triage": "gemini-2.5-flash",
     "tech_search_terms": "gemini-2.5-flash",
     "contractor_parse": "gemini-2.5-flash",
     "translate_name": "gemini-2.5-flash",
     "inbox_classify": "gemini-2.5-flash",
-    "editorial_assess": "gemini-2.5-flash",
-    "tech_support_question": "gemini-2.5-flash",
+    "editorial_assess": "gemini-3-flash-preview",
+    "tech_support_question": "gemini-3-flash-preview",
     "classify_command": "gemini-2.5-flash",
     "classify_teaching": "gemini-2.5-flash",
-    "conversation_reply": "gemini-2.5-flash",
+    "conversation_reply": "gemini-3-flash-preview",
 }
 
 _retriever: KnowledgeRetriever | None = None

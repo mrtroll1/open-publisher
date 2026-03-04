@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
+from google.genai import types
+from google import genai
+
 
 from common.config import GEMINI_API_KEY
 
@@ -15,17 +18,45 @@ class GeminiGateway:
 
     def __init__(self, model: str = "gemini-2.5-flash"):
         self._model = model
+        self.safety_settings = [
+            types.SafetySetting(
+                category="HARM_CATEGORY_HARASSMENT",
+                threshold="OFF"
+            ),
+            types.SafetySetting(
+                category="HARM_CATEGORY_HATE_SPEECH",
+                threshold="OFF"
+            ),
+            types.SafetySetting(
+                category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                threshold="OFF"
+            ),
+            types.SafetySetting(
+                category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                threshold="OFF"
+            ),
+        ]
 
     def call(self, prompt: str, model: str | None = None) -> dict:
         """Send a prompt and return parsed JSON from the response."""
-        from google import genai
 
         model_used = model or self._model
         client = genai.Client(api_key=GEMINI_API_KEY)
 
+        config_kwargs = {
+            "safety_settings": self.safety_settings,
+        }
+
+        if "gemini-3-flash" in model_used:
+            config_kwargs["thinking_config"] = types.ThinkingConfig(
+                thinking_level=types.ThinkingLevel.MINIMAL
+            )
+        config = types.GenerateContentConfig(**config_kwargs)
+
         response = client.models.generate_content(
             model=model_used,
             contents=prompt,
+            config=config
         )
         raw = response.text.strip()
         return self._extract_json(raw)

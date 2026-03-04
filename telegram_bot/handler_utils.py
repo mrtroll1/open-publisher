@@ -9,7 +9,7 @@ from aiogram import types
 from aiogram.enums import ChatAction
 from aiogram.exceptions import TelegramBadRequest
 
-from backend.wiring import create_db, create_inbox_service, create_knowledge_retriever
+from backend.wiring import create_db, create_inbox_service, create_knowledge_retriever, create_memory_service
 from backend.domain.services.compose_request import set_retriever, _get_retriever
 from telegram_bot.bot_helpers import bot, get_contractors, md_to_tg_html, prev_month
 from telegram_bot import replies
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 _db = create_db()
 _inbox = create_inbox_service()
+_memory = create_memory_service()
 set_retriever(create_knowledge_retriever())
 
 # Maps (admin_chat_id, bot_message_id) -> (contractor_telegram_id, contractor_id)
@@ -48,6 +49,7 @@ __all__ = [
     "_find_contractor_or_suggest",
     "_db",
     "_inbox",
+    "_memory",
     "_admin_reply_map",
     "_support_draft_map",
     "_kedit_pending",

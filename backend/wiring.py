@@ -11,6 +11,7 @@ from backend.infrastructure.gateways.redefine_gateway import RedefineGateway
 from backend.infrastructure.gateways.republic_gateway import RepublicGateway
 from backend.domain.services.inbox_service import InboxService
 from backend.domain.services.knowledge_retriever import KnowledgeRetriever
+from backend.domain.services.memory_service import MemoryService
 from backend.domain.services.support_user_lookup import SupportUserLookup
 from backend.domain.services.tech_support_handler import TechSupportHandler
 from backend.domain.use_cases.compute_budget import ComputeBudget
@@ -49,6 +50,13 @@ def create_compute_budget() -> ComputeBudget:
 def create_generate_batch_invoices() -> GenerateBatchInvoices:
     gen = GenerateInvoice(docs_gw=DocsGateway(), drive_gw=DriveGateway())
     return GenerateBatchInvoices(republic_gw=RepublicGateway(), gen_invoice=gen)
+
+
+def create_memory_service() -> MemoryService:
+    db = create_db()
+    embed = EmbeddingGateway()
+    retriever = KnowledgeRetriever(db=db, embed=embed)
+    return MemoryService(db=db, embed=embed, retriever=retriever)
 
 
 def create_parse_bank_statement() -> ParseBankStatement:

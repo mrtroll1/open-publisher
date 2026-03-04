@@ -371,8 +371,9 @@ class TestHandleNlReplyNewModule:
     @patch("telegram_bot.handlers.conversation_handlers.send_typing", new_callable=AsyncMock)
     @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
     @patch("telegram_bot.handlers.conversation_handlers._db")
+    @patch("telegram_bot.handlers.conversation_handlers._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "specific"))
     def test_teaching_keyword_stores(
-        self, mock_db, mock_get_retriever, mock_typing,
+        self, mock_classify, mock_db, mock_get_retriever, mock_typing,
         mock_save, mock_send_html, mock_build, mock_generate, MockGemini,
         mock_resolve_env, mock_resolve_entity, mock_is_admin,
     ):

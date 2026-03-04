@@ -8,10 +8,10 @@
 
 ## 7.0 Pre-flight
 
-- [ ] 7.0.1 Confirm Phase 5 (environments) and Phase 6 (entities) are complete
-- [ ] 7.0.2 Read MCP Python SDK docs — understand `@mcp.tool()` decorator, server setup
-- [ ] 7.0.3 Inventory all existing backend service methods that the MCP should expose
-- [ ] 7.0.4 Run `pytest` — all tests pass (baseline)
+- [x] 7.0.1 Confirm Phase 5 (environments) and Phase 6 (entities) are complete
+- [x] 7.0.2 Read MCP Python SDK docs — understand `@mcp.tool()` decorator, server setup
+- [x] 7.0.3 Inventory all existing backend service methods that the MCP should expose
+- [x] 7.0.4 Run `pytest` — all tests pass (baseline: 1323 tests)
 
 ---
 
@@ -21,7 +21,7 @@
 > This service is the single gateway to the brain — bot handlers, MCP server,
 > and future clients all go through it.
 
-- [ ] 7.1.1 Create `backend/domain/services/memory_service.py`:
+- [x] 7.1.1 Create `backend/domain/services/memory_service.py`:
   ```python
   class MemoryService:
       def __init__(self, db: DbGateway | None = None,
@@ -97,13 +97,13 @@
       """Soft-delete."""
   ```
 
-- [ ] 7.1.2 Implementation notes:
+- [x] 7.1.2 Implementation notes:
   - `remember()` reuses `KnowledgeRetriever.store_teaching()` dedup logic (from Phase 5.7)
   - `recall()` wraps `KnowledgeRetriever.retrieve()` but returns structured dicts, not formatted strings
   - `teach()` reuses `_classify_teaching_text()` from `conversation_handlers.py` — extract it to a shared service function first
   - `get_context()` combines environment lookup + domain filtering + entity context + RAG — same logic as the 3 call sites in handlers but packaged cleanly
-- [ ] 7.1.3 Extract `_classify_teaching_text` from `conversation_handlers.py` to `memory_service.py` or a shared location (both `cmd_teach` and `MemoryService.teach()` need it)
-- [ ] 7.1.4 Add `MemoryService` to `backend/wiring.py`:
+- [x] 7.1.3 Extract `_classify_teaching_text` from `conversation_handlers.py` to `memory_service.py` or a shared location (both `cmd_teach` and `MemoryService.teach()` need it)
+- [x] 7.1.4 Add `MemoryService` to `backend/wiring.py`:
   ```python
   def create_memory_service() -> MemoryService:
       db = create_db()
@@ -111,7 +111,7 @@
       retriever = KnowledgeRetriever(db=db, embed=embed)
       return MemoryService(db=db, embed=embed, retriever=retriever)
   ```
-- [ ] 7.1.5 Write tests in `tests/domain/services/test_memory_service.py`:
+- [x] 7.1.5 Write tests in `tests/domain/services/test_memory_service.py`:
   - `test_remember_stores_and_returns_id`
   - `test_remember_deduplicates`
   - `test_recall_returns_relevant`
@@ -121,7 +121,7 @@
   - `test_get_context_with_entity`
   - `test_entity_crud`
   - `test_environment_lookup_by_chat_id`
-- [ ] 7.1.6 Run `pytest` — all tests pass
+- [x] 7.1.6 Run `pytest` — all tests pass (1356 tests)
 
 ---
 

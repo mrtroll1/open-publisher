@@ -2061,9 +2061,39 @@ Phase 6.9 — Verification:
 - `_ROLE_LABELS` dict duplicated between `sync_contractor_entities.py` and `admin_handlers.py` — intentional, avoids cross-layer dependency
 - Sync uses `c.display_name` (not `c.name` which doesn't exist on Contractor model) and `c.type.value` for string storage
 
+### Session 68 (2026-03-04) — Plan 7 Phases 7.0-7.1: Pre-flight + MemoryService
+**Status:** Complete (all items: 7.0.1-7.0.4, 7.1.1-7.1.6)
+
+**What was done:**
+- Created `backend/domain/services/memory_service.py` — MemoryService class with ~20 methods:
+  - `remember()` — dedup-aware store (embedding similarity > 0.90), supports entity_id, source_url, expires_at
+  - `recall()` — semantic search returning structured dicts (not formatted strings), supports single/multi domain
+  - `teach()` — auto-classifies domain/tier via Gemini if not provided, delegates to retriever.store_teaching()
+  - `classify_teaching()` — sync extraction of async `_classify_teaching_text` from conversation_handlers.py: embed → search similar → list domains → call Gemini → validate
+  - `get_context()` — assembles full prompt context: environment + domain-filtered knowledge + entity context. Returns dict with keys: environment, knowledge, user_context, domains
+  - Entity ops: add_entity, find_entity, update_entity_summary (with re-embedding)
+  - Environment ops: list_environments, get_environment (by name or chat_id), update_environment
+  - Domain ops: list_domains, add_domain
+  - Knowledge management: list_knowledge (with optional entity_id filter), get_entry, update_entry (re-embeds), deactivate_entry
+- Constructor accepts optional db, embed, retriever, gemini — all with defaults (same pattern as other services)
+- Updated `conversation_handlers.py:_classify_teaching_text` to delegate to `_memory.classify_teaching(text)` via asyncio.to_thread
+- Added `create_memory_service()` factory to `wiring.py`
+- Added `_memory` singleton to `handler_utils.py`
+- 33 new tests in `tests/domain/services/test_memory_service.py` across 8 classes
+
+**Review:** Supervisor passed cleanly. One note: `recall()` has unused `entity_id` parameter — intentional forward-compatible API placeholder per plan spec.
+
+**Net result:** 1356 tests pass (+33 new)
+
+**Notes:**
+- `recall()` returns raw dicts from DB search, not formatted strings — this is the key difference from `KnowledgeRetriever.retrieve()`
+- `classify_teaching` is sync — callers wrap in `asyncio.to_thread`
+- `get_context()` returns `{environment: str, knowledge: str, user_context: str, domains: list}` — ready for prompt assembly
+- `_memory` in handler_utils.py is the singleton, separate from `_db` and `_inbox`
+
 ## Next up
 
-- Plan 6 is complete except manual verification items (6.9.2-6.9.5)
-- Move to Plan 7
+- Plan 7 section 7.2: Refactor handlers to use MemoryService (replace direct KnowledgeRetriever/DbGateway calls)
+- Plan 7 section 7.3: MCP Server (expose MemoryService as MCP tools)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

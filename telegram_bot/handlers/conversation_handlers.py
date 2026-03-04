@@ -9,11 +9,9 @@ from typing import Callable
 from aiogram import types
 from aiogram.fsm.context import FSMContext
 
-from backend.domain.services import compose_request
 from backend.domain.services.compose_request import _get_retriever
 from backend.domain.services.command_classifier import CommandClassifier
 
-_VALID_TIERS = {"core", "meta", "specific"}
 from backend.domain.services.conversation_service import (
     build_conversation_context,
     format_reply_chain as _format_reply_chain,
@@ -22,7 +20,7 @@ from backend.domain.services.conversation_service import (
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from telegram_bot import replies
 from telegram_bot.bot_helpers import is_admin
-from telegram_bot.handler_utils import _db, _kedit_pending, _save_turn, _send, _send_html, resolve_environment, resolve_entity_context, send_typing
+from telegram_bot.handler_utils import _db, _kedit_pending, _memory, _save_turn, _send, _send_html, resolve_environment, resolve_entity_context, send_typing
 
 logger = logging.getLogger(__name__)
 
@@ -192,36 +190,8 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
 
 
 async def _classify_teaching_text(text: str) -> tuple[str, str]:
-    """Classify teaching text into (domain, tier) via Gemini.
-
-    Fetches similar entries and valid domains from the DB for context.
-    """
-    retriever = _get_retriever()
-
-    # Fetch similar entries as examples for Gemini
-    similar = await asyncio.to_thread(retriever._db.search_knowledge,
-                                      retriever._embed.embed_one(text), None, 5)
-    examples_lines = []
-    for e in similar:
-        examples_lines.append(f"- [{e['tier']}] {e['domain']} / {e['title']}")
-    examples = "\n".join(examples_lines) if examples_lines else ""
-
-    # Fetch valid domains from DB
-    db_domains = await asyncio.to_thread(_db.list_domains)
-    valid_domain_names = {d["name"] for d in db_domains}
-    domains_lines = [f"- **{d['name']}** — {d['description']}" for d in db_domains]
-    domains_text = "\n".join(domains_lines) if domains_lines else "(пусто)"
-
-    gemini = GeminiGateway()
-    prompt, model, keys = compose_request.classify_teaching(text, examples, domains_text)
-    result = await asyncio.to_thread(gemini.call, prompt, model)
-    domain = result.get("domain", "general")
-    tier = result.get("tier", "specific")
-    if domain not in valid_domain_names:
-        domain = "general"
-    if tier not in _VALID_TIERS:
-        tier = "specific"
-    return domain, tier
+    """Classify teaching text into (domain, tier) via MemoryService."""
+    return await asyncio.to_thread(_memory.classify_teaching, text)
 
 
 async def cmd_teach(message: types.Message, state: FSMContext) -> None:

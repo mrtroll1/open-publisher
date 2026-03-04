@@ -10,7 +10,8 @@ from backend.infrastructure.repositories.postgres.classification_repo import Cla
 from backend.infrastructure.repositories.postgres.payment_repo import PaymentRepo  # noqa: F401
 from backend.infrastructure.repositories.postgres.code_task_repo import CodeTaskRepo  # noqa: F401
 from backend.infrastructure.repositories.postgres.environment_repo import EnvironmentRepo  # noqa: F401
+from backend.infrastructure.repositories.postgres.entity_repo import EntityRepo  # noqa: F401
 
 
-class DbGateway(EmailRepo, KnowledgeRepo, ConversationRepo, ClassificationRepo, PaymentRepo, CodeTaskRepo, EnvironmentRepo):
+class DbGateway(EmailRepo, KnowledgeRepo, ConversationRepo, ClassificationRepo, PaymentRepo, CodeTaskRepo, EnvironmentRepo, EntityRepo):
     pass

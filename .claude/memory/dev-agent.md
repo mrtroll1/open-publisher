@@ -1969,10 +1969,33 @@ Phase 5.8 — Bot commands for environment management:
 - `cmd_env_edit` uses `split(maxsplit=3)` to capture multi-word values
 - `cmd_env_bind` validates environment exists before binding
 
+### Session 65 (2026-03-04) — Plan 6 Phases 6.0-6.4: Entities Schema + EntityRepo
+**Status:** Complete (all items: 6.0.1-6.0.5, 6.1.1-6.1.2, 6.2.1-6.2.2, 6.3.1-6.3.5, 6.4.1-6.4.4)
+
+**What was done:**
+- Added `entities` table to `_SCHEMA_SQL` in `base.py` (UUID PK, kind TEXT, name TEXT, external_ids JSONB, summary TEXT, embedding vector(256), TIMESTAMP timestamps)
+- 3 indexes: idx_entity_kind, idx_entity_external_ids (GIN), idx_entity_name
+- Added nullable `entity_id UUID REFERENCES entities(id)` column to `knowledge_entries` via DO $$ block
+- Added partial index `idx_knowledge_entity` on entity_id WHERE entity_id IS NOT NULL
+- Added provenance columns to `knowledge_entries`: `source_url TEXT`, `expires_at TIMESTAMP`, `parent_id UUID REFERENCES knowledge_entries(id)` (all nullable, DO $$ blocks)
+- Updated `search_knowledge` and `search_knowledge_multi_domain` in `knowledge_repo.py` — added `AND (expires_at IS NULL OR expires_at > NOW())` filter in all 4 search branches
+- Updated `save_knowledge_entry` signature with optional `entity_id`, `source_url`, `expires_at`, `parent_id`
+- Created `entity_repo.py` with 8 methods: save_entity, get_entity, find_entity_by_external_id, find_entities_by_name, update_entity, search_entities, get_entity_knowledge, list_entities
+- Added `EntityRepo` to DbGateway multiple inheritance in `postgres/__init__.py`
+- 22 new tests: 5 in test_knowledge_db.py, 17 in test_entity_repo.py
+
+**Review:** Supervisor found zero issues. Clean implementation matching existing patterns.
+
+**Net result:** 1279 tests pass (+22 new)
+
+**Notes:**
+- `update_entity` uses hardcoded allowlist (name, summary, external_ids, embedding) — same pattern as `update_environment`
+- `find_entity_by_external_id` uses `external_ids->>%s = %s` for JSONB key lookup
+- `search_entities` uses same `str()` conversion for vector as `search_knowledge`
+- `get_entity_knowledge` fetches from knowledge_entries WHERE entity_id matches
+
 ## Next up
 
-- Plan 5 has 3 remaining manual verification items (5.9.2-5.9.4) — these require live deployment
-- Plan 5 is effectively complete from an automation standpoint
-- Next session should start Plan 6
+- Plan 6 sections 6.5-6.9 remain: entity-aware retrieval, prompt threading, bot commands, auto-link contractors, verification
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

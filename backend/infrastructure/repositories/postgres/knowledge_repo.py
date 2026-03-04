@@ -7,14 +7,22 @@ from backend.infrastructure.repositories.postgres.base import BasePostgresRepo
 
 class KnowledgeRepo(BasePostgresRepo):
 
-    def save_knowledge_entry(self, tier: str, domain: str, title: str, content: str, source: str, embedding: list[float] | None = None) -> str:
+    def save_knowledge_entry(self, tier: str, domain: str, title: str, content: str, source: str,
+                             embedding: list[float] | None = None,
+                             entity_id: str | None = None,
+                             source_url: str | None = None,
+                             expires_at=None,
+                             parent_id: str | None = None) -> str:
         conn = self._get_conn()
         with conn.cursor() as cur:
             cur.execute(
-                """INSERT INTO knowledge_entries (tier, domain, title, content, source, embedding)
-                   VALUES (%s, %s, %s, %s, %s, %s)
+                """INSERT INTO knowledge_entries (tier, domain, title, content, source, embedding,
+                              entity_id, source_url, expires_at, parent_id)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                    RETURNING id""",
-                (tier, domain, title, content, source, str(embedding) if embedding is not None else None),
+                (tier, domain, title, content, source,
+                 str(embedding) if embedding is not None else None,
+                 entity_id, source_url, expires_at, parent_id),
             )
             return str(cur.fetchone()[0])
 
@@ -40,6 +48,7 @@ class KnowledgeRepo(BasePostgresRepo):
                               1 - (embedding <=> %s::vector) AS similarity
                        FROM knowledge_entries
                        WHERE is_active = TRUE AND domain = %s
+                             AND (expires_at IS NULL OR expires_at > NOW())
                        ORDER BY embedding <=> %s::vector ASC
                        LIMIT %s""",
                     (emb_str, domain, emb_str, limit),
@@ -50,6 +59,7 @@ class KnowledgeRepo(BasePostgresRepo):
                               1 - (embedding <=> %s::vector) AS similarity
                        FROM knowledge_entries
                        WHERE is_active = TRUE
+                             AND (expires_at IS NULL OR expires_at > NOW())
                        ORDER BY embedding <=> %s::vector ASC
                        LIMIT %s""",
                     (emb_str, emb_str, limit),
@@ -76,6 +86,7 @@ class KnowledgeRepo(BasePostgresRepo):
                               1 - (embedding <=> %s::vector) AS similarity
                        FROM knowledge_entries
                        WHERE is_active = TRUE AND domain = ANY(%s)
+                             AND (expires_at IS NULL OR expires_at > NOW())
                        ORDER BY embedding <=> %s::vector ASC
                        LIMIT %s""",
                     (emb_str, domains, emb_str, limit),
@@ -86,6 +97,7 @@ class KnowledgeRepo(BasePostgresRepo):
                               1 - (embedding <=> %s::vector) AS similarity
                        FROM knowledge_entries
                        WHERE is_active = TRUE
+                             AND (expires_at IS NULL OR expires_at > NOW())
                        ORDER BY embedding <=> %s::vector ASC
                        LIMIT %s""",
                     (emb_str, emb_str, limit),

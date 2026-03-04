@@ -9,11 +9,11 @@
 
 ## 6.0 Pre-flight
 
-- [ ] 6.0.1 Confirm Phase 5 is complete (environments working, tests passing)
-- [ ] 6.0.2 Read current `knowledge_repo.py` — understand `search_knowledge` return shape
-- [ ] 6.0.3 Read `knowledge_retriever.py` — understand `retrieve()` and `get_domain_context()`
-- [ ] 6.0.4 Read `compose_request.py:conversation_reply()` — confirm `environment_context` param exists (Phase 5)
-- [ ] 6.0.5 Run `pytest` — all tests pass (baseline)
+- [x] 6.0.1 Confirm Phase 5 is complete (environments working, tests passing)
+- [x] 6.0.2 Read current `knowledge_repo.py` — understand `search_knowledge` return shape
+- [x] 6.0.3 Read `knowledge_retriever.py` — understand `retrieve()` and `get_domain_context()`
+- [x] 6.0.4 Read `compose_request.py:conversation_reply()` — confirm `environment_context` param exists (Phase 5)
+- [x] 6.0.5 Run `pytest` — all tests pass (baseline)
 
 ---
 
@@ -21,7 +21,7 @@
 
 > An entity is anyone or anything the brain has knowledge about.
 
-- [ ] 6.1.1 Add to `_SCHEMA_SQL` in `base.py`:
+- [x] 6.1.1 Add to `_SCHEMA_SQL` in `base.py`:
   ```sql
   CREATE TABLE IF NOT EXISTS entities (
       id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -42,7 +42,7 @@
   - `external_ids`: `{"telegram_user_id": 123, "email": "x@y.com", "airtable_id": "rec..."}`
   - `summary`: human-readable summary, updated as knowledge grows
   - `embedding`: for entity similarity search / clustering (embed the name+summary)
-- [ ] 6.1.2 Run `pytest` — all tests pass (additive schema change)
+- [x] 6.1.2 Run `pytest` — all tests pass (additive schema change)
 
 ---
 
@@ -51,7 +51,7 @@
 > Entity-specific knowledge is regular knowledge_entries with an entity_id FK.
 > "Иванов предпочитает оплату на карту" → knowledge entry with entity_id = Иванов's UUID.
 
-- [ ] 6.2.1 Add to `_SCHEMA_SQL` in `base.py`:
+- [x] 6.2.1 Add to `_SCHEMA_SQL` in `base.py`:
   ```sql
   -- Entity FK on knowledge_entries
   DO $$ BEGIN
@@ -62,7 +62,7 @@
   CREATE INDEX IF NOT EXISTS idx_knowledge_entity
       ON knowledge_entries(entity_id) WHERE entity_id IS NOT NULL;
   ```
-- [ ] 6.2.2 Run `pytest` — all tests pass (nullable column, no breakage)
+- [x] 6.2.2 Run `pytest` — all tests pass (nullable column, no breakage)
 
 ---
 
@@ -70,7 +70,7 @@
 
 > Source tracking for future crawlers and knowledge pipelines.
 
-- [ ] 6.3.1 Add to `_SCHEMA_SQL` in `base.py`:
+- [x] 6.3.1 Add to `_SCHEMA_SQL` in `base.py`:
   ```sql
   DO $$ BEGIN
       ALTER TABLE knowledge_entries ADD COLUMN source_url TEXT;
@@ -90,16 +90,16 @@
   - `source_url`: URL of crawled page, article, etc. For provenance and dedup.
   - `expires_at`: NULL = eternal. Non-null = temporal knowledge (competitor pricing, event dates).
   - `parent_id`: self-FK. Summaries/derivatives link to their source entry.
-- [ ] 6.3.2 Update `search_knowledge` and `search_knowledge_multi_domain` in `knowledge_repo.py`:
+- [x] 6.3.2 Update `search_knowledge` and `search_knowledge_multi_domain` in `knowledge_repo.py`:
   - Add `WHERE (expires_at IS NULL OR expires_at > NOW())` to filter expired entries
-- [ ] 6.3.3 Update `save_knowledge_entry` signature to accept optional `entity_id`, `source_url`, `expires_at`, `parent_id`
-- [ ] 6.3.4 Write tests:
+- [x] 6.3.3 Update `save_knowledge_entry` signature to accept optional `entity_id`, `source_url`, `expires_at`, `parent_id`
+- [x] 6.3.4 Write tests:
   - `test_expired_entries_excluded_from_search`
   - `test_non_expired_entries_included`
   - `test_null_expires_always_included`
   - `test_save_entry_with_source_url`
   - `test_save_entry_with_entity_id`
-- [ ] 6.3.5 Run `pytest` — all tests pass
+- [x] 6.3.5 Run `pytest` — all tests pass
 
 ---
 
@@ -107,7 +107,7 @@
 
 > CRUD for entities. Follows existing repo pattern.
 
-- [ ] 6.4.1 Create `backend/infrastructure/repositories/postgres/entity_repo.py`:
+- [x] 6.4.1 Create `backend/infrastructure/repositories/postgres/entity_repo.py`:
   ```python
   class EntityRepo(BasePostgresRepo):
 
@@ -138,8 +138,8 @@
       def list_entities(self, kind: str | None = None) -> list[dict]:
           """List all entities, optionally filtered by kind."""
   ```
-- [ ] 6.4.2 Add `EntityRepo` to `DbGateway` in `postgres/__init__.py`
-- [ ] 6.4.3 Write tests in `tests/infrastructure/repositories/postgres/test_entity_repo.py`:
+- [x] 6.4.2 Add `EntityRepo` to `DbGateway` in `postgres/__init__.py`
+- [x] 6.4.3 Write tests in `tests/infrastructure/repositories/postgres/test_entity_repo.py`:
   - `test_save_and_get_entity`
   - `test_find_entity_by_external_id`
   - `test_find_entity_by_external_id_not_found`
@@ -147,7 +147,7 @@
   - `test_update_entity_partial`
   - `test_get_entity_knowledge`
   - `test_list_entities_by_kind`
-- [ ] 6.4.4 Run `pytest` — all tests pass
+- [x] 6.4.4 Run `pytest` — all tests pass
 
 ---
 

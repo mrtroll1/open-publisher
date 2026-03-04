@@ -133,6 +133,45 @@ CREATE TABLE IF NOT EXISTS environment_bindings (
     created_at   TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS entities (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    kind          TEXT NOT NULL,
+    name          TEXT NOT NULL,
+    external_ids  JSONB DEFAULT '{}',
+    summary       TEXT NOT NULL DEFAULT '',
+    embedding     vector(256),
+    created_at    TIMESTAMP DEFAULT NOW(),
+    updated_at    TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_entity_kind ON entities(kind);
+CREATE INDEX IF NOT EXISTS idx_entity_external_ids ON entities USING GIN(external_ids);
+CREATE INDEX IF NOT EXISTS idx_entity_name ON entities(name);
+
+-- Entity FK on knowledge_entries
+DO $$ BEGIN
+    ALTER TABLE knowledge_entries ADD COLUMN entity_id UUID REFERENCES entities(id);
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_entity
+    ON knowledge_entries(entity_id) WHERE entity_id IS NOT NULL;
+
+DO $$ BEGIN
+    ALTER TABLE knowledge_entries ADD COLUMN source_url TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE knowledge_entries ADD COLUMN expires_at TIMESTAMP;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE knowledge_entries ADD COLUMN parent_id UUID REFERENCES knowledge_entries(id);
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
 INSERT INTO environments (name, description, system_context, allowed_domains) VALUES
   ('admin_dm', 'Приватный чат с администратором Republic',
    'Это приватный чат с администратором. Полный доступ ко всем функциям. Можно обсуждать внутренние вопросы, контрагентов, бюджет. Давай развёрнутые ответы.',

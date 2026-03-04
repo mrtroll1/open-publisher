@@ -36,7 +36,8 @@ class TestSaveKnowledgeEntry:
         sql, params = cur.execute.call_args[0]
         assert "INSERT INTO knowledge_entries" in sql
         assert "RETURNING id" in sql
-        assert params == ("specific", "editorial", "Style guide", "Use active voice.", "seed", None)
+        assert params == ("specific", "editorial", "Style guide", "Use active voice.", "seed",
+                          None, None, None, None, None)
 
     def test_insert_with_embedding(self):
         gw, cur = _make_gw()
@@ -50,7 +51,8 @@ class TestSaveKnowledgeEntry:
 
         assert result == "entry-uuid-2"
         _, params = cur.execute.call_args[0]
-        assert params == ("process", "payments", "Invoice rules", "Check INN length.", "learned", str(emb))
+        assert params == ("process", "payments", "Invoice rules", "Check INN length.", "learned",
+                          str(emb), None, None, None, None)
 
 
 # ===================================================================
@@ -454,3 +456,86 @@ class TestDeactivateKnowledge:
         result = gw.deactivate_knowledge("nonexistent-uuid")
 
         assert result is False
+
+
+# ===================================================================
+#  expires_at filtering in search
+# ===================================================================
+
+class TestExpiresAtFiltering:
+
+    def test_expired_entries_excluded_from_search(self):
+        gw, cur = _make_gw()
+        cur.fetchall.return_value = []
+        emb = [0.1, 0.2, 0.3]
+
+        gw.search_knowledge(query_embedding=emb)
+
+        sql = cur.execute.call_args[0][0]
+        assert "(expires_at IS NULL OR expires_at > NOW())" in sql
+
+    def test_non_expired_entries_included(self):
+        gw, cur = _make_gw()
+        cur.fetchall.return_value = [
+            ("id-1", "specific", "general", "Title", "Content", "seed", 0.9),
+        ]
+        emb = [0.1, 0.2, 0.3]
+
+        result = gw.search_knowledge(query_embedding=emb)
+
+        assert len(result) == 1
+        assert result[0]["id"] == "id-1"
+        sql = cur.execute.call_args[0][0]
+        assert "(expires_at IS NULL OR expires_at > NOW())" in sql
+
+    def test_null_expires_always_included(self):
+        gw, cur = _make_gw()
+        cur.fetchall.return_value = [
+            ("id-1", "specific", "general", "Title", "Content", "seed", 0.95),
+        ]
+        emb = [0.1, 0.2]
+
+        result = gw.search_knowledge_multi_domain(query_embedding=emb, domains=["general"])
+
+        assert len(result) == 1
+        sql = cur.execute.call_args[0][0]
+        assert "(expires_at IS NULL OR expires_at > NOW())" in sql
+
+
+# ===================================================================
+#  save_knowledge_entry with provenance fields
+# ===================================================================
+
+class TestSaveKnowledgeEntryProvenance:
+
+    def test_save_entry_with_source_url(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = ("entry-uuid-prov-1",)
+
+        result = gw.save_knowledge_entry(
+            tier="specific", domain="editorial", title="External article",
+            content="Some content.", source="web",
+            source_url="https://example.com/article",
+        )
+
+        assert result == "entry-uuid-prov-1"
+        sql, params = cur.execute.call_args[0]
+        assert "source_url" in sql
+        assert params == ("specific", "editorial", "External article", "Some content.", "web",
+                          None, None, "https://example.com/article", None, None)
+
+    def test_save_entry_with_entity_id(self):
+        gw, cur = _make_gw()
+        cur.fetchone.return_value = ("entry-uuid-prov-2",)
+
+        result = gw.save_knowledge_entry(
+            tier="specific", domain="contractor", title="About contractor",
+            content="Contractor info.", source="admin",
+            entity_id="entity-uuid-123",
+        )
+
+        assert result == "entry-uuid-prov-2"
+        sql, params = cur.execute.call_args[0]
+        assert "entity_id" in sql
+        assert params == ("specific", "contractor", "About contractor", "Contractor info.", "admin",
+                          None, "entity-uuid-123", None, None, None)

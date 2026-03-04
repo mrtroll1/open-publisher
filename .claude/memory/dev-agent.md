@@ -1872,7 +1872,33 @@ tests/
 
 **ALL PHASES COMPLETE (1-9).** Plan 4 Architecture Refactor is fully done. Next sessions enter maintenance mode.
 
+### Session 61 (2026-03-04) — Plan 5 Phases 5.0-5.2: Pre-flight + Schema + EnvironmentRepo
+**Status:** Complete (all items: 5.0.1-5.0.6, 5.1.1-5.1.3, 5.2.1-5.2.4)
+
+**What was done:**
+- Added `environments` table to `_SCHEMA_SQL` in `base.py` (name TEXT PK, description, system_context, allowed_domains TEXT[], timestamps)
+- Added `environment_bindings` table (chat_id BIGINT PK, environment TEXT FK → environments.name, timestamps)
+- Added seed data INSERT for 4 environments: admin_dm, editorial_group, contractor_dm, email (ON CONFLICT DO NOTHING)
+- Created `backend/infrastructure/repositories/postgres/environment_repo.py` with 7 methods:
+  - `get_environment(name)`, `get_environment_by_chat_id(chat_id)` (JOIN), `list_environments()`
+  - `save_environment()` (upsert), `update_environment(**fields)` (dynamic partial update)
+  - `bind_chat()` (upsert), `unbind_chat()`
+- Added `EnvironmentRepo` to DbGateway multiple inheritance in `postgres/__init__.py`
+- Created `tests/infrastructure/repositories/postgres/test_environment_repo.py` with 14 tests across 5 classes
+
+**Review fix applied:**
+- Changed TIMESTAMPTZ → TIMESTAMP in new tables to match existing convention across all other tables
+
+**Net result:** 1221 tests pass (+14 new)
+
+**Notes:**
+- `update_environment` uses a hardcoded whitelist of allowed columns (description, system_context, allowed_domains) — safe against SQL injection
+- `save_environment` uses INSERT ON CONFLICT DO UPDATE for upsert behavior
+- `bind_chat` uses INSERT ON CONFLICT DO UPDATE for rebinding
+- Uses `with conn.cursor() as cur:` pattern matching knowledge_repo.py and email_repo.py
+
 ## Next up
 
+- Plan 5 continues with 5.3 (seed bindings), 5.4 (domain-filtered RAG), 5.5 (thread environment through prompts)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

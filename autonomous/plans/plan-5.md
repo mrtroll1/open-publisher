@@ -8,12 +8,12 @@
 
 ## 5.0 Pre-flight
 
-- [ ] 5.0.1 Read current schema in `backend/infrastructure/repositories/postgres/base.py` (lines 9-120)
-- [ ] 5.0.2 Read `knowledge_repo.py` methods: `search_knowledge` (line 33), `get_domain_context` (line 83)
-- [ ] 5.0.3 Read `conversation_service.py`: `generate_nl_reply` (line 41), `build_conversation_context` (line 20)
-- [ ] 5.0.4 Read `compose_request.py`: `conversation_reply` (line 129)
-- [ ] 5.0.5 Read `templates/conversation.md` (14 lines)
-- [ ] 5.0.6 Run `pytest` — all tests pass (baseline)
+- [x] 5.0.1 Read current schema in `backend/infrastructure/repositories/postgres/base.py` (lines 9-120)
+- [x] 5.0.2 Read `knowledge_repo.py` methods: `search_knowledge` (line 33), `get_domain_context` (line 83)
+- [x] 5.0.3 Read `conversation_service.py`: `generate_nl_reply` (line 41), `build_conversation_context` (line 20)
+- [x] 5.0.4 Read `compose_request.py`: `conversation_reply` (line 129)
+- [x] 5.0.5 Read `templates/conversation.md` (14 lines)
+- [x] 5.0.6 Run `pytest` — all tests pass (baseline)
 
 ---
 
@@ -22,7 +22,7 @@
 > Two new tables. An environment is WHERE the brain operates.
 > A binding maps a concrete chat_id to an environment.
 
-- [ ] 5.1.1 Add to `_SCHEMA_SQL` in `base.py` (after conversations block, ~line 119):
+- [x] 5.1.1 Add to `_SCHEMA_SQL` in `base.py` (after conversations block, ~line 119):
   ```sql
   CREATE TABLE IF NOT EXISTS environments (
       name         TEXT PRIMARY KEY,
@@ -39,7 +39,7 @@
       created_at   TIMESTAMPTZ DEFAULT NOW()
   );
   ```
-- [ ] 5.1.2 Add seed data migration (after CREATE TABLE, still in `_SCHEMA_SQL`):
+- [x] 5.1.2 Add seed data migration (after CREATE TABLE, still in `_SCHEMA_SQL`):
   ```sql
   INSERT INTO environments (name, description, system_context, allowed_domains) VALUES
     ('admin_dm', 'Приватный чат с администратором Republic',
@@ -56,7 +56,7 @@
      ARRAY['tech_support'])
   ON CONFLICT (name) DO NOTHING;
   ```
-- [ ] 5.1.3 Run `pytest` — all tests pass (schema change is additive, no breakage)
+- [x] 5.1.3 Run `pytest` — all tests pass (schema change is additive, no breakage)
 
 ---
 
@@ -64,7 +64,7 @@
 
 > New repo file for environment CRUD. Follows existing repo pattern (extends BasePostgresRepo).
 
-- [ ] 5.2.1 Create `backend/infrastructure/repositories/postgres/environment_repo.py`:
+- [x] 5.2.1 Create `backend/infrastructure/repositories/postgres/environment_repo.py`:
   ```python
   class EnvironmentRepo(BasePostgresRepo):
       def get_environment(self, name: str) -> dict | None
@@ -79,15 +79,15 @@
   - `get_environment_by_chat_id`: JOIN environment_bindings → environments. Returns full environment dict or None.
   - `save_environment`: INSERT or UPDATE on conflict.
   - `update_environment`: accepts keyword args for any updatable column (description, system_context, allowed_domains). Only updates provided fields.
-- [ ] 5.2.2 Add `EnvironmentRepo` to `DbGateway` in `postgres/__init__.py` (multiple inheritance, same pattern as others)
-- [ ] 5.2.3 Write tests in `tests/infrastructure/repositories/postgres/test_environment_repo.py`:
+- [x] 5.2.2 Add `EnvironmentRepo` to `DbGateway` in `postgres/__init__.py` (multiple inheritance, same pattern as others)
+- [x] 5.2.3 Write tests in `tests/infrastructure/repositories/postgres/test_environment_repo.py`:
   - `test_save_and_get_environment`
   - `test_get_environment_by_chat_id`
   - `test_get_environment_by_chat_id_unbound_returns_none`
   - `test_bind_chat_and_rebind`
   - `test_list_environments`
   - `test_update_environment_partial_fields`
-- [ ] 5.2.4 Run `pytest` — all tests pass
+- [x] 5.2.4 Run `pytest` — all tests pass
 
 ---
 

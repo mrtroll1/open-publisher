@@ -117,6 +117,36 @@ CREATE TABLE IF NOT EXISTS conversations (
 CREATE INDEX IF NOT EXISTS idx_conv_chat ON conversations(chat_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_conv_msg ON conversations(chat_id, message_id);
 CREATE INDEX IF NOT EXISTS idx_conv_reply ON conversations(reply_to_id);
+
+CREATE TABLE IF NOT EXISTS environments (
+    name         TEXT PRIMARY KEY,
+    description  TEXT NOT NULL DEFAULT '',
+    system_context TEXT NOT NULL DEFAULT '',
+    allowed_domains TEXT[],
+    created_at   TIMESTAMP DEFAULT NOW(),
+    updated_at   TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS environment_bindings (
+    chat_id      BIGINT PRIMARY KEY,
+    environment  TEXT NOT NULL REFERENCES environments(name),
+    created_at   TIMESTAMP DEFAULT NOW()
+);
+
+INSERT INTO environments (name, description, system_context, allowed_domains) VALUES
+  ('admin_dm', 'Приватный чат с администратором Republic',
+   'Это приватный чат с администратором. Полный доступ ко всем функциям. Можно обсуждать внутренние вопросы, контрагентов, бюджет. Давай развёрнутые ответы.',
+   NULL),
+  ('editorial_group', 'Групповой чат редакции Republic',
+   'Это групповой чат редакции. Видят все сотрудники. Отвечай кратко и по делу. Не раскрывай персональные данные контрагентов.',
+   ARRAY['tech_support', 'editorial', 'identity']),
+  ('contractor_dm', 'Личный чат с контрагентом Republic',
+   'Это личный чат с контрагентом Republic. Будь вежлив и формален. Помогай с документами, оплатой, регистрацией.',
+   ARRAY['contractor', 'payments']),
+  ('email', 'Обработка входящей почты',
+   'Ты составляешь ответ на email. Пиши формально и грамотно.',
+   ARRAY['tech_support'])
+ON CONFLICT (name) DO NOTHING;
 """
 
 

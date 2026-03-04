@@ -2350,6 +2350,33 @@ Phase 8.5 — Scheduled pipeline runner:
 
 **Net result:** 1560 tests pass (+26 new), `compute_budget.py` test ratio improved from 0.5x to ~1.1x
 
+### Session 79 (2026-03-04) — Maintenance: Write Tests (round 17 — knowledge_repo.py)
+**Status:** Complete
+
+**What was done:**
+- Created `tests/infrastructure/repositories/postgres/test_knowledge_repo.py` with 44 new tests for all 14 public methods in `knowledge_repo.py`:
+
+| Class | Tests | Covers |
+|---|---|---|
+| `TestSaveKnowledgeEntry` | 4 | basic save, with embedding, all optional params, id stringification |
+| `TestUpdateKnowledgeEntry` | 4 | content+embedding, None embedding, returns True/False |
+| `TestSearchKnowledge` | 6 | domain filter, no filter, is_active/expires_at checks, id stringification, column mapping, empty |
+| `TestSearchKnowledgeMultiDomain` | 4 | domains list with ANY, None domains, expires_at check, empty |
+| `TestGetKnowledgeByTier` | 2 | matching entries, empty |
+| `TestGetDomainContext` | 3 | core+meta entries, SQL structure, empty |
+| `TestGetMultiDomainContext` | 3 | core+multi-meta, ANY in SQL, empty |
+| `TestGetKnowledgeByDomain` | 2 | entries for domain, empty |
+| `TestListKnowledge` | 5 | no filters, domain only, tier only, both, empty (dynamic SQL) |
+| `TestGetKnowledgeEntry` | 3 | found, not found, id stringification |
+| `TestDeactivateKnowledge` | 2 | returns True, returns False |
+| `TestListDomains` | 2 | returns domains, empty |
+| `TestFindBySourceUrl` | 2 | found, not found |
+| `TestGetOrCreateDomain` | 2 | returns name with ON CONFLICT, default description |
+
+**Supervisor review:** Clean. No issues found. All tests exercise real production logic (SQL content, params, return types).
+
+**Net result:** 1604 tests pass (+44 new). `knowledge_repo.py` now fully covered — was the largest untested repo module.
+
 ## Next up
 
 - All plans (5-8) complete. Maintenance mode continues.
@@ -2358,6 +2385,6 @@ Phase 8.5 — Scheduled pipeline runner:
 - Plan 7 section 7.5: Verification (7.5.1 done, 7.5.2-7.5.5 are manual)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion
-- Remaining test gaps: thin gateway wrappers (drive, sheets, redefine) — all other modules now covered
+- Remaining test gaps: thin gateway wrappers (drive, sheets, redefine), router.py, base.py — knowledge_repo now covered
 - Bug-spotting rounds: 11 total (last round found 1 bug in pipeline runner, previous rounds still productive)
-- compute_budget.py now at 62 tests (was 36), MCP tools at 40, handler_utils at 20
+- compute_budget.py now at 62 tests (was 36), MCP tools at 40, handler_utils at 20, knowledge_repo at 44

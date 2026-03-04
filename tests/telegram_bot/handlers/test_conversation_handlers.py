@@ -212,7 +212,7 @@ class TestCmdNl:
             captured_texts.append(m.text)
 
         # _GROUP_COMMAND_HANDLERS is imported lazily inside cmd_nl from group_handlers
-        with patch("telegram_bot.handlers.group_handlers._GROUP_COMMAND_HANDLERS",
+        with patch("telegram_bot.router._GROUP_COMMAND_HANDLERS",
                     {"health": fake_health}):
             asyncio.run(cmd_nl(msg, state))
 
@@ -238,7 +238,7 @@ class TestCmdNl:
         async def broken_health(m, s):
             raise RuntimeError("handler crash")
 
-        with patch("telegram_bot.handlers.group_handlers._GROUP_COMMAND_HANDLERS",
+        with patch("telegram_bot.router._GROUP_COMMAND_HANDLERS",
                     {"health": broken_health}):
             with pytest.raises(RuntimeError):
                 asyncio.run(cmd_nl(msg, state))

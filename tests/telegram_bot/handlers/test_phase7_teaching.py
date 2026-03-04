@@ -811,35 +811,30 @@ class TestCmdKsearch:
 #  flows.py registration
 # ===================================================================
 
-class TestFlowsRegistration:
+class TestCommandRegistration:
 
     def test_teach_command_registered(self):
-        from telegram_bot.flows import admin_commands
-        commands = {c.command for c in admin_commands}
-        assert "teach" in commands
+        from telegram_bot.router import _ADMIN_COMMANDS
+        assert "teach" in _ADMIN_COMMANDS
 
     def test_knowledge_command_registered(self):
-        from telegram_bot.flows import admin_commands
-        commands = {c.command for c in admin_commands}
-        assert "knowledge" in commands
+        from telegram_bot.router import _ADMIN_COMMANDS
+        assert "knowledge" in _ADMIN_COMMANDS
 
     def test_ksearch_command_registered(self):
-        from telegram_bot.flows import admin_commands
-        commands = {c.command for c in admin_commands}
-        assert "ksearch" in commands
+        from telegram_bot.router import _ADMIN_COMMANDS
+        assert "ksearch" in _ADMIN_COMMANDS
 
     def test_forget_command_registered(self):
-        from telegram_bot.flows import admin_commands
-        commands = {c.command for c in admin_commands}
-        assert "forget" in commands
+        from telegram_bot.router import _ADMIN_COMMANDS
+        assert "forget" in _ADMIN_COMMANDS
 
     def test_kedit_command_registered(self):
-        from telegram_bot.flows import admin_commands
-        commands = {c.command for c in admin_commands}
-        assert "kedit" in commands
+        from telegram_bot.router import _ADMIN_COMMANDS
+        assert "kedit" in _ADMIN_COMMANDS
 
     def test_not_in_group_handlers(self):
         """Teaching commands should NOT be in group command handlers."""
-        from telegram_bot.flow_callbacks import _GROUP_COMMAND_HANDLERS
+        from telegram_bot.router import _GROUP_COMMAND_HANDLERS
         for cmd in ("teach", "knowledge", "ksearch", "forget", "kedit"):
             assert cmd not in _GROUP_COMMAND_HANDLERS

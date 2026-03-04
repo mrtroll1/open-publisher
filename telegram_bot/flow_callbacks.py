@@ -11,7 +11,7 @@ import telegram_bot.handler_utils as _handler_utils
 import telegram_bot.handlers.contractor_handlers as _contractor_handlers
 import telegram_bot.handlers.admin_handlers as _admin_handlers
 import telegram_bot.handlers.support_handlers as _support_handlers
-import telegram_bot.handlers.group_handlers as _group_handlers
+import telegram_bot.router as _router
 import telegram_bot.handlers.conversation_handlers as _conversation_handlers
 import telegram_bot.handlers.email_listener as _email_listener
 
@@ -19,12 +19,11 @@ from telegram_bot.handler_utils import *  # noqa: F401,F403
 from telegram_bot.handlers.contractor_handlers import *  # noqa: F401,F403
 from telegram_bot.handlers.admin_handlers import *  # noqa: F401,F403
 from telegram_bot.handlers.support_handlers import *  # noqa: F401,F403
-from telegram_bot.handlers.group_handlers import *  # noqa: F401,F403
+from telegram_bot.router import *  # noqa: F401,F403
 from telegram_bot.handlers.conversation_handlers import *  # noqa: F401,F403
 from telegram_bot.handlers.email_listener import *  # noqa: F401,F403
 
 # Re-export names that tests expect to find on flow_callbacks.
-# These were top-level imports in the original monolithic file.
 from common.config import BOT_USERNAME  # noqa: F401
 from backend import fetch_articles, find_contractor, fuzzy_find, parse_contractor_data, update_legium_link  # noqa: F401
 from backend.domain.services import compose_request  # noqa: F401
@@ -42,7 +41,7 @@ _HANDLER_MODULES = [
     _contractor_handlers,
     _admin_handlers,
     _support_handlers,
-    _group_handlers,
+    _router,
     _conversation_handlers,
     _email_listener,
 ]

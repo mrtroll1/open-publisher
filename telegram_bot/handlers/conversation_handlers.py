@@ -132,7 +132,7 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
     cmd_args = result.classified.args or text
 
     # Build the handler map lazily (avoid circular imports)
-    from telegram_bot.handlers.group_handlers import _GROUP_COMMAND_HANDLERS
+    from telegram_bot.router import _GROUP_COMMAND_HANDLERS
     from telegram_bot.handlers.admin_handlers import (
         cmd_generate, cmd_generate_invoices, cmd_send_global_invoices,
         cmd_send_legium_links, cmd_orphan_contractors, cmd_budget,

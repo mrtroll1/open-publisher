@@ -2260,6 +2260,24 @@ Phase 8.5 — Scheduled pipeline runner:
 - Supervisor found zero issues
 - Test file grew from 44 to 79 tests
 
+### Session 75 (2026-03-04) — Maintenance: Write Tests (round 14 — untested Postgres repos)
+**Status:** Complete
+
+**What was done:**
+- Created 5 new test files for previously untested Postgres repository modules:
+
+| File | Tests | Covers |
+|---|---|---|
+| `test_classification_repo.py` | 2 | `log_classification` INSERT + return None |
+| `test_code_task_repo.py` | 4 | `create_code_task` INSERT/RETURNING, verbose flag; `rate_code_task` UPDATE |
+| `test_conversation_repo.py` | 11 | `save_conversation` (metadata json.dumps), `get_conversation_by_message_id` (id stringification), `get_recent_conversations` (interval), `get_reply_chain` (chain walk, reverse, depth limit, nonexistent ID) |
+| `test_email_repo.py` | 21 | `_normalize_subject` (7 prefix/case tests), `find_thread` (3 branches + empty subject), `save_message`, `get_thread_history`, `create_email_decision`, `update_email_decision`, `update_email_decision_output`, `get_email_decision`, `get_thread_message_ids` |
+| `test_payment_repo.py` | 4 | `log_payment_validation` (defaults + explicit), `finalize_payment_validation` |
+
+**Supervisor fixes:** Added section separators to 3 files for pattern consistency; added 1 edge case test (get_reply_chain with nonexistent starting ID).
+
+**Net result:** 46 new tests (1494 total), all passing
+
 ## Next up
 
 - All plans (5-8) complete. Maintenance mode continues.
@@ -2268,4 +2286,4 @@ Phase 8.5 — Scheduled pipeline runner:
 - Plan 7 section 7.5: Verification (7.5.1 done, 7.5.2-7.5.5 are manual)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion
-- Remaining test gaps: run_knowledge_pipelines.py edge cases (2 tests only), thin gateway wrappers (drive, sheets, redefine)
+- Remaining test gaps: run_knowledge_pipelines.py edge cases (2 tests only), thin gateway wrappers (drive, sheets, redefine) — postgres repos now covered

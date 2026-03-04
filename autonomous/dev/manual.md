@@ -17,14 +17,6 @@
 3. `/entity_note Иван Петров Предпочитает оплату на карту` → should store linked knowledge
 4. Send message as linked user → bot response should reflect entity context
 
-## Plan 7: Memory API + MCP Interface
-
-### MCP Server setup
-1. Install `mcp` package: `pip install 'mcp>=1.0,<3'`
-2. Test MCP server locally: `python -m mcp_server` (requires DATABASE_URL + GEMINI_API_KEY)
-3. Configure Claude Code: copy `claude_mcp_config.json` to `~/.claude/` and update paths/credentials
-4. Test round-trip: use `remember` + `recall` tools in Claude to verify
-
 ## Plan 8: Active Knowledge Agents
 
 ### Manual verification after deploy

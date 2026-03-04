@@ -148,14 +148,14 @@
 
 > Thin MCP adapter that exposes MemoryService operations as MCP tools.
 
-- [ ] 7.3.1 Add `mcp` dependency to `requirements.txt` (or `pyproject.toml`)
-- [ ] 7.3.2 Create `mcp_server/` directory at project root:
+- [x] 7.3.1 Add `mcp` dependency to `requirements.txt` (or `pyproject.toml`)
+- [x] 7.3.2 Create `mcp_server/` directory at project root:
   ```
   mcp_server/
   ├── __init__.py
   └── server.py
   ```
-- [ ] 7.3.3 Implement `mcp_server/server.py`:
+- [x] 7.3.3 Implement `mcp_server/server.py`:
   ```python
   from mcp import Server
   from backend.domain.services.memory_service import MemoryService
@@ -238,19 +238,19 @@
       Returns: {entries: [{id, tier, domain, title, content, source}]}
       """
   ```
-- [ ] 7.3.4 Add entry point script `mcp_server/__main__.py`:
+- [x] 7.3.4 Add entry point script `mcp_server/__main__.py`:
   ```python
   from mcp_server.server import server
   server.run()
   ```
-- [ ] 7.3.5 Write integration tests in `tests/mcp_server/test_mcp_tools.py`:
+- [x] 7.3.5 Write integration tests in `tests/mcp_server/test_mcp_tools.py`:
   - Test each tool function directly (not via MCP protocol, just call the functions)
   - `test_remember_and_recall_roundtrip`
   - `test_teach_auto_classifies`
   - `test_entity_crud_via_mcp`
   - `test_list_domains`
   - `test_list_environments`
-- [ ] 7.3.6 Run `pytest` — all tests pass
+- [x] 7.3.6 Run `pytest` — all tests pass (1379 tests, 2.92s)
 
 ---
 
@@ -258,7 +258,7 @@
 
 > Make the MCP server discoverable by Claude.
 
-- [ ] 7.4.1 Create `claude_mcp_config.json` example at project root:
+- [x] 7.4.1 Create `claude_mcp_config.json` example at project root:
   ```json
   {
     "mcpServers": {

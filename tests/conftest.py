@@ -14,6 +14,7 @@ for _mod in (
     "psycopg2",
     "pyairtable",
     "google.genai", "google.genai.types",
+    "mcp", "mcp.server", "mcp.server.fastmcp",
 ):
     sys.modules.setdefault(_mod, MagicMock())
 

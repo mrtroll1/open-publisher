@@ -2111,9 +2111,50 @@ Phase 6.9 — Verification:
 
 **Net result:** 1356 tests pass
 
+### Session 70 (2026-03-04) — Plan 7 Phases 7.3 + 7.4.1: MCP Server + Config Example
+**Status:** Complete (all items: 7.3.1-7.3.6, 7.4.1)
+
+**What was done:**
+
+Phase 7.3 — MCP Server:
+- Added `mcp>=1.0,<3` to `requirements.txt`
+- Created `mcp_server/` directory with `__init__.py`, `server.py`, `__main__.py`
+- Implemented 10 MCP tools as thin wrappers over MemoryService:
+  - `remember(text, domain, source="mcp", tier, entity_name, source_url, expires_in_days)` — with entity name resolution and expires_in_days→datetime conversion
+  - `recall(query, domain, limit)` — empty domain→None conversion
+  - `teach(text)` — auto-classifies domain+tier via classify_teaching(), returns all three fields
+  - `get_context(environment, query)` — passthrough to MemoryService
+  - `list_domains()`, `list_environments()` — wrapped in `{domains: ...}` / `{environments: ...}`
+  - `find_entity(query)` — name search only (no external ID params)
+  - `add_entity(kind, name, summary)` — no external_ids (simple MCP API)
+  - `entity_note(entity_name, text, domain)` — name→entity_id resolution, error dict if not found
+  - `list_knowledge(domain, tier)` — empty string→None conversion
+- Functions defined as standalone, registered via `mcp.tool()(func)` at bottom
+- Lazy `_get_memory()` singleton avoids DB connection at import time
+- `_resolve_entity(name)` shared helper for name→entity_id lookup
+- Entry point: `python -m mcp_server` runs `mcp.run()` (stdio transport)
+- Updated `conftest.py` to stub `mcp`, `mcp.server`, `mcp.server.fastmcp`
+- 23 tests in `tests/mcp_server/test_mcp_tools.py` covering all 10 tools
+
+Phase 7.4.1 — Config example:
+- Created `claude_mcp_config.json` at project root with example mcpServers config
+
+**Supervisor review (13 issues fixed):**
+- Changed `source` default from `"api"` to `"mcp"` (plan spec)
+- Changed `entity_id` param to `entity_name` with name resolution (plan spec: user-friendly API)
+- Changed `expires_in_days` default from `None` to `0` (plan spec)
+- Changed `source_url` default from `None` to `""` (plan spec)
+- Changed return key `"entry_id"` to `"id"` (plan consistency)
+- Added domain+tier return from `teach()` (plan spec: `{id, domain, tier}`)
+- Removed extra params not in plan: `domains`, `entity_id` from `recall`; `chat_id`, `user_id` from `get_context`; `external_key`, `external_value` from `find_entity`; `external_ids` from `add_entity`; `entity_id` from `list_knowledge`
+- Added entity_not_found error return in `entity_note`
+- Removed docstring from `__main__.py`
+
+**Net result:** 1379 tests pass (+23 new)
+
 ## Next up
 
-- Plan 7 section 7.3: MCP Server (expose MemoryService as MCP tools)
-- Plan 7 section 7.4: Claude Desktop/Code integration
+- Plan 7 sections 7.4.2-7.4.3: Manual MCP server testing (user must do)
+- Plan 7 section 7.5: Verification (7.5.1 done, 7.5.2-7.5.5 are manual)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

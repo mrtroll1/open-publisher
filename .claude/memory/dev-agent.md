@@ -2021,8 +2021,49 @@ Phase 6.6 — Thread entity context into prompt:
 
 **Net result:** 1294 tests pass (+15 new)
 
+### Session 67 (2026-03-04) — Plan 6 Phases 6.7-6.8: Entity Bot Commands + Contractor Sync
+**Status:** Complete (all items: 6.7.1-6.7.4, 6.8.1-6.8.4, 6.9.1, 6.9.6)
+
+**What was done:**
+
+Phase 6.7 — Bot commands for entity management:
+- Added `class entity:` reply strings to `replies.py` (usage, not_found, empty, added, linked, noted, invalid_kind)
+- Added `_VALID_ENTITY_KINDS` constant to `conversation_handlers.py`
+- Added 4 handlers to `conversation_handlers.py`:
+  - `cmd_entity` — list all (grouped by kind) or search by name via `find_entities_by_name`
+  - `cmd_entity_add` — create entity with kind validation + name, via `save_entity`
+  - `cmd_entity_link` — smart parsing: words without `=` are name parts, `key=value` pairs are external IDs. Finds entity by name, merges new external_ids into existing
+  - `cmd_entity_note` — find entity by name, store knowledge via `retriever.store_entity_knowledge`
+- Registered all 4 in `router.py:_ADMIN_COMMANDS`
+- 17 tests across 4 classes (entity list/search, add, link with merge, note)
+
+Phase 6.8 — Auto-link contractors as entities:
+- Created `backend/domain/use_cases/sync_contractor_entities.py`:
+  - `execute(contractors, db, embed)` — iterates contractors, creates/updates entities
+  - `_build_summary(c)` — concise text: name, type, role, mags, telegram presence
+  - Returns `(created, updated)` counts
+  - External IDs include `contractor_name`, `contractor_type`, and conditionally `telegram_id`
+- Added `cmd_sync_entities` handler in `admin_handlers.py`
+- Registered `/sync_entities` in `router.py:_ADMIN_COMMANDS`
+- Added `admin.sync_entities_done` reply string
+- 12 tests covering _build_summary variants, create/update flows, telegram_id handling
+
+Phase 6.9 — Verification:
+- Full pytest: 1323 tests pass in 3.04s
+
+**Review:** Both phases reviewed clean, zero issues found by supervisor.
+
+**Net result:** 1323 tests pass (+29 new)
+
+**Notes:**
+- `cmd_entity_note` uses `maxsplit=2` — entity name is single-word, but `find_entities_by_name` uses ILIKE so partial matches work fine
+- `cmd_entity_link` supports multi-word entity names (everything before `key=value` tokens)
+- `_ROLE_LABELS` dict duplicated between `sync_contractor_entities.py` and `admin_handlers.py` — intentional, avoids cross-layer dependency
+- Sync uses `c.display_name` (not `c.name` which doesn't exist on Contractor model) and `c.type.value` for string storage
+
 ## Next up
 
-- Plan 6 sections 6.7-6.9 remain: bot commands for entity management, auto-link contractors, verification
+- Plan 6 is complete except manual verification items (6.9.2-6.9.5)
+- Move to Plan 7
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

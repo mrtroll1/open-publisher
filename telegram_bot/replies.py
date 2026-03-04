@@ -266,6 +266,7 @@ class admin:
     zero_amount = "Сумма для {name} за {month} не указана в бюджетной таблице."
     orphans_none = "Все записи в бюджете за {month} совпадают с контрагентами."
     orphans_found = "В бюджете за {month}, но нет привязанного контрагента ({count}):\n{lines}"
+    sync_entities_done = "Синхронизация завершена: создано {created}, обновлено {updated}."
 
 
 # ── Notifications (admin-facing) ────────────────────────────────────
@@ -327,6 +328,21 @@ class ksearch:
     usage = "Использование: /ksearch <запрос>"
     empty = "Ничего не найдено."
     header = "Результаты поиска «{query}» ({count}):\n"
+
+
+# ── Entity management ─────────────────────────────────────────────
+
+class entity:
+    usage = "Использование: /entity [запрос] — список всех или поиск по имени"
+    add_usage = "Использование: /entity_add <kind> <name>\nВиды: person, organization, publication, product, competitor"
+    link_usage = "Использование: /entity_link <entity_name> key=value [key=value ...]"
+    note_usage = "Использование: /entity_note <entity_name> <текст>"
+    not_found = "Сущность не найдена."
+    empty = "Сущностей не найдено."
+    added = "Сущность «{name}» ({kind}) добавлена."
+    linked = "Внешние ID для «{name}» обновлены."
+    noted = "Заметка для «{name}» сохранена."
+    invalid_kind = "Неизвестный вид. Допустимые: person, organization, publication, product, competitor."
 
 
 # ── Environment management ─────────────────────────────────────────

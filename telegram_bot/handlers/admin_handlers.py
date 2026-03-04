@@ -36,6 +36,8 @@ from backend.domain.services.admin_service import (
     classify_draft_reply,
     store_admin_feedback,
 )
+from backend.domain.use_cases import sync_contractor_entities
+from backend.infrastructure.gateways.embedding_gateway import EmbeddingGateway
 from backend.wiring import create_compute_budget, create_generate_batch_invoices, create_parse_bank_statement
 from telegram_bot import replies
 from telegram_bot.bot_helpers import bot, get_contractors, prev_month
@@ -69,6 +71,7 @@ __all__ = [
     "cmd_send_legium_links",
     "cmd_orphan_contractors",
     "cmd_upload_to_airtable",
+    "cmd_sync_entities",
     "cmd_chatid",
     "cmd_articles",
     "cmd_lookup",
@@ -572,3 +575,17 @@ async def cmd_upload_to_airtable(message: types.Message, state: FSMContext) -> N
     finally:
         if tmp_path:
             os.unlink(tmp_path)
+
+
+async def cmd_sync_entities(message: types.Message, state: FSMContext) -> None:
+    """Sync contractors from Google Sheets into the entities system."""
+    await send_typing(message.chat.id)
+
+    contractors = await get_contractors()
+    embed = EmbeddingGateway()
+
+    created, updated = await asyncio.to_thread(
+        sync_contractor_entities.execute, contractors, _db, embed,
+    )
+
+    await message.answer(replies.admin.sync_entities_done.format(created=created, updated=updated))

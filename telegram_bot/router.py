@@ -35,7 +35,7 @@ from telegram_bot.handlers.support_handlers import cmd_health, cmd_support, cmd_
 from telegram_bot.handlers.admin_handlers import (
     cmd_generate, cmd_chatid, cmd_articles, cmd_lookup, cmd_budget,
     cmd_generate_invoices, cmd_send_global_invoices, cmd_send_legium_links,
-    cmd_orphan_contractors, cmd_upload_to_airtable,
+    cmd_orphan_contractors, cmd_upload_to_airtable, cmd_sync_entities,
     handle_admin_reply,
 )
 from telegram_bot.handlers.contractor_handlers import (
@@ -50,6 +50,7 @@ from telegram_bot.handlers.contractor_handlers import (
 from telegram_bot.handlers.conversation_handlers import (
     cmd_nl, cmd_teach, cmd_knowledge, cmd_ksearch, cmd_forget, cmd_kedit,
     cmd_env, cmd_env_edit, cmd_env_bind,
+    cmd_entity, cmd_entity_add, cmd_entity_link, cmd_entity_note,
 )
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,7 @@ _ADMIN_COMMANDS: dict[str, Callable] = {
     "lookup": cmd_lookup,
     "budget": cmd_budget,
     "upload_to_airtable": cmd_upload_to_airtable,
+    "sync_entities": cmd_sync_entities,
     "chatid": cmd_chatid,
     "health": cmd_health,
     "support": cmd_support,
@@ -134,6 +136,10 @@ _ADMIN_COMMANDS: dict[str, Callable] = {
     "env": cmd_env,
     "env_edit": cmd_env_edit,
     "env_bind": cmd_env_bind,
+    "entity": cmd_entity,
+    "entity_add": cmd_entity_add,
+    "entity_link": cmd_entity_link,
+    "entity_note": cmd_entity_note,
 }
 
 

@@ -713,3 +713,287 @@ class TestCmdEnvBind:
 
         msg.answer.assert_awaited_once()
         assert "env_bind" in msg.answer.call_args[0][0].lower()
+
+
+# ===================================================================
+#  cmd_entity
+# ===================================================================
+
+class TestCmdEntity:
+
+    @patch("telegram_bot.handlers.conversation_handlers._send", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_entity_lists_all(self, mock_db, mock_send):
+        from telegram_bot.handlers.conversation_handlers import cmd_entity
+
+        mock_db.list_entities.return_value = [
+            {"id": "1", "kind": "person", "name": "Alice", "external_ids": {}},
+            {"id": "2", "kind": "person", "name": "Bob", "external_ids": {}},
+            {"id": "3", "kind": "organization", "name": "Acme", "external_ids": {}},
+        ]
+
+        msg = _make_message("/entity")
+        state = _make_state()
+        asyncio.run(cmd_entity(msg, state))
+
+        mock_db.list_entities.assert_called_once()
+        mock_send.assert_awaited_once()
+        text = mock_send.call_args[0][1]
+        assert "person" in text
+        assert "Alice" in text
+        assert "Bob" in text
+        assert "organization" in text
+        assert "Acme" in text
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_entity_empty(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_entity
+
+        mock_db.list_entities.return_value = []
+
+        msg = _make_message("/entity")
+        state = _make_state()
+        asyncio.run(cmd_entity(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "не найдено" in msg.answer.call_args[0][0].lower()
+
+    @patch("telegram_bot.handlers.conversation_handlers._send", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_entity_shows_details(self, mock_db, mock_send):
+        from telegram_bot.handlers.conversation_handlers import cmd_entity
+
+        mock_db.find_entities_by_name.return_value = [
+            {
+                "id": "abc-123",
+                "kind": "person",
+                "name": "Alice Smith",
+                "external_ids": {"telegram_user_id": "42"},
+            },
+        ]
+
+        msg = _make_message("/entity Alice")
+        state = _make_state()
+        asyncio.run(cmd_entity(msg, state))
+
+        mock_db.find_entities_by_name.assert_called_once_with("Alice")
+        mock_send.assert_awaited_once()
+        text = mock_send.call_args[0][1]
+        assert "Alice Smith" in text
+        assert "person" in text
+        assert "abc-123" in text
+        assert "telegram_user_id=42" in text
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_entity_search_not_found(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_entity
+
+        mock_db.find_entities_by_name.return_value = []
+
+        msg = _make_message("/entity nonexistent")
+        state = _make_state()
+        asyncio.run(cmd_entity(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "не найден" in msg.answer.call_args[0][0].lower()
+
+
+# ===================================================================
+#  cmd_entity_add
+# ===================================================================
+
+class TestCmdEntityAdd:
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_entity_add_creates(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_entity_add
+
+        mock_db.save_entity.return_value = "new-id"
+
+        msg = _make_message("/entity_add person Alice Smith")
+        state = _make_state()
+        asyncio.run(cmd_entity_add(msg, state))
+
+        mock_db.save_entity.assert_called_once_with("person", "Alice Smith")
+        msg.answer.assert_awaited_once()
+        text = msg.answer.call_args[0][0]
+        assert "Alice Smith" in text
+        assert "person" in text
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_entity_add_invalid_kind(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_entity_add
+
+        msg = _make_message("/entity_add alien Test Name")
+        state = _make_state()
+        asyncio.run(cmd_entity_add(msg, state))
+
+        mock_db.save_entity.assert_not_called()
+        msg.answer.assert_awaited_once()
+        assert "неизвестный" in msg.answer.call_args[0][0].lower()
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_entity_add_no_args_shows_usage(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_entity_add
+
+        msg = _make_message("/entity_add")
+        state = _make_state()
+        asyncio.run(cmd_entity_add(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "entity_add" in msg.answer.call_args[0][0].lower()
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_entity_add_missing_name_shows_usage(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_entity_add
+
+        msg = _make_message("/entity_add person")
+        state = _make_state()
+        asyncio.run(cmd_entity_add(msg, state))
+
+        mock_db.save_entity.assert_not_called()
+        msg.answer.assert_awaited_once()
+        assert "entity_add" in msg.answer.call_args[0][0].lower()
+
+
+# ===================================================================
+#  cmd_entity_link
+# ===================================================================
+
+class TestCmdEntityLink:
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_entity_link_updates(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_entity_link
+
+        mock_db.find_entities_by_name.return_value = [
+            {"id": "e-1", "name": "Alice", "external_ids": {"old_key": "old_val"}},
+        ]
+        mock_db.update_entity.return_value = True
+
+        msg = _make_message("/entity_link Alice telegram_user_id=123")
+        state = _make_state()
+        asyncio.run(cmd_entity_link(msg, state))
+
+        mock_db.find_entities_by_name.assert_called_once_with("Alice", 1)
+        mock_db.update_entity.assert_called_once_with(
+            "e-1", external_ids={"old_key": "old_val", "telegram_user_id": "123"},
+        )
+        msg.answer.assert_awaited_once()
+        assert "Alice" in msg.answer.call_args[0][0]
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_entity_link_entity_not_found(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_entity_link
+
+        mock_db.find_entities_by_name.return_value = []
+
+        msg = _make_message("/entity_link Unknown telegram_user_id=123")
+        state = _make_state()
+        asyncio.run(cmd_entity_link(msg, state))
+
+        mock_db.update_entity.assert_not_called()
+        msg.answer.assert_awaited_once()
+        assert "не найден" in msg.answer.call_args[0][0].lower()
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_entity_link_no_args_shows_usage(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_entity_link
+
+        msg = _make_message("/entity_link")
+        state = _make_state()
+        asyncio.run(cmd_entity_link(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "entity_link" in msg.answer.call_args[0][0].lower()
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_entity_link_no_kv_pairs_shows_usage(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_entity_link
+
+        msg = _make_message("/entity_link Alice")
+        state = _make_state()
+        asyncio.run(cmd_entity_link(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "entity_link" in msg.answer.call_args[0][0].lower()
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_entity_link_merges_with_existing(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_entity_link
+
+        mock_db.find_entities_by_name.return_value = [
+            {"id": "e-1", "name": "Alice", "external_ids": {"email": "a@b.com"}},
+        ]
+        mock_db.update_entity.return_value = True
+
+        msg = _make_message("/entity_link Alice telegram_user_id=99 slack_id=abc")
+        state = _make_state()
+        asyncio.run(cmd_entity_link(msg, state))
+
+        expected_ids = {"email": "a@b.com", "telegram_user_id": "99", "slack_id": "abc"}
+        mock_db.update_entity.assert_called_once_with("e-1", external_ids=expected_ids)
+
+
+# ===================================================================
+#  cmd_entity_note
+# ===================================================================
+
+class TestCmdEntityNote:
+
+    @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_entity_note_stores(self, mock_db, mock_get_retriever):
+        from telegram_bot.handlers.conversation_handlers import cmd_entity_note
+
+        retriever = MagicMock()
+        mock_get_retriever.return_value = retriever
+        mock_db.find_entities_by_name.return_value = [
+            {"id": "e-1", "name": "Alice", "external_ids": {}},
+        ]
+
+        msg = _make_message("/entity_note Alice She prefers email contact")
+        state = _make_state()
+        asyncio.run(cmd_entity_note(msg, state))
+
+        mock_db.find_entities_by_name.assert_called_once_with("Alice", 1)
+        retriever.store_entity_knowledge.assert_called_once_with(
+            "e-1", "She prefers email contact",
+        )
+        msg.answer.assert_awaited_once()
+        assert "Alice" in msg.answer.call_args[0][0]
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_entity_note_entity_not_found(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_entity_note
+
+        mock_db.find_entities_by_name.return_value = []
+
+        msg = _make_message("/entity_note Unknown Some note")
+        state = _make_state()
+        asyncio.run(cmd_entity_note(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "не найден" in msg.answer.call_args[0][0].lower()
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_entity_note_no_args_shows_usage(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_entity_note
+
+        msg = _make_message("/entity_note")
+        state = _make_state()
+        asyncio.run(cmd_entity_note(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "entity_note" in msg.answer.call_args[0][0].lower()
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_entity_note_missing_text_shows_usage(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_entity_note
+
+        msg = _make_message("/entity_note Alice")
+        state = _make_state()
+        asyncio.run(cmd_entity_note(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "entity_note" in msg.answer.call_args[0][0].lower()

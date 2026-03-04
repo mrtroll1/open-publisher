@@ -43,6 +43,8 @@ _ADMIN_NL_DESCRIPTIONS: dict[str, str] = {
     "code": "Запустить Claude Code для ответов, требующих посмотреть или изменить код",
 }
 
+_VALID_ENTITY_KINDS = {"person", "organization", "publication", "product", "competitor"}
+
 __all__ = [
     "cmd_nl",
     "cmd_teach",
@@ -54,6 +56,10 @@ __all__ = [
     "cmd_env",
     "cmd_env_edit",
     "cmd_env_bind",
+    "cmd_entity",
+    "cmd_entity_add",
+    "cmd_entity_link",
+    "cmd_entity_note",
     "_classify_teaching_text",
     "_format_reply_chain",
     "_handle_nl_reply",
@@ -473,3 +479,147 @@ async def cmd_env_bind(message: types.Message, state: FSMContext) -> None:
 
     await asyncio.to_thread(_db.bind_chat, message.chat.id, name)
     await message.answer(replies.env.bound.format(name=name))
+
+
+async def cmd_entity(message: types.Message, state: FSMContext) -> None:
+    args = message.text.split(maxsplit=1)
+    query = args[1].strip() if len(args) > 1 and args[1].strip() else None
+
+    if query:
+        try:
+            entities = await asyncio.to_thread(_db.find_entities_by_name, query)
+        except Exception:
+            logger.exception("Entity search failed")
+            await message.answer(replies.entity.not_found)
+            return
+        if not entities:
+            await message.answer(replies.entity.not_found)
+            return
+        lines = []
+        for e in entities:
+            ext = e.get("external_ids") or {}
+            ext_str = ", ".join(f"{k}={v}" for k, v in ext.items()) if ext else "—"
+            lines.append(f"<b>{e['name']}</b> [{e['kind']}]\n  ID: {e['id']}\n  ext: {ext_str}")
+        await _send(message, "\n\n".join(lines), parse_mode="HTML")
+        return
+
+    try:
+        entities = await asyncio.to_thread(_db.list_entities)
+    except Exception:
+        logger.exception("Entity list failed")
+        await message.answer(replies.entity.empty)
+        return
+
+    if not entities:
+        await message.answer(replies.entity.empty)
+        return
+
+    grouped: dict[str, list[dict]] = {}
+    for e in entities:
+        grouped.setdefault(e["kind"], []).append(e)
+
+    lines = []
+    for kind, items in grouped.items():
+        lines.append(f"<b>{kind}</b>")
+        for e in items:
+            lines.append(f"  {e['name']}")
+        lines.append("")
+    await _send(message, "\n".join(lines).rstrip(), parse_mode="HTML")
+
+
+async def cmd_entity_add(message: types.Message, state: FSMContext) -> None:
+    args = message.text.split(maxsplit=2)
+    if len(args) < 3 or not args[2].strip():
+        await message.answer(replies.entity.add_usage)
+        return
+
+    kind = args[1].strip().lower()
+    name = args[2].strip()
+
+    if kind not in _VALID_ENTITY_KINDS:
+        await message.answer(replies.entity.invalid_kind)
+        return
+
+    try:
+        await asyncio.to_thread(_db.save_entity, kind, name)
+    except Exception:
+        logger.exception("Entity add failed")
+        await message.answer("Не удалось создать сущность.")
+        return
+    await message.answer(replies.entity.added.format(name=name, kind=kind))
+
+
+async def cmd_entity_link(message: types.Message, state: FSMContext) -> None:
+    args = message.text.split()
+    if len(args) < 3:
+        await message.answer(replies.entity.link_usage)
+        return
+
+    # Last args with = are key=value pairs, everything before is entity name
+    kv_pairs = {}
+    name_parts = []
+    for arg in args[1:]:
+        if "=" in arg:
+            k, v = arg.split("=", 1)
+            kv_pairs[k] = v
+        else:
+            name_parts.append(arg)
+
+    if not name_parts or not kv_pairs:
+        await message.answer(replies.entity.link_usage)
+        return
+
+    entity_name = " ".join(name_parts)
+
+    try:
+        entities = await asyncio.to_thread(_db.find_entities_by_name, entity_name, 1)
+    except Exception:
+        logger.exception("Entity link search failed")
+        await message.answer(replies.entity.not_found)
+        return
+
+    if not entities:
+        await message.answer(replies.entity.not_found)
+        return
+
+    entity = entities[0]
+    merged = {**(entity.get("external_ids") or {}), **kv_pairs}
+
+    try:
+        await asyncio.to_thread(_db.update_entity, entity["id"], external_ids=merged)
+    except Exception:
+        logger.exception("Entity link update failed")
+        await message.answer("Не удалось обновить.")
+        return
+    await message.answer(replies.entity.linked.format(name=entity["name"]))
+
+
+async def cmd_entity_note(message: types.Message, state: FSMContext) -> None:
+    args = message.text.split(maxsplit=2)
+    if len(args) < 3 or not args[2].strip():
+        await message.answer(replies.entity.note_usage)
+        return
+
+    entity_name = args[1].strip()
+    text = args[2].strip()
+
+    try:
+        entities = await asyncio.to_thread(_db.find_entities_by_name, entity_name, 1)
+    except Exception:
+        logger.exception("Entity note search failed")
+        await message.answer(replies.entity.not_found)
+        return
+
+    if not entities:
+        await message.answer(replies.entity.not_found)
+        return
+
+    entity = entities[0]
+    try:
+        retriever = _get_retriever()
+        await asyncio.to_thread(retriever.store_entity_knowledge, entity["id"], text)
+    except Exception:
+        logger.exception("Entity note store failed")
+        await message.answer("Не удалось сохранить заметку.")
+        return
+    await message.answer(replies.entity.noted.format(name=entity["name"]))

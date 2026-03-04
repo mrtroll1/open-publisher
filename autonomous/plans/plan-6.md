@@ -236,7 +236,7 @@
 
 > Admin manages entities via Telegram.
 
-- [ ] 6.7.1 Add commands to `conversation_handlers.py`:
+- [x] 6.7.1 Add commands to `conversation_handlers.py`:
   ```python
   async def cmd_entity(message: types.Message, state: FSMContext) -> None:
       """List or search entities: /entity [query]"""
@@ -255,9 +255,9 @@
       """Add knowledge about entity: /entity_note <entity_name> <text>
       Stores as knowledge_entry with entity_id FK."""
   ```
-- [ ] 6.7.2 Register in `router.py:_ADMIN_COMMANDS`
-- [ ] 6.7.3 Write tests for each command
-- [ ] 6.7.4 Run `pytest` — all tests pass
+- [x] 6.7.2 Register in `router.py:_ADMIN_COMMANDS`
+- [x] 6.7.3 Write tests for each command
+- [x] 6.7.4 Run `pytest` — all tests pass (1311 tests)
 
 ---
 
@@ -266,7 +266,7 @@
 > Existing contractor data from sheets can be linked as entities.
 > This is a one-time migration + ongoing sync.
 
-- [ ] 6.8.1 Create use case `backend/domain/use_cases/sync_contractor_entities.py`:
+- [x] 6.8.1 Create use case `backend/domain/use_cases/sync_contractor_entities.py`:
   ```python
   def execute(contractors: list[Contractor], db: DbGateway, embed: EmbeddingGateway):
       """For each contractor, create/update a matching entity."""
@@ -283,20 +283,20 @@
                   embedding=embed.embed_one(f"{c.name} {c.type}"),
               )
   ```
-- [ ] 6.8.2 Wire into admin command: `/sync_entities` — runs the sync
-- [ ] 6.8.3 Write tests
-- [ ] 6.8.4 Run `pytest` — all tests pass
+- [x] 6.8.2 Wire into admin command: `/sync_entities` — runs the sync
+- [x] 6.8.3 Write tests
+- [x] 6.8.4 Run `pytest` — all tests pass (1323 tests)
 
 ---
 
 ## 6.9 Verification
 
-- [ ] 6.9.1 Run full `pytest` suite — all tests pass
+- [x] 6.9.1 Run full `pytest` suite — all tests pass (1323 tests, 3.04s)
 - [ ] 6.9.2 Manual: `/entity_add person "Иван Петров"` → creates entity
 - [ ] 6.9.3 Manual: `/entity_link Иван Петров telegram_user_id=12345` → links
 - [ ] 6.9.4 Manual: `/entity_note Иван Петров Предпочитает оплату на карту` → stores linked knowledge
 - [ ] 6.9.5 Manual: send message as linked user → bot response should reflect entity context
-- [ ] 6.9.6 Commit: `feat: add entity system (WHO layer) + knowledge provenance columns`
+- [x] 6.9.6 Commit: `feat: add entity system (WHO layer) + knowledge provenance columns`
 
 ---
 

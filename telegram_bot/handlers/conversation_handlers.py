@@ -21,7 +21,8 @@ from backend.domain.services.conversation_service import (
 )
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from telegram_bot import replies
-from telegram_bot.handler_utils import _db, _kedit_pending, _save_turn, _send, _send_html, send_typing
+from telegram_bot.bot_helpers import is_admin
+from telegram_bot.handler_utils import _db, _kedit_pending, _save_turn, _send, _send_html, resolve_environment, send_typing
 
 logger = logging.getLogger(__name__)
 
@@ -74,12 +75,13 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
         # Detect teaching patterns — classify & store before LLM call, then continue
         user_text_lower = (message.text or "").lower()
         if any(kw in user_text_lower for kw in _TEACHING_KEYWORDS):
-            try:
-                domain, tier = await _classify_teaching_text(message.text)
-                retriever = _get_retriever()
-                await asyncio.to_thread(retriever.store_teaching, message.text, domain=domain, tier=tier)
-            except Exception:
-                logger.exception("Failed to store NL teaching")
+            if is_admin(message.from_user.id):
+                try:
+                    domain, tier = await _classify_teaching_text(message.text)
+                    retriever = _get_retriever()
+                    await asyncio.to_thread(retriever.store_teaching, message.text, domain=domain, tier=tier)
+                except Exception:
+                    logger.exception("Failed to store NL teaching")
 
         # Build conversation history
         history, parent_id = await asyncio.to_thread(
@@ -89,9 +91,11 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
 
         # Generate reply via LLM
         retriever = _get_retriever()
+        env_ctx, env_domains = resolve_environment(message.chat.id)
         answer = await asyncio.to_thread(
             generate_nl_reply,
             message.text, history, retriever, GeminiGateway(),
+            environment=env_ctx, allowed_domains=env_domains,
         )
 
         sent = await _send_html(message, answer, reply_to_message_id=message.message_id)
@@ -126,8 +130,10 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
         try:
             await send_typing(message.chat.id)
             retriever = _get_retriever()
+            env_ctx, env_domains = resolve_environment(message.chat.id)
             answer = await asyncio.to_thread(
                 generate_nl_reply, text, "", retriever, GeminiGateway(),
+                environment=env_ctx, allowed_domains=env_domains,
             )
             sent = await _send_html(message, answer)
             await _save_turn(message, sent, text, answer, {"command": "nl_rag"})

@@ -38,6 +38,7 @@ __all__ = [
     "parse_month_arg",
     "get_current_contractor",
     "get_contractor_by_id",
+    "resolve_environment",
     "_safe_edit_text",
     "_send",
     "_send_html",
@@ -54,6 +55,14 @@ __all__ = [
 
 async def send_typing(chat_id: int) -> None:
     await bot.send_chat_action(chat_id, ChatAction.TYPING)
+
+
+def resolve_environment(chat_id: int) -> tuple[str, list[str] | None]:
+    """Return (system_context, allowed_domains) for a chat, or ("", None) if unbound."""
+    env = _db.get_environment_by_chat_id(chat_id)
+    if env is None:
+        return "", None
+    return env["system_context"], env.get("allowed_domains")
 
 
 async def get_current_contractor(telegram_id: int) -> "Contractor | None":

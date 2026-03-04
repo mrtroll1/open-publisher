@@ -153,7 +153,7 @@
 
 > The core change: `generate_nl_reply` accepts environment context and passes it to the template.
 
-- [ ] 5.5.1 Update `templates/conversation.md`:
+- [x] 5.5.1 Update `templates/conversation.md`:
   ```markdown
   Отвечай по-русски.
   Если не знаешь ответа — скажи.
@@ -173,27 +173,27 @@
 
   Верни JSON: {"reply": "<ответ>"}
   ```
-- [ ] 5.5.2 Update `compose_request.conversation_reply()` (line 129):
+- [x] 5.5.2 Update `compose_request.conversation_reply()` (line 129):
   - Add parameters: `environment_context: str = ""`, `user_context: str = ""`
   - Pass `ENVIRONMENT` to template: `environment_context or "(контекст не указан)"`
   - If `user_context` is non-empty, append it under `## О собеседнике` section (or add another template placeholder — keep it simple, just concat into ENVIRONMENT for now)
-- [ ] 5.5.3 Update `conversation_service.generate_nl_reply()` (line 41):
+- [x] 5.5.3 Update `conversation_service.generate_nl_reply()` (line 41):
   - Add parameters: `environment: str = ""`, `allowed_domains: list[str] | None = None`
   - When `allowed_domains` is given, use `retriever.retrieve(query, domains=allowed_domains)` and `retriever.get_multi_domain_context(allowed_domains)`
   - When `allowed_domains` is None, use current behavior (get_core + retrieve all)
   - Pass `environment` to `compose_request.conversation_reply(..., environment_context=environment)`
-- [ ] 5.5.4 Update all 3 call sites of `generate_nl_reply`:
+- [x] 5.5.4 Update all 3 call sites of `generate_nl_reply`:
   1. `conversation_handlers.py:_handle_nl_reply` (line 92) — look up environment by `message.chat.id`, pass `environment=env.system_context`, `allowed_domains=env.allowed_domains`
   2. `conversation_handlers.py:cmd_nl` (line 131) — same lookup
   3. `router.py:handle_group_message` (line 261) — same lookup
   - Create a shared helper: `_resolve_environment(chat_id: int) -> tuple[str, list[str] | None]` that returns `(system_context, allowed_domains)`. Place it in `handler_utils.py` since all 3 call sites already import from there.
   - The helper calls `_db.get_environment_by_chat_id(chat_id)`. If no binding found, returns `("", None)` — no environment context, no domain filter (backward-compatible).
-- [ ] 5.5.5 Update tests:
+- [x] 5.5.5 Update tests:
   - `test_compose_request.py`: update `conversation_reply` tests for new params (backward-compat: old calls without params still work)
   - `test_conversation_service.py`: test `generate_nl_reply` with environment + allowed_domains
   - `test_conversation_handlers.py`: update patches, test that environment is resolved and passed through
   - `test_plan2_handlers.py`: update group handler test patches if needed
-- [ ] 5.5.6 Run `pytest` — all tests pass
+- [x] 5.5.6 Run `pytest` — all tests pass
 
 ---
 
@@ -201,7 +201,7 @@
 
 > Teaching via `_TEACHING_KEYWORDS` should only work for admins.
 
-- [ ] 5.6.1 In `conversation_handlers.py:_handle_nl_reply` (line 76), wrap teaching block:
+- [x] 5.6.1 In `conversation_handlers.py:_handle_nl_reply` (line 76), wrap teaching block:
   ```python
   if any(kw in user_text_lower for kw in _TEACHING_KEYWORDS):
       if is_admin(message.from_user.id):  # ← add this check
@@ -209,8 +209,8 @@
               ...
   ```
   Add `from telegram_bot.bot_helpers import is_admin` to imports.
-- [ ] 5.6.2 Write test: `test_teaching_keywords_ignored_for_non_admin`
-- [ ] 5.6.3 Run `pytest` — all tests pass
+- [x] 5.6.2 Write test: `test_teaching_keywords_ignored_for_non_admin`
+- [x] 5.6.3 Run `pytest` — all tests pass
 
 ---
 

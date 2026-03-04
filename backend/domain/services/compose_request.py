@@ -129,6 +129,7 @@ def classify_command(text: str, commands_description: str) -> tuple[str, str, li
 def conversation_reply(
     message: str, conversation_history: str, knowledge_context: str,
     verbose: bool = False,
+    environment_context: str = "",
 ) -> tuple[str, str, list[str]]:
     verbose_text = (
         "Можешь дать развёрнутый ответ."
@@ -137,6 +138,7 @@ def conversation_reply(
     )
     prompt = load_template("conversation.md", {
         "VERBOSE": verbose_text,
+        "ENVIRONMENT": environment_context or "(контекст не указан)",
         "KNOWLEDGE": knowledge_context,
         "CONVERSATION": conversation_history,
         "MESSAGE": message,

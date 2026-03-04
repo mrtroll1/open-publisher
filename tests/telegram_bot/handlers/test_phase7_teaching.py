@@ -188,6 +188,8 @@ class TestCmdTeach:
 
 class TestNlTeachingDetection:
 
+    @patch("telegram_bot.handlers.conversation_handlers.is_admin", return_value=True)
+    @patch("telegram_bot.flow_callbacks.resolve_environment", return_value=("", None))
     @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "specific"))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
@@ -198,6 +200,7 @@ class TestNlTeachingDetection:
     def test_zapomni_triggers_store(
         self, mock_db, mock_get_retriever, mock_gemini_cls,
         mock_save_turn, mock_send_html, mock_bot, mock_classify,
+        mock_resolve_env, mock_is_admin,
     ):
         from telegram_bot.flow_callbacks import _handle_nl_reply
 
@@ -227,6 +230,8 @@ class TestNlTeachingDetection:
             "Запомни: клиентам отвечаем на русском", domain="general", tier="specific",
         )
 
+    @patch("telegram_bot.handlers.conversation_handlers.is_admin", return_value=True)
+    @patch("telegram_bot.flow_callbacks.resolve_environment", return_value=("", None))
     @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("tech_support", "specific"))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
@@ -237,6 +242,7 @@ class TestNlTeachingDetection:
     def test_uchti_triggers_store(
         self, mock_db, mock_get_retriever, mock_gemini_cls,
         mock_save_turn, mock_send_html, mock_bot, mock_classify,
+        mock_resolve_env, mock_is_admin,
     ):
         from telegram_bot.flow_callbacks import _handle_nl_reply
 
@@ -264,6 +270,8 @@ class TestNlTeachingDetection:
         assert result is True
         retriever.store_teaching.assert_called_once()
 
+    @patch("telegram_bot.handlers.conversation_handlers.is_admin", return_value=True)
+    @patch("telegram_bot.flow_callbacks.resolve_environment", return_value=("", None))
     @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "specific"))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
@@ -274,6 +282,7 @@ class TestNlTeachingDetection:
     def test_imey_v_vidu_triggers_store(
         self, mock_db, mock_get_retriever, mock_gemini_cls,
         mock_save_turn, mock_send_html, mock_bot, mock_classify,
+        mock_resolve_env, mock_is_admin,
     ):
         from telegram_bot.flow_callbacks import _handle_nl_reply
 
@@ -301,6 +310,8 @@ class TestNlTeachingDetection:
         assert result is True
         retriever.store_teaching.assert_called_once()
 
+    @patch("telegram_bot.handlers.conversation_handlers.is_admin", return_value=True)
+    @patch("telegram_bot.flow_callbacks.resolve_environment", return_value=("", None))
     @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "specific"))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
@@ -311,6 +322,7 @@ class TestNlTeachingDetection:
     def test_remember_triggers_store(
         self, mock_db, mock_get_retriever, mock_gemini_cls,
         mock_save_turn, mock_send_html, mock_bot, mock_classify,
+        mock_resolve_env, mock_is_admin,
     ):
         from telegram_bot.flow_callbacks import _handle_nl_reply
 
@@ -338,6 +350,7 @@ class TestNlTeachingDetection:
         assert result is True
         retriever.store_teaching.assert_called_once()
 
+    @patch("telegram_bot.flow_callbacks.resolve_environment", return_value=("", None))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._save_turn")
@@ -346,7 +359,7 @@ class TestNlTeachingDetection:
     @patch("telegram_bot.flow_callbacks._db")
     def test_no_keyword_no_store(
         self, mock_db, mock_get_retriever, mock_gemini_cls,
-        mock_save_turn, mock_send_html, mock_bot,
+        mock_save_turn, mock_send_html, mock_bot, mock_resolve_env,
     ):
         from telegram_bot.flow_callbacks import _handle_nl_reply
 
@@ -373,6 +386,8 @@ class TestNlTeachingDetection:
         assert result is True
         retriever.store_teaching.assert_not_called()
 
+    @patch("telegram_bot.handlers.conversation_handlers.is_admin", return_value=True)
+    @patch("telegram_bot.flow_callbacks.resolve_environment", return_value=("", None))
     @patch("telegram_bot.flow_callbacks._classify_teaching_text", new_callable=AsyncMock, return_value=("general", "specific"))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
@@ -383,6 +398,7 @@ class TestNlTeachingDetection:
     def test_store_failure_does_not_break_reply(
         self, mock_db, mock_get_retriever, mock_gemini_cls,
         mock_save_turn, mock_send_html, mock_bot, mock_classify,
+        mock_resolve_env, mock_is_admin,
     ):
         """Even if store_teaching raises, the NL reply flow should continue."""
         from telegram_bot.flow_callbacks import _handle_nl_reply

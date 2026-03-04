@@ -30,7 +30,7 @@ from backend.domain.services.command_classifier import CommandClassifier
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from telegram_bot import replies
 from telegram_bot.bot_helpers import is_admin
-from telegram_bot.handler_utils import _save_turn, _send_html, send_typing
+from telegram_bot.handler_utils import _save_turn, _send_html, resolve_environment, send_typing
 from telegram_bot.handlers.support_handlers import cmd_health, cmd_support, cmd_code
 from telegram_bot.handlers.admin_handlers import (
     cmd_generate, cmd_chatid, cmd_articles, cmd_lookup, cmd_budget,
@@ -258,8 +258,10 @@ async def handle_group_message(
 
             await send_typing(message.chat.id)
             retriever = _get_retriever()
+            env_ctx, env_domains = resolve_environment(message.chat.id)
             answer = await asyncio.to_thread(
                 generate_nl_reply, clean_text, "", retriever, GeminiGateway(),
+                environment=env_ctx, allowed_domains=env_domains,
             )
             sent = await _send_html(message, answer, reply_to_message_id=message.message_id)
             await _save_turn(message, sent, clean_text, answer, {"command": "nl_rag"})

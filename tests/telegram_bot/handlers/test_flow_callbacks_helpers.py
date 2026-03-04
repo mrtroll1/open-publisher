@@ -639,6 +639,7 @@ def _make_state(active=False):
 
 class TestHandleNlReply:
 
+    @patch("telegram_bot.flow_callbacks.resolve_environment", return_value=("", None))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._save_turn")
@@ -647,7 +648,7 @@ class TestHandleNlReply:
     @patch("telegram_bot.flow_callbacks._db")
     def test_happy_path_with_db_conversation(
         self, mock_db, mock_get_retriever, mock_gemini_cls,
-        mock_save_turn, mock_send_html, mock_bot,
+        mock_save_turn, mock_send_html, mock_bot, mock_resolve_env,
     ):
         msg = _make_nl_message()
         state = _make_state()
@@ -694,6 +695,7 @@ class TestHandleNlReply:
         save_kwargs = mock_save_turn.call_args[1]
         assert save_kwargs["parent_id"] == "conv-uuid-1"
 
+    @patch("telegram_bot.flow_callbacks.resolve_environment", return_value=("", None))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._save_turn")
@@ -702,7 +704,7 @@ class TestHandleNlReply:
     @patch("telegram_bot.flow_callbacks._db")
     def test_no_db_record_bootstraps_from_reply_text(
         self, mock_db, mock_get_retriever, mock_gemini_cls,
-        mock_save_turn, mock_send_html, mock_bot,
+        mock_save_turn, mock_send_html, mock_bot, mock_resolve_env,
     ):
         msg = _make_nl_message(text="Расскажи подробнее", reply_text="Вот информация")
         state = _make_state()
@@ -734,12 +736,14 @@ class TestHandleNlReply:
         save_kwargs = mock_save_turn.call_args[1]
         assert save_kwargs["parent_id"] is None
 
+    @patch("telegram_bot.flow_callbacks.resolve_environment", return_value=("", None))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks.GeminiGateway")
     @patch("telegram_bot.flow_callbacks._get_retriever")
     @patch("telegram_bot.flow_callbacks._db")
     def test_llm_error_returns_false(
         self, mock_db, mock_get_retriever, mock_gemini_cls, mock_bot,
+        mock_resolve_env,
     ):
         msg = _make_nl_message()
         state = _make_state()
@@ -784,6 +788,7 @@ class TestHandleNlReply:
 
         assert result is False
 
+    @patch("telegram_bot.flow_callbacks.resolve_environment", return_value=("", None))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._save_turn")
@@ -792,7 +797,7 @@ class TestHandleNlReply:
     @patch("telegram_bot.flow_callbacks._db")
     def test_reply_chain_formatting_in_history(
         self, mock_db, mock_get_retriever, mock_gemini_cls,
-        mock_save_turn, mock_send_html, mock_bot,
+        mock_save_turn, mock_send_html, mock_bot, mock_resolve_env,
     ):
         msg = _make_nl_message(text="Третий вопрос")
         state = _make_state()
@@ -827,6 +832,7 @@ class TestHandleNlReply:
         # Current message is NOT in history — it's in {{MESSAGE}} section
         assert "Третий вопрос" in prompt
 
+    @patch("telegram_bot.flow_callbacks.resolve_environment", return_value=("", None))
     @patch("telegram_bot.flow_callbacks.bot", new_callable=AsyncMock)
     @patch("telegram_bot.flow_callbacks._send_html")
     @patch("telegram_bot.flow_callbacks._save_turn")
@@ -835,7 +841,7 @@ class TestHandleNlReply:
     @patch("telegram_bot.flow_callbacks._db")
     def test_long_answer_truncated(
         self, mock_db, mock_get_retriever, mock_gemini_cls,
-        mock_save_turn, mock_send_html, mock_bot,
+        mock_save_turn, mock_send_html, mock_bot, mock_resolve_env,
     ):
         msg = _make_nl_message()
         state = _make_state()

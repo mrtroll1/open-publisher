@@ -1920,8 +1920,26 @@ tests/
 
 **Net result:** 1231 tests pass (+10 new)
 
+### Session 63 (2026-03-04) — Plan 5 Phases 5.5-5.6: Environment Prompt Assembly + Teaching Security
+**Status:** Complete (all items: 5.5.1-5.5.6, 5.6.1-5.6.3)
+
+**What was done:**
+- Updated `templates/conversation.md`: added `## Окружение` / `{{ENVIRONMENT}}` section between VERBOSE and Контекст
+- Updated `compose_request.conversation_reply()`: added `environment_context: str = ""` param, passes to template (falls back to "(контекст не указан)")
+- Updated `conversation_service.generate_nl_reply()`: added `environment: str = ""` and `allowed_domains: list[str] | None = None` params. When domains given, uses `get_multi_domain_context` + `retrieve(domains=...)` instead of `get_core` + `retrieve()`
+- Added `resolve_environment(chat_id)` helper to `handler_utils.py` — returns `(system_context, allowed_domains)` or `("", None)` if unbound
+- Updated all 3 call sites: `_handle_nl_reply`, `cmd_nl`, `handle_group_message` — each resolves environment and passes through
+- Added `is_admin` check around teaching keyword detection in `_handle_nl_reply` (5.6 security fix)
+- 9 new tests: 3 in test_compose_request, 4 in test_conversation_service, 2 in test_conversation_handlers
+- Updated existing tests with `resolve_environment` and `is_admin` patches
+
+**Review fix applied:**
+- Supervisor restored persona lines ("Ты — напарник Луки..." and "Используй контекст.") that dev agent accidentally removed from conversation.md template
+
+**Net result:** 1240 tests pass (+9 new)
+
 ## Next up
 
-- Plan 5 continues with 5.5 (thread environment through prompt assembly), 5.6 (teaching security gap), 5.7 (teaching dedup), 5.8 (bot commands)
+- Plan 5 continues with 5.7 (teaching dedup), 5.8 (bot commands for env management), 5.9 (verification)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

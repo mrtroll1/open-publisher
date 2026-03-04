@@ -44,14 +44,21 @@ def generate_nl_reply(
     retriever: KnowledgeRetriever,
     gemini: GeminiGateway | None = None,
     verbose: bool = False,
+    environment: str = "",
+    allowed_domains: list[str] | None = None,
 ) -> str:
     """Build knowledge context, call LLM, return reply text."""
-    core = retriever.get_core()
-    relevant = retriever.retrieve(message_text)
+    if allowed_domains is not None:
+        core = retriever.get_multi_domain_context(allowed_domains)
+        relevant = retriever.retrieve(message_text, domains=allowed_domains)
+    else:
+        core = retriever.get_core()
+        relevant = retriever.retrieve(message_text)
     knowledge_context = core + "\n\n" + relevant if core else relevant
 
     prompt, model, _ = compose_request.conversation_reply(
-        message_text, conversation_history, knowledge_context, verbose=verbose,
+        message_text, conversation_history, knowledge_context,
+        verbose=verbose, environment_context=environment,
     )
 
     if gemini is None:

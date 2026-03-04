@@ -181,3 +181,56 @@ class TestGenerateNlReply:
         generate_nl_reply("q", "h", mock_retriever, gemini=None)
 
         MockGemini.assert_called_once()
+
+    @patch("backend.domain.services.conversation_service.compose_request")
+    def test_environment_passed_to_compose_request(self, mock_compose_mod):
+        from backend.domain.services.conversation_service import generate_nl_reply
+
+        mock_compose_mod.conversation_reply.return_value = ("p", "m", ["reply"])
+        mock_gemini = MagicMock()
+        mock_gemini.call.return_value = {"reply": "ok"}
+        mock_retriever = MagicMock()
+        mock_retriever.get_core.return_value = ""
+        mock_retriever.retrieve.return_value = ""
+
+        generate_nl_reply("q", "h", mock_retriever, gemini=mock_gemini, environment="test env")
+
+        call_kwargs = mock_compose_mod.conversation_reply.call_args
+        assert call_kwargs[1]["environment_context"] == "test env"
+
+    @patch("backend.domain.services.conversation_service.compose_request")
+    def test_allowed_domains_uses_multi_domain_retrieval(self, mock_compose_mod):
+        from backend.domain.services.conversation_service import generate_nl_reply
+
+        mock_compose_mod.conversation_reply.return_value = ("p", "m", ["reply"])
+        mock_gemini = MagicMock()
+        mock_gemini.call.return_value = {"reply": "ok"}
+        mock_retriever = MagicMock()
+        mock_retriever.get_multi_domain_context.return_value = "multi-core"
+        mock_retriever.retrieve.return_value = "multi-relevant"
+
+        generate_nl_reply(
+            "q", "h", mock_retriever, gemini=mock_gemini,
+            allowed_domains=["editorial", "tech_support"],
+        )
+
+        mock_retriever.get_multi_domain_context.assert_called_once_with(["editorial", "tech_support"])
+        mock_retriever.retrieve.assert_called_once_with("q", domains=["editorial", "tech_support"])
+        mock_retriever.get_core.assert_not_called()
+
+    @patch("backend.domain.services.conversation_service.compose_request")
+    def test_no_allowed_domains_uses_default_retrieval(self, mock_compose_mod):
+        from backend.domain.services.conversation_service import generate_nl_reply
+
+        mock_compose_mod.conversation_reply.return_value = ("p", "m", ["reply"])
+        mock_gemini = MagicMock()
+        mock_gemini.call.return_value = {"reply": "ok"}
+        mock_retriever = MagicMock()
+        mock_retriever.get_core.return_value = "core"
+        mock_retriever.retrieve.return_value = "relevant"
+
+        generate_nl_reply("q", "h", mock_retriever, gemini=mock_gemini)
+
+        mock_retriever.get_core.assert_called_once()
+        mock_retriever.retrieve.assert_called_once_with("q")
+        mock_retriever.get_multi_domain_context.assert_not_called()

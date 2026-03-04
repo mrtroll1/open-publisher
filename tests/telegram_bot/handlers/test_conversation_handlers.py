@@ -72,6 +72,7 @@ class TestCmdNl:
         msg.answer.assert_awaited_once()
         assert "не удалось" in msg.answer.call_args[0][0].lower()
 
+    @patch("telegram_bot.handlers.conversation_handlers.resolve_environment", return_value=("", None))
     @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
     @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
     @patch("telegram_bot.handlers.conversation_handlers._send_html", new_callable=AsyncMock)
@@ -82,6 +83,7 @@ class TestCmdNl:
     def test_unclassified_generates_rag_reply(
         self, MockClassifier, MockGemini, mock_typing,
         mock_save, mock_send_html, mock_get_retriever, mock_generate,
+        mock_resolve_env,
     ):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
         from backend.domain.services.command_classifier import ClassificationResult
@@ -104,6 +106,7 @@ class TestCmdNl:
         mock_send_html.assert_awaited_once()
         assert "Вот что я знаю" in mock_send_html.call_args[0][1]
 
+    @patch("telegram_bot.handlers.conversation_handlers.resolve_environment", return_value=("", None))
     @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
     @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
     @patch("telegram_bot.handlers.conversation_handlers._send_html", new_callable=AsyncMock)
@@ -114,6 +117,7 @@ class TestCmdNl:
     def test_unclassified_saves_turn_with_nl_rag(
         self, MockClassifier, MockGemini, mock_typing,
         mock_save, mock_send_html, mock_get_retriever, mock_generate,
+        mock_resolve_env,
     ):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
         from backend.domain.services.command_classifier import ClassificationResult
@@ -311,6 +315,7 @@ class TestHandleNlReplyNewModule:
         result = asyncio.run(_handle_nl_reply(msg, state))
         assert result is False
 
+    @patch("telegram_bot.handlers.conversation_handlers.resolve_environment", return_value=("", None))
     @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
     @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
     @patch("telegram_bot.handlers.conversation_handlers.build_conversation_context")
@@ -322,6 +327,7 @@ class TestHandleNlReplyNewModule:
     def test_happy_path(
         self, mock_db, mock_get_retriever, mock_typing,
         mock_save, mock_send_html, mock_build, mock_generate, MockGemini,
+        mock_resolve_env,
     ):
         from telegram_bot.handlers.conversation_handlers import _handle_nl_reply
 
@@ -351,6 +357,8 @@ class TestHandleNlReplyNewModule:
         mock_send_html.assert_awaited_once()
         mock_save.assert_awaited_once()
 
+    @patch("telegram_bot.handlers.conversation_handlers.is_admin", return_value=True)
+    @patch("telegram_bot.handlers.conversation_handlers.resolve_environment", return_value=("", None))
     @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
     @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
     @patch("telegram_bot.handlers.conversation_handlers.build_conversation_context")
@@ -362,6 +370,7 @@ class TestHandleNlReplyNewModule:
     def test_teaching_keyword_stores(
         self, mock_db, mock_get_retriever, mock_typing,
         mock_save, mock_send_html, mock_build, mock_generate, MockGemini,
+        mock_resolve_env, mock_is_admin,
     ):
         from telegram_bot.handlers.conversation_handlers import _handle_nl_reply
 
@@ -388,3 +397,124 @@ class TestHandleNlReplyNewModule:
 
         assert result is True
         retriever.store_teaching.assert_called_once()
+
+    @patch("telegram_bot.handlers.conversation_handlers.is_admin", return_value=False)
+    @patch("telegram_bot.handlers.conversation_handlers.resolve_environment", return_value=("", None))
+    @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
+    @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
+    @patch("telegram_bot.handlers.conversation_handlers.build_conversation_context")
+    @patch("telegram_bot.handlers.conversation_handlers._send_html", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers._save_turn", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers.send_typing", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_teaching_keywords_ignored_for_non_admin(
+        self, mock_db, mock_get_retriever, mock_typing,
+        mock_save, mock_send_html, mock_build, mock_generate, MockGemini,
+        mock_resolve_env, mock_is_admin,
+    ):
+        from telegram_bot.handlers.conversation_handlers import _handle_nl_reply
+
+        retriever = MagicMock()
+        mock_get_retriever.return_value = retriever
+
+        msg = AsyncMock()
+        msg.text = "Запомни: клиентам отвечаем на русском"
+        msg.chat.id = 100
+        msg.from_user.id = 999
+        msg.message_id = 10
+        msg.reply_to_message = MagicMock()
+        msg.reply_to_message.message_id = 9
+        msg.reply_to_message.text = "Ок"
+        msg.reply_to_message.from_user = MagicMock()
+        msg.reply_to_message.from_user.is_bot = True
+
+        mock_build.return_value = ([], None)
+        mock_generate.return_value = "Ответ"
+        mock_send_html.return_value = MagicMock(message_id=11)
+
+        state = _make_state()
+        result = asyncio.run(_handle_nl_reply(msg, state))
+
+        assert result is True
+        retriever.store_teaching.assert_not_called()
+
+    @patch("telegram_bot.handlers.conversation_handlers.resolve_environment",
+           return_value=("Ты бот редакции", ["editorial", "general"]))
+    @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
+    @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
+    @patch("telegram_bot.handlers.conversation_handlers.build_conversation_context")
+    @patch("telegram_bot.handlers.conversation_handlers._send_html", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers._save_turn", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers.send_typing", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_environment_resolved_and_passed(
+        self, mock_db, mock_get_retriever, mock_typing,
+        mock_save, mock_send_html, mock_build, mock_generate, MockGemini,
+        mock_resolve_env,
+    ):
+        from telegram_bot.handlers.conversation_handlers import _handle_nl_reply
+
+        msg = AsyncMock()
+        msg.text = "Вопрос"
+        msg.chat.id = 100
+        msg.from_user.id = 42
+        msg.message_id = 10
+        msg.reply_to_message = MagicMock()
+        msg.reply_to_message.message_id = 9
+        msg.reply_to_message.text = "Ответ"
+        msg.reply_to_message.from_user = MagicMock()
+        msg.reply_to_message.from_user.is_bot = True
+
+        mock_build.return_value = ("history", "parent-id")
+        mock_generate.return_value = "Ответ бота"
+        mock_send_html.return_value = MagicMock(message_id=11)
+
+        state = _make_state()
+        asyncio.run(_handle_nl_reply(msg, state))
+
+        mock_resolve_env.assert_called_once_with(100)
+        call_kwargs = mock_generate.call_args
+        assert call_kwargs[1]["environment"] == "Ты бот редакции"
+        assert call_kwargs[1]["allowed_domains"] == ["editorial", "general"]
+
+
+# ===================================================================
+#  cmd_nl environment resolution
+# ===================================================================
+
+class TestCmdNlEnvironment:
+
+    @patch("telegram_bot.handlers.conversation_handlers.resolve_environment",
+           return_value=("env context", ["domain1"]))
+    @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
+    @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
+    @patch("telegram_bot.handlers.conversation_handlers._send_html", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers._save_turn", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers.send_typing", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
+    @patch("telegram_bot.handlers.conversation_handlers.CommandClassifier")
+    def test_cmd_nl_passes_environment(
+        self, MockClassifier, MockGemini, mock_typing,
+        mock_save, mock_send_html, mock_get_retriever, mock_generate,
+        mock_resolve_env,
+    ):
+        from telegram_bot.handlers.conversation_handlers import cmd_nl
+        from backend.domain.services.command_classifier import ClassificationResult
+
+        MockClassifier.return_value.classify.return_value = ClassificationResult(
+            classified=None, reply="",
+        )
+        mock_generate.return_value = "Ответ"
+        mock_send_html.return_value = MagicMock(message_id=11)
+
+        msg = _make_message("/nl вопрос")
+        state = _make_state()
+
+        asyncio.run(cmd_nl(msg, state))
+
+        mock_resolve_env.assert_called_once_with(msg.chat.id)
+        call_kwargs = mock_generate.call_args
+        assert call_kwargs[1]["environment"] == "env context"
+        assert call_kwargs[1]["allowed_domains"] == ["domain1"]

@@ -55,7 +55,7 @@ class TestRegistries:
             "upload_to_airtable", "sync_entities", "ingest_articles", "extract_knowledge",
             "chatid", "health", "support", "code",
             "nl", "teach", "knowledge", "ksearch", "forget", "kedit",
-            "env", "env_edit", "env_bind",
+            "env", "env_edit", "env_bind", "env_create", "env_unbind",
             "entity", "entity_add", "entity_link", "entity_note",
         }
         assert set(_ADMIN_COMMANDS.keys()) == expected
@@ -97,8 +97,8 @@ class TestRegistries:
 class TestRouteTextGroupMessages:
 
     @patch("telegram_bot.router.handle_group_message", new_callable=AsyncMock)
-    @patch("telegram_bot.router.EDITORIAL_CHAT_ID", 500)
-    def test_editorial_group_dispatches(self, mock_group_handler):
+    @patch("telegram_bot.router.resolve_environment_record", return_value={"name": "editorial_group"})
+    def test_bound_group_dispatches(self, mock_resolve, mock_group_handler):
         from telegram_bot.router import _route_text
 
         msg = _make_message("hello", chat_id=500, chat_type="supergroup")
@@ -112,8 +112,8 @@ class TestRouteTextGroupMessages:
         assert args[0][1] is state
 
     @patch("telegram_bot.router.handle_group_message", new_callable=AsyncMock)
-    @patch("telegram_bot.router.EDITORIAL_CHAT_ID", 500)
-    def test_non_editorial_group_returns_early(self, mock_group_handler):
+    @patch("telegram_bot.router.resolve_environment_record", return_value=None)
+    def test_unbound_group_returns_early(self, mock_resolve, mock_group_handler):
         from telegram_bot.router import _route_text
 
         msg = _make_message("hello", chat_id=999, chat_type="group")
@@ -125,8 +125,8 @@ class TestRouteTextGroupMessages:
 
     @patch("telegram_bot.router.handle_group_message", new_callable=AsyncMock)
     @patch("telegram_bot.router.handle_contractor_text", new_callable=AsyncMock)
-    @patch("telegram_bot.router.EDITORIAL_CHAT_ID", 500)
-    def test_group_message_does_not_fall_through_to_dm(self, mock_contractor, mock_group):
+    @patch("telegram_bot.router.resolve_environment_record", return_value=None)
+    def test_group_message_does_not_fall_through_to_dm(self, mock_resolve, mock_contractor, mock_group):
         from telegram_bot.router import _route_text
 
         msg = _make_message("hello", chat_id=999, chat_type="group")
@@ -136,12 +136,37 @@ class TestRouteTextGroupMessages:
 
         mock_contractor.assert_not_awaited()
 
-    @patch("telegram_bot.router.handle_group_message", new_callable=AsyncMock)
-    @patch("telegram_bot.router.EDITORIAL_CHAT_ID", 0)
-    def test_editorial_chat_id_zero_skips_dispatch(self, mock_group_handler):
+    @patch("telegram_bot.router.cmd_env_bind", new_callable=AsyncMock)
+    @patch("telegram_bot.router.is_admin", return_value=True)
+    def test_env_bind_works_in_unbound_group(self, mock_is_admin, mock_env_bind):
         from telegram_bot.router import _route_text
 
-        msg = _make_message("hello", chat_id=0, chat_type="supergroup")
+        msg = _make_message("/env_bind editorial_group", chat_id=999, user_id=1, chat_type="group")
+        state = _make_state()
+
+        asyncio.run(_route_text(msg, state))
+
+        mock_env_bind.assert_awaited_once_with(msg, state)
+
+    @patch("telegram_bot.router.cmd_env_unbind", new_callable=AsyncMock)
+    @patch("telegram_bot.router.is_admin", return_value=True)
+    def test_env_unbind_works_in_group(self, mock_is_admin, mock_env_unbind):
+        from telegram_bot.router import _route_text
+
+        msg = _make_message("/env_unbind", chat_id=500, user_id=1, chat_type="supergroup")
+        state = _make_state()
+
+        asyncio.run(_route_text(msg, state))
+
+        mock_env_unbind.assert_awaited_once_with(msg, state)
+
+    @patch("telegram_bot.router.handle_group_message", new_callable=AsyncMock)
+    @patch("telegram_bot.router.resolve_environment_record", return_value=None)
+    @patch("telegram_bot.router.is_admin", return_value=False)
+    def test_env_bind_rejected_for_non_admin_in_group(self, mock_is_admin, mock_resolve, mock_group_handler):
+        from telegram_bot.router import _route_text
+
+        msg = _make_message("/env_bind editorial_group", chat_id=999, user_id=42, chat_type="group")
         state = _make_state()
 
         asyncio.run(_route_text(msg, state))

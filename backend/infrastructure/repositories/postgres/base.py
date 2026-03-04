@@ -209,15 +209,10 @@ class BasePostgresRepo:
         self._seed_bindings()
 
     def _seed_bindings(self):
-        from common.config import EDITORIAL_CHAT_ID, ADMIN_TELEGRAM_IDS
+        from common.config import ADMIN_TELEGRAM_IDS
 
         conn = self._get_conn()
         with conn.cursor() as cur:
-            if EDITORIAL_CHAT_ID:
-                cur.execute(
-                    "INSERT INTO environment_bindings (chat_id, environment) VALUES (%s, %s) ON CONFLICT DO NOTHING",
-                    (EDITORIAL_CHAT_ID, "editorial_group"),
-                )
             for admin_id in ADMIN_TELEGRAM_IDS:
                 cur.execute(
                     "INSERT INTO environment_bindings (chat_id, environment) VALUES (%s, %s) ON CONFLICT DO NOTHING",

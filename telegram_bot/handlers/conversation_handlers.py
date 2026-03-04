@@ -54,6 +54,8 @@ __all__ = [
     "cmd_env",
     "cmd_env_edit",
     "cmd_env_bind",
+    "cmd_env_create",
+    "cmd_env_unbind",
     "cmd_entity",
     "cmd_entity_add",
     "cmd_entity_link",
@@ -442,6 +444,24 @@ async def cmd_env_bind(message: types.Message, state: FSMContext) -> None:
 
     await asyncio.to_thread(_db.bind_chat, message.chat.id, name)
     await message.answer(replies.env.bound.format(name=name))
+
+
+async def cmd_env_create(message: types.Message, state: FSMContext) -> None:
+    """Create environment: /env_create <name> <description>"""
+    args = message.text.split(maxsplit=2)
+    if len(args) < 3:
+        await message.answer(replies.env.create_usage)
+        return
+    name = args[1].strip()
+    description = args[2].strip()
+    await asyncio.to_thread(_db.save_environment, name, description, "")
+    await message.answer(replies.env.created.format(name=name))
+
+
+async def cmd_env_unbind(message: types.Message, state: FSMContext) -> None:
+    """Unbind current chat from its environment: /env_unbind"""
+    await asyncio.to_thread(_db.unbind_chat, message.chat.id)
+    await message.answer(replies.env.unbound)
 
 
 async def cmd_entity(message: types.Message, state: FSMContext) -> None:

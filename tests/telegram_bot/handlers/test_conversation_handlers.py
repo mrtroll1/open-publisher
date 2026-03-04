@@ -714,6 +714,64 @@ class TestCmdEnvBind:
 
 
 # ===================================================================
+#  cmd_env_create
+# ===================================================================
+
+class TestCmdEnvCreate:
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_env_create_creates_environment(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_env_create
+
+        msg = _make_message("/env_create test_env Test environment")
+        state = _make_state()
+        asyncio.run(cmd_env_create(msg, state))
+
+        mock_db.save_environment.assert_called_once_with("test_env", "Test environment", "")
+        msg.answer.assert_awaited_once()
+        assert "test_env" in msg.answer.call_args[0][0]
+
+    def test_cmd_env_create_no_args_shows_usage(self):
+        from telegram_bot.handlers.conversation_handlers import cmd_env_create
+
+        msg = _make_message("/env_create")
+        state = _make_state()
+        asyncio.run(cmd_env_create(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "env_create" in msg.answer.call_args[0][0].lower()
+
+    def test_cmd_env_create_missing_description_shows_usage(self):
+        from telegram_bot.handlers.conversation_handlers import cmd_env_create
+
+        msg = _make_message("/env_create test_env")
+        state = _make_state()
+        asyncio.run(cmd_env_create(msg, state))
+
+        msg.answer.assert_awaited_once()
+        assert "env_create" in msg.answer.call_args[0][0].lower()
+
+
+# ===================================================================
+#  cmd_env_unbind
+# ===================================================================
+
+class TestCmdEnvUnbind:
+
+    @patch("telegram_bot.handlers.conversation_handlers._db")
+    def test_cmd_env_unbind_unbinds_chat(self, mock_db):
+        from telegram_bot.handlers.conversation_handlers import cmd_env_unbind
+
+        msg = _make_message("/env_unbind", chat_id=555)
+        state = _make_state()
+        asyncio.run(cmd_env_unbind(msg, state))
+
+        mock_db.unbind_chat.assert_called_once_with(555)
+        msg.answer.assert_awaited_once()
+        assert "отвязан" in msg.answer.call_args[0][0].lower()
+
+
+# ===================================================================
 #  cmd_entity
 # ===================================================================
 

@@ -39,6 +39,7 @@ __all__ = [
     "parse_month_arg",
     "get_current_contractor",
     "get_contractor_by_id",
+    "resolve_environment_record",
     "resolve_environment",
     "resolve_entity_context",
     "_safe_edit_text",
@@ -58,6 +59,11 @@ __all__ = [
 
 async def send_typing(chat_id: int) -> None:
     await bot.send_chat_action(chat_id, ChatAction.TYPING)
+
+
+def resolve_environment_record(chat_id: int) -> dict | None:
+    """Return the full environment dict for a chat, or None if unbound."""
+    return _memory.get_environment(chat_id=chat_id)
 
 
 def resolve_environment(chat_id: int) -> tuple[str, list[str] | None]:

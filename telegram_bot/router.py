@@ -25,12 +25,12 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import BotCommand
 
-from common.config import BOT_USERNAME, EDITORIAL_CHAT_ID
+from common.config import BOT_USERNAME
 from backend.domain.services.command_classifier import CommandClassifier
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from telegram_bot import replies
 from telegram_bot.bot_helpers import is_admin
-from telegram_bot.handler_utils import _save_turn, _send_html, resolve_environment, resolve_entity_context, send_typing
+from telegram_bot.handler_utils import _save_turn, _send_html, resolve_environment, resolve_environment_record, resolve_entity_context, send_typing
 from telegram_bot.handlers.support_handlers import cmd_health, cmd_support, cmd_code
 from telegram_bot.handlers.admin_handlers import (
     cmd_generate, cmd_chatid, cmd_articles, cmd_lookup, cmd_budget,
@@ -50,7 +50,7 @@ from telegram_bot.handlers.contractor_handlers import (
 )
 from telegram_bot.handlers.conversation_handlers import (
     cmd_nl, cmd_teach, cmd_knowledge, cmd_ksearch, cmd_forget, cmd_kedit,
-    cmd_env, cmd_env_edit, cmd_env_bind,
+    cmd_env, cmd_env_edit, cmd_env_bind, cmd_env_create, cmd_env_unbind,
     cmd_entity, cmd_entity_add, cmd_entity_link, cmd_entity_note,
 )
 
@@ -139,6 +139,8 @@ _ADMIN_COMMANDS: dict[str, Callable] = {
     "env": cmd_env,
     "env_edit": cmd_env_edit,
     "env_bind": cmd_env_bind,
+    "env_create": cmd_env_create,
+    "env_unbind": cmd_env_unbind,
     "entity": cmd_entity,
     "entity_add": cmd_entity_add,
     "entity_link": cmd_entity_link,
@@ -333,13 +335,35 @@ class _GroupConfig:
     natural_language = True
 
 
+_GROUP_ADMIN_COMMANDS = {"env_bind", "env_unbind"}
+
+
+async def _route_group(message: types.Message, state: FSMContext) -> None:
+    """Route group messages. Only responds if chat is bound to an environment."""
+    text = message.text or ""
+    if text.startswith("/"):
+        raw_cmd = text.split()[0].lstrip("/")
+        if "@" in raw_cmd:
+            raw_cmd = raw_cmd.split("@", 1)[0]
+        if raw_cmd in _GROUP_ADMIN_COMMANDS and is_admin(message.from_user.id):
+            handler = _ADMIN_COMMANDS.get(raw_cmd)
+            if handler:
+                await handler(message, state)
+            return
+
+    env = await asyncio.to_thread(resolve_environment_record, message.chat.id)
+    if not env:
+        return
+
+    await handle_group_message(message, state, _GroupConfig)
+
+
 async def _route_text(message: types.Message, state: FSMContext) -> None:
     text = message.text or ""
 
     # 1. Group messages
     if message.chat.type in ("group", "supergroup"):
-        if EDITORIAL_CHAT_ID and message.chat.id == EDITORIAL_CHAT_ID:
-            await handle_group_message(message, state, _GroupConfig)
+        await _route_group(message, state)
         return
 
     # 2. Commands

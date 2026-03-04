@@ -1,43 +1,33 @@
 """Tests for GeminiGateway.call() — pure LLM wrapper, no DB logging."""
 
-import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 
-_mock_genai = MagicMock()
 
-
-@pytest.fixture(autouse=True)
-def _patch_genai():
-    """Ensure our mock is active in sys.modules for each test."""
-    _mock_genai.reset_mock()
-    with patch.dict(sys.modules, {"google.genai": _mock_genai}):
-        yield
-
-
-def _setup_genai_response(response_text: str = '{"result": "ok"}'):
-    """Configure the stubbed genai module to return the given text."""
+def _make_mock_client(response_text: str = '{"result": "ok"}'):
+    """Create a mock genai Client that returns the given text."""
     mock_response = MagicMock()
     mock_response.text = response_text
     mock_client = MagicMock()
     mock_client.models.generate_content.return_value = mock_response
-    _mock_genai.Client.return_value = mock_client
+    return mock_client
 
 
 class TestGeminiGatewayCall:
 
-    def setup_method(self):
-        _setup_genai_response('{"result": "ok"}')
-
-    def test_call_returns_parsed_json(self):
+    @patch("backend.infrastructure.gateways.gemini_gateway.genai")
+    def test_call_returns_parsed_json(self, mock_genai):
+        mock_genai.Client.return_value = _make_mock_client('{"result": "ok"}')
         gw = GeminiGateway()
         result = gw.call("test prompt", model="gemini-2.5-flash")
         assert result == {"result": "ok"}
 
-    def test_call_uses_default_model(self):
+    @patch("backend.infrastructure.gateways.gemini_gateway.genai")
+    def test_call_uses_default_model(self, mock_genai):
+        mock_genai.Client.return_value = _make_mock_client('{"result": "ok"}')
         gw = GeminiGateway(model="gemini-2.5-flash")
         result = gw.call("prompt")
         assert result == {"result": "ok"}
@@ -47,20 +37,23 @@ class TestGeminiGatewayCall:
         with pytest.raises(TypeError):
             gw.call("prompt", task="INBOX_CLASSIFY")
 
-    def test_call_with_markdown_fenced_json(self):
-        _setup_genai_response('```json\n{"key": "value"}\n```')
+    @patch("backend.infrastructure.gateways.gemini_gateway.genai")
+    def test_call_with_markdown_fenced_json(self, mock_genai):
+        mock_genai.Client.return_value = _make_mock_client('```json\n{"key": "value"}\n```')
         gw = GeminiGateway()
         result = gw.call("prompt")
         assert result == {"key": "value"}
 
-    def test_call_with_embedded_json(self):
-        _setup_genai_response('Some text {"key": "value"} more text')
+    @patch("backend.infrastructure.gateways.gemini_gateway.genai")
+    def test_call_with_embedded_json(self, mock_genai):
+        mock_genai.Client.return_value = _make_mock_client('Some text {"key": "value"} more text')
         gw = GeminiGateway()
         result = gw.call("prompt")
         assert result == {"key": "value"}
 
-    def test_call_with_no_json_returns_raw_parsed(self):
-        _setup_genai_response("plain text response")
+    @patch("backend.infrastructure.gateways.gemini_gateway.genai")
+    def test_call_with_no_json_returns_raw_parsed(self, mock_genai):
+        mock_genai.Client.return_value = _make_mock_client("plain text response")
         gw = GeminiGateway()
         result = gw.call("prompt")
         assert result == {"raw_parsed": "plain text response"}

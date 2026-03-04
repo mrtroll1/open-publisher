@@ -123,9 +123,17 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
         return
 
     if not result.classified:
-        reply = result.reply or "Не удалось определить команду."
-        sent = await _send_html(message, reply)
-        await _save_turn(message, sent, text, reply, {"command": "nl_fallback"})
+        try:
+            await send_typing(message.chat.id)
+            retriever = _get_retriever()
+            answer = await asyncio.to_thread(
+                generate_nl_reply, text, "", retriever, GeminiGateway(),
+            )
+            sent = await _send_html(message, answer)
+            await _save_turn(message, sent, text, answer, {"command": "nl_rag"})
+        except Exception:
+            logger.exception("RAG reply failed in cmd_nl")
+            await message.answer("Не удалось ответить.")
         return
 
     cmd = result.classified.command

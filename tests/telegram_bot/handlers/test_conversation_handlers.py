@@ -72,40 +72,24 @@ class TestCmdNl:
         msg.answer.assert_awaited_once()
         assert "не удалось" in msg.answer.call_args[0][0].lower()
 
+    @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
+    @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
     @patch("telegram_bot.handlers.conversation_handlers._send_html", new_callable=AsyncMock)
     @patch("telegram_bot.handlers.conversation_handlers._save_turn", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers.send_typing", new_callable=AsyncMock)
     @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
     @patch("telegram_bot.handlers.conversation_handlers.CommandClassifier")
-    def test_unclassified_sends_reply(self, MockClassifier, MockGemini, mock_save, mock_send_html):
-        from telegram_bot.handlers.conversation_handlers import cmd_nl
-        from backend.domain.services.command_classifier import ClassificationResult
-
-        MockClassifier.return_value.classify.return_value = ClassificationResult(
-            classified=None, reply="Не могу определить команду",
-        )
-        sent_msg = MagicMock()
-        sent_msg.message_id = 11
-        mock_send_html.return_value = sent_msg
-
-        msg = _make_message("/nl что-то непонятное")
-        state = _make_state()
-
-        asyncio.run(cmd_nl(msg, state))
-
-        mock_send_html.assert_awaited_once()
-        assert "Не могу определить команду" in mock_send_html.call_args[0][1]
-
-    @patch("telegram_bot.handlers.conversation_handlers._send_html", new_callable=AsyncMock)
-    @patch("telegram_bot.handlers.conversation_handlers._save_turn", new_callable=AsyncMock)
-    @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
-    @patch("telegram_bot.handlers.conversation_handlers.CommandClassifier")
-    def test_unclassified_no_reply_uses_default(self, MockClassifier, MockGemini, mock_save, mock_send_html):
+    def test_unclassified_generates_rag_reply(
+        self, MockClassifier, MockGemini, mock_typing,
+        mock_save, mock_send_html, mock_get_retriever, mock_generate,
+    ):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
         from backend.domain.services.command_classifier import ClassificationResult
 
         MockClassifier.return_value.classify.return_value = ClassificationResult(
             classified=None, reply="",
         )
+        mock_generate.return_value = "Вот что я знаю по этому вопросу."
         sent_msg = MagicMock()
         sent_msg.message_id = 11
         mock_send_html.return_value = sent_msg
@@ -115,20 +99,29 @@ class TestCmdNl:
 
         asyncio.run(cmd_nl(msg, state))
 
+        mock_typing.assert_awaited_once()
+        mock_generate.assert_called_once()
         mock_send_html.assert_awaited_once()
-        assert "не удалось определить" in mock_send_html.call_args[0][1].lower()
+        assert "Вот что я знаю" in mock_send_html.call_args[0][1]
 
+    @patch("telegram_bot.handlers.conversation_handlers.generate_nl_reply")
+    @patch("telegram_bot.handlers.conversation_handlers._get_retriever")
     @patch("telegram_bot.handlers.conversation_handlers._send_html", new_callable=AsyncMock)
     @patch("telegram_bot.handlers.conversation_handlers._save_turn", new_callable=AsyncMock)
+    @patch("telegram_bot.handlers.conversation_handlers.send_typing", new_callable=AsyncMock)
     @patch("telegram_bot.handlers.conversation_handlers.GeminiGateway")
     @patch("telegram_bot.handlers.conversation_handlers.CommandClassifier")
-    def test_unclassified_saves_turn_with_nl_fallback(self, MockClassifier, MockGemini, mock_save, mock_send_html):
+    def test_unclassified_saves_turn_with_nl_rag(
+        self, MockClassifier, MockGemini, mock_typing,
+        mock_save, mock_send_html, mock_get_retriever, mock_generate,
+    ):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
         from backend.domain.services.command_classifier import ClassificationResult
 
         MockClassifier.return_value.classify.return_value = ClassificationResult(
-            classified=None, reply="Не знаю",
+            classified=None, reply="",
         )
+        mock_generate.return_value = "Ответ"
         sent_msg = MagicMock()
         sent_msg.message_id = 11
         mock_send_html.return_value = sent_msg
@@ -140,7 +133,7 @@ class TestCmdNl:
 
         mock_save.assert_awaited_once()
         meta = mock_save.call_args[0][4]
-        assert meta["command"] == "nl_fallback"
+        assert meta["command"] == "nl_rag"
 
     @patch("telegram_bot.handlers.support_handlers.send_typing", new_callable=AsyncMock)
     @patch("telegram_bot.handlers.support_handlers._send_html", new_callable=AsyncMock)

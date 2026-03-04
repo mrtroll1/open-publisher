@@ -62,6 +62,42 @@ class KnowledgeRepo(BasePostgresRepo):
                 rows.append(d)
             return rows
 
+    def search_knowledge_multi_domain(
+        self, query_embedding: list[float],
+        domains: list[str] | None = None,
+        limit: int = 5,
+    ) -> list[dict]:
+        conn = self._get_conn()
+        emb_str = str(query_embedding)
+        with conn.cursor() as cur:
+            if domains is not None:
+                cur.execute(
+                    """SELECT id, tier, domain, title, content, source,
+                              1 - (embedding <=> %s::vector) AS similarity
+                       FROM knowledge_entries
+                       WHERE is_active = TRUE AND domain = ANY(%s)
+                       ORDER BY embedding <=> %s::vector ASC
+                       LIMIT %s""",
+                    (emb_str, domains, emb_str, limit),
+                )
+            else:
+                cur.execute(
+                    """SELECT id, tier, domain, title, content, source,
+                              1 - (embedding <=> %s::vector) AS similarity
+                       FROM knowledge_entries
+                       WHERE is_active = TRUE
+                       ORDER BY embedding <=> %s::vector ASC
+                       LIMIT %s""",
+                    (emb_str, emb_str, limit),
+                )
+            cols = ["id", "tier", "domain", "title", "content", "source", "similarity"]
+            rows = []
+            for row in cur.fetchall():
+                d = dict(zip(cols, row))
+                d["id"] = str(d["id"])
+                rows.append(d)
+            return rows
+
     def get_knowledge_by_tier(self, tier: str) -> list[dict]:
         conn = self._get_conn()
         with conn.cursor() as cur:
@@ -91,6 +127,26 @@ class KnowledgeRepo(BasePostgresRepo):
                      AND (tier = 'core' OR (tier = 'meta' AND domain = %s))
                    ORDER BY tier, created_at""",
                 (domain,),
+            )
+            cols = ["id", "tier", "domain", "title", "content", "source"]
+            rows = []
+            for row in cur.fetchall():
+                d = dict(zip(cols, row))
+                d["id"] = str(d["id"])
+                rows.append(d)
+            return rows
+
+    def get_multi_domain_context(self, domains: list[str]) -> list[dict]:
+        """Fetch core (global) + meta entries for multiple domains."""
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT id, tier, domain, title, content, source
+                   FROM knowledge_entries
+                   WHERE is_active = TRUE
+                     AND (tier = 'core' OR (tier = 'meta' AND domain = ANY(%s)))
+                   ORDER BY tier, created_at""",
+                (domains,),
             )
             cols = ["id", "tier", "domain", "title", "content", "source"]
             rows = []

@@ -141,6 +141,88 @@ class TestSearchKnowledge:
 
 
 # ===================================================================
+#  search_knowledge_multi_domain
+# ===================================================================
+
+class TestSearchKnowledgeMultiDomain:
+
+    def test_filters_by_domains_list(self):
+        gw, cur = _make_gw()
+        cur.fetchall.return_value = [
+            ("id-1", "specific", "editorial", "Title", "Content", "seed", 0.9),
+            ("id-2", "specific", "payments", "Title2", "Content2", "seed", 0.8),
+        ]
+        emb = [0.1, 0.2, 0.3]
+
+        result = gw.search_knowledge_multi_domain(
+            query_embedding=emb, domains=["editorial", "payments"], limit=5,
+        )
+
+        assert len(result) == 2
+        assert result[0]["id"] == "id-1"
+        assert result[1]["id"] == "id-2"
+        sql, params = cur.execute.call_args[0]
+        assert "AND domain = ANY(%s)" in sql
+        assert params == (str(emb), ["editorial", "payments"], str(emb), 5)
+
+    def test_none_domains_returns_all(self):
+        gw, cur = _make_gw()
+        cur.fetchall.return_value = [
+            ("id-1", "specific", "editorial", "T", "C", "seed", 0.95),
+        ]
+        emb = [0.1, 0.2]
+
+        result = gw.search_knowledge_multi_domain(query_embedding=emb, domains=None, limit=3)
+
+        assert len(result) == 1
+        sql, params = cur.execute.call_args[0]
+        assert "AND domain" not in sql.split("WHERE")[1].split("ORDER")[0]
+        assert params == (str(emb), str(emb), 3)
+
+    def test_empty_results(self):
+        gw, cur = _make_gw()
+        cur.fetchall.return_value = []
+
+        result = gw.search_knowledge_multi_domain(query_embedding=[0.0], domains=["tech_support"])
+
+        assert result == []
+
+
+# ===================================================================
+#  get_multi_domain_context
+# ===================================================================
+
+class TestGetMultiDomainContext:
+
+    def test_returns_core_and_meta_for_multiple_domains(self):
+        gw, cur = _make_gw()
+        cur.fetchall.return_value = [
+            ("id-1", "core", "identity", "Who we are", "Republic is...", "seed"),
+            ("id-2", "meta", "tech_support", "FAQ", "Always check...", "seed"),
+            ("id-3", "meta", "editorial", "Style", "Write clearly", "seed"),
+        ]
+
+        result = gw.get_multi_domain_context(["tech_support", "editorial"])
+
+        assert len(result) == 3
+        assert result[0]["tier"] == "core"
+        assert result[1]["tier"] == "meta"
+        assert result[2]["tier"] == "meta"
+        sql, params = cur.execute.call_args[0]
+        assert "tier = 'core'" in sql
+        assert "tier = 'meta' AND domain = ANY(%s)" in sql
+        assert params == (["tech_support", "editorial"],)
+
+    def test_empty(self):
+        gw, cur = _make_gw()
+        cur.fetchall.return_value = []
+
+        result = gw.get_multi_domain_context(["empty"])
+
+        assert result == []
+
+
+# ===================================================================
 #  get_knowledge_by_tier
 # ===================================================================
 

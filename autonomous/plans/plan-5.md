@@ -95,7 +95,7 @@
 
 > Wire the existing `EDITORIAL_CHAT_ID` config to the `editorial_group` environment.
 
-- [ ] 5.3.1 Add migration in `_SCHEMA_SQL` (after environment seeds):
+- [x] 5.3.1 Add migration in `_SCHEMA_SQL` (after environment seeds):
   ```sql
   -- Bind editorial chat if EDITORIAL_CHAT_ID is set (handled in Python init)
   ```
@@ -110,9 +110,9 @@
           )
   ```
   Call from `init_schema()` after `_SCHEMA_SQL` execution.
-- [ ] 5.3.2 Add migration for admin DM: bind admin chat_ids from `ADMIN_TELEGRAM_IDS` config to `admin_dm`.
+- [x] 5.3.2 Add migration for admin DM: bind admin chat_ids from `ADMIN_TELEGRAM_IDS` config to `admin_dm`.
   Same pattern: iterate ADMIN_TELEGRAM_IDS, bind each to `admin_dm`. (Note: these are user IDs, not chat IDs. In DMs, chat_id == user_id.)
-- [ ] 5.3.3 Run `pytest` — all tests pass
+- [x] 5.3.3 Run `pytest` — all tests pass
 
 ---
 
@@ -121,7 +121,7 @@
 > `search_knowledge` already accepts `domain` param. Now add multi-domain filtering
 > so environments with `allowed_domains = ['tech_support', 'editorial']` scope RAG correctly.
 
-- [ ] 5.4.1 Add method to `KnowledgeRepo` (knowledge_repo.py):
+- [x] 5.4.1 Add method to `KnowledgeRepo` (knowledge_repo.py):
   ```python
   def search_knowledge_multi_domain(
       self, query_embedding: list[float],
@@ -132,20 +132,20 @@
   - If `domains` is None → no domain filter (same as current `search_knowledge` with domain=None)
   - If `domains` is a list → `WHERE domain = ANY(%s)` filter
   - Same return shape as `search_knowledge`
-- [ ] 5.4.2 Add `retrieve` overload to `KnowledgeRetriever` (knowledge_retriever.py):
+- [x] 5.4.2 Add `retrieve` overload to `KnowledgeRetriever` (knowledge_retriever.py):
   - Change signature: `retrieve(self, query: str, domain: str | None = None, domains: list[str] | None = None, limit: int = 5) -> str`
   - If `domains` provided, use `search_knowledge_multi_domain`
   - If `domain` (singular) provided, use existing `search_knowledge`
   - If neither, search all
-- [ ] 5.4.3 Similarly update `get_domain_context` to accept `domains: list[str]` variant:
+- [x] 5.4.3 Similarly update `get_domain_context` to accept `domains: list[str]` variant:
   - When given a list, return core + meta entries for ALL listed domains
   - Add `get_multi_domain_context(self, domains: list[str]) -> str` to keep methods clean
-- [ ] 5.4.4 Write tests:
+- [x] 5.4.4 Write tests:
   - `test_search_knowledge_multi_domain_filters_correctly`
   - `test_search_knowledge_multi_domain_none_returns_all`
   - `test_retrieve_with_domains_list`
   - `test_get_multi_domain_context`
-- [ ] 5.4.5 Run `pytest` — all tests pass
+- [x] 5.4.5 Run `pytest` — all tests pass
 
 ---
 

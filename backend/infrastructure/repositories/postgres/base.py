@@ -164,6 +164,23 @@ class BasePostgresRepo:
     def init_schema(self):
         with self._get_conn().cursor() as cur:
             cur.execute(_SCHEMA_SQL)
+        self._seed_bindings()
+
+    def _seed_bindings(self):
+        from common.config import EDITORIAL_CHAT_ID, ADMIN_TELEGRAM_IDS
+
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            if EDITORIAL_CHAT_ID:
+                cur.execute(
+                    "INSERT INTO environment_bindings (chat_id, environment) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                    (EDITORIAL_CHAT_ID, "editorial_group"),
+                )
+            for admin_id in ADMIN_TELEGRAM_IDS:
+                cur.execute(
+                    "INSERT INTO environment_bindings (chat_id, environment) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                    (admin_id, "admin_dm"),
+                )
 
     def close(self):
         if self._conn and not self._conn.closed:

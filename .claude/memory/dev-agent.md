@@ -1897,8 +1897,31 @@ tests/
 - `bind_chat` uses INSERT ON CONFLICT DO UPDATE for rebinding
 - Uses `with conn.cursor() as cur:` pattern matching knowledge_repo.py and email_repo.py
 
+### Session 62 (2026-03-04) — Plan 5 Phases 5.3-5.4: Seed Bindings + Domain-filtered RAG
+**Status:** Complete (all items: 5.3.1-5.3.3, 5.4.1-5.4.5)
+
+**What was done:**
+- Added `_seed_bindings()` method to `base.py` that runs after `init_schema()`:
+  - Binds `EDITORIAL_CHAT_ID` → `editorial_group` (guarded by truthiness check, config defaults to 0)
+  - Iterates `ADMIN_TELEGRAM_IDS` and binds each → `admin_dm` (DMs: chat_id == user_id)
+  - Uses `ON CONFLICT DO NOTHING` for idempotency
+- Added `search_knowledge_multi_domain()` to `knowledge_repo.py`:
+  - Vector similarity search with `WHERE domain = ANY(%s)` for multi-domain filtering
+  - Falls back to no filter when `domains is None`
+- Added `get_multi_domain_context()` to `knowledge_repo.py`:
+  - Returns core + meta entries for multiple domains using `domain = ANY(%s)`
+- Updated `retrieve()` in `knowledge_retriever.py`:
+  - Extended signature: `domains: list[str] | None = None`
+  - Routes to `search_knowledge_multi_domain` when `domains` provided
+- Added `get_multi_domain_context()` to `knowledge_retriever.py`
+- 10 new tests: 5 in test_knowledge_db.py, 5 in test_knowledge_retriever.py
+
+**Review:** Clean implementation, no fixes needed.
+
+**Net result:** 1231 tests pass (+10 new)
+
 ## Next up
 
-- Plan 5 continues with 5.3 (seed bindings), 5.4 (domain-filtered RAG), 5.5 (thread environment through prompts)
+- Plan 5 continues with 5.5 (thread environment through prompt assembly), 5.6 (teaching security gap), 5.7 (teaching dedup), 5.8 (bot commands)
 - Phase 2.4 from Plan 3 still needs: run seed script on live DB and verify entries
 - `_test_ternary.py` stray empty file in project root — needs manual deletion

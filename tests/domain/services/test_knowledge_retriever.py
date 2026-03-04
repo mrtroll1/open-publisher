@@ -161,6 +161,80 @@ class TestRetrieve:
 
 
 # ===================================================================
+#  get_multi_domain_context
+# ===================================================================
+
+class TestGetMultiDomainContext:
+
+    def test_calls_db_with_domains(self):
+        kr, mock_db, _ = _make_retriever()
+        mock_db.get_multi_domain_context.return_value = []
+
+        kr.get_multi_domain_context(["tech_support", "editorial"])
+
+        mock_db.get_multi_domain_context.assert_called_once_with(["tech_support", "editorial"])
+
+    def test_formats_results(self):
+        kr, mock_db, _ = _make_retriever()
+        mock_db.get_multi_domain_context.return_value = [
+            {"title": "Global", "content": "identity stuff"},
+            {"title": "Tech", "content": "tech meta"},
+            {"title": "Edit", "content": "editorial meta"},
+        ]
+
+        result = kr.get_multi_domain_context(["tech_support", "editorial"])
+
+        assert "## Global\nidentity stuff" in result
+        assert "## Tech\ntech meta" in result
+        assert "## Edit\neditorial meta" in result
+
+
+# ===================================================================
+#  retrieve with domains list
+# ===================================================================
+
+class TestRetrieveWithDomainsList:
+
+    def test_uses_multi_domain_search(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.1, 0.2]
+        mock_db.search_knowledge_multi_domain.return_value = []
+
+        kr.retrieve("query", domains=["editorial", "payments"])
+
+        mock_db.search_knowledge_multi_domain.assert_called_once_with(
+            [0.1, 0.2], domains=["editorial", "payments"], limit=5,
+        )
+        mock_db.search_knowledge.assert_not_called()
+
+    def test_domain_singular_still_works(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.5]
+        mock_db.search_knowledge.return_value = []
+
+        kr.retrieve("query", domain="billing", limit=3)
+
+        mock_db.search_knowledge.assert_called_once_with(
+            [0.5], domain="billing", limit=3,
+        )
+        mock_db.search_knowledge_multi_domain.assert_not_called()
+
+    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    def test_formats_results(self):
+        kr, mock_db, mock_embed = _make_retriever()
+        mock_embed.embed_one.return_value = [0.1]
+        mock_db.search_knowledge_multi_domain.return_value = [
+            {"title": "A", "content": "From editorial"},
+            {"title": "B", "content": "From payments"},
+        ]
+
+        result = kr.retrieve("multi query", domains=["editorial", "payments"])
+
+        assert "## A\nFrom editorial" in result
+        assert "## B\nFrom payments" in result
+
+
+# ===================================================================
 #  retrieve_full_domain
 # ===================================================================
 

@@ -31,9 +31,17 @@ class KnowledgeRetriever:
         entries = self._db.get_domain_context(domain)
         return _format_entries(entries)
 
-    def retrieve(self, query: str, domain: str | None = None, limit: int = 5) -> str:
+    def get_multi_domain_context(self, domains: list[str]) -> str:
+        """Core (global) + meta entries for multiple domains."""
+        entries = self._db.get_multi_domain_context(domains)
+        return _format_entries(entries)
+
+    def retrieve(self, query: str, domain: str | None = None, domains: list[str] | None = None, limit: int = 5) -> str:
         embedding = self._embed.embed_one(query)
-        entries = self._db.search_knowledge(embedding, domain=domain, limit=limit)
+        if domains is not None:
+            entries = self._db.search_knowledge_multi_domain(embedding, domains=domains, limit=limit)
+        else:
+            entries = self._db.search_knowledge(embedding, domain=domain, limit=limit)
         return _format_entries(entries)
 
     def retrieve_full_domain(self, domain: str) -> str:

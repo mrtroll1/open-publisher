@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from google.genai import types
 from google import genai
+from google.genai.errors import ServerError
 
 
 from common.config import GEMINI_API_KEY
@@ -53,13 +55,22 @@ class GeminiGateway:
             )
         config = types.GenerateContentConfig(**config_kwargs)
 
-        response = client.models.generate_content(
-            model=model_used,
-            contents=prompt,
-            config=config
-        )
-        raw = response.text.strip()
-        return self._extract_json(raw)
+        for attempt in range(3):
+            try:
+                response = client.models.generate_content(
+                    model=model_used,
+                    contents=prompt,
+                    config=config
+                )
+                raw = response.text.strip()
+                return self._extract_json(raw)
+            except ServerError:
+                if attempt == 2:
+                    raise
+                wait = (attempt + 1) * 5
+                logger.warning("Gemini 503, retrying in %ds (attempt %d/3)",
+                               wait, attempt + 1)
+                time.sleep(wait)
 
     @staticmethod
     def _extract_json(raw: str) -> dict:

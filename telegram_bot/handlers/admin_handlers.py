@@ -56,6 +56,7 @@ from telegram_bot.handler_utils import (
     _support_draft_map,
     get_contractor_by_id,
     parse_month_arg,
+    parse_date_range_arg,
     send_typing,
 )
 
@@ -638,11 +639,11 @@ async def cmd_sync_entities(message: types.Message, state: FSMContext) -> None:
 
 
 async def cmd_ingest_articles(message: types.Message, state: FSMContext) -> None:
-    """Fetch published articles for a month and store in knowledge base."""
-    args = message.text.split(maxsplit=1)
-    month = parse_month_arg(args)
+    """Fetch published articles for a date range and store in knowledge base."""
+    args = message.text.split()
+    date_from, date_to = parse_date_range_arg(args)
 
-    await message.answer(replies.admin.ingest_articles_start.format(month=month))
+    await message.answer(replies.admin.ingest_articles_start.format(date_from=date_from, date_to=date_to))
     await send_typing(message.chat.id)
 
     try:
@@ -650,16 +651,9 @@ async def cmd_ingest_articles(message: types.Message, state: FSMContext) -> None
         from backend.domain.use_cases.ingest_articles import IngestArticles
 
         republic = RepublicGateway()
-        # month is "YYYY-MM", derive date range for the full month
-        from datetime import datetime
-        from calendar import monthrange
-        dt = datetime.strptime(month, "%Y-%m")
-        date_from = f"{month}-01"
-        date_to = f"{month}-{monthrange(dt.year, dt.month)[1]:02d}"
-
         posts = await asyncio.to_thread(republic.fetch_posts_by_date, date_from, date_to)
         if not posts:
-            await message.answer(replies.admin.ingest_articles_no_authors.format(month=month))
+            await message.answer(replies.admin.ingest_articles_no_posts.format(date_from=date_from, date_to=date_to))
             return
 
         articles = [
@@ -672,7 +666,7 @@ async def cmd_ingest_articles(message: types.Message, state: FSMContext) -> None
 
         authors = len({p.get("author", "") for p in posts})
         await message.answer(replies.admin.ingest_articles_done.format(
-            count=len(entry_ids), month=month, authors=authors,
+            count=len(entry_ids), date_from=date_from, date_to=date_to, authors=authors,
         ))
     except Exception as e:
         logger.exception("Article ingestion failed")

@@ -38,6 +38,7 @@ __all__ = [
     "send_typing",
     "ThinkingMessage",
     "parse_month_arg",
+    "parse_date_range_arg",
     "get_current_contractor",
     "get_contractor_by_id",
     "resolve_environment_record",
@@ -138,6 +139,21 @@ async def get_contractor_by_id(contractor_id: str) -> "Contractor | None":
 def parse_month_arg(args: list[str]) -> str:
     """Extract month from command args, defaulting to prev_month()."""
     return args[1].strip() if len(args) > 1 else prev_month()
+
+
+def parse_date_range_arg(args: list[str]) -> tuple[str, str]:
+    """Extract date range from command args.
+
+    /cmd YYYY-MM-DD YYYY-MM-DD  → explicit range
+    /cmd YYYY-MM-DD             → single day
+    /cmd                        → today
+    """
+    from datetime import date as _date
+    if len(args) >= 3:
+        return args[1].strip(), args[2].strip()
+    if len(args) == 2:
+        return args[1].strip(), args[1].strip()
+    return _date.today().isoformat(), _date.today().isoformat()
 
 
 async def _safe_edit_text(message, text: str, **kwargs) -> None:

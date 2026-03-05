@@ -184,13 +184,13 @@ Source: `backend/domain/services/command_classifier.py` `classify()` method (lin
 
 ## Verification Checklist
 
-- [ ] `from backend.brain import Brain` imports without error
-- [ ] `from backend.brain.base_genai import BaseGenAI, RecursionLimitError` imports
-- [ ] `from backend.brain.base_controller import BaseController, BasePreparer, PassThroughPreparer, BaseUseCase` imports
-- [ ] `from backend.brain.routes import Route, ROUTES, register_route` imports
-- [ ] `from backend.brain.authorizer import Authorizer, AuthContext` imports
-- [ ] `from backend.brain.router import Router` imports
-- [ ] `Router` is a subclass of `BaseGenAI`
-- [ ] `Brain` can be instantiated with `Authorizer` and `Router`
-- [ ] All existing tests still pass (no existing code was changed)
-- [ ] `backend/brain/dynamic/` directory exists with `__init__.py`
+- [x] `from backend.brain import Brain` imports without error
+- [x] `from backend.brain.base_genai import BaseGenAI, RecursionLimitError` imports
+- [x] `from backend.brain.base_controller import BaseController, BasePreparer, PassThroughPreparer, BaseUseCase` imports
+- [x] `from backend.brain.routes import Route, ROUTES, register_route` imports
+- [x] `from backend.brain.authorizer import Authorizer, AuthContext` imports
+- [x] `from backend.brain.router import Router` imports
+- [x] `Router` is a subclass of `BaseGenAI`
+- [x] `Brain` can be instantiated with `Authorizer` and `Router`
+- [x] All existing tests still pass (no existing code was changed)
+- [x] `backend/brain/dynamic/` directory exists with `__init__.py`

@@ -1,5 +1,8 @@
 """Composition root — wires up all dependencies."""
 
+from dataclasses import dataclass
+from typing import Any
+
 from backend.infrastructure.gateways.airtable_gateway import AirtableGateway
 from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.gateways.docs_gateway import DocsGateway
@@ -109,8 +112,15 @@ def create_tool_router(query_tools: dict[str, QueryTool] | None = None) -> ToolR
     return ToolRouter(available_tools=available)
 
 
-def create_brain():
-    """Wire up Brain with all controllers and routes."""
+@dataclass
+class BrainComponents:
+    brain: Any
+    inbox: Any
+    memory: Any
+
+
+def create_brain() -> BrainComponents:
+    """Wire up Brain with all controllers and routes. Returns shared components."""
     from backend.brain import Brain
     from backend.brain.authorizer import Authorizer
     from backend.brain.dynamic import (
@@ -212,7 +222,11 @@ def create_brain():
 
     authorizer = Authorizer(db)
     router = Router(gemini)
-    return Brain(authorizer, router)
+    return BrainComponents(
+        brain=Brain(authorizer, router),
+        inbox=inbox_workflow,
+        memory=memory,
+    )
 
 
 def _create_query_ctrl(gemini, query_tools):

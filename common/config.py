@@ -211,3 +211,6 @@ HEALTHCHECK_DOMAINS = [
     d.strip() for d in os.getenv("HEALTHCHECK_DOMAINS", "republicmag.io,redefine.media").split(",") if d.strip()
 ]
 KUBECTL_ENABLED = os.getenv("KUBECTL_ENABLED", "").lower() in ("1", "true", "yes")
+
+# --- Backend API ---
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8100")

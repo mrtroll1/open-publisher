@@ -75,7 +75,7 @@ class ConversationRepo(BasePostgresRepo):
             cur.execute(
                 """UPDATE conversations
                    SET knowledge_extracted_at = NOW()
-                   WHERE id = ANY(%s)""",
+                   WHERE id = ANY(%s::uuid[])""",
                 (conversation_ids,),
             )
             conn.commit()

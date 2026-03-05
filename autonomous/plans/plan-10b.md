@@ -96,7 +96,7 @@ class ClassifyTeaching(BaseGenAI):
         return {"domain": raw.get("domain", "general"), "tier": raw.get("tier", "specific")}
 ```
 
-## Step 3: Create `backend/commands/`
+## Step 3: Create `backend/commands/` ✅ DONE (Session 4)
 
 Each command file contains solid (non-LLM) logic. Controllers not yet wired (plan 10c). This step moves deterministic use-case code.
 

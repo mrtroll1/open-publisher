@@ -15,9 +15,11 @@ logger = logging.getLogger(__name__)
 
 class ExtractConversationKnowledge:
 
-    def __init__(self, memory: MemoryService, db: DbGateway):
+    def __init__(self, memory: MemoryService, db: DbGateway, gemini=None, retriever=None):
         self._memory = memory
         self._db = db
+        self._gemini = gemini
+        self._retriever = retriever
 
     def execute(self, chat_id: int, extract_fn: Callable[[str], list[dict]] | None = None) -> list[str]:
         """Extract knowledge from unprocessed conversations in a chat.
@@ -25,6 +27,8 @@ class ExtractConversationKnowledge:
 
         extract_fn: optional LLM-based fact extractor (transcript -> list[dict]).
         """
+        fn = extract_fn or self._legacy_extract_fn()
+
         messages = self._db.get_unextracted_conversations(chat_id)
         if len(messages) < 3:
             return []
@@ -32,10 +36,10 @@ class ExtractConversationKnowledge:
         conversation_ids = [str(m["id"]) for m in messages]
         transcript = "\n".join(f"{m['role']}: {m['content']}" for m in messages)
 
-        if not extract_fn:
+        if not fn:
             return []
 
-        facts = extract_fn(transcript)
+        facts = fn(transcript)
 
         entry_ids = []
         for fact in facts:
@@ -53,6 +57,25 @@ class ExtractConversationKnowledge:
 
         self._db.mark_conversations_extracted(conversation_ids)
         return entry_ids
+
+    def _legacy_extract_fn(self):
+        if not self._gemini:
+            return None
+        from common.prompt_loader import load_template
+
+        def _extract(transcript):
+            retriever = self._retriever
+            core = retriever.get_core() if retriever else ""
+            existing = retriever.retrieve(transcript, limit=10) if retriever else ""
+            existing_text = existing if existing else "Нет известных фактов."
+            prompt = load_template("knowledge/extract-facts.md", {
+                "CORE_KNOWLEDGE": core,
+                "EXISTING_KNOWLEDGE": existing_text,
+                "TRANSCRIPT": transcript,
+            })
+            result = self._gemini.call(prompt)
+            return result.get("facts", [])
+        return _extract
 
 
 def run_scheduled_pipelines(memory: MemoryService, db: DbGateway,

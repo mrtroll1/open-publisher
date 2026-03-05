@@ -1,4 +1,20 @@
-"""Compose LLM requests: template + knowledge → (prompt, model, response_keys)."""
+"""Compose LLM requests: template + knowledge -> (prompt, model, response_keys).
+
+MIGRATION NOTE: Each function here has a canonical replacement in brain/dynamic/:
+  classify_command    -> brain/router.py (Router)
+  conversation_reply  -> brain/dynamic/conversation_reply.py (ConversationReply)
+  support_email       -> brain/dynamic/tech_support.py (TechSupport)
+  support_triage      -> brain/dynamic/tech_support.py (TechSupport)
+  tech_support_question -> brain/dynamic/support_draft.py
+  classify_teaching   -> brain/dynamic/classify_teaching.py (ClassifyTeaching)
+  inbox_classify      -> brain/dynamic/inbox_classify.py (InboxClassify)
+  editorial_assess    -> brain/dynamic/editorial_assess.py (EditorialAssess)
+  contractor_parse    -> brain/dynamic/contractor_parse.py (ContractorParse)
+  translate_name      -> kept here (no brain/dynamic equivalent yet)
+  tech_search_terms   -> kept here (no brain/dynamic equivalent yet)
+
+These functions remain operational until callers are rewired in plan 10c/10d.
+"""
 
 from __future__ import annotations
 
@@ -34,6 +50,7 @@ def set_retriever(r: KnowledgeRetriever) -> None:
     _retriever = r
 
 
+# -> brain/dynamic/tech_support.py (TechSupport — triage step)
 def support_triage(email_text: str) -> tuple[str, str, list[str]]:
     knowledge = _get_retriever().retrieve_full_domain("support_triage")
     prompt = load_template("email/support-triage.md", {
@@ -43,6 +60,7 @@ def support_triage(email_text: str) -> tuple[str, str, list[str]]:
     return prompt, _MODELS["support_triage"], ["needs", "lookup_email"]
 
 
+# -> brain/dynamic/tech_support.py (TechSupport — draft step)
 def support_email(email_text: str, user_data: str = "") -> tuple[str, str, list[str]]:
     r = _get_retriever()
     knowledge = r.get_domain_context("tech_support") + "\n\n" + r.retrieve(email_text, domain="tech_support", limit=5)
@@ -54,11 +72,13 @@ def support_email(email_text: str, user_data: str = "") -> tuple[str, str, list[
     return prompt, _MODELS["support_email"], ["reply"]
 
 
+# No brain/dynamic equivalent yet — kept here
 def tech_search_terms(text: str) -> tuple[str, str, list[str]]:
     prompt = load_template("email/tech-search-terms.md", {"EMAIL": text})
     return prompt, _MODELS["tech_search_terms"], ["needs_code"]
 
 
+# -> brain/dynamic/contractor_parse.py (ContractorParse)
 def contractor_parse(
     text: str, fields_csv: str, context: str = "",
 ) -> tuple[str, str, list[str]]:
@@ -75,6 +95,7 @@ def contractor_parse(
     return prompt, _MODELS["contractor_parse"], keys
 
 
+# -> brain/dynamic/inbox_classify.py (InboxClassify)
 def inbox_classify(email_text: str) -> tuple[str, str, list[str]]:
     core = _get_retriever().get_core()
     prompt = load_template("email/inbox-classify.md", {
@@ -84,6 +105,7 @@ def inbox_classify(email_text: str) -> tuple[str, str, list[str]]:
     return prompt, _MODELS["inbox_classify"], ["category", "reason"]
 
 
+# -> brain/dynamic/editorial_assess.py (EditorialAssess)
 def editorial_assess(email_text: str) -> tuple[str, str, list[str]]:
     core = _get_retriever().get_core()
     prompt = load_template("email/editorial-assess.md", {
@@ -93,11 +115,13 @@ def editorial_assess(email_text: str) -> tuple[str, str, list[str]]:
     return prompt, _MODELS["editorial_assess"], ["forward", "reply"]
 
 
+# No brain/dynamic equivalent yet — kept here
 def translate_name(name_en: str) -> tuple[str, str, list[str]]:
     prompt = load_template("contractor/translate-name.md", {"NAME": name_en})
     return prompt, _MODELS["translate_name"], ["translated_name"]
 
 
+# -> brain/dynamic/support_draft.py
 def tech_support_question(
     question: str, code_context: str = "", verbose: bool = False,
 ) -> tuple[str, str, list[str]]:
@@ -117,6 +141,7 @@ def tech_support_question(
     return prompt, _MODELS["tech_support_question"], ["answer"]
 
 
+# -> brain/dynamic/classify_teaching.py (ClassifyTeaching)
 def classify_teaching(text: str, examples: str = "", domains: str = "") -> tuple[str, str, list[str]]:
     prompt = load_template("knowledge/classify-teaching.md", {
         "TEXT": text,
@@ -126,6 +151,7 @@ def classify_teaching(text: str, examples: str = "", domains: str = "") -> tuple
     return prompt, _MODELS["classify_teaching"], ["domain", "tier"]
 
 
+# -> brain/router.py (Router)
 def classify_command(text: str, commands_description: str, context: str = "") -> tuple[str, str, list[str]]:
     context_block = f"## Контекст (предыдущее сообщение, на которое отвечает пользователь)\n{context}\n\n" if context else ""
     prompt = load_template("chat/classify-command.md", {
@@ -136,6 +162,7 @@ def classify_command(text: str, commands_description: str, context: str = "") ->
     return prompt, _MODELS["classify_command"], ["command", "args"]
 
 
+# -> brain/dynamic/conversation_reply.py (ConversationReply)
 def conversation_reply(
     message: str, conversation_history: str, knowledge_context: str,
     verbose: bool = False,

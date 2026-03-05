@@ -129,7 +129,7 @@ Each command file contains solid (non-LLM) logic. Controllers not yet wired (pla
 | `commands/bank/__init__.py` | (new) | Controller + preparer stubs. |
 | `commands/bank/parse_statement.py` | `domain/use_cases/parse_bank_statement.py` | Move entire file. |
 
-## Step 4: Add compatibility re-exports in old locations
+## Step 4: Add compatibility re-exports in old locations ✅ DONE (Session 4)
 
 For each moved file, leave a stub that re-imports from the new location. Prevents breaking existing imports during transition:
 
@@ -140,7 +140,7 @@ from backend.infrastructure.memory.memory_service import MemoryService  # noqa: 
 
 Do this for ALL moved files. Keeps existing tests and telegram_bot imports working until plan 10d cleans them up.
 
-## Step 5: Remove `compose_request.py` (distribute)
+## Step 5: Remove `compose_request.py` (distribute) ✅ DONE (Session 4)
 
 `compose_request.py` is the central prompt hub. Its functions map 1:1 to brain/dynamic implementations:
 
@@ -163,19 +163,19 @@ Leave a stub `compose_request.py` that re-exports from new locations.
 
 ## Verification Checklist
 
-- [ ] `from backend.infrastructure.memory import MemoryService, KnowledgeRetriever, SupportUserLookup` works
-- [ ] `from backend.infrastructure.memory.admin import classify_draft_reply` works
-- [ ] `from backend.brain.dynamic.conversation_reply import ConversationReply` works
-- [ ] `from backend.brain.dynamic.classify_teaching import ClassifyTeaching` works
-- [ ] `ConversationReply` extends `BaseGenAI`
-- [ ] `ClassifyTeaching` extends `BaseGenAI`
-- [ ] All 12 brain/dynamic files extend `BaseGenAI`
-- [ ] `from backend.commands.health import ...` works (check_health moved)
-- [ ] `from backend.commands.code import ...` works (run_claude_code moved)
-- [ ] `from backend.commands.invoice.generate import ...` works
-- [ ] `from backend.commands.budget.compute import ...` works
-- [ ] Old imports still work via stubs: `from backend.domain.services.memory_service import MemoryService`
-- [ ] All existing tests still pass (stubs ensure import compatibility)
-- [ ] No brain/dynamic class imports from `domain/services/compose_request` directly
-- [ ] MemoryService no longer has `_gemini` dependency
-- [ ] MemoryService.teach() requires domain+tier parameters
+- [x] `from backend.infrastructure.memory import MemoryService, KnowledgeRetriever, SupportUserLookup` works
+- [x] `from backend.infrastructure.memory.admin import classify_draft_reply` works
+- [x] `from backend.brain.dynamic.conversation_reply import ConversationReply` works
+- [x] `from backend.brain.dynamic.classify_teaching import ClassifyTeaching` works
+- [x] `ConversationReply` extends `BaseGenAI`
+- [x] `ClassifyTeaching` extends `BaseGenAI`
+- [x] All 12 brain/dynamic files extend `BaseGenAI`
+- [x] `from backend.commands.health import ...` works (check_health moved)
+- [x] `from backend.commands.code import ...` works (run_claude_code moved)
+- [x] `from backend.commands.invoice.generate import ...` works
+- [x] `from backend.commands.budget.compute import ...` works
+- [x] Old imports still work via stubs: `from backend.domain.services.memory_service import MemoryService`
+- [x] All existing tests still pass (stubs ensure import compatibility)
+- [x] No brain/dynamic class imports from `domain/services/compose_request` directly
+- [x] MemoryService no longer has `_gemini` dependency
+- [x] MemoryService.teach() requires domain+tier parameters

@@ -608,27 +608,29 @@ async def cmd_ingest_articles(message: types.Message, state: FSMContext) -> None
         from backend.domain.use_cases.ingest_articles import IngestArticles
 
         republic = RepublicGateway()
-        authors = await asyncio.to_thread(republic.fetch_published_authors, month)
-        if not authors:
+        # month is "YYYY-MM", derive date range for the full month
+        from datetime import datetime
+        from calendar import monthrange
+        dt = datetime.strptime(month, "%Y-%m")
+        date_from = f"{month}-01"
+        date_to = f"{month}-{monthrange(dt.year, dt.month)[1]:02d}"
+
+        posts = await asyncio.to_thread(republic.fetch_posts_by_date, date_from, date_to)
+        if not posts:
             await message.answer(replies.admin.ingest_articles_no_authors.format(month=month))
             return
 
-        # Build article dicts from author metadata
-        # The API only provides author names and post counts, not article content.
-        articles = []
-        for a in authors:
-            author_name = a["author"]
-            post_count = a["post_count"]
-            articles.append({
-                "title": f"{author_name} — {post_count} публикаций за {month}",
-                "url": f"republic://authors/{author_name}/{month}",
-            })
+        articles = [
+            {"title": p["title"], "url": p["url"], "content": p.get("content", "")}
+            for p in posts
+        ]
 
         ingest = IngestArticles(memory=_memory)
         entry_ids = await asyncio.to_thread(ingest.execute, articles)
 
+        authors = len({p.get("author", "") for p in posts})
         await message.answer(replies.admin.ingest_articles_done.format(
-            count=len(entry_ids), month=month, authors=len(authors),
+            count=len(entry_ids), month=month, authors=authors,
         ))
     except Exception as e:
         logger.exception("Article ingestion failed")

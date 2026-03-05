@@ -59,7 +59,7 @@ class ScrapeCompetitors:
             "CORE_KNOWLEDGE": core,
             "NAME": source["name"],
             "URL": source["url"],
-            "CONTENT": source["content"][:8000],
+            "CONTENT": source["content"],
         })
         result = self._gemini.call(prompt)
         return result.get("summary", f"{source['name']}: {source['url']}")

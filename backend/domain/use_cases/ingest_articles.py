@@ -52,7 +52,7 @@ class IngestArticles:
         prompt = load_template("knowledge/summarize-article.md", {
             "CORE_KNOWLEDGE": core,
             "TITLE": article["title"],
-            "CONTENT": article["content"][:8000],
+            "CONTENT": article["content"],
         })
         result = self._gemini.call(prompt)
         return result.get("summary", article["title"])

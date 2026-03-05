@@ -134,6 +134,28 @@ class RepublicGateway:
             return []
 
     # ------------------------------------------------------------------
+    #  Support API (posts)
+    # ------------------------------------------------------------------
+
+    def fetch_posts_by_date(self, date_from: str, date_to: str) -> list[dict]:
+        """Fetch full post data for a date range via the support API.
+
+        Returns list of {id, title, excerpt, content, author, url}.
+        """
+        try:
+            resp = requests.get(
+                f"{REPUBLIC_API_URL}/support/posts",
+                params={"date_from": date_from, "date_to": date_to},
+                headers={"X-Api-Key": REPUBLIC_SUPPORT_API_KEY},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            return resp.json().get("data", [])
+        except Exception as e:
+            logger.error("Republic posts fetch failed (%s – %s): %s", date_from, date_to, e)
+            return []
+
+    # ------------------------------------------------------------------
     #  Support API (user lookup)
     # ------------------------------------------------------------------
 

@@ -107,3 +107,124 @@ def create_tool_router(query_tools: dict[str, QueryTool] | None = None) -> ToolR
         query_tools = create_query_tools()
     available = ["rag"] + list(query_tools.keys())
     return ToolRouter(available_tools=available)
+
+
+def create_brain():
+    """Wire up Brain with all controllers and routes."""
+    from backend.brain import Brain
+    from backend.brain.authorizer import Authorizer
+    from backend.brain.dynamic import (
+        ClassifyTeaching, ConversationReply,
+        InboxClassify, SummarizeArticle, TechSupport, ToolRouting,
+    )
+    from backend.brain.dynamic.query_db import QueryDB
+    from backend.brain.router import Router
+    from backend.brain.routes import ROUTE_DEFINITIONS, ROUTES, Route, register_route
+    from backend.commands.budget import create_budget_controller
+    from backend.commands.code import create_code_controller
+    from backend.commands.conversation import create_conversation_controller
+    from backend.commands.health import create_health_controller
+    from backend.commands.support import create_support_controller
+    from backend.commands.inbox import InboxWorkflow, create_inbox_controller
+    from backend.commands.ingest import create_ingest_controller
+    from backend.commands.invoice import create_invoice_controller
+    from backend.commands.query import create_query_controller
+    from backend.commands.search import create_search_controller
+    from backend.commands.teach import create_teach_controller
+
+    # Infrastructure
+    db = create_db()
+    gemini = GeminiGateway()
+    embed = EmbeddingGateway()
+    retriever = KnowledgeRetriever(db=db, embed=embed)
+    memory = MemoryService(db=db, embed=embed, retriever=retriever)
+
+    # Query tools (reuse existing factory)
+    query_tools = create_query_tools()
+
+    # Dynamic (GenAI) instances
+    tool_routing = ToolRouting(gemini, available_tools=["rag"] + list(query_tools.keys()))
+
+    # ConversationReply needs QueryDB (BaseGenAI), not QueryTool
+    query_db_map: dict = {}
+    for name, qt in query_tools.items():
+        query_db_map[name] = QueryDB(gemini, qt._gateway, qt._schema_template)
+
+    conversation_reply = ConversationReply(gemini, retriever, tool_routing, query_db_map)
+    classify_teaching = ClassifyTeaching(gemini, db, embed)
+    tech_support = TechSupport(gemini, retriever, db)
+    inbox_classify = InboxClassify(gemini, retriever)
+    summarize_article = SummarizeArticle(gemini, retriever)
+
+    # Controllers
+    conv_ctrl = create_conversation_controller(conversation_reply)
+    support_ctrl = create_support_controller(tech_support)
+    code_ctrl = create_code_controller()
+    health_ctrl = create_health_controller()
+    teach_ctrl = create_teach_controller(classify_teaching, memory)
+    search_ctrl = create_search_controller(retriever)
+    ingest_ctrl = create_ingest_controller(summarize_article, memory)
+
+    # Query controller — use first available QueryDB, or stub
+    query_ctrl = _create_query_ctrl(gemini, query_tools)
+
+    # Invoice controller
+    gen_invoice = GenerateInvoice(docs_gw=DocsGateway(), drive_gw=DriveGateway())
+    invoice_ctrl = create_invoice_controller(gen_invoice)
+
+    # Budget controller
+    compute_budget = ComputeBudget(republic_gw=RepublicGateway(), redefine_gw=RedefineGateway())
+    budget_ctrl = create_budget_controller(compute_budget)
+
+    # Inbox controller
+    inbox_workflow = InboxWorkflow(db=db, email_gw=EmailGateway())
+    inbox_ctrl = create_inbox_controller(inbox_classify, inbox_workflow)
+
+    # Build controller map
+    ctrl_map = {
+        "conversation": conv_ctrl,
+        "support": support_ctrl,
+        "code": code_ctrl,
+        "health": health_ctrl,
+        "teach": teach_ctrl,
+        "search": search_ctrl,
+        "query": query_ctrl,
+        "invoice": invoice_ctrl,
+        "budget": budget_ctrl,
+        "ingest": ingest_ctrl,
+        "inbox": inbox_ctrl,
+    }
+
+    # Register routes
+    ROUTES.clear()
+    for defn in ROUTE_DEFINITIONS:
+        controller = ctrl_map.get(defn["name"])
+        if controller is None:
+            continue
+        register_route(Route(
+            name=defn["name"],
+            controller=controller,
+            description=defn["description"],
+            examples=defn.get("examples", []),
+            permissions=defn.get("permissions", {"admin"}),
+            slash_command=defn.get("slash_command"),
+        ))
+
+    authorizer = Authorizer(db)
+    router = Router(gemini)
+    return Brain(authorizer, router)
+
+
+def _create_query_ctrl(gemini, query_tools):
+    """Create query controller from available query gateways, or stub."""
+    from backend.brain.base_controller import BaseController, PassThroughPreparer, StubUseCase
+    from backend.brain.dynamic.query_db import QueryDB
+    from backend.commands.query import create_query_controller
+
+    # Reuse gateway from first available QueryTool
+    for qt in query_tools.values():
+        if qt.available:
+            query_db = QueryDB(gemini, qt._gateway, qt._schema_template)
+            return create_query_controller(query_db)
+
+    return BaseController(PassThroughPreparer(), StubUseCase("Query DB not available"))

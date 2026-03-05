@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from backend.brain.base_controller import BaseController, GenAIUseCase, PassThroughPreparer
 from backend.infrastructure.repositories.postgres import DbGateway
 
 
@@ -39,3 +40,7 @@ def build_conversation_context(
 
     history = f"assistant: {reply_text}"
     return history, None
+
+
+def create_conversation_controller(conversation_reply) -> BaseController:
+    return BaseController(PassThroughPreparer(), GenAIUseCase(conversation_reply))

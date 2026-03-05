@@ -2,9 +2,11 @@
 
 import subprocess
 from dataclasses import dataclass
+from typing import Any
 
 import requests
 
+from backend.brain.base_controller import BaseController, BaseUseCase, PassThroughPreparer
 from common.config import HEALTHCHECK_DOMAINS, KUBECTL_ENABLED
 
 
@@ -65,3 +67,12 @@ def format_healthcheck_results(results: list[HealthResult]) -> str:
         icon = "\u2705" if r.status == "ok" else "\u274c"
         lines.append(f"{icon} {r.name} — {r.details}")
     return "\n".join(lines) if lines else "No checks configured."
+
+
+class CheckHealthUseCase(BaseUseCase):
+    def execute(self, prepared: Any, env: dict, user: dict) -> Any:
+        return run_healthchecks()
+
+
+def create_health_controller() -> BaseController:
+    return BaseController(PassThroughPreparer(), CheckHealthUseCase())

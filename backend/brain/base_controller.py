@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from backend.brain.base_genai import BaseGenAI
+
 
 class BasePreparer:
     def prepare(self, input: str, env: dict, user: dict) -> Any:
@@ -16,6 +18,23 @@ class PassThroughPreparer(BasePreparer):
 class BaseUseCase:
     def execute(self, prepared: Any, env: dict, user: dict) -> Any:
         raise NotImplementedError
+
+
+class GenAIUseCase(BaseUseCase):
+    def __init__(self, genai: BaseGenAI):
+        self._genai = genai
+
+    def execute(self, prepared: Any, env: dict, user: dict) -> Any:
+        return self._genai.run(prepared, {"env": env, "user": user})
+
+
+class StubUseCase(BaseUseCase):
+    """Placeholder for unimplemented controllers."""
+    def __init__(self, message: str = "Not implemented yet"):
+        self._message = message
+
+    def execute(self, prepared: Any, env: dict, user: dict) -> Any:
+        return {"status": "stub", "message": self._message}
 
 
 class BaseController:

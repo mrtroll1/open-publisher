@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import Any
 
+from backend.brain.base_controller import BaseController, BaseUseCase, PassThroughPreparer
+from backend.brain.dynamic.summarize_article import SummarizeArticle
 from common.config import EXPIRY_ARTICLE_SUMMARY_DAYS
 from backend.domain.services.memory_service import MemoryService
 
@@ -57,3 +60,22 @@ class IngestArticles:
             result = self._gemini.call(prompt)
             return result.get("summary", article["title"])
         return _summarize
+
+
+class IngestUseCase(BaseUseCase):
+    def __init__(self, summarizer: SummarizeArticle, memory: MemoryService):
+        self._summarizer = summarizer
+        self._memory = memory
+
+    def execute(self, prepared: Any, env: dict, user: dict) -> Any:
+        ingest = IngestArticles(memory=self._memory)
+        return ingest.execute(
+            prepared,
+            summarize_fn=lambda art: self._summarizer.run(
+                art.get("content", ""), {"title": art.get("title", "")}
+            ).get("summary", art.get("title", "")),
+        )
+
+
+def create_ingest_controller(summarizer: SummarizeArticle, memory: MemoryService) -> BaseController:
+    return BaseController(PassThroughPreparer(), IngestUseCase(summarizer, memory))

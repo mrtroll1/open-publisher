@@ -8,8 +8,10 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
+from backend.brain.base_controller import BaseController, BasePreparer, BaseUseCase
+from backend.commands.utils import parse_flags
 from common.config import REPOS_DIR
 
 logger = logging.getLogger(__name__)
@@ -229,3 +231,18 @@ def _run_streaming(full_prompt: str, on_event: Callable[[str], None],
     if stderr.strip():
         return CodeResult(text=f"stderr: {stderr.strip()}", session_id=session_id)
     return CodeResult(text="(пустой ответ от Claude Code)", session_id=session_id)
+
+
+class CodePreparer(BasePreparer):
+    def prepare(self, input: str, env: dict, user: dict) -> dict:
+        verbose, expert, text = parse_flags(input)
+        return {"prompt": text, "verbose": verbose, "expert": expert, "mode": "explore"}
+
+
+class RunClaudeCodeUseCase(BaseUseCase):
+    def execute(self, prepared: Any, env: dict, user: dict) -> Any:
+        return run_claude_code(**prepared)
+
+
+def create_code_controller() -> BaseController:
+    return BaseController(CodePreparer(), RunClaudeCodeUseCase())

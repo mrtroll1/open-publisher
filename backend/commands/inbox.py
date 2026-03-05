@@ -6,7 +6,10 @@ LLM classify/assess stays in brain/dynamic.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
+from backend.brain.base_controller import BaseController, BaseUseCase, PassThroughPreparer
+from backend.brain.dynamic.inbox_classify import InboxClassify
 from backend.domain.services.tech_support_handler import TechSupportHandler
 from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.gateways.email_gateway import EmailGateway
@@ -142,3 +145,24 @@ class InboxWorkflow:
             f"Fwd: {email.subject}",
             body,
         )
+
+
+class InboxProcessUseCase(BaseUseCase):
+    """Classify incoming email. Full orchestration (approve/reject) handled by InboxWorkflow."""
+    def __init__(self, classifier: InboxClassify, workflow: InboxWorkflow):
+        self._classifier = classifier
+        self._workflow = workflow
+
+    def execute(self, prepared: Any, env: dict, user: dict) -> Any:
+        # Rule-based first
+        rule_category = self._workflow.classify_by_address(prepared) if hasattr(prepared, "to_addr") else "unknown"
+        if rule_category != "unknown":
+            return {"category": rule_category, "source": "rules"}
+        # Fall back to AI classification
+        email_text = prepared.body if hasattr(prepared, "body") else str(prepared)
+        result = self._classifier.run(email_text, {})
+        return {"category": result.get("category", "unknown"), "reason": result.get("reason", ""), "source": "ai"}
+
+
+def create_inbox_controller(classifier: InboxClassify, workflow: InboxWorkflow) -> BaseController:
+    return BaseController(PassThroughPreparer(), InboxProcessUseCase(classifier, workflow))

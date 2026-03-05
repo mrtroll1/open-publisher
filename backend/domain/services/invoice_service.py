@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 from backend import fetch_articles, read_budget_amounts
-from backend.domain.resolve_amount import plural_ru, resolve_amount
+from backend.domain.use_cases.resolve_amount import plural_ru, resolve_amount
 from backend.domain.use_cases.prepare_invoice import PreparedInvoice, prepare_existing_invoice
 from common.config import DRIVE_FOLDER_GLOBAL, DRIVE_FOLDER_RU
 from common.models import Contractor, Currency, GlobalContractor, InvoiceStatus

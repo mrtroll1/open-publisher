@@ -12,7 +12,7 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.domain.code_runner import CodeResult
+from backend.domain.use_cases.run_claude_code import CodeResult
 from common.models import (
     ArticleEntry,
     ContractorType,

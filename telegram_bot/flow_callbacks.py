@@ -28,9 +28,9 @@ from common.config import BOT_USERNAME  # noqa: F401
 from backend import fetch_articles, find_contractor, fuzzy_find, parse_contractor_data, update_legium_link  # noqa: F401
 from backend.domain.services import compose_request  # noqa: F401
 from backend.domain.services.compose_request import _get_retriever  # noqa: F401
-from backend.domain.code_runner import run_claude_code  # noqa: F401
+from backend.domain.use_cases.run_claude_code import run_claude_code  # noqa: F401
 from backend.domain.services.command_classifier import CommandClassifier  # noqa: F401
-from backend.domain.healthcheck import run_healthchecks, format_healthcheck_results  # noqa: F401
+from backend.domain.use_cases.check_health import run_healthchecks, format_healthcheck_results  # noqa: F401
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway  # noqa: F401
 from backend.infrastructure.gateways.repo_gateway import RepoGateway  # noqa: F401
 from telegram_bot.bot_helpers import bot, get_contractors  # noqa: F401

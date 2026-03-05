@@ -1,6 +1,6 @@
 import pytest
 
-from backend.domain.resolve_amount import (
+from backend.domain.use_cases.resolve_amount import (
     _fmt,
     _format_budget_explanation,
     plural_ru,

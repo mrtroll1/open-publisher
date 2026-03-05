@@ -14,8 +14,8 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQu
 
 from common.models import EditorialItem, SupportDraft
 from backend.domain.services import compose_request
-from backend.domain.code_runner import run_claude_code, CodeResult
-from backend.domain.healthcheck import run_healthchecks, format_healthcheck_results
+from backend.domain.use_cases.run_claude_code import run_claude_code, CodeResult
+from backend.domain.use_cases.check_health import run_healthchecks, format_healthcheck_results
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from telegram_bot import replies
 from telegram_bot.bot_helpers import bot

@@ -1,6 +1,6 @@
 import pytest
 
-from backend.domain.validate_contractor import _digits_only, validate_fields
+from backend.domain.use_cases.validate_contractor import _digits_only, validate_fields
 from common.models import ContractorType
 
 

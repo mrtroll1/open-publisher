@@ -19,14 +19,7 @@ from common.models import ContractorType
 class start:
     admin = (
         "Привет! Я бот для работы с контрагентами.\n\n"
-        "Команды администратора:\n"
-        "/generate <имя> — сгенерировать документ\n"
-        "/generate_invoices — сгенерировать все счета\n"
-        "/send_global_invoices — отправить глобальные счета\n"
-        "/send_legium_links — отправить ссылки на Легиум\n"
-        "/orphan_contractors — сверка бюджета и контрагентов\n"
-        "/budget — расчёт бюджета\n"
-        "/upload_to_airtable — загрузить банковскую выписку"
+        "Список доступных комманд: /menu"
     )
     contractor = (
         "Здравствуйте! Я бот для оформления оплаты.\n\n"

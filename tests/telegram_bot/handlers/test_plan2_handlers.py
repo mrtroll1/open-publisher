@@ -12,6 +12,7 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
+from backend.domain.code_runner import CodeResult
 from common.models import (
     ArticleEntry,
     ContractorType,
@@ -581,7 +582,7 @@ class TestAnswerTechQuestion:
         mock_gemini.call.return_value = {"needs_code": True}
         MockGemini.return_value = mock_gemini
 
-        mock_run_claude.return_value = "Healthcheck uses requests.get"
+        mock_run_claude.return_value = CodeResult(text="Healthcheck uses requests.get")
 
         result = _answer_tech_question("what is healthcheck?", True, False)
 
@@ -660,7 +661,7 @@ class TestAnswerTechQuestion:
         mock_gemini.call.return_value = {"needs_code": True}
         MockGemini.return_value = mock_gemini
 
-        mock_run_claude.return_value = "claude answer"
+        mock_run_claude.return_value = CodeResult(text="claude answer")
 
         result = _answer_tech_question("q", False, False)
 
@@ -682,8 +683,9 @@ class TestCmdCode:
     def test_successful_run_with_db_save(self, mock_bot, mock_run, mock_db, MockThinking):
         from telegram_bot.flow_callbacks import cmd_code
 
-        mock_run.return_value = "Code result"
+        mock_run.return_value = CodeResult(text="Code result", session_id="sess-123")
         mock_db.create_code_task.return_value = "task-abc-123"
+        mock_db.get_conversation_by_message_id.return_value = None
         mock_bot.send_chat_action = AsyncMock()
         mock_tm = _mock_thinking_message_class()
         MockThinking.side_effect = mock_tm
@@ -693,7 +695,7 @@ class TestCmdCode:
 
         asyncio.run(cmd_code(msg, state))
 
-        mock_run.assert_called_once_with("check tests", False, False, mode="changes", on_event=ANY)
+        mock_run.assert_called_once_with("check tests", False, False, mode="changes", on_event=ANY, resume_session_id=None)
         mock_db.create_code_task.assert_called_once()
         mock_tm._instance.finish_long.assert_awaited_once()
         call_kwargs = mock_tm._instance.finish_long.call_args
@@ -728,7 +730,7 @@ class TestCmdCode:
     def test_verbose_flag(self, mock_bot, mock_run, mock_db):
         from telegram_bot.flow_callbacks import cmd_code
 
-        mock_run.return_value = "Verbose result"
+        mock_run.return_value = CodeResult(text="Verbose result")
         mock_db.create_code_task.return_value = "t1"
         mock_bot.send_chat_action = AsyncMock()
 
@@ -737,7 +739,7 @@ class TestCmdCode:
 
         asyncio.run(cmd_code(msg, state))
 
-        mock_run.assert_called_once_with("analyze this", True, False, mode="changes", on_event=ANY)
+        mock_run.assert_called_once_with("analyze this", True, False, mode="changes", on_event=ANY, resume_session_id=None)
 
     @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.run_claude_code")
@@ -745,7 +747,7 @@ class TestCmdCode:
     def test_verbose_word_flag(self, mock_bot, mock_run, mock_db):
         from telegram_bot.flow_callbacks import cmd_code
 
-        mock_run.return_value = "Verbose result"
+        mock_run.return_value = CodeResult(text="Verbose result")
         mock_db.create_code_task.return_value = "t1"
         mock_bot.send_chat_action = AsyncMock()
 
@@ -754,7 +756,7 @@ class TestCmdCode:
 
         asyncio.run(cmd_code(msg, state))
 
-        mock_run.assert_called_once_with("analyze this", True, False, mode="changes", on_event=ANY)
+        mock_run.assert_called_once_with("analyze this", True, False, mode="changes", on_event=ANY, resume_session_id=None)
 
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
@@ -762,7 +764,7 @@ class TestCmdCode:
         """'-v' without space is not a flag — it's treated as the prompt itself."""
         from telegram_bot.flow_callbacks import cmd_code
 
-        mock_run.return_value = "result"
+        mock_run.return_value = CodeResult(text="result")
         mock_bot.send_chat_action = AsyncMock()
 
         msg = _make_message("/code -v")
@@ -770,7 +772,7 @@ class TestCmdCode:
 
         asyncio.run(cmd_code(msg, state))
 
-        mock_run.assert_called_once_with("-v", False, False, mode="changes", on_event=ANY)
+        mock_run.assert_called_once_with("-v", False, False, mode="changes", on_event=ANY, resume_session_id=None)
 
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
@@ -778,7 +780,7 @@ class TestCmdCode:
         """'-v ' (with trailing space) is stripped to '-v' and treated as the prompt."""
         from telegram_bot.flow_callbacks import cmd_code
 
-        mock_run.return_value = "result"
+        mock_run.return_value = CodeResult(text="result")
         mock_bot.send_chat_action = AsyncMock()
 
         msg = _make_message("/code -v ")
@@ -786,7 +788,7 @@ class TestCmdCode:
 
         asyncio.run(cmd_code(msg, state))
 
-        mock_run.assert_called_once_with("-v", False, False, mode="changes", on_event=ANY)
+        mock_run.assert_called_once_with("-v", False, False, mode="changes", on_event=ANY, resume_session_id=None)
 
     @patch("telegram_bot.flow_callbacks.ThinkingMessage")
     @patch("telegram_bot.flow_callbacks._db")
@@ -795,7 +797,7 @@ class TestCmdCode:
     def test_db_save_failure_still_sends_answer(self, mock_bot, mock_run, mock_db, MockThinking):
         from telegram_bot.flow_callbacks import cmd_code
 
-        mock_run.return_value = "Code result"
+        mock_run.return_value = CodeResult(text="Code result")
         mock_db.create_code_task.side_effect = RuntimeError("DB down")
         mock_bot.send_chat_action = AsyncMock()
         mock_tm = _mock_thinking_message_class()
@@ -833,7 +835,7 @@ class TestCmdCode:
     def test_rating_keyboard_has_5_buttons(self, mock_bot, mock_run, mock_db):
         from telegram_bot.flow_callbacks import cmd_code
 
-        mock_run.return_value = "Result"
+        mock_run.return_value = CodeResult(text="Result")
         mock_db.create_code_task.return_value = "task-xyz"
         mock_bot.send_chat_action = AsyncMock()
 

@@ -14,7 +14,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQu
 
 from common.models import EditorialItem, SupportDraft
 from backend.domain.services import compose_request
-from backend.domain.code_runner import run_claude_code
+from backend.domain.code_runner import run_claude_code, CodeResult
 from backend.domain.healthcheck import run_healthchecks, format_healthcheck_results
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from telegram_bot import replies
@@ -66,7 +66,8 @@ def _answer_tech_question(question: str, verbose: bool, expert: bool,
         logger.warning("Tech support triage failed: %s", e)
 
     if needs_code:
-        return run_claude_code(question, verbose=verbose, expert=expert, mode="explore", on_event=on_event)
+        cr = run_claude_code(question, verbose=verbose, expert=expert, mode="explore", on_event=on_event)
+        return cr.text
 
     prompt, model, _ = compose_request.tech_support_question(question, "", verbose)
     result = gemini.call(prompt, model)
@@ -110,6 +111,19 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
         await message.answer(replies.admin.code_no_query)
         return
 
+    # Check if replying to a previous Claude Code message — resume session
+    resume_session_id = None
+    reply = message.reply_to_message
+    if reply and reply.from_user and reply.from_user.is_bot:
+        try:
+            conv = await asyncio.to_thread(
+                _db.get_conversation_by_message_id, message.chat.id, reply.message_id,
+            )
+            if conv and conv.get("metadata", {}).get("claude_session_id"):
+                resume_session_id = conv["metadata"]["claude_session_id"]
+        except Exception:
+            logger.debug("Could not look up session_id for reply", exc_info=True)
+
     try:
         loop = asyncio.get_running_loop()
 
@@ -117,7 +131,10 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
             def on_event(status: str) -> None:
                 asyncio.run_coroutine_threadsafe(thinking.update(status), loop)
 
-            answer = await asyncio.to_thread(run_claude_code, text, verbose, expert, mode="changes", on_event=on_event)
+            cr = await asyncio.to_thread(
+                run_claude_code, text, verbose, expert, mode="changes",
+                on_event=on_event, resume_session_id=resume_session_id,
+            )
             # Save to DB and build rating keyboard
             reply_markup = None
             try:
@@ -125,7 +142,7 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
                     _db.create_code_task,
                     requested_by=str(message.from_user.id),
                     input_text=text,
-                    output_text=answer,
+                    output_text=cr.text,
                     verbose=verbose,
                 )
                 reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
@@ -134,8 +151,11 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
                 ]])
             except Exception:
                 logger.exception("Failed to save code task to DB")
-            sent = await thinking.finish_long(answer, reply_markup=reply_markup)
-        await _save_turn(message, sent, text, answer, {"command": "code"})
+            sent = await thinking.finish_long(cr.text, reply_markup=reply_markup)
+        meta = {"command": "code"}
+        if cr.session_id:
+            meta["claude_session_id"] = cr.session_id
+        await _save_turn(message, sent, text, cr.text, meta)
     except Exception as e:
         logger.exception("Claude Code execution failed")
         await message.answer(replies.admin.code_error)

@@ -47,7 +47,8 @@ __all__ = [
 ]
 
 
-def _answer_tech_question(question: str, verbose: bool, expert: bool) -> str:
+def _answer_tech_question(question: str, verbose: bool, expert: bool,
+                          on_event=None) -> str:
     gemini = GeminiGateway()
 
     needs_code = False
@@ -65,7 +66,7 @@ def _answer_tech_question(question: str, verbose: bool, expert: bool) -> str:
         logger.warning("Tech support triage failed: %s", e)
 
     if needs_code:
-        return run_claude_code(question, verbose=verbose, expert=expert, mode="explore")
+        return run_claude_code(question, verbose=verbose, expert=expert, mode="explore", on_event=on_event)
 
     prompt, model, _ = compose_request.tech_support_question(question, "", verbose)
     result = gemini.call(prompt, model)
@@ -84,8 +85,13 @@ async def cmd_support(message: types.Message, state: FSMContext) -> None:
         return
 
     try:
+        loop = asyncio.get_running_loop()
+
         async with ThinkingMessage(message, "Ищу ответ...") as thinking:
-            answer = await asyncio.to_thread(_answer_tech_question, text, verbose, expert)
+            def on_event(status: str) -> None:
+                asyncio.run_coroutine_threadsafe(thinking.update(status), loop)
+
+            answer = await asyncio.to_thread(_answer_tech_question, text, verbose, expert, on_event=on_event)
             sent = await thinking.finish_long(answer)
         await _save_turn(message, sent, text, answer, {"command": "tech_support"})
     except Exception as e:
@@ -105,8 +111,13 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
         return
 
     try:
+        loop = asyncio.get_running_loop()
+
         async with ThinkingMessage(message, "Запускаю Claude Code...") as thinking:
-            answer = await asyncio.to_thread(run_claude_code, text, verbose, expert, mode="changes")
+            def on_event(status: str) -> None:
+                asyncio.run_coroutine_threadsafe(thinking.update(status), loop)
+
+            answer = await asyncio.to_thread(run_claude_code, text, verbose, expert, mode="changes", on_event=on_event)
             # Save to DB and build rating keyboard
             reply_markup = None
             try:

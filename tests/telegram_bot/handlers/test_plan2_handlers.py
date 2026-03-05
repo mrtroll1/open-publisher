@@ -8,7 +8,7 @@ are mocked — no real network calls.
 import asyncio
 import json
 from dataclasses import dataclass, field
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -416,7 +416,7 @@ class TestCmdSupport:
 
         asyncio.run(cmd_support(msg, state))
 
-        mock_answer.assert_called_once_with("как работает подписка?", False, False)
+        mock_answer.assert_called_once_with("как работает подписка?", False, False, on_event=ANY)
         mock_tm._instance.finish_long.assert_awaited_once()
         assert "Ответ на вопрос" in mock_tm._instance.finish_long.call_args[0][0]
 
@@ -455,7 +455,7 @@ class TestCmdSupport:
 
         asyncio.run(cmd_support(msg, state))
 
-        mock_answer.assert_called_once_with("как настроить?", True, False)
+        mock_answer.assert_called_once_with("как настроить?", True, False, on_event=ANY)
 
     @patch("telegram_bot.flow_callbacks._answer_tech_question")
     @patch("telegram_bot.flow_callbacks.bot")
@@ -470,7 +470,7 @@ class TestCmdSupport:
 
         asyncio.run(cmd_support(msg, state))
 
-        mock_answer.assert_called_once_with("как настроить?", True, False)
+        mock_answer.assert_called_once_with("как настроить?", True, False, on_event=ANY)
 
     @patch("telegram_bot.flow_callbacks._answer_tech_question")
     @patch("telegram_bot.flow_callbacks.bot")
@@ -486,7 +486,7 @@ class TestCmdSupport:
 
         asyncio.run(cmd_support(msg, state))
 
-        mock_answer.assert_called_once_with("-v", False, False)
+        mock_answer.assert_called_once_with("-v", False, False, on_event=ANY)
 
     @patch("telegram_bot.flow_callbacks._answer_tech_question")
     @patch("telegram_bot.flow_callbacks.bot")
@@ -502,7 +502,7 @@ class TestCmdSupport:
 
         asyncio.run(cmd_support(msg, state))
 
-        mock_answer.assert_called_once_with("-v", False, False)
+        mock_answer.assert_called_once_with("-v", False, False, on_event=ANY)
 
     @patch("telegram_bot.flow_callbacks._answer_tech_question")
     @patch("telegram_bot.flow_callbacks.bot")
@@ -587,7 +587,7 @@ class TestAnswerTechQuestion:
 
         assert result == "Healthcheck uses requests.get"
         mock_run_claude.assert_called_once_with(
-            "what is healthcheck?", verbose=True, expert=False, mode="explore",
+            "what is healthcheck?", verbose=True, expert=False, mode="explore", on_event=None,
         )
 
     @patch("telegram_bot.flow_callbacks.GeminiGateway")
@@ -665,7 +665,7 @@ class TestAnswerTechQuestion:
         result = _answer_tech_question("q", False, False)
 
         assert result == "claude answer"
-        mock_run_claude.assert_called_once_with("q", verbose=False, expert=False, mode="explore")
+        mock_run_claude.assert_called_once_with("q", verbose=False, expert=False, mode="explore", on_event=None)
 
 
 # ===================================================================
@@ -693,7 +693,7 @@ class TestCmdCode:
 
         asyncio.run(cmd_code(msg, state))
 
-        mock_run.assert_called_once_with("check tests", False, False, mode="changes")
+        mock_run.assert_called_once_with("check tests", False, False, mode="changes", on_event=ANY)
         mock_db.create_code_task.assert_called_once()
         mock_tm._instance.finish_long.assert_awaited_once()
         call_kwargs = mock_tm._instance.finish_long.call_args
@@ -737,7 +737,7 @@ class TestCmdCode:
 
         asyncio.run(cmd_code(msg, state))
 
-        mock_run.assert_called_once_with("analyze this", True, False, mode="changes")
+        mock_run.assert_called_once_with("analyze this", True, False, mode="changes", on_event=ANY)
 
     @patch("telegram_bot.flow_callbacks._db")
     @patch("telegram_bot.flow_callbacks.run_claude_code")
@@ -754,7 +754,7 @@ class TestCmdCode:
 
         asyncio.run(cmd_code(msg, state))
 
-        mock_run.assert_called_once_with("analyze this", True, False, mode="changes")
+        mock_run.assert_called_once_with("analyze this", True, False, mode="changes", on_event=ANY)
 
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
@@ -770,7 +770,7 @@ class TestCmdCode:
 
         asyncio.run(cmd_code(msg, state))
 
-        mock_run.assert_called_once_with("-v", False, False, mode="changes")
+        mock_run.assert_called_once_with("-v", False, False, mode="changes", on_event=ANY)
 
     @patch("telegram_bot.flow_callbacks.run_claude_code")
     @patch("telegram_bot.flow_callbacks.bot")
@@ -786,7 +786,7 @@ class TestCmdCode:
 
         asyncio.run(cmd_code(msg, state))
 
-        mock_run.assert_called_once_with("-v", False, False, mode="changes")
+        mock_run.assert_called_once_with("-v", False, False, mode="changes", on_event=ANY)
 
     @patch("telegram_bot.flow_callbacks.ThinkingMessage")
     @patch("telegram_bot.flow_callbacks._db")

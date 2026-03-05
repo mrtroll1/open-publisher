@@ -36,6 +36,15 @@ class RepoGateway:
         except OSError as e:
             logger.warning("Cannot create repos dir %s: %s", self._repos_dir, e)
             return
+        # Remove stale repo dirs (e.g. from old naming conventions)
+        expected = set(self._repo_urls.keys())
+        for child in self._repos_dir.iterdir():
+            if child.is_dir() and not child.name.startswith(".") and child.name not in expected:
+                try:
+                    shutil.rmtree(child)
+                    logger.info("Removed stale repo dir: %s", child.name)
+                except Exception as e:
+                    logger.warning("Cannot remove stale dir %s: %s", child.name, e)
         for name, url in self._repo_urls.items():
             path = self._repo_path(name)
             try:

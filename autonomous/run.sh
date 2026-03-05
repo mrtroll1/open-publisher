@@ -3,37 +3,36 @@
 # Launches Claude every 30 minutes to work through plan files sequentially.
 # Advances to the next plan when the current one has no unchecked items.
 #
-# Usage: ./autonomous/run.sh <duration> <plan1> [plan2] [plan3] ...
-# Example: ./autonomous/run.sh 6h plan-5
-#          ./autonomous/run.sh 12h plan-5 plan-6 plan-7 plan-8
+# Usage: ./autonomous/run.sh <sessions> <plan1> [plan2] [plan3] ...
+# Example: ./autonomous/run.sh 4 plan-5
+#          ./autonomous/run.sh 10 plan-5 plan-6 plan-7 plan-8
 
 set -euo pipefail
 
 if [ $# -lt 2 ]; then
-    echo "Usage: ./autonomous/run.sh <duration> <plan1> [plan2] [plan3] ..."
-    echo "  duration: Xh format (e.g. 6h, 12h)"
+    echo "Usage: ./autonomous/run.sh <sessions> <plan1> [plan2] [plan3] ..."
+    echo "  sessions: number of sessions to run (e.g. 4, 10)"
     echo "  Plan files must exist at autonomous/plans/<name>.md"
     echo ""
-    echo "Example: ./autonomous/run.sh 12h plan-5 plan-6 plan-7 plan-8"
+    echo "Example: ./autonomous/run.sh 10 plan-5 plan-6 plan-7 plan-8"
     exit 1
 fi
 
-DURATION_ARG="$1"
+NUM_SESSIONS="$1"
 shift
 PLAN_NAMES=("$@")
 
-# Parse duration (Xh format)
-if [[ ! "$DURATION_ARG" =~ ^[0-9]+h$ ]]; then
-    echo "ERROR: Duration must be in Xh format (e.g. 2h, 6h, 12h)"
+# Validate session count
+if [[ ! "$NUM_SESSIONS" =~ ^[0-9]+$ ]] || [ "$NUM_SESSIONS" -lt 1 ]; then
+    echo "ERROR: Sessions must be a positive integer (e.g. 4, 10)"
     exit 1
 fi
-TOTAL_HOURS="${DURATION_ARG%h}"
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_DIR="$ROOT_DIR/autonomous/logs"
 PROMPT_FILE="$ROOT_DIR/.claude/autonomous-prompt.md"
-INTERVAL=1800  # 30 minutes
-ITERATIONS=$(( TOTAL_HOURS * 3600 / INTERVAL ))
+PAUSE=60       # 1 minute between sessions
+ITERATIONS=$NUM_SESSIONS
 MAX_TURNS=80
 
 # Verify we're on the right branch
@@ -163,7 +162,7 @@ done
 
 log "=== RUN STARTED ==="
 log "Plans: ${PLAN_NAMES[*]}"
-log "Duration: ${TOTAL_HOURS}h | Sessions: $ITERATIONS x ${INTERVAL}s, max $MAX_TURNS turns each"
+log "Sessions: $ITERATIONS, ${PAUSE}s pause between, max $MAX_TURNS turns each"
 log ""
 
 # Also start the detailed last-run log (overwritten each run)
@@ -238,15 +237,10 @@ $PLAN_QUEUE"
     echo "Commits: $COMMITS" >> "$LAST_RUN_LOG"
     echo "" >> "$LAST_RUN_LOG"
 
-    # Sleep only the remaining time until the next 30-min mark
+    # Pause between sessions
     if [ $i -lt $ITERATIONS ]; then
-        REMAINING=$(( INTERVAL - DURATION ))
-        if [ $REMAINING -gt 0 ]; then
-            log "Next session in ${REMAINING}s..."
-            sleep $REMAINING
-        else
-            log "Session ran long, starting next immediately."
-        fi
+        log "Next session in ${PAUSE}s..."
+        sleep $PAUSE
     fi
 done
 

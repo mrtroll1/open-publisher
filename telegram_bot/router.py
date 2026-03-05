@@ -252,10 +252,14 @@ async def handle_group_message(
     if not available_commands:
         return
 
+    reply_context = ""
+    if is_reply_to_bot and message.reply_to_message.text:
+        reply_context = message.reply_to_message.text
+
     try:
         classifier = CommandClassifier(GeminiGateway())
         result = await asyncio.to_thread(
-            classifier.classify, clean_text, available_commands,
+            classifier.classify, clean_text, available_commands, context=reply_context,
         )
     except Exception:
         logger.exception("Command classification failed in group chat")

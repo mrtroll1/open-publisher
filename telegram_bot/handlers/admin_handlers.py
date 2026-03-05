@@ -30,7 +30,9 @@ from backend import (
     update_invoice_status,
     update_legium_link,
 )
+from backend.domain.services.command_classifier import CommandClassifier
 from backend.domain.services.compose_request import _get_retriever
+from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.domain.services.admin_service import (
     _GREETING_PREFIXES,
     classify_draft_reply,
@@ -205,8 +207,45 @@ async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
     if await handle_kedit_reply(message):
         return
 
-    # 4. NL conversation fallback (lazy import to avoid circular dependency)
-    from telegram_bot.handlers.conversation_handlers import _handle_nl_reply
+    # 4. Try classifying as a command (with replied-to message as context)
+    from telegram_bot.handlers.conversation_handlers import _handle_nl_reply, _ADMIN_NL_DESCRIPTIONS
+    reply_context = reply.text or ""
+    user_text = message.text or ""
+    if reply_context and user_text:
+        try:
+            classifier = CommandClassifier(GeminiGateway())
+            result = await asyncio.to_thread(
+                classifier.classify, user_text, _ADMIN_NL_DESCRIPTIONS, context=reply_context,
+            )
+            if result.classified:
+                from telegram_bot.router import _GROUP_COMMAND_HANDLERS
+                from telegram_bot.handlers.support_handlers import cmd_code
+
+                handlers = {
+                    **_GROUP_COMMAND_HANDLERS,
+                    "generate": cmd_generate,
+                    "generate_invoices": cmd_generate_invoices,
+                    "send_global_invoices": cmd_send_global_invoices,
+                    "send_legium_links": cmd_send_legium_links,
+                    "orphan_contractors": cmd_orphan_contractors,
+                    "budget": cmd_budget,
+                    "code": cmd_code,
+                }
+                handler = handlers.get(result.classified.command)
+                if handler:
+                    cmd_args = result.classified.args or user_text
+                    original_text = message.text
+                    cmd = result.classified.command
+                    object.__setattr__(message, "text", f"/{cmd} {cmd_args}" if cmd_args else f"/{cmd}")
+                    try:
+                        await handler(message, state)
+                    finally:
+                        object.__setattr__(message, "text", original_text)
+                    return
+        except Exception:
+            logger.exception("Reply classification failed")
+
+    # 5. NL conversation fallback
     await _handle_nl_reply(message, state)
 
 

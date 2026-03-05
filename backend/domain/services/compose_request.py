@@ -126,10 +126,12 @@ def classify_teaching(text: str, examples: str = "", domains: str = "") -> tuple
     return prompt, _MODELS["classify_teaching"], ["domain", "tier"]
 
 
-def classify_command(text: str, commands_description: str) -> tuple[str, str, list[str]]:
+def classify_command(text: str, commands_description: str, context: str = "") -> tuple[str, str, list[str]]:
+    context_block = f"## Контекст (предыдущее сообщение, на которое отвечает пользователь)\n{context}\n\n" if context else ""
     prompt = load_template("chat/classify-command.md", {
         "COMMANDS": commands_description,
         "TEXT": text,
+        "CONTEXT": context_block,
     })
     return prompt, _MODELS["classify_command"], ["command", "args"]
 

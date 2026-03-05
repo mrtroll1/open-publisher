@@ -32,11 +32,11 @@ class CommandClassifier:
         self._gemini = gemini
         self._db = db
 
-    def classify(self, text: str, available_commands: dict[str, str]) -> ClassificationResult:
+    def classify(self, text: str, available_commands: dict[str, str], context: str = "") -> ClassificationResult:
         commands_description = "\n".join(
             f"- **{name}** — {desc}" for name, desc in available_commands.items()
         )
-        prompt, model, _ = compose_request.classify_command(text, commands_description)
+        prompt, model, _ = compose_request.classify_command(text, commands_description, context=context)
         t0 = time.time()
         result = self._gemini.call(prompt, model)
         latency_ms = int((time.time() - t0) * 1000)

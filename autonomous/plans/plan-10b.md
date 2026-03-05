@@ -26,7 +26,7 @@ The `classify_teaching()` method (lines ~84-105) uses `compose_request` and `sel
 
 Remove `_gemini` dependency from constructor (was only used by `classify_teaching()`).
 
-## Step 2: Create `brain/dynamic/` implementations
+## Step 2: Create `brain/dynamic/` implementations ✅ DONE (Session 3)
 
 Each file extends `BaseGenAI` and wraps one LLM operation. Extract from current services:
 

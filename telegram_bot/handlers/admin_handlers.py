@@ -61,6 +61,9 @@ from telegram_bot.handler_utils import (
 
 logger = logging.getLogger(__name__)
 
+# Commands where original user text should be passed as-is (LLM processes it)
+_LLM_COMMANDS = {"code", "support"}
+
 _ROLE_LABELS = {
     RoleCode.AUTHOR: "автор",
     RoleCode.REDAKTOR: "редактор",
@@ -233,9 +236,9 @@ async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
                 }
                 handler = handlers.get(result.classified.command)
                 if handler:
-                    cmd_args = result.classified.args or user_text
-                    original_text = message.text
                     cmd = result.classified.command
+                    cmd_args = user_text if cmd in _LLM_COMMANDS else (result.classified.args or user_text)
+                    original_text = message.text
                     object.__setattr__(message, "text", f"/{cmd} {cmd_args}" if cmd_args else f"/{cmd}")
                     try:
                         await handler(message, state)

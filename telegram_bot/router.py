@@ -56,6 +56,9 @@ from telegram_bot.handlers.conversation_handlers import (
 
 logger = logging.getLogger(__name__)
 
+# Commands where original user text should be passed as-is (LLM processes it)
+_LLM_COMMANDS = {"code", "support"}
+
 
 # ── FSM States ────────────────────────────────────────────────────────
 
@@ -290,9 +293,9 @@ async def handle_group_message(
             logger.exception("RAG reply failed in group chat")
         return
 
-    await _dispatch_group_command(
-        result.classified.command, result.classified.args or clean_text, message, state,
-    )
+    cmd = result.classified.command
+    cmd_args = clean_text if cmd in _LLM_COMMANDS else (result.classified.args or clean_text)
+    await _dispatch_group_command(cmd, cmd_args, message, state)
 
 
 # ── FSM Transition Logic ─────────────────────────────────────────────

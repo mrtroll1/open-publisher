@@ -26,6 +26,9 @@ logger = logging.getLogger(__name__)
 
 _TEACHING_KEYWORDS = ("запомни", "учти", "имей в виду", "remember")
 
+# Commands where original user text should be passed as-is (LLM processes it)
+_LLM_COMMANDS = {"code", "support"}
+
 # All commands available for admin /nl classification
 _ADMIN_NL_DESCRIPTIONS: dict[str, str] = {
     "health": "Проверка доступности сайтов и подов",
@@ -153,7 +156,7 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
         return
 
     cmd = result.classified.command
-    cmd_args = result.classified.args or text
+    cmd_args = text if cmd in _LLM_COMMANDS else (result.classified.args or text)
 
     # Build the handler map lazily (avoid circular imports)
     from telegram_bot.router import _GROUP_COMMAND_HANDLERS

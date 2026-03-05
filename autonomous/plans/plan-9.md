@@ -34,14 +34,14 @@
 
 ## 9.2 Query Tool (NL → SQL → results)
 
-- [ ] 9.2.1 Create `templates/query/compose-query.md`:
+- [ ] 9.2.1 Create `templates/db-query/compose-query.md`:
   - Input: schema description, user question, example queries
   - Output: `{"sql": "SELECT ...", "explanation": "..."}`
   - Instruct: only SELECT, no CTEs with side effects, use explicit column names
-- [ ] 9.2.2 Create `templates/query/republic-schema.md`:
+- [ ] 9.2.2 Create `templates/db-query/republic-schema.md`:
   - Table names, columns, types, relationships, sample data descriptions
   - Luka fills in actual schema after 9.0.3
-- [ ] 9.2.3 Create `templates/query/redefine-schema.md`:
+- [ ] 9.2.3 Create `templates/db-query/redefine-schema.md`:
   - Same structure, Luka fills in
 - [ ] 9.2.4 Create `backend/domain/services/query_tool.py`:
   - `QueryTool(gateway: QueryGateway, schema_template: str, gemini: GeminiGateway)`
@@ -55,7 +55,7 @@
 
 ## 9.3 Tool Router (decides which tools to use)
 
-- [ ] 9.3.1 Create `templates/query/route-tools.md`:
+- [ ] 9.3.1 Create `templates/chat/require-tools.md`:
   - Input: user question, available tools with descriptions
   - Output: `{"tools": [{"name": "rag", "query": "..."}, {"name": "republic_db", "query": "..."}, ...]}`
   - Tools: `rag` (semantic search), `republic_db` (Republic SQL), `redefine_db` (Redefine SQL)

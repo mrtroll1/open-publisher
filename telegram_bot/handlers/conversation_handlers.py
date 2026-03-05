@@ -20,7 +20,7 @@ from backend.domain.services.conversation_service import (
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from telegram_bot import replies
 from telegram_bot.bot_helpers import is_admin
-from telegram_bot.handler_utils import _db, _kedit_pending, _memory, _save_turn, _send, _send_html, resolve_environment, resolve_entity_context, send_typing, ThinkingMessage
+from telegram_bot.handler_utils import _db, _kedit_pending, _memory, _query_tools, _tool_router, _save_turn, _send, _send_html, resolve_environment, resolve_entity_context, send_typing, ThinkingMessage
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +107,7 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
                 message.text, history, retriever, GeminiGateway(),
                 environment=env_ctx, allowed_domains=env_domains,
                 user_context=user_ctx,
+                tool_router=_tool_router, query_tools=_query_tools,
             )
 
             sent = await thinking.finish_long(answer, reply_to_message_id=message.message_id)
@@ -147,6 +148,7 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
                     generate_nl_reply, text, "", retriever, GeminiGateway(),
                     environment=env_ctx, allowed_domains=env_domains,
                     user_context=user_ctx,
+                    tool_router=_tool_router, query_tools=_query_tools,
                 )
                 sent = await thinking.finish_long(answer)
             await _save_turn(message, sent, text, answer, {"command": "nl_rag"})

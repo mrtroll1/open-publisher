@@ -107,7 +107,7 @@ tests/
 
 ## Phase 3: Separate `domain/` into `services/` and `use_cases/`
 
-> Goal: make the convention explicit — use-cases have one `execute()`, services have query/action methods, utilities are module-level functions.
+> Goal: make the convention explicit — use-cases have one `execute()`, services have db-query/action methods, utilities are module-level functions.
 > Rule: directory move + minor interface cleanup. No logic changes.
 
 - [x] 3.1 Create `backend/domain/services/` and `backend/domain/use_cases/`

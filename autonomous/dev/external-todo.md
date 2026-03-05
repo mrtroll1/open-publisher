@@ -12,7 +12,7 @@ The bot will query Republic and Redefine production databases directly via SSH t
 
 ### 1. Create read-only DB users
 
-On **Republic** DB server:
+On **Republic** DB server: (already done)
 ```sql
 CREATE USER agent_readonly WITH PASSWORD '<strong-password>';
 GRANT CONNECT ON DATABASE <republic_db_name> TO agent_readonly;
@@ -21,7 +21,7 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO agent_readonly;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO agent_readonly;
 ```
 
-On **Redefine** DB server: same, with its own password.
+On **Redefine** DB server: same, with its own password. (not done yet)
 
 ### 2. SSH access for tunneling
 

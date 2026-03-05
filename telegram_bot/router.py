@@ -282,10 +282,12 @@ async def handle_group_message(
                 retriever = _get_retriever()
                 env_ctx, env_domains = await asyncio.to_thread(resolve_environment, message.chat.id)
                 user_ctx = await asyncio.to_thread(resolve_entity_context, message.from_user.id)
+                from telegram_bot.handler_utils import _tool_router, _query_tools
                 answer = await asyncio.to_thread(
                     generate_nl_reply, clean_text, "", retriever, GeminiGateway(),
                     environment=env_ctx, allowed_domains=env_domains,
                     user_context=user_ctx,
+                    tool_router=_tool_router, query_tools=_query_tools,
                 )
                 sent = await thinking.finish_long(answer, reply_to_message_id=message.message_id)
             await _save_turn(message, sent, clean_text, answer, {"command": "nl_rag"})

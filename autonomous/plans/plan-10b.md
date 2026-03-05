@@ -8,7 +8,7 @@ Key principle: `brain/dynamic/` holds anything that calls an LLM via BaseGenAI. 
 
 After this phase, all code lives in its new location. Old `domain/` files get compatibility stubs. Controllers are NOT yet wired (that's plan 10c).
 
-## Step 1: Create `infrastructure/memory/`
+## Step 1: Create `infrastructure/memory/` ✅ DONE (Session 2)
 
 Move these services — they are shared data-access used across many commands:
 

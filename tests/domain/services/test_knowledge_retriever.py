@@ -7,7 +7,7 @@ from unittest.mock import patch
 #  _format_entries — pure function tests
 # ===================================================================
 
-@patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+@patch("backend.infrastructure.memory.retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
 class TestFormatEntries:
 
     def _fmt(self, entries):
@@ -47,9 +47,9 @@ class TestFormatEntries:
 #  Helper: build a KnowledgeRetriever with mocked gateways
 # ===================================================================
 
-@patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
-@patch("backend.domain.services.knowledge_retriever.EmbeddingGateway")
-@patch("backend.domain.services.knowledge_retriever.DbGateway")
+@patch("backend.infrastructure.memory.retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+@patch("backend.infrastructure.memory.retriever.EmbeddingGateway")
+@patch("backend.infrastructure.memory.retriever.DbGateway")
 def _make_retriever(MockDb, MockEmbed):
     from backend.domain.services.knowledge_retriever import KnowledgeRetriever
     kr = KnowledgeRetriever()
@@ -70,7 +70,7 @@ class TestGetCore:
 
         mock_db.get_knowledge_by_tier.assert_called_once_with("core")
 
-    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    @patch("backend.infrastructure.memory.retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
     def test_formats_results(self):
         kr, mock_db, _ = _make_retriever()
         mock_db.get_knowledge_by_tier.return_value = [
@@ -146,7 +146,7 @@ class TestRetrieve:
             [0.5], domain="billing", limit=3,
         )
 
-    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    @patch("backend.infrastructure.memory.retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
     def test_formats_results(self):
         kr, mock_db, mock_embed = _make_retriever()
         mock_embed.embed_one.return_value = [0.1]
@@ -159,7 +159,7 @@ class TestRetrieve:
 
         assert result == "## Billing\nInfo about billing\n\nExtra detail"
 
-    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    @patch("backend.infrastructure.memory.retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
     def test_retrieve_filters_low_similarity(self):
         kr, mock_db, mock_embed = _make_retriever()
         mock_embed.embed_one.return_value = [0.1]
@@ -175,7 +175,7 @@ class TestRetrieve:
         assert "Noise" not in result
         assert "Maybe" not in result
 
-    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    @patch("backend.infrastructure.memory.retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
     def test_retrieve_keeps_high_similarity(self):
         kr, mock_db, mock_embed = _make_retriever()
         mock_embed.embed_one.return_value = [0.1]
@@ -251,7 +251,7 @@ class TestRetrieveWithDomainsList:
         )
         mock_db.search_knowledge_multi_domain.assert_not_called()
 
-    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    @patch("backend.infrastructure.memory.retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
     def test_formats_results(self):
         kr, mock_db, mock_embed = _make_retriever()
         mock_embed.embed_one.return_value = [0.1]
@@ -280,7 +280,7 @@ class TestRetrieveFullDomain:
 
         mock_db.get_knowledge_by_domain.assert_called_once_with("subscriptions")
 
-    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    @patch("backend.infrastructure.memory.retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
     def test_formats_results(self):
         kr, mock_db, _ = _make_retriever()
         mock_db.get_knowledge_by_domain.return_value = [
@@ -446,7 +446,7 @@ class TestStoreTeaching:
 
 class TestGetEntityContext:
 
-    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    @patch("backend.infrastructure.memory.retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
     def test_formats_correctly(self):
         kr, mock_db, _ = _make_retriever()
         mock_db.get_entity.return_value = {
@@ -474,7 +474,7 @@ class TestGetEntityContext:
         assert result == ""
         mock_db.get_entity_knowledge.assert_not_called()
 
-    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    @patch("backend.infrastructure.memory.retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
     def test_no_summary_no_entries(self):
         kr, mock_db, _ = _make_retriever()
         mock_db.get_entity.return_value = {
@@ -486,7 +486,7 @@ class TestGetEntityContext:
 
         assert result == ""
 
-    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    @patch("backend.infrastructure.memory.retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
     def test_summary_only_no_entries(self):
         kr, mock_db, _ = _make_retriever()
         mock_db.get_entity.return_value = {
@@ -498,7 +498,7 @@ class TestGetEntityContext:
 
         assert result == "## Alice\nA developer"
 
-    @patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+    @patch("backend.infrastructure.memory.retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
     def test_entries_only_no_summary(self):
         kr, mock_db, _ = _make_retriever()
         mock_db.get_entity.return_value = {

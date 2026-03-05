@@ -8,10 +8,9 @@ def _make_service():
     mock_db = MagicMock()
     mock_embed = MagicMock()
     mock_retriever = MagicMock()
-    mock_gemini = MagicMock()
     svc = MemoryService(db=mock_db, embed=mock_embed,
-                        retriever=mock_retriever, gemini=mock_gemini)
-    return svc, mock_db, mock_embed, mock_retriever, mock_gemini
+                        retriever=mock_retriever)
+    return svc, mock_db, mock_embed, mock_retriever
 
 
 # ===================================================================
@@ -21,7 +20,7 @@ def _make_service():
 class TestRemember:
 
     def test_stores_and_returns_id(self):
-        svc, mock_db, mock_embed, _, _ = _make_service()
+        svc, mock_db, mock_embed, _ = _make_service()
         mock_embed.embed_one.return_value = [0.1, 0.2, 0.3]
         mock_db.search_knowledge.return_value = []
         mock_db.save_knowledge_entry.return_value = "new-uuid-123"
@@ -38,7 +37,7 @@ class TestRemember:
         )
 
     def test_deduplicates(self):
-        svc, mock_db, mock_embed, _, _ = _make_service()
+        svc, mock_db, mock_embed, _ = _make_service()
         mock_embed.embed_one.return_value = [0.4, 0.5]
         mock_db.search_knowledge.return_value = [
             {"id": "existing-id", "similarity": 0.95},
@@ -53,7 +52,7 @@ class TestRemember:
         mock_db.save_knowledge_entry.assert_not_called()
 
     def test_no_dedup_below_threshold(self):
-        svc, mock_db, mock_embed, _, _ = _make_service()
+        svc, mock_db, mock_embed, _ = _make_service()
         mock_embed.embed_one.return_value = [0.1]
         mock_db.search_knowledge.return_value = [
             {"id": "other-id", "similarity": 0.89},
@@ -67,7 +66,7 @@ class TestRemember:
 
     def test_passes_optional_fields(self):
         from datetime import datetime
-        svc, mock_db, mock_embed, _, _ = _make_service()
+        svc, mock_db, mock_embed, _ = _make_service()
         mock_embed.embed_one.return_value = [0.1]
         mock_db.find_by_source_url.return_value = None
         mock_db.search_knowledge.return_value = []
@@ -86,7 +85,7 @@ class TestRemember:
         assert call_kwargs["expires_at"] == exp
 
     def test_remember_with_source_url_deduplicates(self):
-        svc, mock_db, mock_embed, _, _ = _make_service()
+        svc, mock_db, mock_embed, _ = _make_service()
         mock_embed.embed_one.return_value = [0.1, 0.2]
         mock_db.find_by_source_url.return_value = {"id": "url-existing-id"}
 
@@ -103,7 +102,7 @@ class TestRemember:
         mock_db.search_knowledge.assert_not_called()
 
     def test_remember_source_url_updates_content(self):
-        svc, mock_db, mock_embed, _, _ = _make_service()
+        svc, mock_db, mock_embed, _ = _make_service()
         mock_embed.embed_one.return_value = [0.3, 0.4]
         mock_db.find_by_source_url.return_value = {"id": "page-id"}
 
@@ -115,7 +114,7 @@ class TestRemember:
         )
 
     def test_remember_different_urls_creates_separate(self):
-        svc, mock_db, mock_embed, _, _ = _make_service()
+        svc, mock_db, mock_embed, _ = _make_service()
         mock_embed.embed_one.return_value = [0.5]
         mock_db.find_by_source_url.return_value = None
         mock_db.search_knowledge.return_value = []
@@ -136,7 +135,7 @@ class TestRemember:
 class TestRecall:
 
     def test_returns_relevant(self):
-        svc, mock_db, mock_embed, _, _ = _make_service()
+        svc, mock_db, mock_embed, _ = _make_service()
         mock_embed.embed_one.return_value = [0.1, 0.2]
         mock_db.search_knowledge.return_value = [
             {"id": "1", "title": "Billing", "content": "Info", "similarity": 0.85, "domain": "billing"},
@@ -153,7 +152,7 @@ class TestRecall:
         assert results[0]["domain"] == "billing"
 
     def test_with_domain_filter(self):
-        svc, mock_db, mock_embed, _, _ = _make_service()
+        svc, mock_db, mock_embed, _ = _make_service()
         mock_embed.embed_one.return_value = [0.5]
         mock_db.search_knowledge.return_value = [
             {"id": "3", "title": "T", "content": "C", "similarity": 0.9, "domain": "billing"},
@@ -165,7 +164,7 @@ class TestRecall:
         assert len(results) == 1
 
     def test_with_multi_domain(self):
-        svc, mock_db, mock_embed, _, _ = _make_service()
+        svc, mock_db, mock_embed, _ = _make_service()
         mock_embed.embed_one.return_value = [0.5]
         mock_db.search_knowledge_multi_domain.return_value = []
 
@@ -183,66 +182,26 @@ class TestRecall:
 
 class TestTeach:
 
-    def test_auto_classifies(self):
-        svc, mock_db, mock_embed, mock_retriever, mock_gemini = _make_service()
-        mock_embed.embed_one.return_value = [0.1]
-        mock_db.search_knowledge.return_value = []
-        mock_db.list_domains.return_value = [
-            {"name": "tech_support", "description": "Tech support domain"},
-        ]
-        mock_gemini.call.return_value = {"domain": "tech_support", "tier": "meta"}
+    def test_delegates_to_retriever(self):
+        svc, _, _, mock_retriever = _make_service()
         mock_retriever.store_teaching.return_value = "teach-id"
 
-        result = svc.teach("Always greet users in Russian")
+        result = svc.teach("Always greet users in Russian",
+                           domain="tech_support", tier="meta")
 
         assert result == "teach-id"
         mock_retriever.store_teaching.assert_called_once_with(
             "Always greet users in Russian", domain="tech_support", tier="meta",
         )
 
-    def test_explicit_domain_and_tier(self):
-        svc, _, _, mock_retriever, mock_gemini = _make_service()
-        mock_retriever.store_teaching.return_value = "teach-id"
+    def test_passes_domain_and_tier(self):
+        svc, _, _, mock_retriever = _make_service()
+        mock_retriever.store_teaching.return_value = "id"
 
-        result = svc.teach("Some fact", domain="billing", tier="specific")
+        svc.teach("Some fact", domain="billing", tier="specific")
 
-        assert result == "teach-id"
-        mock_gemini.call.assert_not_called()
         mock_retriever.store_teaching.assert_called_once_with(
             "Some fact", domain="billing", tier="specific",
-        )
-
-    def test_fallback_on_unknown_domain(self):
-        svc, mock_db, mock_embed, mock_retriever, mock_gemini = _make_service()
-        mock_embed.embed_one.return_value = [0.1]
-        mock_db.search_knowledge.return_value = []
-        mock_db.list_domains.return_value = [
-            {"name": "general", "description": "General"},
-        ]
-        mock_gemini.call.return_value = {"domain": "nonexistent", "tier": "core"}
-        mock_retriever.store_teaching.return_value = "id"
-
-        svc.teach("Something")
-
-        # Should fall back to "general" since "nonexistent" not in valid domains
-        mock_retriever.store_teaching.assert_called_once_with(
-            "Something", domain="general", tier="core",
-        )
-
-    def test_fallback_on_invalid_tier(self):
-        svc, mock_db, mock_embed, mock_retriever, mock_gemini = _make_service()
-        mock_embed.embed_one.return_value = [0.1]
-        mock_db.search_knowledge.return_value = []
-        mock_db.list_domains.return_value = [
-            {"name": "general", "description": "General"},
-        ]
-        mock_gemini.call.return_value = {"domain": "general", "tier": "unknown_tier"}
-        mock_retriever.store_teaching.return_value = "id"
-
-        svc.teach("Something")
-
-        mock_retriever.store_teaching.assert_called_once_with(
-            "Something", domain="general", tier="specific",
         )
 
 
@@ -253,7 +212,7 @@ class TestTeach:
 class TestGetContext:
 
     def test_assembles_all_layers(self):
-        svc, mock_db, _, mock_retriever, _ = _make_service()
+        svc, mock_db, _, mock_retriever = _make_service()
         mock_db.get_environment.return_value = {
             "name": "prod", "system_context": "You are a helper.",
             "allowed_domains": ["billing", "support"],
@@ -269,7 +228,7 @@ class TestGetContext:
         assert "relevant stuff" in result["knowledge"]
 
     def test_with_entity(self):
-        svc, mock_db, _, mock_retriever, _ = _make_service()
+        svc, mock_db, _, mock_retriever = _make_service()
         mock_db.get_environment_by_chat_id.return_value = None
         mock_db.find_entity_by_external_id.return_value = {"id": "e1", "name": "User"}
         mock_retriever.get_core.return_value = "core"
@@ -282,7 +241,7 @@ class TestGetContext:
         mock_retriever.get_entity_context.assert_called_once_with("e1")
 
     def test_by_chat_id(self):
-        svc, mock_db, _, mock_retriever, _ = _make_service()
+        svc, mock_db, _, mock_retriever = _make_service()
         mock_db.get_environment_by_chat_id.return_value = {
             "name": "dev", "system_context": "Dev context",
             "allowed_domains": ["dev"],
@@ -295,7 +254,7 @@ class TestGetContext:
         assert result["domains"] == ["dev"]
 
     def test_no_environment(self):
-        svc, mock_db, _, mock_retriever, _ = _make_service()
+        svc, mock_db, _, mock_retriever = _make_service()
         mock_retriever.get_core.return_value = "global core"
         mock_retriever.retrieve.return_value = "relevant"
 
@@ -306,7 +265,7 @@ class TestGetContext:
         assert "global core" in result["knowledge"]
 
     def test_no_query_only_core(self):
-        svc, mock_db, _, mock_retriever, _ = _make_service()
+        svc, mock_db, _, mock_retriever = _make_service()
         mock_retriever.get_core.return_value = "core only"
 
         result = svc.get_context()
@@ -322,7 +281,7 @@ class TestGetContext:
 class TestEntityOps:
 
     def test_add_entity(self):
-        svc, mock_db, mock_embed, _, _ = _make_service()
+        svc, mock_db, mock_embed, _ = _make_service()
         mock_embed.embed_one.return_value = [0.1, 0.2]
         mock_db.save_entity.return_value = "entity-uuid"
 
@@ -336,7 +295,7 @@ class TestEntityOps:
         )
 
     def test_find_entity_by_external_id(self):
-        svc, mock_db, _, _, _ = _make_service()
+        svc, mock_db, _, _ = _make_service()
         mock_db.find_entity_by_external_id.return_value = {
             "id": "e1", "name": "John",
         }
@@ -347,7 +306,7 @@ class TestEntityOps:
         mock_db.find_entity_by_external_id.assert_called_once_with("telegram_user_id", "123")
 
     def test_find_entity_by_name(self):
-        svc, mock_db, _, _, _ = _make_service()
+        svc, mock_db, _, _ = _make_service()
         mock_db.find_entities_by_name.return_value = [
             {"id": "e2", "name": "Alice"},
         ]
@@ -358,7 +317,7 @@ class TestEntityOps:
         mock_db.find_entities_by_name.assert_called_once_with("Alice", limit=1)
 
     def test_find_entity_not_found(self):
-        svc, mock_db, _, _, _ = _make_service()
+        svc, mock_db, _, _ = _make_service()
         mock_db.find_entities_by_name.return_value = []
 
         result = svc.find_entity(query="Nobody")
@@ -366,14 +325,14 @@ class TestEntityOps:
         assert result is None
 
     def test_find_entity_no_params(self):
-        svc, _, _, _, _ = _make_service()
+        svc, _, _, _ = _make_service()
 
         result = svc.find_entity()
 
         assert result is None
 
     def test_update_entity_summary(self):
-        svc, mock_db, mock_embed, _, _ = _make_service()
+        svc, mock_db, mock_embed, _ = _make_service()
         mock_embed.embed_one.return_value = [0.3, 0.4]
         mock_db.update_entity.return_value = True
 
@@ -393,7 +352,7 @@ class TestEntityOps:
 class TestEnvironmentOps:
 
     def test_lookup_by_chat_id(self):
-        svc, mock_db, _, _, _ = _make_service()
+        svc, mock_db, _, _ = _make_service()
         mock_db.get_environment_by_chat_id.return_value = {
             "name": "prod", "description": "Production",
             "system_context": "ctx", "allowed_domains": ["billing"],
@@ -405,7 +364,7 @@ class TestEnvironmentOps:
         mock_db.get_environment_by_chat_id.assert_called_once_with(12345)
 
     def test_lookup_by_name(self):
-        svc, mock_db, _, _, _ = _make_service()
+        svc, mock_db, _, _ = _make_service()
         mock_db.get_environment.return_value = {
             "name": "staging", "description": "Staging env",
         }
@@ -416,7 +375,7 @@ class TestEnvironmentOps:
         mock_db.get_environment.assert_called_once_with("staging")
 
     def test_list_environments(self):
-        svc, mock_db, _, _, _ = _make_service()
+        svc, mock_db, _, _ = _make_service()
         mock_db.list_environments.return_value = [
             {"name": "prod"}, {"name": "staging"},
         ]
@@ -426,7 +385,7 @@ class TestEnvironmentOps:
         assert len(result) == 2
 
     def test_update_environment(self):
-        svc, mock_db, _, _, _ = _make_service()
+        svc, mock_db, _, _ = _make_service()
         mock_db.update_environment.return_value = True
 
         result = svc.update_environment("prod", description="Updated")
@@ -442,7 +401,7 @@ class TestEnvironmentOps:
 class TestDomainOps:
 
     def test_list_domains(self):
-        svc, mock_db, _, _, _ = _make_service()
+        svc, mock_db, _, _ = _make_service()
         mock_db.list_domains.return_value = [
             {"name": "general", "description": "General"},
         ]
@@ -452,7 +411,7 @@ class TestDomainOps:
         assert len(result) == 1
 
     def test_add_domain(self):
-        svc, mock_db, _, _, _ = _make_service()
+        svc, mock_db, _, _ = _make_service()
         mock_db.get_or_create_domain.return_value = "billing"
 
         result = svc.add_domain("billing", "Billing domain")
@@ -468,7 +427,7 @@ class TestDomainOps:
 class TestKnowledgeManagement:
 
     def test_list_knowledge(self):
-        svc, mock_db, _, _, _ = _make_service()
+        svc, mock_db, _, _ = _make_service()
         mock_db.list_knowledge.return_value = [
             {"id": "1", "tier": "core", "domain": "general", "title": "T", "content": "C"},
         ]
@@ -479,7 +438,7 @@ class TestKnowledgeManagement:
         mock_db.list_knowledge.assert_called_once_with(domain="general", tier=None)
 
     def test_list_knowledge_by_entity(self):
-        svc, mock_db, _, _, _ = _make_service()
+        svc, mock_db, _, _ = _make_service()
         mock_db.get_entity_knowledge.return_value = [
             {"id": "2", "content": "Entity note"},
         ]
@@ -491,7 +450,7 @@ class TestKnowledgeManagement:
         mock_db.list_knowledge.assert_not_called()
 
     def test_get_entry(self):
-        svc, mock_db, _, _, _ = _make_service()
+        svc, mock_db, _, _ = _make_service()
         mock_db.get_knowledge_entry.return_value = {
             "id": "1", "content": "Some content",
         }
@@ -501,7 +460,7 @@ class TestKnowledgeManagement:
         assert result["content"] == "Some content"
 
     def test_update_entry(self):
-        svc, mock_db, mock_embed, _, _ = _make_service()
+        svc, mock_db, mock_embed, _ = _make_service()
         mock_embed.embed_one.return_value = [0.5]
         mock_db.update_knowledge_entry.return_value = True
 
@@ -512,7 +471,7 @@ class TestKnowledgeManagement:
         mock_db.update_knowledge_entry.assert_called_once_with("1", "New content", [0.5])
 
     def test_deactivate_entry(self):
-        svc, mock_db, _, _, _ = _make_service()
+        svc, mock_db, _, _ = _make_service()
         mock_db.deactivate_knowledge.return_value = True
 
         result = svc.deactivate_entry("1")

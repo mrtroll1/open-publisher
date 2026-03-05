@@ -59,9 +59,9 @@ def _make_nl_message(
 #  KnowledgeRetriever.store_teaching
 # ===================================================================
 
-@patch("backend.domain.services.knowledge_retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
-@patch("backend.domain.services.knowledge_retriever.EmbeddingGateway")
-@patch("backend.domain.services.knowledge_retriever.DbGateway")
+@patch("backend.infrastructure.memory.retriever.SUBSCRIPTION_SERVICE_URL", "https://test.example.com")
+@patch("backend.infrastructure.memory.retriever.EmbeddingGateway")
+@patch("backend.infrastructure.memory.retriever.DbGateway")
 def _make_retriever(MockDb, MockEmbed):
     from backend.domain.services.knowledge_retriever import KnowledgeRetriever
     kr = KnowledgeRetriever()

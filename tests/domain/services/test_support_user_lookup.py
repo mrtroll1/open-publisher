@@ -188,8 +188,8 @@ class TestFmtAuditLog:
 #  Helpers for fetch_and_format tests
 # ===================================================================
 
-@patch("backend.domain.services.support_user_lookup.RedefineGateway")
-@patch("backend.domain.services.support_user_lookup.RepublicGateway")
+@patch("backend.infrastructure.memory.user_lookup.RedefineGateway")
+@patch("backend.infrastructure.memory.user_lookup.RepublicGateway")
 def _make_lookup(MockRepublic, MockRedefine):
     lookup = SupportUserLookup()
     return lookup, lookup._republic, lookup._redefine

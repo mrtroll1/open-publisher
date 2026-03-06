@@ -43,6 +43,9 @@ class TeachRequest(BaseModel):
     domain: str
     tier: str = "specific"
 
+class ClassifyRequest(BaseModel):
+    text: str
+
 class EntityAddRequest(BaseModel):
     kind: str
     name: str
@@ -262,7 +265,7 @@ def teach(req: TeachRequest) -> BrainResponse:
         return BrainResponse(result=None, error=str(e))
 
 @app.post("/memory/classify-teaching")
-def classify_teaching(req: TeachRequest) -> BrainResponse:
+def classify_teaching(req: ClassifyRequest) -> BrainResponse:
     try:
         domain, tier = memory.classify_teaching(req.text)
         return BrainResponse(result={"domain": domain, "tier": tier})

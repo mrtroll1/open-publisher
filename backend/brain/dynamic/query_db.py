@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import logging
 
-from common.prompt_loader import load_template
 from backend.brain.base_genai import BaseGenAI
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.gateways.query_gateway import QueryGateway
+from backend.infrastructure.repositories.postgres import DbGateway
 
 logger = logging.getLogger(__name__)
 
@@ -16,14 +16,16 @@ class QueryDB(BaseGenAI):
     """Compose SQL from natural language, execute, return rows.
 
     Used as a tool by ConversationReply — not a standalone route.
+    Schema knowledge is fetched from the knowledge DB (domain=infra).
     """
 
     def __init__(self, gemini: GeminiGateway, gateway: QueryGateway,
-                 schema_template: str):
+                 db: DbGateway, schema_domain: str = "infra"):
         super().__init__(gemini)
         self._model = "gemini-2.5-flash"
         self._gateway = gateway
-        self._schema_template = schema_template
+        self._db = db
+        self._schema_domain = schema_domain
 
     @property
     def available(self) -> bool:
@@ -33,7 +35,8 @@ class QueryDB(BaseGenAI):
         return "db-query/compose-query.md"
 
     def _build_context(self, input: str, context: dict) -> dict:
-        schema = load_template(self._schema_template)
+        entries = self._db.get_knowledge_by_domain(self._schema_domain)
+        schema = "\n\n".join(e["content"] for e in entries) if entries else "(schema not available)"
         return {
             "SCHEMA": schema,
             "QUESTION": input,

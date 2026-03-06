@@ -56,18 +56,8 @@ def create_parse_bank_statement() -> ParseBankStatement:
     return ParseBankStatement(airtable_gw=AirtableGateway())
 
 
-@dataclass
-class _QuerySource:
-    gateway: QueryGateway
-    schema_template: str
-
-    @property
-    def available(self) -> bool:
-        return self.gateway.available
-
-
-def create_query_tools() -> dict[str, _QuerySource]:
-    """Create query source configs for available external DBs."""
+def create_query_gateways() -> dict[str, QueryGateway]:
+    """Create query gateways for available external DBs."""
     from common.config import (
         REPUBLIC_SSH_HOST, REPUBLIC_SSH_USER, REPUBLIC_SSH_KEY_PATH,
         REPUBLIC_RO_DB_HOST, REPUBLIC_RO_DB_PORT, REPUBLIC_RO_DB_NAME,
@@ -76,7 +66,7 @@ def create_query_tools() -> dict[str, _QuerySource]:
         REDEFINE_RO_DB_HOST, REDEFINE_RO_DB_PORT, REDEFINE_RO_DB_NAME,
         REDEFINE_RO_DB_USER, REDEFINE_RO_DB_PASS,
     )
-    tools = {}
+    gateways = {}
 
     republic_gw = QueryGateway(
         ssh_host=REPUBLIC_SSH_HOST, ssh_user=REPUBLIC_SSH_USER,
@@ -86,7 +76,7 @@ def create_query_tools() -> dict[str, _QuerySource]:
         db_pass=REPUBLIC_RO_DB_PASS, name="republic",
     )
     if republic_gw.available:
-        tools["republic_db"] = _QuerySource(republic_gw, "db-query/republic-schema.md")
+        gateways["republic_db"] = republic_gw
 
     redefine_gw = QueryGateway(
         ssh_host=REDEFINE_SSH_HOST, ssh_user=REDEFINE_SSH_USER,
@@ -96,9 +86,9 @@ def create_query_tools() -> dict[str, _QuerySource]:
         db_pass=REDEFINE_RO_DB_PASS, name="redefine",
     )
     if redefine_gw.available:
-        tools["redefine_db"] = _QuerySource(redefine_gw, "db-query/redefine-schema.md")
+        gateways["redefine_db"] = redefine_gw
 
-    return tools
+    return gateways
 
 
 @dataclass
@@ -136,16 +126,16 @@ def create_brain() -> BrainComponents:
     retriever = KnowledgeRetriever(db=db, embed=embed)
     memory = MemoryService(db=db, embed=embed, retriever=retriever)
 
-    # Query tools (reuse existing factory)
-    query_tools = create_query_tools()
+    # Query gateways (SSH-tunneled external DBs)
+    query_gateways = create_query_gateways()
 
     # Dynamic (GenAI) instances
-    tool_routing = ToolRouting(gemini, available_tools=["rag"] + list(query_tools.keys()))
+    tool_routing = ToolRouting(gemini, available_tools=["rag"] + list(query_gateways.keys()))
 
-    # ConversationReply needs QueryDB (BaseGenAI), not raw query source
+    # ConversationReply needs QueryDB (BaseGenAI), not raw gateway
     query_db_map: dict = {}
-    for name, qs in query_tools.items():
-        query_db_map[name] = QueryDB(gemini, qs.gateway, qs.schema_template)
+    for name, gw in query_gateways.items():
+        query_db_map[name] = QueryDB(gemini, gw, db)
 
     conversation_reply = ConversationReply(gemini, retriever, tool_routing, query_db_map)
     classify_teaching = ClassifyTeaching(gemini, db, embed)

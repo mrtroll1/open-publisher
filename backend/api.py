@@ -47,19 +47,9 @@ class TeachRequest(BaseModel):
 class ClassifyRequest(BaseModel):
     text: str
 
-class EntityAddRequest(BaseModel):
-    kind: str
-    name: str
-    external_ids: dict | None = None
-    summary: str = ""
-
-class EntityNoteRequest(BaseModel):
+class UserNoteRequest(BaseModel):
     text: str
-    domain: str = "entity_notes"
-
-class EntityUpdateRequest(BaseModel):
-    external_ids: dict | None = None
-    summary: str | None = None
+    domain: str = "general"
 
 class EntryUpdateRequest(BaseModel):
     content: str
@@ -382,73 +372,40 @@ def get_bindings(name: str) -> BrainResponse:
         return BrainResponse(result=None, error=str(e))
 
 
-# --- Entity endpoints ---
+# --- User endpoints ---
 
-@app.post("/entity/add")
-def add_entity(req: EntityAddRequest) -> BrainResponse:
+@app.get("/user/admin_telegram_ids")
+def get_admin_telegram_ids() -> BrainResponse:
     try:
-        entity_id = memory.add_entity(req.kind, req.name,
-                                      external_ids=req.external_ids,
-                                      summary=req.summary)
-        return BrainResponse(result={"id": entity_id})
+        return BrainResponse(result=db.get_admin_telegram_ids())
     except Exception as e:
         return BrainResponse(result=None, error=str(e))
 
-@app.get("/entity/list")
-def list_entities() -> BrainResponse:
+@app.get("/user/is_admin")
+def is_admin_check(telegram_id: int) -> BrainResponse:
     try:
-        return BrainResponse(result=db.list_entities())
+        user = db.get_user_by_telegram_id(telegram_id)
+        return BrainResponse(result=bool(user and user["role"] == "admin"))
     except Exception as e:
         return BrainResponse(result=None, error=str(e))
 
-@app.get("/entity/find")
-def find_entity(query: str = "", external_key: str = "",
-                external_value: str = "") -> BrainResponse:
+@app.get("/user/context")
+def get_user_context(telegram_id: int) -> BrainResponse:
     try:
-        result = memory.find_entity(query=query, external_key=external_key,
-                                    external_value=external_value)
-        return BrainResponse(result=result)
+        user = db.get_user_by_telegram_id(telegram_id)
+        if not user:
+            return BrainResponse(result="")
+        context = retriever.get_user_context(user["id"])
+        return BrainResponse(result=context)
     except Exception as e:
         return BrainResponse(result=None, error=str(e))
 
-@app.get("/entity/search")
-def search_entities(query: str) -> BrainResponse:
-    try:
-        return BrainResponse(result=db.find_entities_by_name(query))
-    except Exception as e:
-        return BrainResponse(result=None, error=str(e))
-
-@app.put("/entity/{entity_id}/update")
-def update_entity(entity_id: str, req: EntityUpdateRequest) -> BrainResponse:
-    try:
-        kwargs = {}
-        if req.external_ids is not None:
-            kwargs["external_ids"] = req.external_ids
-        if req.summary is not None:
-            kwargs["summary"] = req.summary
-        db.update_entity(entity_id, **kwargs)
-        return BrainResponse(result="ok")
-    except Exception as e:
-        return BrainResponse(result=None, error=str(e))
-
-@app.post("/entity/{entity_id}/note")
-def add_entity_note(entity_id: str, req: EntityNoteRequest) -> BrainResponse:
+@app.post("/user/{user_id}/note")
+def add_user_note(user_id: str, req: UserNoteRequest) -> BrainResponse:
     try:
         entry_id = memory.remember(req.text, domain=req.domain,
-                                   source="api", entity_id=entity_id)
+                                   source="api", user_id=user_id)
         return BrainResponse(result={"id": entry_id})
-    except Exception as e:
-        return BrainResponse(result=None, error=str(e))
-
-@app.get("/entity/context")
-def get_entity_context(user_id: str) -> BrainResponse:
-    try:
-        entity = memory.find_entity(external_key="telegram_user_id",
-                                    external_value=user_id)
-        if not entity:
-            return BrainResponse(result="")
-        context = retriever.get_entity_context(entity["id"])
-        return BrainResponse(result=context)
     except Exception as e:
         return BrainResponse(result=None, error=str(e))
 

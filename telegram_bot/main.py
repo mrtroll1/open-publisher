@@ -8,7 +8,7 @@ import logging
 from aiogram import Dispatcher
 
 from telegram_bot import backend_client
-from telegram_bot.bot_helpers import bot
+from telegram_bot.bot_helpers import bot, load_admin_ids
 from telegram_bot.router import register_all, set_bot_commands
 from telegram_bot.handlers.email_listener import email_listener_task
 
@@ -65,6 +65,7 @@ async def main():
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
     )
     logger.info("Starting bot...")
+    await load_admin_ids()
     await set_bot_commands(bot)
     asyncio.create_task(email_listener_task())
     asyncio.create_task(daily_article_ingest_task())

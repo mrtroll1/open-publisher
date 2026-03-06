@@ -20,7 +20,7 @@ class MemoryService:
 
     # ── REMEMBER ────────────────────────────────────────────────
     def remember(self, text: str, domain: str, source: str = "api",
-                 tier: str = "specific", entity_id: str | None = None,
+                 tier: str = "specific", user_id: str | None = None,
                  source_url: str | None = None,
                  expires_at: datetime | None = None) -> str:
         embedding = self._embed.embed_one(text)
@@ -39,14 +39,13 @@ class MemoryService:
         title = text[:60].strip()
         return self._db.save_knowledge_entry(
             tier=tier, domain=domain, title=title, content=text,
-            source=source, embedding=embedding, entity_id=entity_id,
+            source=source, embedding=embedding, user_id=user_id,
             source_url=source_url, expires_at=expires_at,
         )
 
     # ── RECALL ─────────────────────────────────────────────────
     def recall(self, query: str, domain: str | None = None,
                domains: list[str] | None = None,
-               entity_id: str | None = None,
                limit: int = 5) -> list[dict]:
         embedding = self._embed.embed_one(query)
         if domains is not None:
@@ -102,12 +101,12 @@ class MemoryService:
             else:
                 knowledge = self._retriever.get_core()
 
-        # Resolve entity context
+        # Resolve user context
         user_context = ""
         if user_id:
-            entity = self._db.find_entity_by_external_id("telegram_user_id", user_id)
-            if entity:
-                user_context = self._retriever.get_entity_context(entity["id"])
+            user = self._db.get_user_by_telegram_id(user_id)
+            if user:
+                user_context = self._retriever.get_user_context(user["id"])
 
         return {
             "environment": env_ctx,
@@ -116,26 +115,12 @@ class MemoryService:
             "domains": env_domains or [],
         }
 
-    # ── ENTITY OPS ─────────────────────────────────────────────
-    def add_entity(self, kind: str, name: str,
-                   external_ids: dict | None = None,
-                   summary: str = "") -> str:
-        embedding = self._embed.embed_one(name) if name else None
-        return self._db.save_entity(kind, name, external_ids=external_ids,
-                                    summary=summary, embedding=embedding)
+    # ── USER OPS ───────────────────────────────────────────────
+    def get_user(self, user_id: str) -> dict | None:
+        return self._db.get_user(user_id)
 
-    def find_entity(self, query: str = "", external_key: str = "",
-                    external_value: str = "") -> dict | None:
-        if external_key and external_value:
-            return self._db.find_entity_by_external_id(external_key, external_value)
-        if query:
-            results = self._db.find_entities_by_name(query, limit=1)
-            return results[0] if results else None
-        return None
-
-    def update_entity_summary(self, entity_id: str, summary: str) -> bool:
-        embedding = self._embed.embed_one(summary) if summary else None
-        return self._db.update_entity(entity_id, summary=summary, embedding=embedding)
+    def get_user_by_telegram_id(self, telegram_id: int) -> dict | None:
+        return self._db.get_user_by_telegram_id(telegram_id)
 
     # ── ENVIRONMENT OPS ────────────────────────────────────────
     def list_environments(self) -> list[dict]:
@@ -161,9 +146,9 @@ class MemoryService:
     # ── KNOWLEDGE MANAGEMENT ───────────────────────────────────
     def list_knowledge(self, domain: str | None = None,
                        tier: str | None = None,
-                       entity_id: str | None = None) -> list[dict]:
-        if entity_id:
-            return self._db.get_entity_knowledge(entity_id)
+                       user_id: str | None = None) -> list[dict]:
+        if user_id:
+            return self._db.get_user_knowledge(user_id)
         return self._db.list_knowledge(domain=domain, tier=tier)
 
     def get_entry(self, entry_id: str) -> dict | None:

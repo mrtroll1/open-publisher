@@ -138,29 +138,28 @@ CREATE TABLE IF NOT EXISTS environment_bindings (
     created_at   TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS entities (
+CREATE TABLE IF NOT EXISTS users (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    kind          TEXT NOT NULL,
-    name          TEXT NOT NULL,
-    external_ids  JSONB DEFAULT '{}',
-    summary       TEXT NOT NULL DEFAULT '',
-    embedding     vector(256),
+    name          TEXT NOT NULL DEFAULT '',
+    role          TEXT NOT NULL DEFAULT 'user',
+    telegram_id   BIGINT UNIQUE,
     created_at    TIMESTAMP DEFAULT NOW(),
     updated_at    TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_entity_kind ON entities(kind);
-CREATE INDEX IF NOT EXISTS idx_entity_external_ids ON entities USING GIN(external_ids);
-CREATE INDEX IF NOT EXISTS idx_entity_name ON entities(name);
+CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id) WHERE telegram_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 
--- Entity FK on knowledge_entries
+-- user FK on knowledge_entries
 DO $$ BEGIN
-    ALTER TABLE knowledge_entries ADD COLUMN entity_id UUID REFERENCES entities(id);
+    ALTER TABLE knowledge_entries ADD COLUMN user_id UUID REFERENCES users(id);
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
-CREATE INDEX IF NOT EXISTS idx_knowledge_entity
-    ON knowledge_entries(entity_id) WHERE entity_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_knowledge_user
+    ON knowledge_entries(user_id) WHERE user_id IS NOT NULL;
+
+-- Legacy: keep entity_id column if it exists but don't create it for new DBs
 
 DO $$ BEGIN
     ALTER TABLE knowledge_entries ADD COLUMN source_url TEXT;
@@ -222,6 +221,11 @@ class BasePostgresRepo:
                 cur.execute(
                     "INSERT INTO environment_bindings (chat_id, environment) VALUES (%s, %s) ON CONFLICT DO NOTHING",
                     (admin_id, "admin_dm"),
+                )
+                cur.execute(
+                    "INSERT INTO users (name, role, telegram_id) VALUES (%s, %s, %s) "
+                    "ON CONFLICT (telegram_id) DO UPDATE SET role = 'admin'",
+                    ("admin", "admin", admin_id),
                 )
 
     def close(self):

@@ -67,22 +67,22 @@ class KnowledgeRetriever:
             embedding=embedding,
         )
 
-    def get_entity_context(self, entity_id: str) -> str:
-        """Fetch entity summary + entity-linked knowledge entries. Format as markdown."""
-        entity = self._db.get_entity(entity_id)
-        if not entity:
+    def get_user_context(self, user_id: str) -> str:
+        """Fetch user-linked knowledge entries. Format as markdown."""
+        user = self._db.get_user(user_id)
+        if not user:
             return ""
         parts = []
-        if entity.get("summary"):
-            parts.append(f"## {entity['name']}\n{entity['summary']}")
-        entries = self._db.get_entity_knowledge(entity_id, limit=5)
+        entries = self._db.get_user_knowledge(user_id, limit=5)
         if entries:
+            if user.get("name"):
+                parts.append(f"## {user['name']}")
             parts.append(_format_entries(entries))
         return "\n\n".join(parts)
 
-    def store_entity_knowledge(self, entity_id: str, text: str,
-                                domain: str = "general") -> str:
-        """Store a knowledge entry linked to an entity. Dedup-aware."""
+    def store_user_knowledge(self, user_id: str, text: str,
+                              domain: str = "general") -> str:
+        """Store a knowledge entry linked to a user. Dedup-aware."""
         embedding = self._embed.embed_one(text)
         existing = self._db.search_knowledge(embedding, domain=domain, limit=1)
         if existing and existing[0].get("similarity", 0) > 0.90:
@@ -93,7 +93,7 @@ class KnowledgeRetriever:
         return self._db.save_knowledge_entry(
             tier="specific", domain=domain, title=title,
             content=text, source="admin_teach",
-            embedding=embedding, entity_id=entity_id,
+            embedding=embedding, user_id=user_id,
         )
 
     def store_teaching(self, text: str, domain: str = "general", tier: str = "specific") -> str:

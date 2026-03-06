@@ -55,7 +55,7 @@ class ConversationController(BaseController):
 
         user_context = ""
         if user:
-            user_context = self._retriever.get_entity_context(user["id"]) if user.get("id") else ""
+            user_context = self._retriever.get_user_context(user["id"]) if user.get("id") else ""
 
         context = {
             "environment": env.get("system_context", ""),

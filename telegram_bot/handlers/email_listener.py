@@ -5,8 +5,9 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from common.config import ADMIN_TELEGRAM_IDS, EMAIL_ADDRESS, EMAIL_IDLE_TIMEOUT, EMAIL_ERROR_RETRY_DELAY
+from common.config import EMAIL_ADDRESS, EMAIL_IDLE_TIMEOUT, EMAIL_ERROR_RETRY_DELAY
 from telegram_bot import backend_client
+from telegram_bot.bot_helpers import get_admin_ids
 from telegram_bot.handlers.support_handlers import _send_support_draft, _send_editorial
 
 logger = logging.getLogger(__name__)
@@ -22,10 +23,11 @@ async def email_listener_task() -> None:
     Uses backend API for inbox operations. Polls periodically since
     IMAP IDLE can't go through HTTP.
     """
-    if not ADMIN_TELEGRAM_IDS:
+    admin_ids = get_admin_ids()
+    if not admin_ids:
         logger.warning("No admin IDs configured, email listener disabled")
         return
-    admin_id = ADMIN_TELEGRAM_IDS[0]
+    admin_id = next(iter(admin_ids))
     logger.info("Email listener started for %s", EMAIL_ADDRESS)
     while True:
         try:

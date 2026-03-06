@@ -12,7 +12,6 @@ from aiogram import types
 from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile
 
-from common.config import ADMIN_TELEGRAM_IDS
 from common.models import (
     Currency,
     GlobalContractor,
@@ -65,7 +64,6 @@ __all__ = [
     "cmd_send_legium_links",
     "cmd_orphan_contractors",
     "cmd_upload_to_airtable",
-    "cmd_sync_entities",
     "cmd_ingest_articles",
     "cmd_extract_knowledge",
     "cmd_chatid",
@@ -580,22 +578,6 @@ async def cmd_upload_to_airtable(message: types.Message, state: FSMContext) -> N
             os.unlink(tmp_path)
 
 
-async def cmd_sync_entities(message: types.Message, state: FSMContext) -> None:
-    """Sync contractors from Google Sheets into the entities system."""
-    await send_typing(message.chat.id)
-
-    try:
-        result = await backend_client.command(
-            "sync_entities", "",
-            environment_id=str(message.chat.id),
-            user_id=str(message.from_user.id),
-        )
-        created = result.get("created", 0) if isinstance(result, dict) else 0
-        updated = result.get("updated", 0) if isinstance(result, dict) else 0
-        await message.answer(replies.admin.sync_entities_done.format(created=created, updated=updated))
-    except Exception as e:
-        logger.exception("Entity sync failed")
-        await message.answer(f"Ошибка: {e}")
 
 
 async def cmd_ingest_articles(message: types.Message, state: FSMContext) -> None:

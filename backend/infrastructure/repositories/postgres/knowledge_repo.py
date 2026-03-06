@@ -9,7 +9,7 @@ class KnowledgeRepo(BasePostgresRepo):
 
     def save_knowledge_entry(self, tier: str, domain: str, title: str, content: str, source: str,
                              embedding: list[float] | None = None,
-                             entity_id: str | None = None,
+                             user_id: str | None = None,
                              source_url: str | None = None,
                              expires_at=None,
                              parent_id: str | None = None) -> str:
@@ -17,12 +17,12 @@ class KnowledgeRepo(BasePostgresRepo):
         with conn.cursor() as cur:
             cur.execute(
                 """INSERT INTO knowledge_entries (tier, domain, title, content, source, embedding,
-                              entity_id, source_url, expires_at, parent_id)
+                              user_id, source_url, expires_at, parent_id)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                    RETURNING id""",
                 (tier, domain, title, content, source,
                  str(embedding) if embedding is not None else None,
-                 entity_id, source_url, expires_at, parent_id),
+                 user_id, source_url, expires_at, parent_id),
             )
             return str(cur.fetchone()[0])
 

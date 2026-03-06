@@ -8,7 +8,7 @@ from datetime import date
 
 from aiogram import Bot
 
-from common.config import ADMIN_TELEGRAM_IDS, TELEGRAM_BOT_TOKEN
+from common.config import TELEGRAM_BOT_TOKEN
 from common.models import Contractor
 from backend import load_all_contractors
 
@@ -37,8 +37,23 @@ def current_month() -> str:
 
 # ─── Admin check ─────────────────────────────────────────────────────
 
+_admin_ids: set[int] = set()
+
+
+async def load_admin_ids() -> None:
+    """Load admin telegram IDs from DB. Call once at bot startup."""
+    from telegram_bot import backend_client
+    global _admin_ids
+    ids = await backend_client.get_admin_telegram_ids()
+    _admin_ids = set(ids)
+
+
 def is_admin(user_id: int) -> bool:
-    return user_id in ADMIN_TELEGRAM_IDS
+    return user_id in _admin_ids
+
+
+def get_admin_ids() -> set[int]:
+    return _admin_ids
 
 
 # ─── Markdown → Telegram HTML ────────────────────────────────────────

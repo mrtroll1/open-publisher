@@ -12,7 +12,6 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
-from common.config import ADMIN_TELEGRAM_IDS
 from common.models import (
     CONTRACTOR_CLASS_BY_TYPE,
     Contractor,
@@ -53,7 +52,7 @@ from backend.commands.invoice.service import (
     resolve_existing_invoice,
 )
 from telegram_bot import replies
-from telegram_bot.bot_helpers import bot, get_contractors, is_admin, prev_month
+from telegram_bot.bot_helpers import bot, get_admin_ids, get_contractors, is_admin, prev_month
 from telegram_bot import backend_client
 from telegram_bot.handler_utils import (
     _admin_reply_map,
@@ -380,7 +379,7 @@ async def handle_document(message: types.Message, state: FSMContext) -> None:
             logger.error("Failed to upload signed doc to Drive: %s", e)
 
     await message.answer(replies.document.received)
-    for admin_id in ADMIN_TELEGRAM_IDS:
+    for admin_id in get_admin_ids():
         if admin_id != message.from_user.id:
             try:
                 caption = replies.document.forwarded_to_admin.format(name=sender_info)
@@ -420,7 +419,7 @@ async def _notify_admins_rub_invoice(
     pdf_bytes: bytes, filename: str, contractor: Contractor,
     month: str, amount,
 ) -> None:
-    for admin_id in ADMIN_TELEGRAM_IDS:
+    for admin_id in get_admin_ids():
         try:
             admin_doc = BufferedInputFile(pdf_bytes, filename=filename)
             caption = replies.invoice.legium_admin_caption.format(
@@ -675,7 +674,7 @@ async def handle_verification_code(message: types.Message, state: FSMContext) ->
         await message.answer(
             replies.verification.success.format(name=contractor.display_name)
         )
-        for admin_id in ADMIN_TELEGRAM_IDS:
+        for admin_id in get_admin_ids():
             try:
                 await bot.send_message(
                     admin_id,
@@ -820,7 +819,7 @@ async def _save_new_contractor(
 
 async def _forward_to_admins(raw_text: str, ctype: ContractorType, parsed: dict) -> None:
     """Forward registration data to all admin Telegram IDs."""
-    for admin_id in ADMIN_TELEGRAM_IDS:
+    for admin_id in get_admin_ids():
         try:
             msg = replies.notifications.new_registration.format(type=ctype.value, raw_text=raw_text)
             if parsed:

@@ -35,7 +35,7 @@ __all__ = [
     "get_contractor_by_id",
     "resolve_environment_record",
     "resolve_environment",
-    "resolve_entity_context",
+    "resolve_user_context",
     "_safe_edit_text",
     "_send",
     "_send_html",
@@ -107,9 +107,9 @@ async def resolve_environment(chat_id: int) -> tuple[str, list[str] | None]:
     return env["system_context"], env.get("allowed_domains")
 
 
-async def resolve_entity_context(user_id: int) -> str:
-    """Look up entity by telegram_user_id, return formatted context or empty string."""
-    return await backend_client.get_entity_context(user_id)
+async def resolve_user_context(user_id: int) -> str:
+    """Look up user by telegram_id, return formatted context or empty string."""
+    return await backend_client.get_user_context(user_id)
 
 
 async def get_current_contractor(telegram_id: int) -> "Contractor | None":

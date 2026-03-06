@@ -176,7 +176,6 @@ def create_brain() -> BrainComponents:
     )
     inbox_ctrl = InboxController(inbox_classify, inbox_workflow)
 
-    # Build controller map
     ctrl_map = {
         "conversation": conv_ctrl,
         "support": support_ctrl,

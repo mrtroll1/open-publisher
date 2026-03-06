@@ -185,61 +185,28 @@ async def get_bindings(name: str) -> list:
     return _unwrap(resp)
 
 
-# --- Entity ---
+# --- User ---
 
-async def add_entity(kind: str, name: str, external_ids: dict | None = None,
-                     summary: str = "") -> dict:
-    resp = await _client.post("/entity/add", json={
-        "kind": kind, "name": name,
-        "external_ids": external_ids, "summary": summary,
-    })
-    return _unwrap(resp)
+async def get_admin_telegram_ids() -> list[int]:
+    resp = await _client.get("/user/admin_telegram_ids")
+    return _unwrap(resp) or []
 
 
-async def list_entities():
-    resp = await _client.get("/entity/list")
-    return _unwrap(resp)
+async def is_admin(telegram_id: int) -> bool:
+    resp = await _client.get("/user/is_admin", params={"telegram_id": telegram_id})
+    return _unwrap(resp) or False
 
 
-async def find_entity(query: str = "", external_key: str = "",
-                      external_value: str = ""):
-    params = {}
-    if query:
-        params["query"] = query
-    if external_key:
-        params["external_key"] = external_key
-    if external_value:
-        params["external_value"] = external_value
-    resp = await _client.get("/entity/find", params=params)
-    return _unwrap(resp)
+async def get_user_context(telegram_id: int | str) -> str:
+    resp = await _client.get("/user/context", params={"telegram_id": int(telegram_id)})
+    return _unwrap(resp) or ""
 
 
-async def search_entities(query: str):
-    resp = await _client.get("/entity/search", params={"query": query})
-    return _unwrap(resp)
-
-
-async def update_entity(entity_id: str, external_ids: dict | None = None,
-                        summary: str | None = None):
-    payload = {}
-    if external_ids is not None:
-        payload["external_ids"] = external_ids
-    if summary is not None:
-        payload["summary"] = summary
-    resp = await _client.put(f"/entity/{entity_id}/update", json=payload)
-    return _unwrap(resp)
-
-
-async def add_entity_note(entity_id: str, text: str, domain: str = "entity_notes"):
-    resp = await _client.post(f"/entity/{entity_id}/note", json={
+async def add_user_note(user_id: str, text: str, domain: str = "general"):
+    resp = await _client.post(f"/user/{user_id}/note", json={
         "text": text, "domain": domain,
     })
     return _unwrap(resp)
-
-
-async def get_entity_context(user_id: int | str) -> str:
-    resp = await _client.get("/entity/context", params={"user_id": str(user_id)})
-    return _unwrap(resp) or ""
 
 
 # --- Conversation ---

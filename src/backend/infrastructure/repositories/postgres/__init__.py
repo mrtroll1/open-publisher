@@ -5,7 +5,8 @@ from backend.infrastructure.repositories.postgres.environment_repo import Enviro
 from backend.infrastructure.repositories.postgres.user_repo import UserRepo  # noqa: F401
 from backend.infrastructure.repositories.postgres.message_repo import MessageRepo  # noqa: F401
 from backend.infrastructure.repositories.postgres.message_repo import normalize_email_subject  # noqa: F401
+from backend.infrastructure.repositories.postgres.run_log_repo import RunLogRepo  # noqa: F401
 
 
-class DbGateway(KnowledgeRepo, EnvironmentRepo, UserRepo, MessageRepo):
+class DbGateway(KnowledgeRepo, EnvironmentRepo, UserRepo, MessageRepo, RunLogRepo):
     pass

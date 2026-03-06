@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import Any
 
 from backend.brain.authorizer import AuthContext
@@ -71,12 +72,34 @@ def _tool_declarations(tools: list[Tool]) -> list[dict]:
     ]
 
 
+def _truncate(obj, max_len=500) -> Any:
+    """Truncate long strings in dicts for logging."""
+    if isinstance(obj, str):
+        return obj[:max_len] + "…" if len(obj) > max_len else obj
+    if isinstance(obj, dict):
+        return {k: _truncate(v, max_len) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_truncate(v, max_len) for v in obj]
+    return obj
+
+
 def conversation_handler(
     gemini: GeminiGateway, db: DbGateway, retriever: KnowledgeRetriever,
 ) -> callable:
     """Create the conversation handler function used by Brain."""
 
     def handle(input: str, auth: AuthContext, **kwargs) -> dict:
+        run_id = str(uuid.uuid4())
+        step = 0
+
+        def _log(type: str, content: dict):
+            nonlocal step
+            try:
+                db.log_run_step(run_id, step, type, content)
+            except Exception:
+                logger.debug("Failed to write run log step %d", step)
+            step += 1
+
         # Build conversation history
         history = ""
         parent_id = None
@@ -114,12 +137,20 @@ def conversation_handler(
         declarations = _tool_declarations(conv_tools)
         tools_by_name = {t.name: t for t in conv_tools}
 
+        _log("input", {
+            "user_input": input,
+            "environment": env.get("name", ""),
+            "tools": [t.name for t in conv_tools],
+            "has_history": bool(history),
+        })
+
         if not declarations:
             # No tools available — plain call
             prompt = system_prompt + f"\n\n## Сообщение\n{input}\n\nВерни JSON: {{\"reply\": \"<ответ>\"}}"
             result = gemini.call(prompt, "gemini-3-flash-preview")
             reply = result.get("reply") or result.get("response") or result.get("answer") or "Не удалось сформировать ответ."
-            return {"reply": reply, "parent_id": parent_id}
+            _log("llm_reply", {"reply": _truncate(reply)})
+            return {"reply": reply, "parent_id": parent_id, "run_id": run_id}
 
         # ReAct loop
         text, tool_calls, resp_content = gemini.call_with_tools(
@@ -134,19 +165,24 @@ def conversation_handler(
             turn_history.append(resp_content)
 
         failed_tools: dict[str, int] = {}
-        for step in range(MAX_TOOL_STEPS):
+        for loop_step in range(MAX_TOOL_STEPS):
             if text:
-                return {"reply": text, "parent_id": parent_id}
+                _log("llm_reply", {"reply": _truncate(text)})
+                return {"reply": text, "parent_id": parent_id, "run_id": run_id}
 
             if not tool_calls:
-                return {"reply": "Не удалось сформировать ответ.", "parent_id": parent_id}
+                _log("llm_reply", {"reply": "(empty)", "error": "no tool calls and no text"})
+                return {"reply": "Не удалось сформировать ответ.", "parent_id": parent_id, "run_id": run_id}
 
             # Execute tool calls
             results = []
             for tc in tool_calls:
+                _log("tool_call", {"tool": tc["name"], "args": _truncate(tc["args"])})
+
                 tool = tools_by_name.get(tc["name"])
                 if not tool:
                     results.append({"name": tc["name"], "result": {"error": f"Unknown tool: {tc['name']}"}})
+                    _log("tool_error", {"tool": tc["name"], "error": "unknown tool"})
                     continue
                 try:
                     result = tool.execute(tc["args"], auth.ctx)
@@ -154,14 +190,17 @@ def conversation_handler(
                     if has_error:
                         failed_tools[tc["name"]] = failed_tools.get(tc["name"], 0) + 1
                     results.append({"name": tc["name"], "result": result})
+                    _log("tool_result", {"tool": tc["name"], "result": _truncate(result)})
                 except Exception as e:
                     logger.warning("Tool %s failed: %s", tc["name"], e, exc_info=True)
                     failed_tools[tc["name"]] = failed_tools.get(tc["name"], 0) + 1
                     results.append({"name": tc["name"], "result": {"error": str(e)}})
+                    _log("tool_error", {"tool": tc["name"], "error": str(e)})
 
             if any(c >= 2 for c in failed_tools.values()):
                 errors = "; ".join(f"{n}: {c}x" for n, c in failed_tools.items() if c >= 2)
                 logger.warning("Breaking ReAct loop — repeated tool failures: %s", errors)
+                _log("loop_break", {"reason": "repeated failures", "details": errors})
                 break
 
             # Continue conversation with tool results
@@ -176,6 +215,8 @@ def conversation_handler(
                 ]))
                 turn_history.append(resp_content)
 
-        return {"reply": text or "Превышен лимит шагов.", "parent_id": parent_id}
+        final_reply = text or "Превышен лимит шагов."
+        _log("llm_reply", {"reply": _truncate(final_reply)})
+        return {"reply": final_reply, "parent_id": parent_id, "run_id": run_id}
 
     return handle

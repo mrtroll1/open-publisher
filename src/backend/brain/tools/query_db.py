@@ -6,7 +6,7 @@ from backend.brain.tool import Tool, ToolContext
 _DB_DESCRIPTIONS = {
     "republic_db": "SQL-запрос к основной базе Republic (посты, подписки, пользователи, платежи, теги)",
     "redefine_db": "SQL-запрос к базе Redefine (курсы, уроки, студенты, платежи)",
-    "agent_db": "SQL-запрос к внутренней базе агента (messages, knowledge_entries, users, environments)",
+    "agent_db": "SQL-запрос к внутренней базе агента (messages, knowledge_entries, users, environments, run_logs)",
 }
 
 

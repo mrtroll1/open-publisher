@@ -140,6 +140,17 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
+CREATE TABLE IF NOT EXISTS run_logs (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    run_id      UUID NOT NULL,
+    step        INTEGER NOT NULL DEFAULT 0,
+    type        TEXT NOT NULL,
+    content     JSONB NOT NULL DEFAULT '{}',
+    created_at  TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_run_logs_run ON run_logs(run_id, step);
+
 INSERT INTO environments (name, description, system_context, allowed_domains) VALUES
   ('admin_dm', 'Приватный чат с администратором Republic',
    'Это приватный чат с администратором. Полный доступ ко всем функциям. Можно обсуждать внутренние вопросы, контрагентов, бюджет. Давай развёрнутые ответы.',

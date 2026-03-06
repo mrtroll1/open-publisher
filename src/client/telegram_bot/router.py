@@ -230,8 +230,12 @@ async def handle_group_message(
             result = await backend_client.process(**kwargs)
             answer = result.get("reply", str(result)) if isinstance(result, dict) else str(result)
             parent_id = result.get("parent_id") if isinstance(result, dict) else None
+            run_id = result.get("run_id") if isinstance(result, dict) else None
             sent = await thinking.finish_long(answer, reply_to_message_id=message.message_id)
-        await _save_turn(message, sent, clean_text, answer, {"command": "nl_group"},
+        meta = {"command": "nl_group"}
+        if run_id:
+            meta["run_id"] = run_id
+        await _save_turn(message, sent, clean_text, answer, meta,
                          parent_id=parent_id)
     except Exception:
         logger.exception("Group NL processing failed")

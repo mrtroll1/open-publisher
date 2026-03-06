@@ -138,14 +138,17 @@ def create_brain() -> BrainComponents:
     summarize_article = SummarizeArticle(gemini, retriever)
 
     # QueryDB instances for external DBs + our own DB
+    # Each uses its own schema_domain so Gemini sees only relevant schema
     from backend.infrastructure.gateways.query_gateway import LocalQueryGateway
     from common.config import DATABASE_URL
     query_db_map: dict = {}
     for name, gw in query_gateways.items():
-        query_db_map[name] = QueryDB(gemini, gw, db)
+        # republic_db → republic, redefine_db → redefine
+        domain = name.removesuffix("_db")
+        query_db_map[name] = QueryDB(gemini, gw, db, schema_domain=f"{domain}_db")
     own_db_gw = LocalQueryGateway(DATABASE_URL, name="agent")
     if own_db_gw.available:
-        query_db_map["agent_db"] = QueryDB(gemini, own_db_gw, db)
+        query_db_map["agent_db"] = QueryDB(gemini, own_db_gw, db, schema_domain="agent_db")
 
     # Register all tools
     register_tool(make_teach_tool(classify_teaching, memory))

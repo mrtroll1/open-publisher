@@ -9,6 +9,16 @@ from common.config import DATABASE_URL
 _SCHEMA_SQL = """
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- Drop legacy tables no longer used
+DROP TABLE IF EXISTS code_tasks CASCADE;
+DROP TABLE IF EXISTS conversations CASCADE;
+DROP TABLE IF EXISTS email_decisions CASCADE;
+DROP TABLE IF EXISTS email_messages CASCADE;
+DROP TABLE IF EXISTS email_threads CASCADE;
+DROP TABLE IF EXISTS entities CASCADE;
+DROP TABLE IF EXISTS llm_classifications CASCADE;
+DROP TABLE IF EXISTS payment_validations CASCADE;
+
 CREATE TABLE IF NOT EXISTS knowledge_domains (
     name TEXT PRIMARY KEY,
     description TEXT NOT NULL DEFAULT ''

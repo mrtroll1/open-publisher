@@ -98,6 +98,7 @@ class BrainComponents:
     memory: Any
     db: Any
     retriever: Any
+    classify_teaching: Any = None
 
 
 def create_brain() -> BrainComponents:
@@ -212,6 +213,7 @@ def create_brain() -> BrainComponents:
         memory=memory,
         db=db,
         retriever=retriever,
+        classify_teaching=classify_teaching,
     )
 
 

@@ -11,6 +11,7 @@ memory = _components.memory
 inbox = _components.inbox
 db = _components.db
 retriever = _components.retriever
+_classify_teaching = _components.classify_teaching
 
 
 @app.get("/health")
@@ -267,8 +268,8 @@ def teach(req: TeachRequest) -> BrainResponse:
 @app.post("/memory/classify-teaching")
 def classify_teaching(req: ClassifyRequest) -> BrainResponse:
     try:
-        domain, tier = memory.classify_teaching(req.text)
-        return BrainResponse(result={"domain": domain, "tier": tier})
+        result = _classify_teaching.run(req.text, {})
+        return BrainResponse(result=result)
     except Exception as e:
         return BrainResponse(result=None, error=str(e))
 

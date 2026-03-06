@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from backend.brain.base_controller import BaseController, BasePreparer
-from backend.commands.code import RunClaudeCodeUseCase
+from backend.commands.run_code import RunClaudeCodeUseCase
 from backend.commands.utils import parse_flags
 
 

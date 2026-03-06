@@ -6,7 +6,30 @@ from typing import Any
 
 from backend.brain.base_controller import BaseController
 from backend.infrastructure.repositories.postgres import DbGateway
-from backend.commands.conversation import build_conversation_context
+
+
+def _format_reply_chain(chain: list[dict]) -> str:
+    parts = []
+    for entry in chain:
+        parts.append(f"{entry['role']}: {entry['content']}")
+    return "\n".join(parts)
+
+
+def _build_conversation_context(
+    chat_id: int, reply_message_id: int, reply_text: str,
+    db: DbGateway, max_verbatim: int = 8,
+) -> tuple[str, str | None]:
+    conv_entry = db.get_conversation_by_message_id(chat_id, reply_message_id)
+    if conv_entry:
+        chain = db.get_reply_chain(conv_entry["id"], depth=20)
+        if len(chain) > max_verbatim:
+            skipped = len(chain) - max_verbatim
+            chain = chain[-max_verbatim:]
+            history = f"[{skipped} предыдущих сообщений опущено]\n" + _format_reply_chain(chain)
+        else:
+            history = _format_reply_chain(chain)
+        return history, conv_entry["id"]
+    return f"assistant: {reply_text}", None
 
 
 class ConversationController(BaseController):
@@ -26,7 +49,7 @@ class ConversationController(BaseController):
         reply_to_text = kwargs.get("reply_to_text", "")
 
         if chat_id and reply_to_message_id:
-            history, parent_id = build_conversation_context(
+            history, parent_id = _build_conversation_context(
                 chat_id, reply_to_message_id, reply_to_text, self._db,
             )
 

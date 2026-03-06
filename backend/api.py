@@ -9,7 +9,6 @@ _components = create_brain()
 brain = _components.brain
 memory = _components.memory
 inbox = _components.inbox
-inbox_service = _components.inbox_service
 db = _components.db
 retriever = _components.retriever
 
@@ -172,10 +171,10 @@ def skip_editorial(req: UidRequest) -> BrainResponse:
 def fetch_unread() -> BrainResponse:
     """Fetch unread emails, classify each, return processed items with drafts."""
     try:
-        emails = inbox_service.fetch_unread()
+        emails = inbox.fetch_unread()
         results = []
         for em in emails:
-            item = inbox_service.process(em)
+            item = inbox.process(em)
             if not item:
                 continue
             entry = {"category": item.category, "uid": item.uid}

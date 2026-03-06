@@ -13,11 +13,10 @@ from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.gateways.query_gateway import QueryGateway
 from backend.infrastructure.gateways.redefine_gateway import RedefineGateway
 from backend.infrastructure.gateways.republic_gateway import RepublicGateway
-from backend.commands.inbox_service import InboxService
 from backend.infrastructure.memory.retriever import KnowledgeRetriever
 from backend.infrastructure.memory.memory_service import MemoryService
 from backend.infrastructure.memory.user_lookup import SupportUserLookup
-from backend.commands.support_handler import TechSupportHandler
+from backend.commands.draft_support import TechSupportHandler
 from backend.commands.budget.compute import ComputeBudget
 from backend.commands.invoice.batch import GenerateBatchInvoices
 from backend.commands.invoice.generate import GenerateInvoice
@@ -29,16 +28,6 @@ def create_db() -> DbGateway:
     db.init_schema()
     return db
 
-
-def create_inbox_service() -> InboxService:
-    db = create_db()
-    gemini = GeminiGateway()
-    email_gw = EmailGateway()
-    republic = RepublicGateway()
-    redefine = RedefineGateway()
-    user_lookup = SupportUserLookup(republic_gw=republic, redefine_gw=redefine)
-    tech_support = TechSupportHandler(gemini=gemini, user_lookup=user_lookup, db=db)
-    return InboxService(tech_support=tech_support, gemini=gemini, email_gw=email_gw, db=db)
 
 
 def create_knowledge_retriever() -> KnowledgeRetriever:
@@ -116,7 +105,6 @@ def create_query_tools() -> dict[str, _QuerySource]:
 class BrainComponents:
     brain: Any
     inbox: Any
-    inbox_service: Any
     memory: Any
     db: Any
     retriever: Any
@@ -127,7 +115,7 @@ def create_brain() -> BrainComponents:
     from backend.brain import Brain
     from backend.brain.authorizer import Authorizer
     from backend.brain.dynamic import (
-        ClassifyTeaching, ConversationReply,
+        ClassifyTeaching, ConversationReply, EditorialAssess,
         InboxClassify, SummarizeArticle, TechSupport, ToolRouting,
     )
     from backend.brain.dynamic.query_db import QueryDB
@@ -139,7 +127,7 @@ def create_brain() -> BrainComponents:
         InvoiceController, QueryController, SearchController,
         SupportController, TeachController,
     )
-    from backend.commands.inbox import InboxWorkflow
+    from backend.commands.process_inbox import InboxWorkflow
 
     # Infrastructure
     db = create_db()
@@ -163,12 +151,13 @@ def create_brain() -> BrainComponents:
     classify_teaching = ClassifyTeaching(gemini, db, embed)
     tech_support = TechSupport(gemini, retriever, db)
     inbox_classify = InboxClassify(gemini, retriever)
+    editorial_assess = EditorialAssess(gemini, retriever)
     summarize_article = SummarizeArticle(gemini, retriever)
 
     # Controllers
     conv_ctrl = ConversationController(conversation_reply, db, retriever)
     support_ctrl = SupportController(tech_support)
-    from backend.commands.code import _set_retriever
+    from backend.commands.run_code import _set_retriever
     _set_retriever(retriever)
     code_ctrl = CodeController()
     health_ctrl = HealthController()
@@ -193,8 +182,10 @@ def create_brain() -> BrainComponents:
     email_gw = EmailGateway()
     user_lookup = SupportUserLookup(republic_gw=republic, redefine_gw=redefine)
     tech_support_handler = TechSupportHandler(gemini=gemini, user_lookup=user_lookup, db=db, retriever=retriever)
-    inbox_service = InboxService(tech_support=tech_support_handler, gemini=gemini, email_gw=email_gw, db=db, retriever=retriever)
-    inbox_workflow = InboxWorkflow(tech_support=tech_support_handler, email_gw=email_gw, db=db)
+    inbox_workflow = InboxWorkflow(
+        tech_support=tech_support_handler, email_gw=email_gw, db=db,
+        classifier=inbox_classify, assessor=editorial_assess,
+    )
     inbox_ctrl = InboxController(inbox_classify, inbox_workflow)
 
     # Build controller map
@@ -232,7 +223,6 @@ def create_brain() -> BrainComponents:
     return BrainComponents(
         brain=Brain(authorizer, router),
         inbox=inbox_workflow,
-        inbox_service=inbox_service,
         memory=memory,
         db=db,
         retriever=retriever,

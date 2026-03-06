@@ -37,7 +37,7 @@ class KnowledgeRetriever:
         return _format_entries(entries)
 
     def retrieve(self, query: str, domain: str | None = None, domains: list[str] | None = None,
-                 limit: int = 5, min_similarity: float = 0.3) -> str:
+                 limit: int = 5, min_similarity: float = 0.6) -> str:
         embedding = self._embed.embed_one(query)
         if domains is not None:
             entries = self._db.search_knowledge_multi_domain(embedding, domains=domains, limit=limit)

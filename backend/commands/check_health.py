@@ -17,22 +17,12 @@ class HealthResult:
     details: str
 
 
-def run_healthchecks() -> list[HealthResult]:
-    results = []
-    for domain in HEALTHCHECK_DOMAINS:
-        try:
-            resp = requests.get(f"https://{domain}", timeout=5)
-            if resp.status_code < 400:
-                results.append(HealthResult(domain, "ok", f"HTTP {resp.status_code}"))
-            else:
-                results.append(HealthResult(domain, "error", f"HTTP {resp.status_code}"))
-        except Exception as e:
-            results.append(HealthResult(domain, "error", str(e)))
-
-    if KUBECTL_ENABLED:
-        results.extend(_kubectl_checks())
-
-    return results
+def format_healthcheck_results(results: list[HealthResult]) -> str:
+    lines = []
+    for r in results:
+        icon = "\u2705" if r.status == "ok" else "\u274c"
+        lines.append(f"{icon} {r.name} — {r.details}")
+    return "\n".join(lines) if lines else "No checks configured."
 
 
 def _kubectl_checks() -> list[HealthResult]:
@@ -61,16 +51,20 @@ def _kubectl_checks() -> list[HealthResult]:
         return [HealthResult("kubectl", "error", str(e))]
 
 
-def format_healthcheck_results(results: list[HealthResult]) -> str:
-    lines = []
-    for r in results:
-        icon = "\u2705" if r.status == "ok" else "\u274c"
-        lines.append(f"{icon} {r.name} — {r.details}")
-    return "\n".join(lines) if lines else "No checks configured."
-
-
 class CheckHealthUseCase(BaseUseCase):
-    def execute(self, prepared: Any, env: dict, user: dict) -> Any:
-        return run_healthchecks()
+    def execute(self, prepared: Any, env: dict, user: dict) -> list[HealthResult]:
+        results = []
+        for domain in HEALTHCHECK_DOMAINS:
+            try:
+                resp = requests.get(f"https://{domain}", timeout=5)
+                if resp.status_code < 400:
+                    results.append(HealthResult(domain, "ok", f"HTTP {resp.status_code}"))
+                else:
+                    results.append(HealthResult(domain, "error", f"HTTP {resp.status_code}"))
+            except Exception as e:
+                results.append(HealthResult(domain, "error", str(e)))
 
+        if KUBECTL_ENABLED:
+            results.extend(_kubectl_checks())
 
+        return results

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from backend.brain.base_controller import BaseController, PassThroughPreparer
-from backend.commands.health import CheckHealthUseCase
+from backend.commands.check_health import CheckHealthUseCase
 
 
 class HealthController(BaseController):

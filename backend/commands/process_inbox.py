@@ -1,75 +1,80 @@
-"""Classifies incoming messages and manages approval workflows."""
+"""Inbox — approval workflow state and deterministic methods.
+
+LLM classify/assess stays in brain/dynamic.
+"""
 
 from __future__ import annotations
 
-import json
 import logging
-import time
+from typing import Any
 
-from common.prompt_loader import load_template
-from backend.commands.support_handler import TechSupportHandler
-from backend.infrastructure.memory.retriever import KnowledgeRetriever
+from backend.brain.base_controller import BaseUseCase
+from backend.brain.dynamic.editorial_assess import EditorialAssess
+from backend.brain.dynamic.inbox_classify import InboxClassify
+from backend.commands.draft_support import TechSupportHandler
 from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.gateways.email_gateway import EmailGateway
-from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
-from common.config import CHIEF_EDITOR_EMAIL, EMAIL_ADDRESS, SUPPORT_ADDRESSES
+from common.config import CHIEF_EDITOR_EMAIL, SUPPORT_ADDRESSES
 from common.models import EditorialItem, IncomingEmail, PendingItem, SupportDraft
 
 logger = logging.getLogger(__name__)
 
 
-class InboxService:
-    """Classifies incoming messages and manages approval workflows."""
+class InboxWorkflow:
+    """Approval workflow state and deterministic routing for inbox items."""
 
     def __init__(self, tech_support: TechSupportHandler | None = None,
-                 gemini: GeminiGateway | None = None,
-                 email_gw: EmailGateway | None = None,
-                 db: DbGateway | None = None,
-                 retriever: KnowledgeRetriever | None = None):
+                 email_gw: EmailGateway | None = None, db: DbGateway | None = None,
+                 classifier: InboxClassify | None = None,
+                 assessor: EditorialAssess | None = None):
         self._tech_support = tech_support or TechSupportHandler()
-        self._gemini = gemini or GeminiGateway()
         self._email_gw = email_gw or EmailGateway()
         self._db = db or DbGateway()
-        self._retriever = retriever or KnowledgeRetriever()
+        self._classifier = classifier
+        self._assessor = assessor
         self._pending_support: dict[str, SupportDraft] = {}
         self._pending_editorial: dict[str, EditorialItem] = {}
 
+    # --- Full process flow ---
+
     def process(self, email: IncomingEmail) -> PendingItem | None:
-        category = self._classify(email)
+        """Classify and handle an incoming email. Returns pending item or None."""
+        category = self.classify_by_address(email)
+        if category == "unknown" and self._classifier:
+            result = self._classifier.run(email.as_text(), {})
+            category = result.get("category", "ignore")
         if category == "tech_support":
             return self._handle_support(email)
-        elif category == "editorial":
+        if category == "editorial":
             return self._handle_editorial(email)
         return None
-
-    def _classify(self, email: IncomingEmail) -> str:
-        if email.to_addr in SUPPORT_ADDRESSES:
-            return "tech_support"
-        if email.to_addr == EMAIL_ADDRESS:
-            return self._llm_classify(email)
-        return "ignore"
-
-    def _llm_classify(self, email: IncomingEmail) -> str:
-        core = self._retriever.get_core()
-        prompt = load_template("email/inbox-classify.md", {
-            "CORE_KNOWLEDGE": core,
-            "EMAIL": email.as_text(),
-        })
-        t0 = time.time()
-        result = self._gemini.call(prompt, "gemini-2.5-flash")
-        latency_ms = int((time.time() - t0) * 1000)
-        try:
-            self._db.log_classification("INBOX_CLASSIFY", "gemini-2.5-flash", prompt, json.dumps(result), latency_ms)
-        except Exception:
-            logger.warning("Failed to log classification for task=INBOX_CLASSIFY", exc_info=True)
-        category = result.get("category", "ignore")
-        logger.info("LLM classified email from %s as %s", email.from_addr, category)
-        return category
 
     def _handle_support(self, email: IncomingEmail) -> PendingItem | None:
         if email.uid in self._pending_support:
             return None
         draft = self._tech_support.draft_reply(email)
+        return self.register_support_draft(email, draft)
+
+    def _handle_editorial(self, email: IncomingEmail) -> PendingItem | None:
+        if not CHIEF_EDITOR_EMAIL or not self._assessor:
+            return None
+        result = self._assessor.run(email.as_text(), {})
+        if not result.get("forward", False):
+            return None
+        item = EditorialItem(email=email, reply_to_sender=result.get("reply", ""))
+        return self.register_editorial(email, item)
+
+    # --- Deterministic classification ---
+
+    def classify_by_address(self, email: IncomingEmail) -> str:
+        """Rule-based classification by recipient address."""
+        if email.to_addr in SUPPORT_ADDRESSES:
+            return "tech_support"
+        return "unknown"
+
+    # --- Support handling (deterministic parts) ---
+
+    def register_support_draft(self, email: IncomingEmail, draft: SupportDraft) -> PendingItem:
         decision_id = self._db.create_email_decision(
             task="SUPPORT_ANSWER", channel="EMAIL",
             input_message_ids=[email.message_id],
@@ -78,24 +83,12 @@ class InboxService:
         self._pending_support[email.uid] = draft
         return PendingItem(category="tech_support", uid=email.uid, draft=draft)
 
-    def _handle_editorial(self, email: IncomingEmail) -> PendingItem | None:
-        if not CHIEF_EDITOR_EMAIL:
-            return None
-        core = self._retriever.get_core()
-        prompt = load_template("email/editorial-assess.md", {
-            "CORE_KNOWLEDGE": core,
-            "EMAIL": email.as_text(),
-        })
-        t0 = time.time()
-        result = self._gemini.call(prompt, "gemini-3-flash-preview")
-        latency_ms = int((time.time() - t0) * 1000)
-        try:
-            self._db.log_classification("EDITORIAL_ASSESS", "gemini-3-flash-preview", prompt, json.dumps(result), latency_ms)
-        except Exception:
-            logger.warning("Failed to log classification for task=EDITORIAL_ASSESS", exc_info=True)
-        if not result.get("forward", False):
-            return None
-        item = EditorialItem(email=email, reply_to_sender=result.get("reply", ""))
+    def is_support_pending(self, uid: str) -> bool:
+        return uid in self._pending_support
+
+    # --- Editorial handling (deterministic parts) ---
+
+    def register_editorial(self, email: IncomingEmail, item: EditorialItem) -> PendingItem:
         decision_id = self._db.create_email_decision(
             task="ARTICLE_APPROVAL", channel="EMAIL",
             input_message_ids=[email.message_id],
@@ -163,7 +156,7 @@ class InboxService:
     def get_pending_editorial(self, uid: str) -> EditorialItem | None:
         return self._pending_editorial.get(uid)
 
-    # --- Email access ---
+    # --- Email access (used by listener) ---
 
     def fetch_unread(self) -> list[IncomingEmail]:
         return self._email_gw.fetch_unread()
@@ -186,3 +179,22 @@ class InboxService:
             f"Fwd: {email.subject}",
             body,
         )
+
+
+class InboxProcessUseCase(BaseUseCase):
+    """Classify incoming email. Full orchestration (approve/reject) handled by InboxWorkflow."""
+    def __init__(self, classifier: InboxClassify, workflow: InboxWorkflow):
+        self._classifier = classifier
+        self._workflow = workflow
+
+    def execute(self, prepared: Any, env: dict, user: dict) -> Any:
+        # Rule-based first
+        rule_category = self._workflow.classify_by_address(prepared) if hasattr(prepared, "to_addr") else "unknown"
+        if rule_category != "unknown":
+            return {"category": rule_category, "source": "rules"}
+        # Fall back to AI classification
+        email_text = prepared.body if hasattr(prepared, "body") else str(prepared)
+        result = self._classifier.run(email_text, {})
+        return {"category": result.get("category", "unknown"), "reason": result.get("reason", ""), "source": "ai"}
+
+

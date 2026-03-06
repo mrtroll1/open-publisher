@@ -156,7 +156,6 @@ from backend.commands.invoice.generate import GenerateInvoice, InvoiceResult  # 
 from backend.commands.invoice.batch import GenerateBatchInvoices, BatchResult  # noqa: F401
 from backend.commands.bank.parse_statement import ParseBankStatement  # noqa: F401
 from backend.commands.budget.compute import ComputeBudget  # noqa: F401
-from backend.commands.inbox_service import InboxService  # noqa: F401
-from backend.commands.support_handler import TechSupportHandler  # noqa: F401
-from backend.commands.code import run_claude_code  # noqa: F401
-from backend.commands.health import run_healthchecks, format_healthcheck_results  # noqa: F401
+from backend.commands.draft_support import TechSupportHandler  # noqa: F401
+from backend.commands.run_code import run_claude_code  # noqa: F401
+from backend.commands.check_health import format_healthcheck_results  # noqa: F401

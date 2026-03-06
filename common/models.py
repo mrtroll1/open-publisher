@@ -324,7 +324,7 @@ class EditorialItem(BaseModel):
 
 
 class PendingItem(BaseModel):
-    """Result of InboxService.process() — a classified item pending approval."""
+    """A classified inbox item pending approval."""
     category: str  # "tech_support" | "editorial"
     uid: str
     draft: Optional[SupportDraft] = None

@@ -2,25 +2,15 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Callable
 
 from aiogram import types
 from aiogram.fsm.context import FSMContext
 
-from backend.domain.services.compose_request import _get_retriever
-from backend.domain.services.command_classifier import CommandClassifier
-
-from backend.domain.services.conversation_service import (
-    build_conversation_context,
-    format_reply_chain as _format_reply_chain,
-    generate_nl_reply,
-)
-from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
-from telegram_bot import replies
+from telegram_bot import backend_client, replies
 from telegram_bot.bot_helpers import is_admin
-from telegram_bot.handler_utils import _db, _kedit_pending, _memory, _query_tools, _tool_router, _save_turn, _send, _send_html, resolve_environment, resolve_entity_context, send_typing, ThinkingMessage
+from telegram_bot.handler_utils import _kedit_pending, _save_turn, _send, _send_html, send_typing, ThinkingMessage
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +53,6 @@ __all__ = [
     "cmd_entity_add",
     "cmd_entity_link",
     "cmd_entity_note",
-    "_classify_teaching_text",
-    "_format_reply_chain",
     "_handle_nl_reply",
 ]
 
@@ -83,32 +71,26 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
 
     try:
         async with ThinkingMessage(message) as thinking:
-            # Detect teaching patterns — classify & store before LLM call, then continue
+            # Detect teaching patterns — store before LLM call
             user_text_lower = (message.text or "").lower()
             if any(kw in user_text_lower for kw in _TEACHING_KEYWORDS):
                 if is_admin(message.from_user.id):
                     try:
-                        await asyncio.to_thread(_memory.teach, message.text)
+                        await backend_client.teach(message.text, domain="general")
                     except Exception:
                         logger.exception("Failed to store NL teaching")
 
-            # Build conversation history
-            history, parent_id = await asyncio.to_thread(
-                build_conversation_context,
-                message.chat.id, reply.message_id, reply.text or "", _db,
+            # Call Brain with reply context for conversation history
+            result = await backend_client.process(
+                input=message.text,
+                environment_id=str(message.chat.id),
+                user_id=str(message.from_user.id),
+                chat_id=message.chat.id,
+                reply_to_message_id=reply.message_id,
+                reply_to_text=reply.text or "",
             )
-
-            # Generate reply via LLM
-            retriever = _get_retriever()
-            env_ctx, env_domains = await resolve_environment(message.chat.id)
-            user_ctx = await resolve_entity_context(message.from_user.id)
-            answer = await asyncio.to_thread(
-                generate_nl_reply,
-                message.text, history, retriever, GeminiGateway(),
-                environment=env_ctx, allowed_domains=env_domains,
-                user_context=user_ctx,
-                tool_router=_tool_router, query_tools=_query_tools,
-            )
+            answer = result.get("reply", str(result)) if isinstance(result, dict) else str(result)
+            parent_id = result.get("parent_id") if isinstance(result, dict) else None
 
             sent = await thinking.finish_long(answer, reply_to_message_id=message.message_id)
         await _save_turn(message, sent, message.text, answer, {"command": "nl_reply"},
@@ -128,74 +110,36 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
 
     text = args[1].strip()
 
+    # Let Brain handle classification + routing
     try:
-        classifier = CommandClassifier(GeminiGateway())
-        result = await asyncio.to_thread(
-            classifier.classify, text, _ADMIN_NL_DESCRIPTIONS,
+        result = await backend_client.process(
+            input=text,
+            environment_id=str(message.chat.id),
+            user_id=str(message.from_user.id),
         )
     except Exception:
-        logger.exception("NL classification failed")
-        await message.answer("Не удалось классифицировать команду.")
+        logger.exception("NL processing failed")
+        await message.answer("Не удалось обработать команду.")
         return
 
-    if not result.classified:
+    # Brain returns a dict with "reply" for conversation, or command-specific result
+    if isinstance(result, dict) and "reply" in result:
         try:
             async with ThinkingMessage(message) as thinking:
-                retriever = _get_retriever()
-                env_ctx, env_domains = await resolve_environment(message.chat.id)
-                user_ctx = await resolve_entity_context(message.from_user.id)
-                answer = await asyncio.to_thread(
-                    generate_nl_reply, text, "", retriever, GeminiGateway(),
-                    environment=env_ctx, allowed_domains=env_domains,
-                    user_context=user_ctx,
-                    tool_router=_tool_router, query_tools=_query_tools,
-                )
-                sent = await thinking.finish_long(answer)
-            await _save_turn(message, sent, text, answer, {"command": "nl_rag"})
+                sent = await thinking.finish_long(result["reply"])
+            await _save_turn(message, sent, text, result["reply"], {"command": "nl_rag"})
         except Exception:
-            logger.exception("RAG reply failed in cmd_nl")
+            logger.exception("Failed to send NL reply")
             await message.answer("Не удалось ответить.")
         return
 
-    cmd = result.classified.command
-    cmd_args = text if cmd in _LLM_COMMANDS else (result.classified.args or text)
-
-    # Build the handler map lazily (avoid circular imports)
-    from telegram_bot.router import _GROUP_COMMAND_HANDLERS
-    from telegram_bot.handlers.admin_handlers import (
-        cmd_generate, cmd_generate_invoices, cmd_send_global_invoices,
-        cmd_send_legium_links, cmd_orphan_contractors, cmd_budget,
-    )
-    from telegram_bot.handlers.support_handlers import cmd_code
-
-    handlers: dict[str, Callable] = {
-        **_GROUP_COMMAND_HANDLERS,
-        "generate": cmd_generate,
-        "generate_invoices": cmd_generate_invoices,
-        "send_global_invoices": cmd_send_global_invoices,
-        "send_legium_links": cmd_send_legium_links,
-        "orphan_contractors": cmd_orphan_contractors,
-        "budget": cmd_budget,
-        "code": cmd_code,
-    }
-
-    handler = handlers.get(cmd)
-    if not handler:
-        await message.answer(f"Команда {cmd} не найдена.")
-        return
-
-    # Temporarily rewrite .text (Message is a frozen Pydantic model)
-    original_text = message.text
-    object.__setattr__(message, "text", f"/{cmd} {cmd_args}" if cmd_args else f"/{cmd}")
-    try:
-        await handler(message, state)
-    finally:
-        object.__setattr__(message, "text", original_text)
-
-
-async def _classify_teaching_text(text: str) -> tuple[str, str]:
-    """Classify teaching text into (domain, tier) via MemoryService."""
-    return await asyncio.to_thread(_memory.classify_teaching, text)
+    # If Brain routed to a command, the result is already the command output
+    # Display it as text
+    if isinstance(result, dict):
+        text_result = result.get("text", result.get("reply", str(result)))
+    else:
+        text_result = str(result)
+    await _send_html(message, text_result)
 
 
 async def cmd_teach(message: types.Message, state: FSMContext) -> None:
@@ -206,8 +150,10 @@ async def cmd_teach(message: types.Message, state: FSMContext) -> None:
 
     text = args[1].strip()
     try:
-        domain, tier = await _classify_teaching_text(text)
-        await asyncio.to_thread(_memory.teach, text, domain, tier)
+        classification = await backend_client.classify_teaching(text)
+        domain = classification["domain"]
+        tier = classification["tier"]
+        await backend_client.teach(text, domain, tier)
     except Exception:
         logger.exception("Failed to store teaching")
         await message.answer("Не удалось сохранить.")
@@ -225,7 +171,7 @@ async def cmd_knowledge(message: types.Message, state: FSMContext) -> None:
     tier = parts[1] if len(parts) >= 2 else None
 
     try:
-        entries = await asyncio.to_thread(_memory.list_knowledge, domain=domain, tier=tier)
+        entries = await backend_client.memory_list(domain=domain, tier=tier)
     except Exception:
         logger.exception("Failed to list knowledge")
         await message.answer("Ошибка при загрузке записей.")
@@ -247,7 +193,11 @@ async def cmd_knowledge(message: types.Message, state: FSMContext) -> None:
     for (tier_name, domain_name), items in grouped.items():
         lines.append(f"<b>[{tier_name}] {domain_name}</b>")
         for i, e in items:
-            date = e["created_at"].strftime("%Y-%m-%d") if e.get("created_at") else "?"
+            date = e.get("created_at", "?")
+            if hasattr(date, "strftime"):
+                date = date.strftime("%Y-%m-%d")
+            elif isinstance(date, str) and len(date) > 10:
+                date = date[:10]
             content = e.get("content", "")
             if content and len(content) > 120:
                 content = content[:120] + "…"
@@ -270,7 +220,7 @@ async def cmd_forget(message: types.Message, state: FSMContext) -> None:
 
     entry_id = args[1].strip()
     try:
-        found = await asyncio.to_thread(_memory.deactivate_entry, entry_id)
+        found = await backend_client.delete_entry(entry_id)
     except Exception:
         logger.exception("Failed to deactivate knowledge entry")
         await message.answer(replies.knowledge.not_found)
@@ -289,7 +239,7 @@ async def cmd_kedit(message: types.Message, state: FSMContext) -> None:
 
     entry_id = args[1].strip()
     try:
-        entry = await asyncio.to_thread(_memory.get_entry, entry_id)
+        entry = await backend_client.get_entry(entry_id)
     except Exception:
         logger.exception("Failed to fetch knowledge entry")
         await message.answer(replies.knowledge.not_found)
@@ -322,7 +272,7 @@ async def handle_kedit_reply(message: types.Message) -> bool:
         return True
 
     try:
-        found = await asyncio.to_thread(_memory.update_entry, entry_id, new_content)
+        found = await backend_client.update_entry(entry_id, new_content)
     except Exception:
         logger.exception("Failed to edit knowledge entry")
         await message.answer(replies.knowledge.not_found)
@@ -343,7 +293,7 @@ async def cmd_ksearch(message: types.Message, state: FSMContext) -> None:
 
     query = args[1].strip()
     try:
-        results = await asyncio.to_thread(_memory.recall, query, limit=10)
+        results = await backend_client.memory_search(query)
     except Exception:
         logger.exception("Knowledge search failed")
         await message.answer("Ошибка поиска.")
@@ -370,11 +320,11 @@ async def cmd_env(message: types.Message, state: FSMContext) -> None:
     name = args[1].strip() if len(args) > 1 and args[1].strip() else None
 
     if name:
-        env = await asyncio.to_thread(_memory.get_environment, name=name)
+        env = await backend_client.get_environment(name=name)
         if not env:
             await message.answer(replies.env.not_found)
             return
-        bindings = await asyncio.to_thread(_db.get_bindings_for_environment, name)
+        bindings = await backend_client.get_bindings(name)
         domains = ", ".join(env["allowed_domains"]) if env.get("allowed_domains") else "—"
         chats = ", ".join(str(c) for c in bindings) if bindings else "—"
         text = (
@@ -387,7 +337,7 @@ async def cmd_env(message: types.Message, state: FSMContext) -> None:
         await _send(message, text, parse_mode="HTML")
         return
 
-    envs = await asyncio.to_thread(_memory.list_environments)
+    envs = await backend_client.list_environments()
     if not envs:
         await message.answer(replies.env.empty)
         return
@@ -395,7 +345,7 @@ async def cmd_env(message: types.Message, state: FSMContext) -> None:
     lines = []
     for e in envs:
         domains = ", ".join(e["allowed_domains"]) if e.get("allowed_domains") else "—"
-        bindings = await asyncio.to_thread(_db.get_bindings_for_environment, e["name"])
+        bindings = await backend_client.get_bindings(e["name"])
         chats = ", ".join(str(c) for c in bindings) if bindings else "—"
         lines.append(
             f"<b>{e['name']}</b> — {e['description']}\n"
@@ -426,7 +376,7 @@ async def cmd_env_edit(message: types.Message, state: FSMContext) -> None:
     else:
         parsed_value = value
 
-    ok = await asyncio.to_thread(_memory.update_environment, name, **{field: parsed_value})
+    ok = await backend_client.update_environment(name, **{field: parsed_value})
     if not ok:
         await message.answer(replies.env.update_failed.format(name=name))
         return
@@ -441,12 +391,12 @@ async def cmd_env_bind(message: types.Message, state: FSMContext) -> None:
         return
 
     name = args[1].strip()
-    env = await asyncio.to_thread(_memory.get_environment, name=name)
+    env = await backend_client.get_environment(name=name)
     if not env:
         await message.answer(replies.env.not_found)
         return
 
-    await asyncio.to_thread(_db.bind_chat, message.chat.id, name)
+    await backend_client.bind_environment(message.chat.id, name)
     await message.answer(replies.env.bound.format(name=name))
 
 
@@ -458,13 +408,13 @@ async def cmd_env_create(message: types.Message, state: FSMContext) -> None:
         return
     name = args[1].strip()
     description = args[2].strip()
-    await asyncio.to_thread(_db.save_environment, name, description, "")
+    await backend_client.create_environment(name, description)
     await message.answer(replies.env.created.format(name=name))
 
 
 async def cmd_env_unbind(message: types.Message, state: FSMContext) -> None:
     """Unbind current chat from its environment: /env_unbind"""
-    await asyncio.to_thread(_db.unbind_chat, message.chat.id)
+    await backend_client.unbind_environment(message.chat.id)
     await message.answer(replies.env.unbound)
 
 
@@ -474,7 +424,7 @@ async def cmd_entity(message: types.Message, state: FSMContext) -> None:
 
     if query:
         try:
-            entities = await asyncio.to_thread(_db.find_entities_by_name, query)
+            entities = await backend_client.search_entities(query)
         except Exception:
             logger.exception("Entity search failed")
             await message.answer(replies.entity.not_found)
@@ -491,7 +441,7 @@ async def cmd_entity(message: types.Message, state: FSMContext) -> None:
         return
 
     try:
-        entities = await asyncio.to_thread(_db.list_entities)
+        entities = await backend_client.list_entities()
     except Exception:
         logger.exception("Entity list failed")
         await message.answer(replies.entity.empty)
@@ -528,7 +478,7 @@ async def cmd_entity_add(message: types.Message, state: FSMContext) -> None:
         return
 
     try:
-        await asyncio.to_thread(_memory.add_entity, kind, name)
+        await backend_client.add_entity(kind, name)
     except Exception:
         logger.exception("Entity add failed")
         await message.answer("Не удалось создать сущность.")
@@ -559,7 +509,7 @@ async def cmd_entity_link(message: types.Message, state: FSMContext) -> None:
     entity_name = " ".join(name_parts)
 
     try:
-        entity = await asyncio.to_thread(_memory.find_entity, query=entity_name)
+        entity = await backend_client.find_entity(query=entity_name)
     except Exception:
         logger.exception("Entity link search failed")
         await message.answer(replies.entity.not_found)
@@ -572,7 +522,7 @@ async def cmd_entity_link(message: types.Message, state: FSMContext) -> None:
     merged = {**(entity.get("external_ids") or {}), **kv_pairs}
 
     try:
-        await asyncio.to_thread(_db.update_entity, entity["id"], external_ids=merged)
+        await backend_client.update_entity(entity["id"], external_ids=merged)
     except Exception:
         logger.exception("Entity link update failed")
         await message.answer("Не удалось обновить.")
@@ -590,7 +540,7 @@ async def cmd_entity_note(message: types.Message, state: FSMContext) -> None:
     text = args[2].strip()
 
     try:
-        entity = await asyncio.to_thread(_memory.find_entity, query=entity_name)
+        entity = await backend_client.find_entity(query=entity_name)
     except Exception:
         logger.exception("Entity note search failed")
         await message.answer(replies.entity.not_found)
@@ -601,10 +551,7 @@ async def cmd_entity_note(message: types.Message, state: FSMContext) -> None:
         return
 
     try:
-        await asyncio.to_thread(
-            _memory.remember, text, "general",
-            source="admin_teach", entity_id=entity["id"],
-        )
+        await backend_client.add_entity_note(entity["id"], text, domain="general")
     except Exception:
         logger.exception("Entity note store failed")
         await message.answer("Не удалось сохранить заметку.")

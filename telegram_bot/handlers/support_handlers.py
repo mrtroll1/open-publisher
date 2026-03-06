@@ -3,25 +3,16 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import time
 
 from aiogram import types
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
-from common.models import EditorialItem, SupportDraft
-from backend.domain.services import compose_request
-from backend.domain.use_cases.run_claude_code import run_claude_code, CodeResult
-from backend.domain.use_cases.check_health import run_healthchecks, format_healthcheck_results
-from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
-from telegram_bot import replies
+from telegram_bot import backend_client, replies
 from telegram_bot.bot_helpers import bot
 from telegram_bot.handler_utils import (
-    _db,
-    _inbox,
     _parse_flags,
     _safe_edit_text,
     _save_turn,
@@ -35,7 +26,6 @@ from telegram_bot.handler_utils import (
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "_answer_tech_question",
     "cmd_support",
     "cmd_code",
     "cmd_health",
@@ -45,33 +35,6 @@ __all__ = [
     "_send_support_draft",
     "_send_editorial",
 ]
-
-
-def _answer_tech_question(question: str, verbose: bool, expert: bool,
-                          on_event=None) -> str:
-    gemini = GeminiGateway()
-
-    needs_code = False
-    try:
-        prompt, model, _ = compose_request.tech_search_terms(question)
-        t0 = time.time()
-        result = gemini.call(prompt, model)
-        latency_ms = int((time.time() - t0) * 1000)
-        try:
-            _db.log_classification("TECH_SEARCH_TERMS", model, prompt, json.dumps(result), latency_ms)
-        except Exception:
-            logger.warning("Failed to log classification for task=TECH_SEARCH_TERMS", exc_info=True)
-        needs_code = bool(result.get("needs_code"))
-    except Exception as e:
-        logger.warning("Tech support triage failed: %s", e)
-
-    if needs_code:
-        cr = run_claude_code(question, verbose=verbose, expert=expert, mode="explore", on_event=on_event)
-        return cr.text
-
-    prompt, model, _ = compose_request.tech_support_question(question, "", verbose)
-    result = gemini.call(prompt, model)
-    return result.get("answer", str(result))
 
 
 async def cmd_support(message: types.Message, state: FSMContext) -> None:
@@ -86,16 +49,23 @@ async def cmd_support(message: types.Message, state: FSMContext) -> None:
         return
 
     try:
-        loop = asyncio.get_running_loop()
+        flags = ""
+        if verbose:
+            flags += "-v "
+        if expert:
+            flags += "-e "
+        input_text = flags + text
 
         async with ThinkingMessage(message, "Ищу ответ...") as thinking:
-            def on_event(status: str) -> None:
-                asyncio.run_coroutine_threadsafe(thinking.update(status), loop)
-
-            answer = await asyncio.to_thread(_answer_tech_question, text, verbose, expert, on_event=on_event)
+            result = await backend_client.command(
+                "support", input_text,
+                environment_id=str(message.chat.id),
+                user_id=str(message.from_user.id),
+            )
+            answer = result.get("reply", str(result)) if isinstance(result, dict) else str(result)
             sent = await thinking.finish_long(answer)
         await _save_turn(message, sent, text, answer, {"command": "tech_support"})
-    except Exception as e:
+    except Exception:
         logger.exception("Support question failed")
         await message.answer(replies.admin.support_error)
 
@@ -116,8 +86,8 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
     reply = message.reply_to_message
     if reply and reply.from_user and reply.from_user.is_bot:
         try:
-            conv = await asyncio.to_thread(
-                _db.get_conversation_by_message_id, message.chat.id, reply.message_id,
+            conv = await backend_client.get_conversation_by_message_id(
+                message.chat.id, reply.message_id,
             )
             if conv and conv.get("metadata", {}).get("claude_session_id"):
                 resume_session_id = conv["metadata"]["claude_session_id"]
@@ -125,24 +95,31 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
             logger.debug("Could not look up session_id for reply", exc_info=True)
 
     try:
-        loop = asyncio.get_running_loop()
+        flags = ""
+        if verbose:
+            flags += "-v "
+        if expert:
+            flags += "-e "
+        if resume_session_id:
+            flags += f"--resume={resume_session_id} "
+        input_text = flags + text
 
         async with ThinkingMessage(message, "Запускаю Claude Code...") as thinking:
-            def on_event(status: str) -> None:
-                asyncio.run_coroutine_threadsafe(thinking.update(status), loop)
-
-            cr = await asyncio.to_thread(
-                run_claude_code, text, verbose, expert, mode="changes",
-                on_event=on_event, resume_session_id=resume_session_id,
+            result = await backend_client.command(
+                "code", input_text,
+                environment_id=str(message.chat.id),
+                user_id=str(message.from_user.id),
             )
+            answer = result.get("text", str(result)) if isinstance(result, dict) else str(result)
+            session_id = result.get("session_id") if isinstance(result, dict) else None
+
             # Save to DB and build rating keyboard
             reply_markup = None
             try:
-                task_id = await asyncio.to_thread(
-                    _db.create_code_task,
+                task_id = await backend_client.create_code_task(
                     requested_by=str(message.from_user.id),
                     input_text=text,
-                    output_text=cr.text,
+                    output_text=answer,
                     verbose=verbose,
                 )
                 reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
@@ -151,20 +128,25 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
                 ]])
             except Exception:
                 logger.exception("Failed to save code task to DB")
-            sent = await thinking.finish_long(cr.text, reply_markup=reply_markup)
+            sent = await thinking.finish_long(answer, reply_markup=reply_markup)
         meta = {"command": "code"}
-        if cr.session_id:
-            meta["claude_session_id"] = cr.session_id
-        await _save_turn(message, sent, text, cr.text, meta)
-    except Exception as e:
+        if session_id:
+            meta["claude_session_id"] = session_id
+        await _save_turn(message, sent, text, answer, meta)
+    except Exception:
         logger.exception("Claude Code execution failed")
         await message.answer(replies.admin.code_error)
 
 
 async def cmd_health(message: types.Message, state: FSMContext) -> None:
     await send_typing(message.chat.id)
-    results = await asyncio.to_thread(run_healthchecks)
-    await _send(message, format_healthcheck_results(results))
+    result = await backend_client.command(
+        "health", "",
+        environment_id=str(message.chat.id),
+        user_id=str(message.from_user.id),
+    )
+    text = result.get("text", str(result)) if isinstance(result, dict) else str(result)
+    await _send(message, text)
 
 
 async def handle_code_rate_callback(callback: CallbackQuery) -> None:
@@ -174,7 +156,7 @@ async def handle_code_rate_callback(callback: CallbackQuery) -> None:
         return
     _, task_id, rating = parts
     try:
-        await asyncio.to_thread(_db.rate_code_task, task_id, int(rating))
+        await backend_client.rate_code_task(task_id, int(rating))
     except Exception:
         logger.exception("Failed to save code task rating")
     await callback.answer("Оценка сохранена!")
@@ -192,17 +174,18 @@ async def handle_support_callback(callback: CallbackQuery) -> None:
         return
     _, action, uid = parts
 
-    draft = _inbox.get_pending_support(uid)
+    draft = await backend_client.get_pending_support(uid)
     if not draft:
         await _safe_edit_text(callback.message, replies.tech_support.expired)
         return
 
     if action == "send":
-        await asyncio.to_thread(_inbox.approve_support, uid)
-        await _safe_edit_text(callback.message, replies.tech_support.reply_sent.format(addr=draft.email.reply_to or draft.email.from_addr))
+        await backend_client.approve_support(uid)
+        addr = draft.get("reply_to") or draft.get("from_addr", "")
+        await _safe_edit_text(callback.message, replies.tech_support.reply_sent.format(addr=addr))
     elif action == "skip":
-        await asyncio.to_thread(_inbox.skip_support, uid)
-        await _safe_edit_text(callback.message, replies.tech_support.skipped.format(from_addr=draft.email.from_addr))
+        await backend_client.skip_support(uid)
+        await _safe_edit_text(callback.message, replies.tech_support.skipped.format(from_addr=draft.get("from_addr", "")))
 
 
 async def handle_editorial_callback(callback: CallbackQuery) -> None:
@@ -213,54 +196,55 @@ async def handle_editorial_callback(callback: CallbackQuery) -> None:
         return
     _, action, uid = parts
 
-    item = _inbox.get_pending_editorial(uid)
+    item = await backend_client.get_pending_editorial(uid)
     if not item:
         await _safe_edit_text(callback.message, replies.editorial.expired)
         return
 
     if action == "fwd":
-        await asyncio.to_thread(_inbox.approve_editorial, uid)
-        await _safe_edit_text(callback.message, replies.editorial.forwarded.format(from_addr=item.email.from_addr, subject=item.email.subject))
+        await backend_client.approve_editorial(uid)
+        await _safe_edit_text(callback.message, replies.editorial.forwarded.format(
+            from_addr=item.get("from_addr", ""), subject=item.get("subject", "")))
     elif action == "skip":
-        await asyncio.to_thread(_inbox.skip_editorial, uid)
-        await _safe_edit_text(callback.message, replies.editorial.skipped.format(from_addr=item.email.from_addr))
+        await backend_client.skip_editorial(uid)
+        await _safe_edit_text(callback.message, replies.editorial.skipped.format(
+            from_addr=item.get("from_addr", "")))
 
 
-async def _send_support_draft(admin_id: int, draft: SupportDraft) -> None:
-    em = draft.email
-    body_preview = em.body[:500] + ("..." if len(em.body) > 500 else "")
-    header = f"From: {em.from_addr}\n"
-    if em.reply_to and em.reply_to != em.from_addr:
-        header += f"Reply-To: {em.reply_to}\n"
-    draft_header = replies.tech_support.draft_header if draft.can_answer else replies.tech_support.draft_header_uncertain
+async def _send_support_draft(admin_id: int, draft: dict) -> None:
+    body_preview = draft["body"]
+    header = f"From: {draft['from_addr']}\n"
+    reply_to = draft.get("reply_to", "")
+    if reply_to and reply_to != draft["from_addr"]:
+        header += f"Reply-To: {reply_to}\n"
+    draft_header = replies.tech_support.draft_header if draft.get("can_answer") else replies.tech_support.draft_header_uncertain
     text = (
         f"{header}"
-        f"Subject: {em.subject}\n\n"
+        f"Subject: {draft['subject']}\n\n"
         f"{body_preview}\n\n"
         f"{draft_header}\n"
-        f"{draft.draft_reply}"
+        f"{draft['draft_reply']}"
     )
     buttons = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text=replies.tech_support.btn_send, callback_data=f"support:send:{em.uid}"),
-        InlineKeyboardButton(text=replies.tech_support.btn_skip, callback_data=f"support:skip:{em.uid}"),
+        InlineKeyboardButton(text=replies.tech_support.btn_send, callback_data=f"support:send:{draft['uid']}"),
+        InlineKeyboardButton(text=replies.tech_support.btn_skip, callback_data=f"support:skip:{draft['uid']}"),
     ]])
     sent = await bot.send_message(admin_id, text, reply_markup=buttons)
-    _support_draft_map[(admin_id, sent.message_id)] = em.uid
+    _support_draft_map[(admin_id, sent.message_id)] = draft["uid"]
 
 
-async def _send_editorial(admin_id: int, item: EditorialItem) -> None:
-    em = item.email
-    body_preview = em.body[:500] + ("..." if len(em.body) > 500 else "")
+async def _send_editorial(admin_id: int, item: dict) -> None:
+    body_preview = item["body"]
     text = (
         f"Письмо в редакцию\n"
-        f"From: {em.from_addr}\n"
-        f"Subject: {em.subject}\n\n"
+        f"From: {item['from_addr']}\n"
+        f"Subject: {item['subject']}\n\n"
         f"{body_preview}"
     )
-    if item.reply_to_sender:
-        text += f"\n\n--- Автоответ ---\n{item.reply_to_sender}"
+    if item.get("reply_to_sender"):
+        text += f"\n\n--- Автоответ ---\n{item['reply_to_sender']}"
     buttons = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text=replies.editorial.btn_forward, callback_data=f"editorial:fwd:{em.uid}"),
-        InlineKeyboardButton(text=replies.editorial.btn_skip, callback_data=f"editorial:skip:{em.uid}"),
+        InlineKeyboardButton(text=replies.editorial.btn_forward, callback_data=f"editorial:fwd:{item['uid']}"),
+        InlineKeyboardButton(text=replies.editorial.btn_skip, callback_data=f"editorial:skip:{item['uid']}"),
     ]])
     await bot.send_message(admin_id, text, reply_markup=buttons)

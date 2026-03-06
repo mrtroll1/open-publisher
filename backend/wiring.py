@@ -116,6 +116,7 @@ def create_tool_router(query_tools: dict[str, QueryTool] | None = None) -> ToolR
 class BrainComponents:
     brain: Any
     inbox: Any
+    inbox_service: Any
     memory: Any
     db: Any
     retriever: Any
@@ -169,7 +170,7 @@ def create_brain() -> BrainComponents:
     summarize_article = SummarizeArticle(gemini, retriever)
 
     # Controllers
-    conv_ctrl = create_conversation_controller(conversation_reply)
+    conv_ctrl = create_conversation_controller(conversation_reply, db, retriever)
     support_ctrl = create_support_controller(tech_support)
     code_ctrl = create_code_controller()
     health_ctrl = create_health_controller()
@@ -189,7 +190,13 @@ def create_brain() -> BrainComponents:
     budget_ctrl = create_budget_controller(compute_budget)
 
     # Inbox controller
-    inbox_workflow = InboxWorkflow(db=db, email_gw=EmailGateway())
+    republic = RepublicGateway()
+    redefine = RedefineGateway()
+    email_gw = EmailGateway()
+    user_lookup = SupportUserLookup(republic_gw=republic, redefine_gw=redefine)
+    tech_support_handler = TechSupportHandler(gemini=gemini, user_lookup=user_lookup, db=db)
+    inbox_service = InboxService(tech_support=tech_support_handler, gemini=gemini, email_gw=email_gw, db=db)
+    inbox_workflow = InboxWorkflow(tech_support=tech_support_handler, email_gw=email_gw, db=db)
     inbox_ctrl = create_inbox_controller(inbox_classify, inbox_workflow)
 
     # Build controller map
@@ -227,6 +234,7 @@ def create_brain() -> BrainComponents:
     return BrainComponents(
         brain=Brain(authorizer, router),
         inbox=inbox_workflow,
+        inbox_service=inbox_service,
         memory=memory,
         db=db,
         retriever=retriever,

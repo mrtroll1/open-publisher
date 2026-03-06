@@ -6,7 +6,7 @@ import asyncio
 import logging
 
 from common.config import ADMIN_TELEGRAM_IDS, EMAIL_ADDRESS, EMAIL_IDLE_TIMEOUT, EMAIL_ERROR_RETRY_DELAY
-from telegram_bot.handler_utils import _inbox
+from telegram_bot import backend_client
 from telegram_bot.handlers.support_handlers import _send_support_draft, _send_editorial
 
 logger = logging.getLogger(__name__)
@@ -17,7 +17,11 @@ __all__ = [
 
 
 async def email_listener_task() -> None:
-    """Background task: listen for new emails, classify, and send to admin."""
+    """Background task: poll for new emails, classify, and send to admin.
+
+    Uses backend API for inbox operations. Polls periodically since
+    IMAP IDLE can't go through HTTP.
+    """
     if not ADMIN_TELEGRAM_IDS:
         logger.warning("No admin IDs configured, email listener disabled")
         return
@@ -25,18 +29,14 @@ async def email_listener_task() -> None:
     logger.info("Email listener started for %s", EMAIL_ADDRESS)
     while True:
         try:
-            has_new = await asyncio.to_thread(_inbox.idle_wait, EMAIL_IDLE_TIMEOUT)
-            if not has_new:
-                continue
-            emails = await asyncio.to_thread(_inbox.fetch_unread)
-            for em in emails:
-                result = await asyncio.to_thread(_inbox.process, em)
-                if not result:
-                    continue
-                if result.category == "tech_support":
-                    await _send_support_draft(admin_id, result.draft)
-                elif result.category == "editorial":
-                    await _send_editorial(admin_id, result.editorial)
+            result = await backend_client.fetch_unread()
+            if result and isinstance(result, list):
+                for item in result:
+                    category = item.get("category")
+                    if category == "tech_support" and item.get("draft"):
+                        await _send_support_draft(admin_id, item["draft"])
+                    elif category == "editorial" and item.get("editorial"):
+                        await _send_editorial(admin_id, item["editorial"])
         except Exception as e:
             logger.exception("Email listener error: %s", e)
-            await asyncio.sleep(EMAIL_ERROR_RETRY_DELAY)
+        await asyncio.sleep(EMAIL_IDLE_TIMEOUT)

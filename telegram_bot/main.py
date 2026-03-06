@@ -7,6 +7,7 @@ import logging
 
 from aiogram import Dispatcher
 
+from telegram_bot import backend_client
 from telegram_bot.bot_helpers import bot
 from telegram_bot.router import register_all, set_bot_commands
 from telegram_bot.handlers.email_listener import email_listener_task
@@ -31,24 +32,14 @@ async def daily_article_ingest_task():
         await asyncio.sleep(wait_seconds)
 
         try:
-            from backend.infrastructure.gateways.republic_gateway import RepublicGateway
-            from backend.domain.use_cases.ingest_articles import IngestArticles
-            from backend.wiring import create_memory_service
-
             today = datetime.now(cet).strftime("%Y-%m-%d")
-            republic = RepublicGateway()
-            posts = await asyncio.to_thread(republic.fetch_posts_by_date, today, today)
-            if posts:
-                articles = [
-                    {"title": p["title"], "url": p["url"], "content": p.get("content", "")}
-                    for p in posts
-                ]
-                memory = create_memory_service()
-                ingest = IngestArticles(memory=memory)
-                entry_ids = await asyncio.to_thread(ingest.execute, articles)
-                logger.info("Daily ingest: %d articles ingested for %s", len(entry_ids), today)
-            else:
-                logger.info("Daily ingest: no articles found for %s", today)
+            result = await backend_client.command(
+                "ingest", f"{today} {today}",
+                environment_id="default",
+                user_id="",
+            )
+            count = result.get("count", 0) if isinstance(result, dict) else 0
+            logger.info("Daily ingest: %d articles ingested for %s", count, today)
         except Exception:
             logger.exception("Daily article ingest failed")
 
@@ -56,13 +47,13 @@ async def daily_article_ingest_task():
 async def knowledge_pipeline_task():
     """Run knowledge pipelines periodically."""
     from common.config import KNOWLEDGE_PIPELINE_INTERVAL
-    from backend.wiring import create_memory_service, create_db
-    from backend.domain.use_cases.run_knowledge_pipelines import run_scheduled_pipelines
-    memory = create_memory_service()
-    db = create_db()
     while True:
         try:
-            await asyncio.to_thread(run_scheduled_pipelines, memory, db)
+            await backend_client.command(
+                "knowledge_pipeline", "",
+                environment_id="default",
+                user_id="",
+            )
         except Exception:
             logger.exception("Knowledge pipeline failed")
         await asyncio.sleep(KNOWLEDGE_PIPELINE_INTERVAL)

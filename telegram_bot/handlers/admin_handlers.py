@@ -30,26 +30,12 @@ from backend import (
     update_invoice_status,
     update_legium_link,
 )
-from backend.domain.services.command_classifier import CommandClassifier
-from backend.domain.services.compose_request import _get_retriever
-from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
-from backend.domain.services.admin_service import (
-    _GREETING_PREFIXES,
-    classify_draft_reply,
-    store_admin_feedback,
-)
-from backend.domain.use_cases import sync_contractor_entities
-from backend.infrastructure.gateways.embedding_gateway import EmbeddingGateway
-from backend.domain.use_cases.extract_conversation_knowledge import ExtractConversationKnowledge
-from backend.wiring import create_compute_budget, create_generate_batch_invoices, create_parse_bank_statement
-from telegram_bot import replies
+from backend.wiring import create_generate_batch_invoices, create_parse_bank_statement
+from telegram_bot import backend_client, replies
 from telegram_bot.bot_helpers import bot, get_contractors, prev_month
 from telegram_bot.handler_utils import (
     _admin_reply_map,
-    _db,
     _find_contractor_or_suggest,
-    _inbox,
-    _memory,
     _save_turn,
     _send,
     _send_html,
@@ -88,7 +74,6 @@ __all__ = [
     "_ROLE_LABELS",
     "handle_admin_reply",
     "_handle_draft_reply",
-    "_GREETING_PREFIXES",
 ]
 
 
@@ -211,64 +196,31 @@ async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
     if await handle_kedit_reply(message):
         return
 
-    # 4. Try classifying as a command (with replied-to message as context)
-    from telegram_bot.handlers.conversation_handlers import _handle_nl_reply, _ADMIN_NL_DESCRIPTIONS
-    reply_context = reply.text or ""
-    user_text = message.text or ""
-    if reply_context and user_text:
-        try:
-            classifier = CommandClassifier(GeminiGateway())
-            result = await asyncio.to_thread(
-                classifier.classify, user_text, _ADMIN_NL_DESCRIPTIONS, context=reply_context,
-            )
-            if result.classified:
-                from telegram_bot.router import _GROUP_COMMAND_HANDLERS
-                from telegram_bot.handlers.support_handlers import cmd_code
-
-                handlers = {
-                    **_GROUP_COMMAND_HANDLERS,
-                    "generate": cmd_generate,
-                    "generate_invoices": cmd_generate_invoices,
-                    "send_global_invoices": cmd_send_global_invoices,
-                    "send_legium_links": cmd_send_legium_links,
-                    "orphan_contractors": cmd_orphan_contractors,
-                    "budget": cmd_budget,
-                    "code": cmd_code,
-                }
-                handler = handlers.get(result.classified.command)
-                if handler:
-                    cmd = result.classified.command
-                    cmd_args = user_text if cmd in _LLM_COMMANDS else (result.classified.args or user_text)
-                    original_text = message.text
-                    object.__setattr__(message, "text", f"/{cmd} {cmd_args}" if cmd_args else f"/{cmd}")
-                    try:
-                        await handler(message, state)
-                    finally:
-                        object.__setattr__(message, "text", original_text)
-                    return
-        except Exception:
-            logger.exception("Reply classification failed")
-
-    # 5. NL conversation fallback
+    # 4. NL conversation fallback (Brain handles classification + routing)
+    from telegram_bot.handlers.conversation_handlers import _handle_nl_reply
     await _handle_nl_reply(message, state)
 
 
 async def _handle_draft_reply(message: types.Message, uid: str) -> None:
-    draft = _inbox.get_pending_support(uid)
+    draft = await backend_client.get_pending_support(uid)
     if not draft:
         await message.reply(replies.tech_support.expired)
         return
 
     text = message.text.strip()
-    action = classify_draft_reply(text)
 
-    if action == "replacement":
-        await asyncio.to_thread(_inbox.update_and_approve_support, uid, message.text)
-        addr = draft.email.reply_to or draft.email.from_addr
+    # Simple heuristic: if the reply is short or starts with a greeting, it's a replacement
+    _GREETING_PREFIXES = ("здравствуйте", "добрый", "привет", "уважаем", "hi ", "hello", "dear")
+    text_lower = text.lower().strip()
+    is_replacement = any(text_lower.startswith(p) for p in _GREETING_PREFIXES) or len(text) > 100
+
+    if is_replacement:
+        await backend_client.update_and_approve_support(uid, message.text)
+        addr = draft.get("reply_to") or draft.get("from_addr", "")
         await message.reply(replies.tech_support.replacement_sent.format(addr=addr))
     else:
-        await asyncio.to_thread(_inbox.skip_support, uid)
-        await asyncio.to_thread(store_admin_feedback, text, "tech_support", _get_retriever())
+        await backend_client.skip_support(uid)
+        await backend_client.store_feedback(text, "tech_support")
         await message.reply(replies.tech_support.feedback_noted)
 
 
@@ -358,8 +310,12 @@ async def cmd_budget(message: types.Message, state: FSMContext) -> None:
     await send_typing(message.chat.id)
 
     try:
-        uc = create_compute_budget()
-        url = await asyncio.to_thread(uc.execute, month)
+        result = await backend_client.command(
+            "budget", month,
+            environment_id=str(message.chat.id),
+            user_id=str(message.from_user.id),
+        )
+        url = result.get("url", str(result)) if isinstance(result, dict) else str(result)
         await message.answer(replies.admin.budget_done.format(url=url))
     except Exception as e:
         logger.exception("Budget generation failed")
@@ -628,14 +584,18 @@ async def cmd_sync_entities(message: types.Message, state: FSMContext) -> None:
     """Sync contractors from Google Sheets into the entities system."""
     await send_typing(message.chat.id)
 
-    contractors = await get_contractors()
-    embed = EmbeddingGateway()
-
-    created, updated = await asyncio.to_thread(
-        sync_contractor_entities.execute, contractors, _db, embed,
-    )
-
-    await message.answer(replies.admin.sync_entities_done.format(created=created, updated=updated))
+    try:
+        result = await backend_client.command(
+            "sync_entities", "",
+            environment_id=str(message.chat.id),
+            user_id=str(message.from_user.id),
+        )
+        created = result.get("created", 0) if isinstance(result, dict) else 0
+        updated = result.get("updated", 0) if isinstance(result, dict) else 0
+        await message.answer(replies.admin.sync_entities_done.format(created=created, updated=updated))
+    except Exception as e:
+        logger.exception("Entity sync failed")
+        await message.answer(f"Ошибка: {e}")
 
 
 async def cmd_ingest_articles(message: types.Message, state: FSMContext) -> None:
@@ -647,26 +607,15 @@ async def cmd_ingest_articles(message: types.Message, state: FSMContext) -> None
     await send_typing(message.chat.id)
 
     try:
-        from backend.infrastructure.gateways.republic_gateway import RepublicGateway
-        from backend.domain.use_cases.ingest_articles import IngestArticles
-
-        republic = RepublicGateway()
-        posts = await asyncio.to_thread(republic.fetch_posts_by_date, date_from, date_to)
-        if not posts:
-            await message.answer(replies.admin.ingest_articles_no_posts.format(date_from=date_from, date_to=date_to))
-            return
-
-        articles = [
-            {"title": p["title"], "url": p["url"], "content": p.get("content", "")}
-            for p in posts
-        ]
-
-        ingest = IngestArticles(memory=_memory)
-        entry_ids = await asyncio.to_thread(ingest.execute, articles)
-
-        authors = len({p.get("author", "") for p in posts})
+        result = await backend_client.command(
+            "ingest", f"{date_from} {date_to}",
+            environment_id=str(message.chat.id),
+            user_id=str(message.from_user.id),
+        )
+        count = result.get("count", 0) if isinstance(result, dict) else 0
+        authors = result.get("authors", 0) if isinstance(result, dict) else 0
         await message.answer(replies.admin.ingest_articles_done.format(
-            count=len(entry_ids), date_from=date_from, date_to=date_to, authors=authors,
+            count=count, date_from=date_from, date_to=date_to, authors=authors,
         ))
     except Exception as e:
         logger.exception("Article ingestion failed")
@@ -679,11 +628,13 @@ async def cmd_extract_knowledge(message: types.Message, state: FSMContext) -> No
     await send_typing(message.chat.id)
 
     try:
-        extractor = ExtractConversationKnowledge(memory=_memory, db=_db)
-        entry_ids = await asyncio.to_thread(
-            extractor.execute, message.chat.id,
+        result = await backend_client.command(
+            "extract_knowledge", str(message.chat.id),
+            environment_id=str(message.chat.id),
+            user_id=str(message.from_user.id),
         )
-        await message.answer(replies.admin.extract_knowledge_done.format(count=len(entry_ids)))
+        count = result.get("count", 0) if isinstance(result, dict) else 0
+        await message.answer(replies.admin.extract_knowledge_done.format(count=count))
     except Exception as e:
         logger.exception("Knowledge extraction failed")
         await message.answer(replies.admin.extract_knowledge_error.format(error=e))

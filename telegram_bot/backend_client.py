@@ -20,10 +20,19 @@ def _unwrap(resp: httpx.Response) -> dict | str | list | None:
 
 # --- Brain ---
 
-async def process(input: str, environment_id: str, user_id: str) -> dict:
-    resp = await _client.post("/brain/process", json={
+async def process(input: str, environment_id: str, user_id: str,
+                  chat_id: int | None = None,
+                  reply_to_message_id: int | None = None,
+                  reply_to_text: str = "") -> dict:
+    payload = {
         "input": input, "environment_id": environment_id, "user_id": user_id,
-    })
+    }
+    if chat_id is not None:
+        payload["chat_id"] = chat_id
+    if reply_to_message_id is not None:
+        payload["reply_to_message_id"] = reply_to_message_id
+        payload["reply_to_text"] = reply_to_text
+    resp = await _client.post("/brain/process", json=payload)
     return _unwrap(resp)
 
 
@@ -62,6 +71,23 @@ async def fetch_unread():
     return _unwrap(resp)
 
 
+async def get_pending_support(uid: str) -> dict | None:
+    resp = await _client.get(f"/inbox/pending-support/{uid}")
+    return _unwrap(resp)
+
+
+async def get_pending_editorial(uid: str) -> dict | None:
+    resp = await _client.get(f"/inbox/pending-editorial/{uid}")
+    return _unwrap(resp)
+
+
+async def update_and_approve_support(uid: str, text: str):
+    resp = await _client.post("/inbox/update-and-approve-support", json={
+        "uid": uid, "text": text,
+    })
+    return _unwrap(resp)
+
+
 # --- Memory ---
 
 async def teach(text: str, domain: str, tier: str = "specific") -> dict:
@@ -71,11 +97,26 @@ async def teach(text: str, domain: str, tier: str = "specific") -> dict:
     return _unwrap(resp)
 
 
+async def classify_teaching(text: str) -> dict:
+    resp = await _client.post("/memory/classify-teaching", json={"text": text})
+    return _unwrap(resp)
+
+
 async def memory_search(query: str, domain: str | None = None):
     params = {"query": query}
     if domain:
         params["domain"] = domain
     resp = await _client.get("/memory/search", params=params)
+    return _unwrap(resp)
+
+
+async def memory_list(domain: str | None = None, tier: str | None = None):
+    params = {}
+    if domain:
+        params["domain"] = domain
+    if tier:
+        params["tier"] = tier
+    resp = await _client.get("/memory/list", params=params)
     return _unwrap(resp)
 
 
@@ -114,6 +155,36 @@ async def get_environment(chat_id: int = 0, name: str = "") -> dict | None:
     return _unwrap(resp)
 
 
+async def create_environment(name: str, description: str, system_context: str = ""):
+    resp = await _client.post("/memory/environment/create", json={
+        "name": name, "description": description, "system_context": system_context,
+    })
+    return _unwrap(resp)
+
+
+async def update_environment(name: str, **kwargs):
+    payload = {"name": name, **kwargs}
+    resp = await _client.put("/memory/environment/update", json=payload)
+    return _unwrap(resp)
+
+
+async def bind_environment(chat_id: int, name: str):
+    resp = await _client.post("/memory/environment/bind", json={
+        "chat_id": chat_id, "name": name,
+    })
+    return _unwrap(resp)
+
+
+async def unbind_environment(chat_id: int):
+    resp = await _client.post("/memory/environment/unbind", params={"chat_id": chat_id})
+    return _unwrap(resp)
+
+
+async def get_bindings(name: str) -> list:
+    resp = await _client.get("/memory/environment/bindings", params={"name": name})
+    return _unwrap(resp)
+
+
 # --- Entity ---
 
 async def add_entity(kind: str, name: str, external_ids: dict | None = None,
@@ -122,6 +193,11 @@ async def add_entity(kind: str, name: str, external_ids: dict | None = None,
         "kind": kind, "name": name,
         "external_ids": external_ids, "summary": summary,
     })
+    return _unwrap(resp)
+
+
+async def list_entities():
+    resp = await _client.get("/entity/list")
     return _unwrap(resp)
 
 
@@ -135,6 +211,22 @@ async def find_entity(query: str = "", external_key: str = "",
     if external_value:
         params["external_value"] = external_value
     resp = await _client.get("/entity/find", params=params)
+    return _unwrap(resp)
+
+
+async def search_entities(query: str):
+    resp = await _client.get("/entity/search", params={"query": query})
+    return _unwrap(resp)
+
+
+async def update_entity(entity_id: str, external_ids: dict | None = None,
+                        summary: str | None = None):
+    payload = {}
+    if external_ids is not None:
+        payload["external_ids"] = external_ids
+    if summary is not None:
+        payload["summary"] = summary
+    resp = await _client.put(f"/entity/{entity_id}/update", json=payload)
     return _unwrap(resp)
 
 
@@ -163,3 +255,51 @@ async def save_turn(chat_id: int, user_id: int, role: str, content: str,
     })
     result = _unwrap(resp)
     return result["id"]
+
+
+async def get_conversation_by_message_id(chat_id: int, message_id: int) -> dict | None:
+    resp = await _client.get("/conversation/by-message-id", params={
+        "chat_id": chat_id, "message_id": message_id,
+    })
+    return _unwrap(resp)
+
+
+# --- Classification / code tasks ---
+
+async def log_classification(task: str, model: str, prompt: str,
+                             result: str, latency_ms: int):
+    resp = await _client.post("/classification/log", json={
+        "task": task, "model": model, "prompt": prompt,
+        "result": result, "latency_ms": latency_ms,
+    })
+    return _unwrap(resp)
+
+
+async def create_code_task(requested_by: str, input_text: str,
+                           output_text: str, verbose: bool = False) -> str:
+    resp = await _client.post("/code-task/create", json={
+        "requested_by": requested_by, "input_text": input_text,
+        "output_text": output_text, "verbose": verbose,
+    })
+    return _unwrap(resp)["id"]
+
+
+async def rate_code_task(task_id: str, rating: int):
+    resp = await _client.post("/code-task/rate", json={
+        "task_id": task_id, "rating": rating,
+    })
+    return _unwrap(resp)
+
+
+async def finalize_payment_validation(validation_id: str):
+    resp = await _client.post("/payment/finalize-validation", json={
+        "validation_id": validation_id,
+    })
+    return _unwrap(resp)
+
+
+async def store_feedback(text: str, domain: str):
+    resp = await _client.post("/admin/store-feedback", json={
+        "text": text, "domain": domain,
+    })
+    return _unwrap(resp)

@@ -52,9 +52,9 @@ from backend.domain.services.invoice_service import (
 )
 from telegram_bot import replies
 from telegram_bot.bot_helpers import bot, get_contractors, is_admin, prev_month
+from telegram_bot import backend_client
 from telegram_bot.handler_utils import (
     _admin_reply_map,
-    _db,
     _safe_edit_text,
     _send,
     get_contractor_by_id,
@@ -722,7 +722,7 @@ async def _finish_registration(
     validation_id = collected.get("_validation_id")
     if validation_id:
         try:
-            await asyncio.to_thread(_db.finalize_payment_validation, validation_id)
+            await backend_client.finalize_payment_validation(validation_id)
         except Exception:
             logger.warning("Failed to finalize payment validation %s", validation_id, exc_info=True)
 

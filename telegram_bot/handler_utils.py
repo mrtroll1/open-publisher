@@ -8,20 +8,11 @@ from aiogram import types
 from aiogram.enums import ChatAction
 from aiogram.exceptions import TelegramBadRequest
 
-from backend.wiring import create_db, create_inbox_service, create_knowledge_retriever, create_memory_service, create_query_tools, create_tool_router
-from backend.domain.services.compose_request import set_retriever
 from telegram_bot.bot_helpers import bot, get_contractors, md_to_tg_html, prev_month
 from telegram_bot import backend_client, replies
 from backend import find_contractor, find_contractor_by_id, find_contractor_by_telegram_id, fuzzy_find
 
 logger = logging.getLogger(__name__)
-
-_db = create_db()
-_inbox = create_inbox_service()
-_memory = create_memory_service()
-set_retriever(create_knowledge_retriever())
-_query_tools = create_query_tools()
-_tool_router = create_tool_router(_query_tools) if _query_tools else None
 
 # Maps (admin_chat_id, bot_message_id) -> (contractor_telegram_id, contractor_id)
 # so admin can reply to a notification and the reply gets forwarded.
@@ -51,14 +42,9 @@ __all__ = [
     "_save_turn",
     "_parse_flags",
     "_find_contractor_or_suggest",
-    "_db",
-    "_inbox",
-    "_memory",
     "_admin_reply_map",
     "_support_draft_map",
     "_kedit_pending",
-    "_query_tools",
-    "_tool_router",
 ]
 
 

@@ -42,6 +42,6 @@ class BaseController:
         self.preparer = preparer
         self.use_case = use_case
 
-    def execute(self, input: str, env: dict, user: dict) -> Any:
+    def execute(self, input: str, env: dict, user: dict, **kwargs) -> Any:
         prepared = self.preparer.prepare(input, env, user)
         return self.use_case.execute(prepared, env, user)

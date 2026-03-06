@@ -9,12 +9,24 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
+  api:
+    build: .
+    command: ["python", "-m", "backend.run"]
+    restart: unless-stopped
+    env_file: config/.env
+    depends_on:
+      - db
+    volumes:
+      - ./config/service_account.json:/app/config/service_account.json:ro
+      - ./config/business_config.json:/app/config/business_config.json:ro
+      - ./config/tech_config.json:/app/config/tech_config.json:ro
+
   bot:
     build: .
     restart: unless-stopped
     env_file: config/.env
     depends_on:
-      - db
+      - api
     volumes:
       - ./config/service_account.json:/app/config/service_account.json:ro
       - ./config/business_config.json:/app/config/business_config.json:ro

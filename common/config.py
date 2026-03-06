@@ -213,4 +213,4 @@ HEALTHCHECK_DOMAINS = [
 KUBECTL_ENABLED = os.getenv("KUBECTL_ENABLED", "").lower() in ("1", "true", "yes")
 
 # --- Backend API ---
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8100")
+BACKEND_URL = os.getenv("BACKEND_URL")

@@ -125,7 +125,7 @@ def conversation_handler(
         # Build history for multi-turn
         from google.genai import types
         turn_history = [
-            types.Content(role="user", parts=[types.Part.from_text(input)]),
+            types.Content(role="user", parts=[types.Part.from_text(text=input)]),
         ]
         if resp_content:
             turn_history.append(resp_content)

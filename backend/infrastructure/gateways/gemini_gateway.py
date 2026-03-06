@@ -106,7 +106,7 @@ class GeminiGateway:
             )
         config = types.GenerateContentConfig(**config_kwargs)
 
-        contents = [types.Content(role="user", parts=[types.Part.from_text(user_message)])]
+        contents = [types.Content(role="user", parts=[types.Part.from_text(text=user_message)])]
 
         for attempt in range(3):
             try:

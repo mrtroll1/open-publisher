@@ -12,7 +12,7 @@ from common.models import ContractorType, SamozanyatyContractor
 class TestCheckRegistrationComplete:
 
     def _check(self, collected, required):
-        from backend.domain.services.contractor_service import check_registration_complete
+        from backend.commands.contractor.create import check_registration_complete
         return check_registration_complete(collected, required)
 
     def test_all_filled(self):
@@ -71,10 +71,10 @@ class TestCheckRegistrationComplete:
 
 class TestParseRegistrationData:
 
-    @patch("backend.domain.services.contractor_service.DbGateway")
-    @patch("backend.domain.services.contractor_service.parse_contractor_data")
+    @patch("backend.commands.contractor.registration.DbGateway")
+    @patch("backend.commands.contractor.registration.parse_contractor_data")
     def test_success_logs_to_db(self, mock_parse, MockDb):
-        from backend.domain.services.contractor_service import parse_registration_data
+        from backend.commands.contractor.registration import parse_registration_data
 
         mock_parse.return_value = {"name_ru": "Иванов"}
         mock_db = MockDb.return_value
@@ -88,10 +88,10 @@ class TestParseRegistrationData:
         assert result["_validation_id"] == "val-123"
         mock_db.log_payment_validation.assert_called_once()
 
-    @patch("backend.domain.services.contractor_service.DbGateway")
-    @patch("backend.domain.services.contractor_service.parse_contractor_data")
+    @patch("backend.commands.contractor.registration.DbGateway")
+    @patch("backend.commands.contractor.registration.parse_contractor_data")
     def test_parse_error_skips_db_logging(self, mock_parse, MockDb):
-        from backend.domain.services.contractor_service import parse_registration_data
+        from backend.commands.contractor.registration import parse_registration_data
 
         mock_parse.return_value = {"parse_error": "bad input"}
 
@@ -102,10 +102,10 @@ class TestParseRegistrationData:
         assert "parse_error" in result
         MockDb.return_value.log_payment_validation.assert_not_called()
 
-    @patch("backend.domain.services.contractor_service.DbGateway")
-    @patch("backend.domain.services.contractor_service.parse_contractor_data")
+    @patch("backend.commands.contractor.registration.DbGateway")
+    @patch("backend.commands.contractor.registration.parse_contractor_data")
     def test_db_error_swallowed(self, mock_parse, MockDb):
-        from backend.domain.services.contractor_service import parse_registration_data
+        from backend.commands.contractor.registration import parse_registration_data
 
         mock_parse.return_value = {"name_ru": "Иванов"}
         MockDb.return_value.log_payment_validation.side_effect = RuntimeError("db down")
@@ -117,10 +117,10 @@ class TestParseRegistrationData:
         assert result["name_ru"] == "Иванов"
         assert "_validation_id" not in result
 
-    @patch("backend.domain.services.contractor_service.DbGateway")
-    @patch("backend.domain.services.contractor_service.parse_contractor_data")
+    @patch("backend.commands.contractor.registration.DbGateway")
+    @patch("backend.commands.contractor.registration.parse_contractor_data")
     def test_context_built_from_collected(self, mock_parse, MockDb):
-        from backend.domain.services.contractor_service import parse_registration_data
+        from backend.commands.contractor.registration import parse_registration_data
 
         mock_parse.return_value = {"email": "a@b.c"}
         MockDb.return_value.log_payment_validation.return_value = "v1"
@@ -134,10 +134,10 @@ class TestParseRegistrationData:
         context = call_args[0][2]
         assert "Иванов" in context
 
-    @patch("backend.domain.services.contractor_service.DbGateway")
-    @patch("backend.domain.services.contractor_service.parse_contractor_data")
+    @patch("backend.commands.contractor.registration.DbGateway")
+    @patch("backend.commands.contractor.registration.parse_contractor_data")
     def test_warnings_included_in_context(self, mock_parse, MockDb):
-        from backend.domain.services.contractor_service import parse_registration_data
+        from backend.commands.contractor.registration import parse_registration_data
 
         mock_parse.return_value = {"inn": "123456"}
         MockDb.return_value.log_payment_validation.return_value = "v1"
@@ -159,11 +159,11 @@ class TestParseRegistrationData:
 
 class TestCreateContractor:
 
-    @patch("backend.domain.services.contractor_service.pop_random_secret_code", return_value="ABC123")
-    @patch("backend.domain.services.contractor_service.save_contractor")
-    @patch("backend.domain.services.contractor_service.next_contractor_id", return_value="C042")
+    @patch("backend.commands.contractor.create.pop_random_secret_code", return_value="ABC123")
+    @patch("backend.commands.contractor.create.save_contractor")
+    @patch("backend.commands.contractor.create.next_contractor_id", return_value="C042")
     def test_success(self, mock_next_id, mock_save, mock_code):
-        from backend.domain.services.contractor_service import create_contractor
+        from backend.commands.contractor.create import create_contractor
 
         collected = {
             "name_ru": "Иванов Иван",
@@ -191,11 +191,11 @@ class TestCreateContractor:
         assert code == "ABC123"
         mock_save.assert_called_once_with(contractor)
 
-    @patch("backend.domain.services.contractor_service.pop_random_secret_code", return_value="X")
-    @patch("backend.domain.services.contractor_service.save_contractor", side_effect=RuntimeError("boom"))
-    @patch("backend.domain.services.contractor_service.next_contractor_id", return_value="C001")
+    @patch("backend.commands.contractor.create.pop_random_secret_code", return_value="X")
+    @patch("backend.commands.contractor.create.save_contractor", side_effect=RuntimeError("boom"))
+    @patch("backend.commands.contractor.create.next_contractor_id", return_value="C001")
     def test_save_failure_returns_none(self, mock_id, mock_save, mock_code):
-        from backend.domain.services.contractor_service import create_contractor
+        from backend.commands.contractor.create import create_contractor
 
         collected = {
             "name_ru": "Test",
@@ -217,11 +217,11 @@ class TestCreateContractor:
         assert contractor is None
         assert code == ""
 
-    @patch("backend.domain.services.contractor_service.pop_random_secret_code", return_value="SEC")
-    @patch("backend.domain.services.contractor_service.save_contractor")
-    @patch("backend.domain.services.contractor_service.next_contractor_id", return_value="C010")
+    @patch("backend.commands.contractor.create.pop_random_secret_code", return_value="SEC")
+    @patch("backend.commands.contractor.create.save_contractor")
+    @patch("backend.commands.contractor.create.next_contractor_id", return_value="C010")
     def test_missing_fields_default_to_empty_string(self, mock_id, mock_save, mock_code):
-        from backend.domain.services.contractor_service import create_contractor
+        from backend.commands.contractor.create import create_contractor
 
         collected = {
             "name_ru": "Test",

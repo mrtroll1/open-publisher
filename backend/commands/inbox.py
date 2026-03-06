@@ -10,7 +10,7 @@ from typing import Any
 
 from backend.brain.base_controller import BaseController, BaseUseCase, PassThroughPreparer
 from backend.brain.dynamic.inbox_classify import InboxClassify
-from backend.domain.services.tech_support_handler import TechSupportHandler
+from backend.commands.support_handler import TechSupportHandler
 from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.gateways.email_gateway import EmailGateway
 from common.config import CHIEF_EDITOR_EMAIL, SUPPORT_ADDRESSES

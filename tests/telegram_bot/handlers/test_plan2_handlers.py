@@ -12,7 +12,7 @@ from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.domain.use_cases.run_claude_code import CodeResult
+from backend.commands.code import CodeResult
 from common.models import (
     ArticleEntry,
     ContractorType,
@@ -200,7 +200,7 @@ class TestHandleGroupMessageNaturalLanguage:
         self, mock_bot, mock_format, mock_run, MockGemini, MockClassifier,
     ):
         from telegram_bot.flow_callbacks import handle_group_message
-        from backend.domain.services.command_classifier import ClassifiedCommand, ClassificationResult
+        from backend.domain.services.command_classifier import ClassifiedCommand, ClassificationResult  # TODO: rewrite test for new brain/ architecture
 
         mock_instance = MagicMock()
         mock_instance.classify.return_value = ClassificationResult(
@@ -255,8 +255,8 @@ class TestHandleGroupMessageNaturalLanguage:
         mock_resolve_env, mock_resolve_entity,
     ):
         from telegram_bot.flow_callbacks import handle_group_message
-        from backend.domain.services.command_classifier import ClassificationResult
-        from backend.domain.services.conversation_service import generate_nl_reply
+        from backend.domain.services.command_classifier import ClassificationResult  # TODO: rewrite test for new brain/ architecture
+        from backend.domain.services.conversation_service import generate_nl_reply  # TODO: rewrite test for new brain/ architecture
 
         mock_tm = _mock_thinking_message_class()
         MockThinking.side_effect = mock_tm
@@ -316,7 +316,7 @@ class TestHandleGroupMessageNaturalLanguage:
         self, mock_bot, mock_format, mock_run, MockGemini, MockClassifier,
     ):
         from telegram_bot.flow_callbacks import handle_group_message
-        from backend.domain.services.command_classifier import ClassifiedCommand, ClassificationResult
+        from backend.domain.services.command_classifier import ClassifiedCommand, ClassificationResult  # TODO: rewrite test for new brain/ architecture
 
         mock_instance = MagicMock()
         mock_instance.classify.return_value = ClassificationResult(
@@ -1168,12 +1168,12 @@ class TestCmdLookup:
 
 class TestParseWithLlm:
 
-    _SVC = "backend.domain.services.contractor_service"
+    _SVC = "backend.commands.contractor.registration"
 
     @patch(f"{_SVC}.DbGateway")
     @patch(f"{_SVC}.parse_contractor_data")
     def test_successful_parse_logs_to_db(self, mock_parse, mock_db_cls):
-        from backend.domain.services.contractor_service import parse_registration_data
+        from backend.commands.contractor.registration import parse_registration_data
 
         mock_parse.return_value = {"name_ru": "Иван Иванов", "inn": "123456789012"}
         mock_db = mock_db_cls.return_value
@@ -1191,7 +1191,7 @@ class TestParseWithLlm:
     @patch(f"{_SVC}.DbGateway")
     @patch(f"{_SVC}.parse_contractor_data")
     def test_parse_error_skips_db_log(self, mock_parse, mock_db_cls):
-        from backend.domain.services.contractor_service import parse_registration_data
+        from backend.commands.contractor.registration import parse_registration_data
 
         mock_parse.return_value = {"parse_error": "Could not parse"}
 
@@ -1203,7 +1203,7 @@ class TestParseWithLlm:
     @patch(f"{_SVC}.DbGateway")
     @patch(f"{_SVC}.parse_contractor_data")
     def test_db_log_failure_still_returns_result(self, mock_parse, mock_db_cls):
-        from backend.domain.services.contractor_service import parse_registration_data
+        from backend.commands.contractor.registration import parse_registration_data
 
         mock_parse.return_value = {"name_ru": "Test"}
         mock_db_cls.return_value.log_payment_validation.side_effect = RuntimeError("DB down")
@@ -1216,7 +1216,7 @@ class TestParseWithLlm:
     @patch(f"{_SVC}.DbGateway")
     @patch(f"{_SVC}.parse_contractor_data")
     def test_passes_context_with_collected_data(self, mock_parse, mock_db_cls):
-        from backend.domain.services.contractor_service import parse_registration_data
+        from backend.commands.contractor.registration import parse_registration_data
 
         mock_parse.return_value = {"inn": "111222333444"}
         mock_db_cls.return_value.log_payment_validation.return_value = "v1"
@@ -1236,7 +1236,7 @@ class TestParseWithLlm:
     @patch(f"{_SVC}.DbGateway")
     @patch(f"{_SVC}.parse_contractor_data")
     def test_passes_warnings_in_context(self, mock_parse, mock_db_cls):
-        from backend.domain.services.contractor_service import parse_registration_data
+        from backend.commands.contractor.registration import parse_registration_data
 
         mock_parse.return_value = {"inn": "valid"}
         mock_db_cls.return_value.log_payment_validation.return_value = "v2"
@@ -1254,7 +1254,7 @@ class TestParseWithLlm:
     @patch(f"{_SVC}.DbGateway")
     @patch(f"{_SVC}.parse_contractor_data")
     def test_ip_contractor_type(self, mock_parse, mock_db_cls):
-        from backend.domain.services.contractor_service import parse_registration_data
+        from backend.commands.contractor.registration import parse_registration_data
 
         mock_parse.return_value = {"name_ru": "ИП Петров"}
         mock_db_cls.return_value.log_payment_validation.return_value = "v3"
@@ -1267,7 +1267,7 @@ class TestParseWithLlm:
     @patch(f"{_SVC}.DbGateway")
     @patch(f"{_SVC}.parse_contractor_data")
     def test_global_contractor_type(self, mock_parse, mock_db_cls):
-        from backend.domain.services.contractor_service import parse_registration_data
+        from backend.commands.contractor.registration import parse_registration_data
 
         mock_parse.return_value = {"name_en": "John Smith"}
         mock_db_cls.return_value.log_payment_validation.return_value = "v4"
@@ -1280,7 +1280,7 @@ class TestParseWithLlm:
     @patch(f"{_SVC}.DbGateway")
     @patch(f"{_SVC}.parse_contractor_data")
     def test_parsed_json_in_db_call(self, mock_parse, mock_db_cls):
-        from backend.domain.services.contractor_service import parse_registration_data
+        from backend.commands.contractor.registration import parse_registration_data
 
         mock_parse.return_value = {"name_ru": "Тест", "inn": "123"}
         mock_db_cls.return_value.log_payment_validation.return_value = "v5"

@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch, call
 
-from backend.domain.use_cases.run_knowledge_pipelines import run_scheduled_pipelines
+from backend.commands.knowledge_extract import run_scheduled_pipelines
 
 
 # ===================================================================
@@ -9,7 +9,7 @@ from backend.domain.use_cases.run_knowledge_pipelines import run_scheduled_pipel
 
 class TestRunPipelinesExtractsForAllEnvironments:
 
-    @patch("backend.domain.use_cases.run_knowledge_pipelines.ExtractConversationKnowledge")
+    @patch("backend.commands.knowledge_extract.ExtractConversationKnowledge")
     def test_run_pipelines_extracts_for_all_environments(self, mock_cls):
         memory = MagicMock()
         db = MagicMock()
@@ -40,7 +40,7 @@ class TestRunPipelinesExtractsForAllEnvironments:
 
 class TestRunPipelinesSkipsEnvsWithoutBindings:
 
-    @patch("backend.domain.use_cases.run_knowledge_pipelines.ExtractConversationKnowledge")
+    @patch("backend.commands.knowledge_extract.ExtractConversationKnowledge")
     def test_run_pipelines_skips_envs_without_bindings(self, mock_cls):
         memory = MagicMock()
         db = MagicMock()
@@ -69,7 +69,7 @@ class TestRunPipelinesSkipsEnvsWithoutBindings:
 
 class TestRunPipelinesNoEnvironments:
 
-    @patch("backend.domain.use_cases.run_knowledge_pipelines.ExtractConversationKnowledge")
+    @patch("backend.commands.knowledge_extract.ExtractConversationKnowledge")
     def test_no_environments_does_nothing(self, mock_cls):
         """When there are zero environments, execute() is never called."""
         memory = MagicMock()
@@ -91,7 +91,7 @@ class TestRunPipelinesNoEnvironments:
 
 class TestRunPipelinesExtractionException:
 
-    @patch("backend.domain.use_cases.run_knowledge_pipelines.ExtractConversationKnowledge")
+    @patch("backend.commands.knowledge_extract.ExtractConversationKnowledge")
     def test_extraction_exception_logged_and_continues(self, mock_cls):
         """If execute() raises for one chat, remaining chats still get processed."""
         memory = MagicMock()
@@ -118,7 +118,7 @@ class TestRunPipelinesExtractionException:
         instance.execute.assert_any_call(200)
         instance.execute.assert_any_call(300)
 
-    @patch("backend.domain.use_cases.run_knowledge_pipelines.ExtractConversationKnowledge")
+    @patch("backend.commands.knowledge_extract.ExtractConversationKnowledge")
     def test_multiple_exceptions_all_logged(self, mock_cls):
         """Even if every chat fails, the pipeline completes without crashing."""
         memory = MagicMock()
@@ -144,7 +144,7 @@ class TestRunPipelinesExtractionException:
 
 class TestRunPipelinesMultipleEnvsMultipleBindings:
 
-    @patch("backend.domain.use_cases.run_knowledge_pipelines.ExtractConversationKnowledge")
+    @patch("backend.commands.knowledge_extract.ExtractConversationKnowledge")
     def test_multiple_envs_multiple_bindings(self, mock_cls):
         """3 environments with varying binding counts — verify exact call list."""
         memory = MagicMock()
@@ -172,7 +172,7 @@ class TestRunPipelinesMultipleEnvsMultipleBindings:
         ]
         instance.execute.assert_has_calls(expected_calls, any_order=False)
 
-    @patch("backend.domain.use_cases.run_knowledge_pipelines.ExtractConversationKnowledge")
+    @patch("backend.commands.knowledge_extract.ExtractConversationKnowledge")
     def test_extractor_receives_memory_and_db(self, mock_cls):
         """Verify ExtractConversationKnowledge is constructed with memory and db."""
         memory = MagicMock()
@@ -190,7 +190,7 @@ class TestRunPipelinesMultipleEnvsMultipleBindings:
 
 class TestRunPipelinesAllEnvsEmptyBindings:
 
-    @patch("backend.domain.use_cases.run_knowledge_pipelines.ExtractConversationKnowledge")
+    @patch("backend.commands.knowledge_extract.ExtractConversationKnowledge")
     def test_all_envs_empty_bindings(self, mock_cls):
         """Multiple environments but all have zero bindings — no extraction."""
         memory = MagicMock()

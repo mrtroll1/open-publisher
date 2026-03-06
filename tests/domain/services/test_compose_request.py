@@ -1,3 +1,4 @@
+# TODO: rewrite test for new brain/ architecture
 """Tests for backend/domain/compose_request.py — prompt assembly."""
 
 import pytest

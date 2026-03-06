@@ -1,7 +1,7 @@
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
-from backend.domain.use_cases.prepare_invoice import PreparedInvoice, prepare_existing_invoice
+from backend.commands.invoice.prepare import PreparedInvoice, prepare_existing_invoice
 from common.models import (
     Currency,
     GlobalContractor,
@@ -38,8 +38,8 @@ def _invoice(**overrides) -> Invoice:
 #  Patch paths
 # ---------------------------------------------------------------------------
 
-_PATCH_LOAD = "backend.domain.use_cases.prepare_invoice.load_invoices"
-_PATCH_DOCS = "backend.domain.use_cases.prepare_invoice.DocsGateway"
+_PATCH_LOAD = "backend.commands.invoice.prepare.load_invoices"
+_PATCH_DOCS = "backend.commands.invoice.prepare.DocsGateway"
 
 
 # ===================================================================

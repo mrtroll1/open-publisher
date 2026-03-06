@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import pytest
 
-from backend.domain.use_cases.compute_budget import (
+from backend.commands.budget.compute import (
     BLANK,
     DEFAULT_RATE_EUR,
     DEFAULT_RATE_RUB,
@@ -286,7 +286,7 @@ class TestPaymentEntryIsBlank:
 #  ComputeBudget._match_authors (static method)
 # ===================================================================
 
-_CONTRACTOR_REPO = "backend.domain.use_cases.compute_budget"
+_CONTRACTOR_REPO = "backend.commands.budget.compute"
 
 class TestMatchAuthors:
 
@@ -506,14 +506,14 @@ class TestPopulateSheet:
              patch(f"{_CONTRACTOR_REPO}.RedefineGateway"):
             return ComputeBudget.__new__(ComputeBudget)
 
-    @patch("backend.domain.use_cases.compute_budget.populate_sheet")
+    @patch("backend.commands.budget.compute.populate_sheet")
     def test_blank_entry_row(self, mock_pop):
         cb = self._make_instance()
         cb._populate_sheet("sheet1", [BLANK], "2026-01")
         rows = mock_pop.call_args[0][1]
         assert rows == [["", "", "", "", ""]]
 
-    @patch("backend.domain.use_cases.compute_budget.populate_sheet")
+    @patch("backend.commands.budget.compute.populate_sheet")
     def test_normal_entry_row(self, mock_pop):
         cb = self._make_instance()
         entry = PaymentEntry(name="Alice", label="Редактор", eur=500, rub=0, note="hi")
@@ -521,7 +521,7 @@ class TestPopulateSheet:
         rows = mock_pop.call_args[0][1]
         assert rows == [["Alice", "Редактор", "500", "", "hi"]]
 
-    @patch("backend.domain.use_cases.compute_budget.populate_sheet")
+    @patch("backend.commands.budget.compute.populate_sheet")
     def test_zero_eur_rub_empty_string(self, mock_pop):
         cb = self._make_instance()
         entry = PaymentEntry(name="Bob", label="", eur=0, rub=0, note="")

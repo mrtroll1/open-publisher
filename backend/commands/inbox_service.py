@@ -6,8 +6,9 @@ import json
 import logging
 import time
 
-from backend.domain.services import compose_request
-from backend.domain.services.tech_support_handler import TechSupportHandler
+from common.prompt_loader import load_template
+from backend.commands.support_handler import TechSupportHandler
+from backend.infrastructure.memory.retriever import KnowledgeRetriever
 from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.gateways.email_gateway import EmailGateway
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
@@ -20,18 +21,20 @@ logger = logging.getLogger(__name__)
 class InboxService:
     """Classifies incoming messages and manages approval workflows."""
 
-    def __init__(self, tech_support: TechSupportHandler | None = None, gemini: GeminiGateway | None = None, email_gw: EmailGateway | None = None, db: DbGateway | None = None):
+    def __init__(self, tech_support: TechSupportHandler | None = None,
+                 gemini: GeminiGateway | None = None,
+                 email_gw: EmailGateway | None = None,
+                 db: DbGateway | None = None,
+                 retriever: KnowledgeRetriever | None = None):
         self._tech_support = tech_support or TechSupportHandler()
         self._gemini = gemini or GeminiGateway()
         self._email_gw = email_gw or EmailGateway()
         self._db = db or DbGateway()
+        self._retriever = retriever or KnowledgeRetriever()
         self._pending_support: dict[str, SupportDraft] = {}
         self._pending_editorial: dict[str, EditorialItem] = {}
 
-    # --- Processing ---
-
     def process(self, email: IncomingEmail) -> PendingItem | None:
-        """Classify an email and route to the right handler."""
         category = self._classify(email)
         if category == "tech_support":
             return self._handle_support(email)
@@ -47,12 +50,16 @@ class InboxService:
         return "ignore"
 
     def _llm_classify(self, email: IncomingEmail) -> str:
-        prompt, model, _ = compose_request.inbox_classify(email.as_text())
+        core = self._retriever.get_core()
+        prompt = load_template("email/inbox-classify.md", {
+            "CORE_KNOWLEDGE": core,
+            "EMAIL": email.as_text(),
+        })
         t0 = time.time()
-        result = self._gemini.call(prompt, model)
+        result = self._gemini.call(prompt, "gemini-2.5-flash")
         latency_ms = int((time.time() - t0) * 1000)
         try:
-            self._db.log_classification("INBOX_CLASSIFY", model, prompt, json.dumps(result), latency_ms)
+            self._db.log_classification("INBOX_CLASSIFY", "gemini-2.5-flash", prompt, json.dumps(result), latency_ms)
         except Exception:
             logger.warning("Failed to log classification for task=INBOX_CLASSIFY", exc_info=True)
         category = result.get("category", "ignore")
@@ -74,12 +81,16 @@ class InboxService:
     def _handle_editorial(self, email: IncomingEmail) -> PendingItem | None:
         if not CHIEF_EDITOR_EMAIL:
             return None
-        prompt, model, _ = compose_request.editorial_assess(email.as_text())
+        core = self._retriever.get_core()
+        prompt = load_template("email/editorial-assess.md", {
+            "CORE_KNOWLEDGE": core,
+            "EMAIL": email.as_text(),
+        })
         t0 = time.time()
-        result = self._gemini.call(prompt, model)
+        result = self._gemini.call(prompt, "gemini-3-flash-preview")
         latency_ms = int((time.time() - t0) * 1000)
         try:
-            self._db.log_classification("EDITORIAL_ASSESS", model, prompt, json.dumps(result), latency_ms)
+            self._db.log_classification("EDITORIAL_ASSESS", "gemini-3-flash-preview", prompt, json.dumps(result), latency_ms)
         except Exception:
             logger.warning("Failed to log classification for task=EDITORIAL_ASSESS", exc_info=True)
         if not result.get("forward", False):
@@ -152,7 +163,7 @@ class InboxService:
     def get_pending_editorial(self, uid: str) -> EditorialItem | None:
         return self._pending_editorial.get(uid)
 
-    # --- Email access (used by listener) ---
+    # --- Email access ---
 
     def fetch_unread(self) -> list[IncomingEmail]:
         return self._email_gw.fetch_unread()

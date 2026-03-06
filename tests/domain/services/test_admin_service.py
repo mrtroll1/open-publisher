@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, call
 
-from backend.domain.services.admin_service import (
+from backend.infrastructure.memory.admin import (
     _GREETING_PREFIXES,
     classify_draft_reply,
     store_admin_feedback,

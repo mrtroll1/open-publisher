@@ -100,8 +100,7 @@ def write_pnl_section(sheet_id: str, start_row: int, eur_rub_rate: float, pnl_ro
         _sheets.write(sheet_id, f"A{start_row}:E{end_row}", pnl_rows)
 
 
-# Backward-compat shims — moved to backend.domain.services.budget_service
-from backend.domain.services.budget_service import redirect_in_budget, unredirect_in_budget  # noqa: F401
+from backend.commands.budget.redirect import redirect_in_budget, unredirect_in_budget  # noqa: F401
 
 
 def sheet_url(sheet_id: str) -> str:

@@ -1,7 +1,7 @@
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
-from backend.domain.use_cases.ingest_articles import IngestArticles
+from backend.commands.ingest import IngestArticles
 
 
 def _mock_retriever():

@@ -1,3 +1,4 @@
+# TODO: rewrite test for new brain/ architecture
 """Tests for backend/domain/services/conversation_service.py."""
 
 from unittest.mock import MagicMock, patch

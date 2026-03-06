@@ -1,8 +1,4 @@
-"""Invoice delivery and flow business logic.
-
-Sync functions extracted from telegram_bot/handlers/contractor_handlers.py.
-Handlers call these via asyncio.to_thread().
-"""
+"""Invoice delivery and flow business logic."""
 
 from __future__ import annotations
 
@@ -10,8 +6,8 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 from backend import fetch_articles, read_budget_amounts
-from backend.domain.use_cases.resolve_amount import plural_ru, resolve_amount
-from backend.domain.use_cases.prepare_invoice import PreparedInvoice, prepare_existing_invoice
+from backend.commands.invoice.resolve_amount import plural_ru, resolve_amount
+from backend.commands.invoice.prepare import PreparedInvoice, prepare_existing_invoice
 from common.config import DRIVE_FOLDER_GLOBAL, DRIVE_FOLDER_RU
 from common.models import Contractor, Currency, GlobalContractor, InvoiceStatus
 
@@ -40,10 +36,6 @@ class NewInvoiceData:
 
 
 def resolve_existing_invoice(contractor: Contractor, month: str) -> ExistingInvoiceResult | None:
-    """Check for a pre-generated invoice and determine what to do with it.
-
-    Returns None if no invoice exists.
-    """
     prepared = prepare_existing_invoice(contractor, month)
     if not prepared:
         return None
@@ -67,10 +59,6 @@ def resolve_existing_invoice(contractor: Contractor, month: str) -> ExistingInvo
 
 
 def prepare_new_invoice_data(contractor: Contractor, month: str) -> NewInvoiceData | None:
-    """Fetch budget + articles and compute amount for a new invoice.
-
-    Returns None if the contractor has no budget entry and no articles.
-    """
     budget_amounts = read_budget_amounts(month)
     articles = fetch_articles(contractor, month)
     num_articles = len(articles)
@@ -96,15 +84,9 @@ def prepare_new_invoice_data(contractor: Contractor, month: str) -> NewInvoiceDa
 
 
 def get_invoice_folder_path(contractor: Contractor, month: str) -> tuple[str, str, str]:
-    """Return (parent_folder_id, month_subfolder_name, contractor_subfolder_name).
-
-    Folder structure:
-      RU:     Invoices-RU/{MM-YYYY}/{ИмяФамилия}/
-      Global: Invoices-Global/{YYYY-MM}/{NameSurname}/
-    """
     if isinstance(contractor, GlobalContractor):
         parent = DRIVE_FOLDER_GLOBAL
-        month_folder = month  # "2026-01"
+        month_folder = month
         name_folder = contractor.name_en.replace(" ", "")
     else:
         parent = DRIVE_FOLDER_RU

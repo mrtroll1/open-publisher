@@ -7,7 +7,7 @@ from backend.brain.base_genai import BaseGenAI
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.memory.retriever import KnowledgeRetriever
 from backend.infrastructure.repositories.postgres import DbGateway
-from backend.domain.services.support_user_lookup import SupportUserLookup
+from backend.infrastructure.memory.user_lookup import SupportUserLookup
 
 logger = logging.getLogger(__name__)
 

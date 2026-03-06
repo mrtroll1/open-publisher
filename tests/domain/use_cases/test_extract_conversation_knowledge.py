@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
-from backend.domain.use_cases.extract_conversation_knowledge import ExtractConversationKnowledge
+from backend.commands.knowledge_extract import ExtractConversationKnowledge
 
 
 def _mock_retriever():

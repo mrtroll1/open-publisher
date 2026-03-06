@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from backend.domain.use_cases.check_health import (
+from backend.commands.health import (
     HealthResult,
     _kubectl_checks,
     format_healthcheck_results,
@@ -19,9 +19,9 @@ from backend.domain.use_cases.check_health import (
 
 class TestRunHealthchecks:
 
-    @patch("backend.domain.use_cases.check_health.KUBECTL_ENABLED", False)
-    @patch("backend.domain.use_cases.check_health.HEALTHCHECK_DOMAINS", ["example.com"])
-    @patch("backend.domain.use_cases.check_health.requests.get")
+    @patch("backend.commands.health.KUBECTL_ENABLED", False)
+    @patch("backend.commands.health.HEALTHCHECK_DOMAINS", ["example.com"])
+    @patch("backend.commands.health.requests.get")
     def test_http_domain_up(self, mock_get):
         mock_get.return_value = MagicMock(status_code=200)
         results = run_healthchecks()
@@ -30,9 +30,9 @@ class TestRunHealthchecks:
         assert results[0].name == "example.com"
         assert "200" in results[0].details
 
-    @patch("backend.domain.use_cases.check_health.KUBECTL_ENABLED", False)
-    @patch("backend.domain.use_cases.check_health.HEALTHCHECK_DOMAINS", ["example.com"])
-    @patch("backend.domain.use_cases.check_health.requests.get")
+    @patch("backend.commands.health.KUBECTL_ENABLED", False)
+    @patch("backend.commands.health.HEALTHCHECK_DOMAINS", ["example.com"])
+    @patch("backend.commands.health.requests.get")
     def test_http_domain_down(self, mock_get):
         mock_get.return_value = MagicMock(status_code=500)
         results = run_healthchecks()
@@ -40,9 +40,9 @@ class TestRunHealthchecks:
         assert results[0].status == "error"
         assert "500" in results[0].details
 
-    @patch("backend.domain.use_cases.check_health.KUBECTL_ENABLED", False)
-    @patch("backend.domain.use_cases.check_health.HEALTHCHECK_DOMAINS", ["example.com"])
-    @patch("backend.domain.use_cases.check_health.requests.get")
+    @patch("backend.commands.health.KUBECTL_ENABLED", False)
+    @patch("backend.commands.health.HEALTHCHECK_DOMAINS", ["example.com"])
+    @patch("backend.commands.health.requests.get")
     def test_http_domain_exception(self, mock_get):
         mock_get.side_effect = ConnectionError("refused")
         results = run_healthchecks()
@@ -50,9 +50,9 @@ class TestRunHealthchecks:
         assert results[0].status == "error"
         assert "refused" in results[0].details
 
-    @patch("backend.domain.use_cases.check_health.KUBECTL_ENABLED", False)
-    @patch("backend.domain.use_cases.check_health.HEALTHCHECK_DOMAINS", ["a.com", "b.com"])
-    @patch("backend.domain.use_cases.check_health.requests.get")
+    @patch("backend.commands.health.KUBECTL_ENABLED", False)
+    @patch("backend.commands.health.HEALTHCHECK_DOMAINS", ["a.com", "b.com"])
+    @patch("backend.commands.health.requests.get")
     def test_multiple_domains(self, mock_get):
         mock_get.return_value = MagicMock(status_code=200)
         results = run_healthchecks()
@@ -60,9 +60,9 @@ class TestRunHealthchecks:
         assert results[0].name == "a.com"
         assert results[1].name == "b.com"
 
-    @patch("backend.domain.use_cases.check_health.KUBECTL_ENABLED", True)
-    @patch("backend.domain.use_cases.check_health.HEALTHCHECK_DOMAINS", [])
-    @patch("backend.domain.use_cases.check_health.subprocess.run")
+    @patch("backend.commands.health.KUBECTL_ENABLED", True)
+    @patch("backend.commands.health.HEALTHCHECK_DOMAINS", [])
+    @patch("backend.commands.health.subprocess.run")
     def test_kubectl_pods_running(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=0,
@@ -74,9 +74,9 @@ class TestRunHealthchecks:
         assert results[0].status == "ok"
         assert results[0].name == "web-1"
 
-    @patch("backend.domain.use_cases.check_health.KUBECTL_ENABLED", True)
-    @patch("backend.domain.use_cases.check_health.HEALTHCHECK_DOMAINS", [])
-    @patch("backend.domain.use_cases.check_health.subprocess.run")
+    @patch("backend.commands.health.KUBECTL_ENABLED", True)
+    @patch("backend.commands.health.HEALTHCHECK_DOMAINS", [])
+    @patch("backend.commands.health.subprocess.run")
     def test_kubectl_pods_error(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=1,
@@ -88,8 +88,8 @@ class TestRunHealthchecks:
         assert results[0].status == "error"
         assert results[0].name == "kubectl"
 
-    @patch("backend.domain.use_cases.check_health.KUBECTL_ENABLED", False)
-    @patch("backend.domain.use_cases.check_health.HEALTHCHECK_DOMAINS", [])
+    @patch("backend.commands.health.KUBECTL_ENABLED", False)
+    @patch("backend.commands.health.HEALTHCHECK_DOMAINS", [])
     def test_kubectl_disabled(self):
         results = run_healthchecks()
         assert results == []
@@ -101,7 +101,7 @@ class TestRunHealthchecks:
 
 class TestKubectlChecks:
 
-    @patch("backend.domain.use_cases.check_health.subprocess.run")
+    @patch("backend.commands.health.subprocess.run")
     def test_running_ready_pod(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=0,
@@ -114,7 +114,7 @@ class TestKubectlChecks:
         assert results[0].status == "ok"
         assert "Running" in results[0].details
 
-    @patch("backend.domain.use_cases.check_health.subprocess.run")
+    @patch("backend.commands.health.subprocess.run")
     def test_not_ready_pod(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=0,
@@ -126,7 +126,7 @@ class TestKubectlChecks:
         assert results[0].status == "error"
         assert "CrashLoopBackOff" in results[0].details
 
-    @patch("backend.domain.use_cases.check_health.subprocess.run")
+    @patch("backend.commands.health.subprocess.run")
     def test_mixed_pods(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=0,
@@ -138,7 +138,7 @@ class TestKubectlChecks:
         assert results[0].status == "ok"
         assert results[1].status == "error"
 
-    @patch("backend.domain.use_cases.check_health.subprocess.run")
+    @patch("backend.commands.health.subprocess.run")
     def test_subprocess_failure(self, mock_run):
         mock_run.return_value = MagicMock(
             returncode=1,
@@ -150,7 +150,7 @@ class TestKubectlChecks:
         assert results[0].status == "error"
         assert results[0].name == "kubectl"
 
-    @patch("backend.domain.use_cases.check_health.subprocess.run")
+    @patch("backend.commands.health.subprocess.run")
     def test_subprocess_timeout(self, mock_run):
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="kubectl", timeout=10)
         results = _kubectl_checks()

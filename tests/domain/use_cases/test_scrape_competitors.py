@@ -1,7 +1,7 @@
 from datetime import timedelta
 from unittest.mock import MagicMock, call
 
-from backend.domain.use_cases.scrape_competitors import ScrapeCompetitors
+from backend.commands.scrape import ScrapeCompetitors
 
 
 def _mock_retriever():

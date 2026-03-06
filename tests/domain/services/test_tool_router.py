@@ -1,3 +1,4 @@
+# TODO: rewrite test for new brain/ architecture
 """Tests for ToolRouter — decides which tools to invoke."""
 
 from unittest.mock import MagicMock, patch

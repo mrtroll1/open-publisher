@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from backend.domain.use_cases.sync_contractor_entities import _build_summary, execute
+from backend.commands.contractor.sync_entities import _build_summary, execute
 from common.models import ContractorType, RoleCode
 
 

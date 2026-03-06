@@ -109,7 +109,7 @@ class GenerateInvoice:
         invoice_date: date,
     ) -> tuple[bytes, str]:
         """Generate the actual PDF via Google Docs templates."""
-        from backend.domain.services.invoice_service import get_invoice_folder_path
+        from backend.commands.invoice.service import get_invoice_folder_path
         parent, month_folder, name_folder = get_invoice_folder_path(contractor, invoice.month)
         folder_id = self._drive.get_contractor_folder(parent, month_folder, name_folder)
 

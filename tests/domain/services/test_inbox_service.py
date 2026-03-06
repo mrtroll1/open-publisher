@@ -32,12 +32,12 @@ def _make_editorial_item(email: IncomingEmail | None = None, decision_id: str = 
     )
 
 
-@patch("backend.domain.services.inbox_service.DbGateway")
-@patch("backend.domain.services.inbox_service.EmailGateway")
-@patch("backend.domain.services.inbox_service.GeminiGateway")
-@patch("backend.domain.services.inbox_service.TechSupportHandler")
+@patch("backend.commands.inbox_service.DbGateway")
+@patch("backend.commands.inbox_service.EmailGateway")
+@patch("backend.commands.inbox_service.GeminiGateway")
+@patch("backend.commands.inbox_service.TechSupportHandler")
 def _make_service(MockTSH, MockGemini, MockEmail, MockDb):
-    from backend.domain.services.inbox_service import InboxService
+    from backend.commands.inbox_service import InboxService
     svc = InboxService()
     return svc, svc._db, svc._email_gw, svc._tech_support, svc._gemini
 
@@ -138,7 +138,7 @@ class TestSkipSupportDecision:
 
 class TestApproveEditorialDecision:
 
-    @patch("backend.domain.services.inbox_service.CHIEF_EDITOR_EMAIL", "editor@test.com")
+    @patch("backend.commands.inbox_service.CHIEF_EDITOR_EMAIL", "editor@test.com")
     def test_approve_updates_decision_approved(self):
         svc, mock_db, mock_email, _, _ = _make_service()
         item = _make_editorial_item(decision_id="dec-edit-1")
@@ -149,7 +149,7 @@ class TestApproveEditorialDecision:
         assert result is item
         mock_db.update_email_decision.assert_called_once_with("dec-edit-1", "APPROVED", decided_by="admin")
 
-    @patch("backend.domain.services.inbox_service.CHIEF_EDITOR_EMAIL", "editor@test.com")
+    @patch("backend.commands.inbox_service.CHIEF_EDITOR_EMAIL", "editor@test.com")
     def test_approve_without_decision_id_skips_db(self):
         svc, mock_db, mock_email, _, _ = _make_service()
         item = _make_editorial_item(decision_id="")
@@ -206,7 +206,7 @@ class TestSkipEditorialDecision:
 
 class TestInboxServiceProcess:
 
-    @patch("backend.domain.services.inbox_service.SUPPORT_ADDRESSES", ["support@republic.ru"])
+    @patch("backend.commands.inbox_service.SUPPORT_ADDRESSES", ["support@republic.ru"])
     def test_process_routes_to_support_when_classify_returns_tech_support(self):
         svc, mock_db, _, mock_tsh, _ = _make_service()
         email = _make_email(to_addr="support@republic.ru")
@@ -223,9 +223,9 @@ class TestInboxServiceProcess:
         assert result.draft.draft_reply == "Reply"
         mock_tsh.draft_reply.assert_called_once_with(email)
 
-    @patch("backend.domain.services.inbox_service.CHIEF_EDITOR_EMAIL", "editor@test.com")
-    @patch("backend.domain.services.inbox_service.EMAIL_ADDRESS", "inbox@republic.ru")
-    @patch("backend.domain.services.inbox_service.SUPPORT_ADDRESSES", [])
+    @patch("backend.commands.inbox_service.CHIEF_EDITOR_EMAIL", "editor@test.com")
+    @patch("backend.commands.inbox_service.EMAIL_ADDRESS", "inbox@republic.ru")
+    @patch("backend.commands.inbox_service.SUPPORT_ADDRESSES", [])
     def test_process_routes_to_editorial_when_classify_returns_editorial(self):
         svc, mock_db, _, _, mock_gemini = _make_service()
         email = _make_email(to_addr="inbox@republic.ru")
@@ -243,8 +243,8 @@ class TestInboxServiceProcess:
         assert result.editorial is not None
         assert result.editorial.reply_to_sender == "Thanks"
 
-    @patch("backend.domain.services.inbox_service.EMAIL_ADDRESS", "inbox@republic.ru")
-    @patch("backend.domain.services.inbox_service.SUPPORT_ADDRESSES", [])
+    @patch("backend.commands.inbox_service.EMAIL_ADDRESS", "inbox@republic.ru")
+    @patch("backend.commands.inbox_service.SUPPORT_ADDRESSES", [])
     def test_process_returns_none_when_classify_returns_ignore(self):
         svc, _, _, _, mock_gemini = _make_service()
         email = _make_email(to_addr="inbox@republic.ru")
@@ -261,7 +261,7 @@ class TestInboxServiceProcess:
 
 class TestInboxServiceClassify:
 
-    @patch("backend.domain.services.inbox_service.SUPPORT_ADDRESSES", ["support@republic.ru"])
+    @patch("backend.commands.inbox_service.SUPPORT_ADDRESSES", ["support@republic.ru"])
     def test_classify_support_addr_skips_llm(self):
         svc, _, _, _, mock_gemini = _make_service()
         email = _make_email(to_addr="support@republic.ru")
@@ -271,8 +271,8 @@ class TestInboxServiceClassify:
         assert result == "tech_support"
         mock_gemini.call.assert_not_called()
 
-    @patch("backend.domain.services.inbox_service.EMAIL_ADDRESS", "inbox@republic.ru")
-    @patch("backend.domain.services.inbox_service.SUPPORT_ADDRESSES", [])
+    @patch("backend.commands.inbox_service.EMAIL_ADDRESS", "inbox@republic.ru")
+    @patch("backend.commands.inbox_service.SUPPORT_ADDRESSES", [])
     def test_classify_falls_back_to_llm_when_no_direct_match(self):
         svc, _, _, _, mock_gemini = _make_service()
         email = _make_email(to_addr="inbox@republic.ru")
@@ -283,8 +283,8 @@ class TestInboxServiceClassify:
         assert result == "editorial"
         mock_gemini.call.assert_called_once()
 
-    @patch("backend.domain.services.inbox_service.EMAIL_ADDRESS", "inbox@republic.ru")
-    @patch("backend.domain.services.inbox_service.SUPPORT_ADDRESSES", [])
+    @patch("backend.commands.inbox_service.EMAIL_ADDRESS", "inbox@republic.ru")
+    @patch("backend.commands.inbox_service.SUPPORT_ADDRESSES", [])
     def test_classify_unknown_addr_returns_ignore(self):
         svc, _, _, _, mock_gemini = _make_service()
         email = _make_email(to_addr="random@somewhere.com")
@@ -301,7 +301,7 @@ class TestInboxServiceClassify:
 
 class TestHandleSupport:
 
-    @patch("backend.domain.services.inbox_service.SUPPORT_ADDRESSES", ["support@republic.ru"])
+    @patch("backend.commands.inbox_service.SUPPORT_ADDRESSES", ["support@republic.ru"])
     def test_creates_support_draft_with_decision_id(self):
         svc, mock_db, _, mock_tsh, _ = _make_service()
         email = _make_email(uid="uid-s1")
@@ -338,7 +338,7 @@ class TestHandleSupport:
 
 class TestHandleEditorial:
 
-    @patch("backend.domain.services.inbox_service.CHIEF_EDITOR_EMAIL", "editor@test.com")
+    @patch("backend.commands.inbox_service.CHIEF_EDITOR_EMAIL", "editor@test.com")
     def test_creates_editorial_item_when_forward_true(self):
         svc, mock_db, _, _, mock_gemini = _make_service()
         email = _make_email(uid="uid-e1")
@@ -353,7 +353,7 @@ class TestHandleEditorial:
         assert result.editorial.reply_to_sender == "We'll review it"
         assert result.editorial.decision_id == "dec-edit-new"
 
-    @patch("backend.domain.services.inbox_service.CHIEF_EDITOR_EMAIL", "editor@test.com")
+    @patch("backend.commands.inbox_service.CHIEF_EDITOR_EMAIL", "editor@test.com")
     def test_returns_none_when_forward_false(self):
         svc, mock_db, _, _, mock_gemini = _make_service()
         email = _make_email(uid="uid-e2")
@@ -364,7 +364,7 @@ class TestHandleEditorial:
         assert result is None
         mock_db.create_email_decision.assert_not_called()
 
-    @patch("backend.domain.services.inbox_service.CHIEF_EDITOR_EMAIL", "")
+    @patch("backend.commands.inbox_service.CHIEF_EDITOR_EMAIL", "")
     def test_returns_none_when_no_chief_editor_email(self):
         svc, mock_db, _, _, mock_gemini = _make_service()
         email = _make_email(uid="uid-e3")

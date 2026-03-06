@@ -1,3 +1,4 @@
+# TODO: rewrite test for new brain/ architecture
 """Tests for QueryTool — NL to SQL via Gemini."""
 
 import pytest

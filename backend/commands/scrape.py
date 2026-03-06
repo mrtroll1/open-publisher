@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import Callable
 
 from common.config import EXPIRY_COMPETITOR_SUMMARY_DAYS
-from backend.domain.services.memory_service import MemoryService
+from backend.infrastructure.memory.memory_service import MemoryService
 
 
 class ScrapeCompetitors:

@@ -40,6 +40,15 @@ from backend.infrastructure.gateways.republic_gateway import RepublicGateway as 
 _drive = _DriveGateway()
 _gemini = _GeminiGateway()
 _content = _RepublicGateway()
+_retriever = None
+
+
+def _get_retriever():
+    global _retriever
+    if _retriever is None:
+        from backend.infrastructure.memory.retriever import KnowledgeRetriever
+        _retriever = KnowledgeRetriever()
+    return _retriever
 
 
 def fetch_articles(contractor, month):
@@ -54,23 +63,31 @@ def fetch_articles_by_name(author: str, month: str) -> list[int]:
 
 def parse_contractor_data(text: str, fields_csv: str, context: str = "") -> dict:
     """Parse contractor data from free-form text using LLM."""
-    from backend.domain.services import compose_request
-    prompt, model, _ = compose_request.contractor_parse(text, fields_csv, context)
-    return _gemini.call(prompt, model)
+    from common.prompt_loader import load_template
+    r = _get_retriever()
+    knowledge = r.get_domain_context("contractor") + "\n\n" + r.retrieve_full_domain("contractor")
+    prompt = load_template("contractor/contractor-parse.md", {
+        "FIELDS": fields_csv,
+        "CONTEXT": context,
+        "INPUT": text,
+    })
+    if knowledge:
+        prompt = knowledge + "\n\n" + prompt
+    return _gemini.call(prompt, "gemini-2.5-flash")
 
 
 def translate_name_to_russian(name_en: str) -> str:
     """Translate a name to Russian."""
     import json
     import time
-    from backend.domain.services import compose_request
-    prompt, model, _ = compose_request.translate_name(name_en)
+    from common.prompt_loader import load_template
+    prompt = load_template("contractor/translate-name.md", {"NAME": name_en})
     t0 = time.time()
-    result = _gemini.call(prompt, model)
+    result = _gemini.call(prompt, "gemini-2.5-flash")
     latency_ms = int((time.time() - t0) * 1000)
     try:
         from backend.infrastructure.repositories.postgres import DbGateway
-        DbGateway().log_classification("TRANSLATE_NAME", model, prompt, json.dumps(result), latency_ms)
+        DbGateway().log_classification("TRANSLATE_NAME", "gemini-2.5-flash", prompt, json.dumps(result), latency_ms)
     except Exception:
         pass
     return result.get("translated_name", "")
@@ -88,44 +105,39 @@ def read_budget_amounts(month: str) -> dict:
 
 
 def redirect_in_budget(source_name: str, target, month: str) -> None:
-    """Move source author's budget row into target contractor's row."""
-    from backend.domain.services.budget_service import redirect_in_budget as _impl
+    from backend.commands.budget.redirect import redirect_in_budget as _impl
     _impl(source_name, target, month)
 
 
 def unredirect_in_budget(source_name: str, target, month: str) -> None:
-    """Undo a redirect: restore source as standalone row."""
-    from backend.domain.services.budget_service import unredirect_in_budget as _impl
+    from backend.commands.budget.redirect import unredirect_in_budget as _impl
     _impl(source_name, target, month)
 
 
 def create_and_save_invoice(contractor, month, amount, articles, invoice_date=None, debug=False):
-    """Full invoice flow: increment number, generate PDF, upload, save.
-
-    Returns InvoiceResult(pdf_bytes, invoice).
-    """
-    from backend.domain.use_cases.generate_invoice import GenerateInvoice
+    from backend.commands.invoice.generate import GenerateInvoice
     return GenerateInvoice().create_and_save(
         contractor, month, amount, articles, invoice_date, debug,
     )
 
 
 def export_pdf(doc_id: str) -> bytes:
-    """Re-export a PDF from a Google Docs document ID."""
     from backend.infrastructure.gateways.docs_gateway import DocsGateway
     return DocsGateway().export_pdf(doc_id)
 
 
 # --- Contractor service ---
-from backend.domain.services.contractor_service import (  # noqa: F401
+from backend.commands.contractor.create import (  # noqa: F401
     check_registration_complete,
     create_contractor,
+)
+from backend.commands.contractor.registration import (  # noqa: F401
     parse_registration_data,
     translate_contractor_name,
 )
 
 # --- Invoice service ---
-from backend.domain.services.invoice_service import (  # noqa: F401
+from backend.commands.invoice.service import (  # noqa: F401
     DeliveryAction,
     ExistingInvoiceResult,
     NewInvoiceData,
@@ -135,17 +147,16 @@ from backend.domain.services.invoice_service import (  # noqa: F401
 )
 
 # --- Domain helpers ---
-from backend.domain.use_cases.validate_contractor import validate_fields as validate_contractor_fields  # noqa: F401
-from backend.domain.use_cases.resolve_amount import resolve_amount, plural_ru  # noqa: F401
-from backend.domain.use_cases.prepare_invoice import prepare_existing_invoice  # noqa: F401
+from backend.commands.contractor.validate import validate_fields as validate_contractor_fields  # noqa: F401
+from backend.commands.invoice.resolve_amount import resolve_amount, plural_ru  # noqa: F401
+from backend.commands.invoice.prepare import prepare_existing_invoice  # noqa: F401
 
 # --- Use cases ---
-from backend.domain.use_cases.generate_invoice import GenerateInvoice, InvoiceResult  # noqa: F401
-from backend.domain.use_cases.generate_batch_invoices import GenerateBatchInvoices, BatchResult  # noqa: F401
-from backend.domain.use_cases.parse_bank_statement import ParseBankStatement  # noqa: F401
-from backend.domain.use_cases.compute_budget import ComputeBudget  # noqa: F401
-from backend.domain.services.inbox_service import InboxService  # noqa: F401
-from backend.domain.services.tech_support_handler import TechSupportHandler  # noqa: F401
-from backend.domain.use_cases.run_claude_code import run_claude_code  # noqa: F401
-from backend.domain.use_cases.check_health import run_healthchecks, format_healthcheck_results  # noqa: F401
-from backend.domain.services.command_classifier import CommandClassifier  # noqa: F401
+from backend.commands.invoice.generate import GenerateInvoice, InvoiceResult  # noqa: F401
+from backend.commands.invoice.batch import GenerateBatchInvoices, BatchResult  # noqa: F401
+from backend.commands.bank.parse_statement import ParseBankStatement  # noqa: F401
+from backend.commands.budget.compute import ComputeBudget  # noqa: F401
+from backend.commands.inbox_service import InboxService  # noqa: F401
+from backend.commands.support_handler import TechSupportHandler  # noqa: F401
+from backend.commands.code import run_claude_code  # noqa: F401
+from backend.commands.health import run_healthchecks, format_healthcheck_results  # noqa: F401

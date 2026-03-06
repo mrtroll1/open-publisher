@@ -63,7 +63,7 @@ def _make_nl_message(
 @patch("backend.infrastructure.memory.retriever.EmbeddingGateway")
 @patch("backend.infrastructure.memory.retriever.DbGateway")
 def _make_retriever(MockDb, MockEmbed):
-    from backend.domain.services.knowledge_retriever import KnowledgeRetriever
+    from backend.infrastructure.memory.retriever import KnowledgeRetriever
     kr = KnowledgeRetriever()
     return kr, kr._db, kr._embed
 

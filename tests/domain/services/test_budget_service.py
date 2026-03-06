@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock, call, patch
 
 from common.models import Currency
-from backend.domain.services.budget_service import (
+from backend.commands.budget.redirect import (
     EUR_RUB_RATE,
     _add_amount_to_row,
     _convert_amount,
@@ -288,14 +288,14 @@ class TestRedirectInBudget:
         t.currency = currency
         return t
 
-    @patch("backend.domain.services.budget_service._find_sheet", return_value=None)
+    @patch("backend.commands.budget.redirect._find_sheet", return_value=None)
     def test_no_sheet_returns_early(self, mock_find):
         target = self._make_target()
         redirect_in_budget("Source", target, "2026-01")
         mock_find.assert_called_once_with("2026-01")
 
-    @patch("backend.domain.services.budget_service._sheets")
-    @patch("backend.domain.services.budget_service._find_sheet", return_value="sheet123")
+    @patch("backend.commands.budget.redirect._sheets")
+    @patch("backend.commands.budget.redirect._find_sheet", return_value="sheet123")
     def test_source_not_found_skips(self, mock_find, mock_sheets):
         mock_sheets.read.return_value = [["Target", "", "0", "0", ""]]
         target = self._make_target()
@@ -303,16 +303,16 @@ class TestRedirectInBudget:
         mock_sheets.write.assert_not_called()
         mock_sheets.clear.assert_not_called()
 
-    @patch("backend.domain.services.budget_service._sheets")
-    @patch("backend.domain.services.budget_service._find_sheet", return_value="sheet123")
+    @patch("backend.commands.budget.redirect._sheets")
+    @patch("backend.commands.budget.redirect._find_sheet", return_value="sheet123")
     def test_target_not_found_skips(self, mock_find, mock_sheets):
         mock_sheets.read.return_value = [["Source", "", "500", "0", ""]]
         target = self._make_target(name="Missing")
         redirect_in_budget("Source", target, "2026-01")
         mock_sheets.write.assert_not_called()
 
-    @patch("backend.domain.services.budget_service._sheets")
-    @patch("backend.domain.services.budget_service._find_sheet", return_value="sheet123")
+    @patch("backend.commands.budget.redirect._sheets")
+    @patch("backend.commands.budget.redirect._find_sheet", return_value="sheet123")
     def test_zero_amounts_skips(self, mock_find, mock_sheets):
         mock_sheets.read.return_value = [
             ["Source", "", "0", "0", ""],
@@ -322,8 +322,8 @@ class TestRedirectInBudget:
         redirect_in_budget("Source", target, "2026-01")
         mock_sheets.write.assert_not_called()
 
-    @patch("backend.domain.services.budget_service._sheets")
-    @patch("backend.domain.services.budget_service._find_sheet", return_value="sheet123")
+    @patch("backend.commands.budget.redirect._sheets")
+    @patch("backend.commands.budget.redirect._find_sheet", return_value="sheet123")
     def test_happy_path_eur(self, mock_find, mock_sheets):
         mock_sheets.read.return_value = [
             ["Source", "", "500", "0", ""],
@@ -340,8 +340,8 @@ class TestRedirectInBudget:
         # Source row cleared
         mock_sheets.clear.assert_called_once_with("sheet123", "A2:E2")
 
-    @patch("backend.domain.services.budget_service._sheets")
-    @patch("backend.domain.services.budget_service._find_sheet", return_value="sheet123")
+    @patch("backend.commands.budget.redirect._sheets")
+    @patch("backend.commands.budget.redirect._find_sheet", return_value="sheet123")
     def test_happy_path_rub(self, mock_find, mock_sheets):
         mock_sheets.read.return_value = [
             ["Source", "", "0", "30000", ""],
@@ -356,8 +356,8 @@ class TestRedirectInBudget:
         )
         mock_sheets.clear.assert_called_once_with("sheet123", "A2:E2")
 
-    @patch("backend.domain.services.budget_service._sheets")
-    @patch("backend.domain.services.budget_service._find_sheet", return_value="sheet123")
+    @patch("backend.commands.budget.redirect._sheets")
+    @patch("backend.commands.budget.redirect._find_sheet", return_value="sheet123")
     def test_note_appended_to_existing(self, mock_find, mock_sheets):
         mock_sheets.read.return_value = [
             ["Source", "", "100", "0", ""],
@@ -369,8 +369,8 @@ class TestRedirectInBudget:
         written_row = mock_sheets.write.call_args[0][2][0]
         assert written_row[4] == "Old (50), Source (100)"
 
-    @patch("backend.domain.services.budget_service._sheets")
-    @patch("backend.domain.services.budget_service._find_sheet", return_value="sheet123")
+    @patch("backend.commands.budget.redirect._sheets")
+    @patch("backend.commands.budget.redirect._find_sheet", return_value="sheet123")
     def test_cross_currency_eur_source_rub_target(self, mock_find, mock_sheets):
         mock_sheets.read.return_value = [
             ["Source", "", "5", "0", ""],
@@ -383,8 +383,8 @@ class TestRedirectInBudget:
         written_row = mock_sheets.write.call_args[0][2][0]
         assert written_row[3] == str(10000 + expected_amount)
 
-    @patch("backend.domain.services.budget_service._sheets")
-    @patch("backend.domain.services.budget_service._find_sheet", return_value="sheet123")
+    @patch("backend.commands.budget.redirect._sheets")
+    @patch("backend.commands.budget.redirect._find_sheet", return_value="sheet123")
     def test_short_rows_padded(self, mock_find, mock_sheets):
         mock_sheets.read.return_value = [
             ["Source", "", "100"],
@@ -409,38 +409,38 @@ class TestUnredirectInBudget:
         t.currency = currency
         return t
 
-    @patch("backend.domain.services.budget_service._find_sheet", return_value=None)
+    @patch("backend.commands.budget.redirect._find_sheet", return_value=None)
     def test_no_sheet_returns_early(self, mock_find):
         target = self._make_target()
         unredirect_in_budget("Source", target, "2026-01")
         mock_find.assert_called_once_with("2026-01")
 
-    @patch("backend.domain.services.budget_service._sheets")
-    @patch("backend.domain.services.budget_service._find_sheet", return_value="sheet123")
+    @patch("backend.commands.budget.redirect._sheets")
+    @patch("backend.commands.budget.redirect._find_sheet", return_value="sheet123")
     def test_target_not_found_skips(self, mock_find, mock_sheets):
         mock_sheets.read.return_value = [["Other", "", "100", "0", ""]]
         target = self._make_target(name="Missing")
         unredirect_in_budget("Source", target, "2026-01")
         mock_sheets.write.assert_not_called()
 
-    @patch("backend.domain.services.budget_service._sheets")
-    @patch("backend.domain.services.budget_service._find_sheet", return_value="sheet123")
+    @patch("backend.commands.budget.redirect._sheets")
+    @patch("backend.commands.budget.redirect._find_sheet", return_value="sheet123")
     def test_empty_note_skips(self, mock_find, mock_sheets):
         mock_sheets.read.return_value = [["Target", "", "500", "0", ""]]
         target = self._make_target()
         unredirect_in_budget("Source", target, "2026-01")
         mock_sheets.write.assert_not_called()
 
-    @patch("backend.domain.services.budget_service._sheets")
-    @patch("backend.domain.services.budget_service._find_sheet", return_value="sheet123")
+    @patch("backend.commands.budget.redirect._sheets")
+    @patch("backend.commands.budget.redirect._find_sheet", return_value="sheet123")
     def test_source_not_in_note_skips(self, mock_find, mock_sheets):
         mock_sheets.read.return_value = [["Target", "", "500", "0", "Bob (200)"]]
         target = self._make_target()
         unredirect_in_budget("Alice", target, "2026-01")
         mock_sheets.write.assert_not_called()
 
-    @patch("backend.domain.services.budget_service._sheets")
-    @patch("backend.domain.services.budget_service._find_sheet", return_value="sheet123")
+    @patch("backend.commands.budget.redirect._sheets")
+    @patch("backend.commands.budget.redirect._find_sheet", return_value="sheet123")
     def test_happy_path_eur(self, mock_find, mock_sheets):
         mock_sheets.read.return_value = [
             ["Target", "", "700", "0", "Source (500)"],
@@ -454,8 +454,8 @@ class TestUnredirectInBudget:
         # Source restored in empty slot (rows length = 1, so empty_idx = 1)
         assert calls[1] == call("sheet123", "A3:E3", [["Source", "", "500", "", ""]])
 
-    @patch("backend.domain.services.budget_service._sheets")
-    @patch("backend.domain.services.budget_service._find_sheet", return_value="sheet123")
+    @patch("backend.commands.budget.redirect._sheets")
+    @patch("backend.commands.budget.redirect._find_sheet", return_value="sheet123")
     def test_happy_path_rub(self, mock_find, mock_sheets):
         mock_sheets.read.return_value = [
             ["Target", "", "0", "40000", "Source (30000)"],
@@ -473,8 +473,8 @@ class TestUnredirectInBudget:
             [["Source", "", "", "30000", ""]],
         )
 
-    @patch("backend.domain.services.budget_service._sheets")
-    @patch("backend.domain.services.budget_service._find_sheet", return_value="sheet123")
+    @patch("backend.commands.budget.redirect._sheets")
+    @patch("backend.commands.budget.redirect._find_sheet", return_value="sheet123")
     def test_remaining_note_preserved(self, mock_find, mock_sheets):
         mock_sheets.read.return_value = [
             ["Target", "", "1000", "0", "Alice (300), Source (200), Bob (500)"],
@@ -493,7 +493,7 @@ class TestUnredirectInBudget:
 
 class TestRestoreSourceRow:
 
-    @patch("backend.domain.services.budget_service._sheets")
+    @patch("backend.commands.budget.redirect._sheets")
     def test_empty_slot_found(self, mock_sheets):
         rows = [["Alice", "", "100"], [], ["Bob", "", "200"]]
         _restore_source_row("sheet123", rows, "Source", 500, Currency.EUR)
@@ -502,7 +502,7 @@ class TestRestoreSourceRow:
             [["Source", "", "500", "", ""]],
         )
 
-    @patch("backend.domain.services.budget_service._sheets")
+    @patch("backend.commands.budget.redirect._sheets")
     def test_no_empty_slot_appends(self, mock_sheets):
         rows = [["Alice", "", "100"], ["Bob", "", "200"]]
         _restore_source_row("sheet123", rows, "Source", 500, Currency.EUR)
@@ -511,7 +511,7 @@ class TestRestoreSourceRow:
             [["Source", "", "500", "", ""]],
         )
 
-    @patch("backend.domain.services.budget_service._sheets")
+    @patch("backend.commands.budget.redirect._sheets")
     def test_eur_column(self, mock_sheets):
         rows = [["Alice"]]
         _restore_source_row("sheet123", rows, "Source", 300, Currency.EUR)
@@ -519,7 +519,7 @@ class TestRestoreSourceRow:
         assert written_row[2] == "300"
         assert written_row[3] == ""
 
-    @patch("backend.domain.services.budget_service._sheets")
+    @patch("backend.commands.budget.redirect._sheets")
     def test_rub_column(self, mock_sheets):
         rows = [["Alice"]]
         _restore_source_row("sheet123", rows, "Source", 5000, Currency.RUB)
@@ -527,7 +527,7 @@ class TestRestoreSourceRow:
         assert written_row[2] == ""
         assert written_row[3] == "5000"
 
-    @patch("backend.domain.services.budget_service._sheets")
+    @patch("backend.commands.budget.redirect._sheets")
     def test_blank_name_row_is_empty_slot(self, mock_sheets):
         rows = [["Alice", "", "100"], ["  ", "", ""], ["Bob"]]
         _restore_source_row("sheet123", rows, "Source", 100, Currency.EUR)

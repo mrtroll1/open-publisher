@@ -11,7 +11,7 @@ from unittest.mock import patch
 class TestFormatEntries:
 
     def _fmt(self, entries):
-        from backend.domain.services.knowledge_retriever import _format_entries
+        from backend.infrastructure.memory.retriever import _format_entries
         return _format_entries(entries)
 
     def test_with_title(self):
@@ -51,7 +51,7 @@ class TestFormatEntries:
 @patch("backend.infrastructure.memory.retriever.EmbeddingGateway")
 @patch("backend.infrastructure.memory.retriever.DbGateway")
 def _make_retriever(MockDb, MockEmbed):
-    from backend.domain.services.knowledge_retriever import KnowledgeRetriever
+    from backend.infrastructure.memory.retriever import KnowledgeRetriever
     kr = KnowledgeRetriever()
     return kr, kr._db, kr._embed
 

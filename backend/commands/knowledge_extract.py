@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import Callable
 
 from common.config import EXPIRY_CONVERSATION_FACTS_DAYS
-from backend.domain.services.memory_service import MemoryService
+from backend.infrastructure.memory.memory_service import MemoryService
 from backend.infrastructure.repositories.postgres import DbGateway
 
 logger = logging.getLogger(__name__)

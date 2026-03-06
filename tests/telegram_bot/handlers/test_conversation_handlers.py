@@ -101,7 +101,7 @@ class TestCmdNl:
         mock_resolve_env, mock_resolve_entity,
     ):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
-        from backend.domain.services.command_classifier import ClassificationResult
+        from backend.domain.services.command_classifier import ClassificationResult  # TODO: rewrite test for new brain/ architecture
 
         mock_tm = _mock_thinking_message_class()
         MockThinking.side_effect = mock_tm
@@ -134,7 +134,7 @@ class TestCmdNl:
         mock_resolve_env, mock_resolve_entity,
     ):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
-        from backend.domain.services.command_classifier import ClassificationResult
+        from backend.domain.services.command_classifier import ClassificationResult  # TODO: rewrite test for new brain/ architecture
 
         mock_tm = _mock_thinking_message_class()
         MockThinking.side_effect = mock_tm
@@ -163,7 +163,7 @@ class TestCmdNl:
         mock_answer, mock_save, MockThinking,
     ):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
-        from backend.domain.services.command_classifier import ClassificationResult, ClassifiedCommand
+        from backend.domain.services.command_classifier import ClassificationResult, ClassifiedCommand  # TODO: rewrite test for new brain/ architecture
 
         mock_tm = _mock_thinking_message_class()
         MockThinking.side_effect = mock_tm
@@ -186,7 +186,7 @@ class TestCmdNl:
     @patch("telegram_bot.handlers.conversation_handlers.CommandClassifier")
     def test_classified_unknown_handler_reports_not_found(self, MockClassifier, MockGemini):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
-        from backend.domain.services.command_classifier import ClassificationResult, ClassifiedCommand
+        from backend.domain.services.command_classifier import ClassificationResult, ClassifiedCommand  # TODO: rewrite test for new brain/ architecture
 
         MockClassifier.return_value.classify.return_value = ClassificationResult(
             classified=ClassifiedCommand(command="nonexistent_cmd", args=""),
@@ -205,7 +205,7 @@ class TestCmdNl:
     @patch("telegram_bot.handlers.conversation_handlers.CommandClassifier")
     def test_classified_rewrites_message_text(self, MockClassifier, MockGemini):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
-        from backend.domain.services.command_classifier import ClassificationResult, ClassifiedCommand
+        from backend.domain.services.command_classifier import ClassificationResult, ClassifiedCommand  # TODO: rewrite test for new brain/ architecture
 
         # When args is empty, cmd_nl uses the original user text as args
         MockClassifier.return_value.classify.return_value = ClassificationResult(
@@ -235,7 +235,7 @@ class TestCmdNl:
     @patch("telegram_bot.handlers.conversation_handlers.CommandClassifier")
     def test_classified_restores_text_on_handler_error(self, MockClassifier, MockGemini):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
-        from backend.domain.services.command_classifier import ClassificationResult, ClassifiedCommand
+        from backend.domain.services.command_classifier import ClassificationResult, ClassifiedCommand  # TODO: rewrite test for new brain/ architecture
 
         MockClassifier.return_value.classify.return_value = ClassificationResult(
             classified=ClassifiedCommand(command="health", args=""),
@@ -514,7 +514,7 @@ class TestCmdNlEnvironment:
         mock_resolve_env, mock_resolve_entity,
     ):
         from telegram_bot.handlers.conversation_handlers import cmd_nl
-        from backend.domain.services.command_classifier import ClassificationResult
+        from backend.domain.services.command_classifier import ClassificationResult  # TODO: rewrite test for new brain/ architecture
 
         mock_tm = _mock_thinking_message_class()
         MockThinking.side_effect = mock_tm

@@ -1,3 +1,4 @@
+# TODO: rewrite test for new brain/ architecture
 """Tests for backend/domain/command_classifier.py and classify_command() compose."""
 
 import pytest

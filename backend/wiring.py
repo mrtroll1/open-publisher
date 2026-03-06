@@ -13,17 +13,15 @@ from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.gateways.query_gateway import QueryGateway
 from backend.infrastructure.gateways.redefine_gateway import RedefineGateway
 from backend.infrastructure.gateways.republic_gateway import RepublicGateway
-from backend.domain.services.inbox_service import InboxService
-from backend.domain.services.knowledge_retriever import KnowledgeRetriever
-from backend.domain.services.memory_service import MemoryService
-from backend.domain.services.query_tool import QueryTool
-from backend.domain.services.support_user_lookup import SupportUserLookup
-from backend.domain.services.tech_support_handler import TechSupportHandler
-from backend.domain.services.tool_router import ToolRouter
-from backend.domain.use_cases.compute_budget import ComputeBudget
-from backend.domain.use_cases.generate_batch_invoices import GenerateBatchInvoices
-from backend.domain.use_cases.generate_invoice import GenerateInvoice
-from backend.domain.use_cases.parse_bank_statement import ParseBankStatement
+from backend.commands.inbox_service import InboxService
+from backend.infrastructure.memory.retriever import KnowledgeRetriever
+from backend.infrastructure.memory.memory_service import MemoryService
+from backend.infrastructure.memory.user_lookup import SupportUserLookup
+from backend.commands.support_handler import TechSupportHandler
+from backend.commands.budget.compute import ComputeBudget
+from backend.commands.invoice.batch import GenerateBatchInvoices
+from backend.commands.invoice.generate import GenerateInvoice
+from backend.commands.bank.parse_statement import ParseBankStatement
 
 
 def create_db() -> DbGateway:
@@ -69,8 +67,18 @@ def create_parse_bank_statement() -> ParseBankStatement:
     return ParseBankStatement(airtable_gw=AirtableGateway())
 
 
-def create_query_tools() -> dict[str, QueryTool]:
-    """Create QueryTool instances for available external DBs."""
+@dataclass
+class _QuerySource:
+    gateway: QueryGateway
+    schema_template: str
+
+    @property
+    def available(self) -> bool:
+        return self.gateway.available
+
+
+def create_query_tools() -> dict[str, _QuerySource]:
+    """Create query source configs for available external DBs."""
     from common.config import (
         REPUBLIC_SSH_HOST, REPUBLIC_SSH_USER, REPUBLIC_SSH_KEY_PATH,
         REPUBLIC_RO_DB_HOST, REPUBLIC_RO_DB_PORT, REPUBLIC_RO_DB_NAME,
@@ -89,7 +97,7 @@ def create_query_tools() -> dict[str, QueryTool]:
         db_pass=REPUBLIC_RO_DB_PASS, name="republic",
     )
     if republic_gw.available:
-        tools["republic_db"] = QueryTool(republic_gw, "db-query/republic-schema.md")
+        tools["republic_db"] = _QuerySource(republic_gw, "db-query/republic-schema.md")
 
     redefine_gw = QueryGateway(
         ssh_host=REDEFINE_SSH_HOST, ssh_user=REDEFINE_SSH_USER,
@@ -99,17 +107,9 @@ def create_query_tools() -> dict[str, QueryTool]:
         db_pass=REDEFINE_RO_DB_PASS, name="redefine",
     )
     if redefine_gw.available:
-        tools["redefine_db"] = QueryTool(redefine_gw, "db-query/redefine-schema.md")
+        tools["redefine_db"] = _QuerySource(redefine_gw, "db-query/redefine-schema.md")
 
     return tools
-
-
-def create_tool_router(query_tools: dict[str, QueryTool] | None = None) -> ToolRouter:
-    """Create ToolRouter with available tools."""
-    if query_tools is None:
-        query_tools = create_query_tools()
-    available = ["rag"] + list(query_tools.keys())
-    return ToolRouter(available_tools=available)
 
 
 @dataclass
@@ -158,10 +158,10 @@ def create_brain() -> BrainComponents:
     # Dynamic (GenAI) instances
     tool_routing = ToolRouting(gemini, available_tools=["rag"] + list(query_tools.keys()))
 
-    # ConversationReply needs QueryDB (BaseGenAI), not QueryTool
+    # ConversationReply needs QueryDB (BaseGenAI), not raw query source
     query_db_map: dict = {}
-    for name, qt in query_tools.items():
-        query_db_map[name] = QueryDB(gemini, qt._gateway, qt._schema_template)
+    for name, qs in query_tools.items():
+        query_db_map[name] = QueryDB(gemini, qs.gateway, qs.schema_template)
 
     conversation_reply = ConversationReply(gemini, retriever, tool_routing, query_db_map)
     classify_teaching = ClassifyTeaching(gemini, db, embed)
@@ -172,6 +172,8 @@ def create_brain() -> BrainComponents:
     # Controllers
     conv_ctrl = create_conversation_controller(conversation_reply, db, retriever)
     support_ctrl = create_support_controller(tech_support)
+    from backend.commands.code import _set_retriever
+    _set_retriever(retriever)
     code_ctrl = create_code_controller()
     health_ctrl = create_health_controller()
     teach_ctrl = create_teach_controller(classify_teaching, memory)
@@ -194,8 +196,8 @@ def create_brain() -> BrainComponents:
     redefine = RedefineGateway()
     email_gw = EmailGateway()
     user_lookup = SupportUserLookup(republic_gw=republic, redefine_gw=redefine)
-    tech_support_handler = TechSupportHandler(gemini=gemini, user_lookup=user_lookup, db=db)
-    inbox_service = InboxService(tech_support=tech_support_handler, gemini=gemini, email_gw=email_gw, db=db)
+    tech_support_handler = TechSupportHandler(gemini=gemini, user_lookup=user_lookup, db=db, retriever=retriever)
+    inbox_service = InboxService(tech_support=tech_support_handler, gemini=gemini, email_gw=email_gw, db=db, retriever=retriever)
     inbox_workflow = InboxWorkflow(tech_support=tech_support_handler, email_gw=email_gw, db=db)
     inbox_ctrl = create_inbox_controller(inbox_classify, inbox_workflow)
 
@@ -247,10 +249,9 @@ def _create_query_ctrl(gemini, query_tools):
     from backend.brain.dynamic.query_db import QueryDB
     from backend.commands.query import create_query_controller
 
-    # Reuse gateway from first available QueryTool
-    for qt in query_tools.values():
-        if qt.available:
-            query_db = QueryDB(gemini, qt._gateway, qt._schema_template)
+    for qs in query_tools.values():
+        if qs.available:
+            query_db = QueryDB(gemini, qs.gateway, qs.schema_template)
             return create_query_controller(query_db)
 
     return BaseController(PassThroughPreparer(), StubUseCase("Query DB not available"))

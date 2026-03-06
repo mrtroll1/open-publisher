@@ -24,9 +24,10 @@ _mock_retriever.get_core.return_value = ""
 _mock_retriever.get_domain_context.return_value = ""
 _mock_retriever.retrieve.return_value = ""
 _mock_retriever.retrieve_full_domain.return_value = ""
+_mock_retriever.retrieve_full_scope.return_value = ""
 
 
 @pytest.fixture(autouse=True)
 def _stub_knowledge_retriever():
-    with patch("backend.domain.services.compose_request._get_retriever", return_value=_mock_retriever):
+    with patch("backend._get_retriever", return_value=_mock_retriever):
         yield

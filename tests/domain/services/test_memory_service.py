@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 
 def _make_service():
-    from backend.domain.services.memory_service import MemoryService
+    from backend.infrastructure.memory.memory_service import MemoryService
     mock_db = MagicMock()
     mock_embed = MagicMock()
     mock_retriever = MagicMock()

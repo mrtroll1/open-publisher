@@ -717,7 +717,7 @@ class TestCmdSendLegiumLinks:
         mock_get.return_value = [contractor]
         mock_find.return_value = contractor
 
-        from backend.domain.use_cases.prepare_invoice import PreparedInvoice
+        from backend.commands.invoice.prepare import PreparedInvoice
         mock_prepare.return_value = PreparedInvoice(
             pdf_bytes=b"pdf", invoice=inv, contractor=contractor,
         )

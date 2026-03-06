@@ -56,11 +56,20 @@ class CodeResult:
     session_id: str | None = None
 
 
+_retriever = None
+
+
+def _set_retriever(r) -> None:
+    global _retriever
+    _retriever = r
+
+
 def _write_claude_md() -> None:
     """Write CLAUDE.md from DB knowledge (scope=code) into REPOS_DIR."""
     try:
-        from backend.domain.services.compose_request import _get_retriever
-        context = _get_retriever().retrieve_full_scope("code")
+        if _retriever is None:
+            return
+        context = _retriever.retrieve_full_scope("code")
         if context:
             Path(REPOS_DIR, "CLAUDE.md").write_text(context, encoding="utf-8")
     except Exception:

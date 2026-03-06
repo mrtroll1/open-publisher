@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import patch
 
-from backend.domain.services.support_user_lookup import SupportUserLookup
+from backend.infrastructure.memory.user_lookup import SupportUserLookup
 
 
 # ===================================================================

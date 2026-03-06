@@ -7,8 +7,9 @@ import logging
 import time
 import uuid
 
-from backend.domain.services import compose_request
-from backend.domain.services.support_user_lookup import SupportUserLookup
+from common.prompt_loader import load_template
+from backend.infrastructure.memory.retriever import KnowledgeRetriever
+from backend.infrastructure.memory.user_lookup import SupportUserLookup
 from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.gateways.repo_gateway import RepoGateway
@@ -20,16 +21,19 @@ logger = logging.getLogger(__name__)
 class TechSupportHandler:
     """Context gathering + LLM draft replies for tech support. No email sending."""
 
-    def __init__(self, gemini: GeminiGateway | None = None, user_lookup: SupportUserLookup | None = None, db: DbGateway | None = None):
+    def __init__(self, gemini: GeminiGateway | None = None,
+                 user_lookup: SupportUserLookup | None = None,
+                 db: DbGateway | None = None,
+                 retriever: KnowledgeRetriever | None = None):
         self._gemini = gemini or GeminiGateway()
         self._user_lookup = user_lookup or SupportUserLookup()
         RepoGateway().ensure_repos()
         self._db = db or DbGateway()
         self._db.init_schema()
+        self._retriever = retriever or KnowledgeRetriever()
         self._uid_thread: dict[str, str] = {}
 
     def draft_reply(self, email: IncomingEmail) -> SupportDraft:
-        """Gather context and draft a reply. Channel-independent."""
         thread_id = self._db.find_thread(email.message_id, email.in_reply_to, email.subject)
         self._db.save_message(thread_id, email, "inbound")
         self._uid_thread[email.uid] = thread_id
@@ -41,14 +45,20 @@ class TechSupportHandler:
         thread_context = self._format_thread(history) if len(history) > 1 else ""
         context = "\n\n".join(filter(None, [user_data, thread_context]))
 
-        prompt, model, _ = compose_request.support_email(email_text, context)
-        result = self._gemini.call(prompt, model)
+        knowledge = (self._retriever.get_domain_context("tech_support")
+                     + "\n\n"
+                     + self._retriever.retrieve(email_text, domain="tech_support", limit=5))
+        prompt = load_template("email/support-email.md", {
+            "KNOWLEDGE": knowledge,
+            "USER_DATA": context,
+            "EMAIL": email_text,
+        })
+        result = self._gemini.call(prompt, "gemini-3-flash-preview")
         can_answer = result.get("can_answer", False)
         logger.info("Drafted support response for %s (uid=%s, can_answer=%s)", email.from_addr, email.uid, can_answer)
         return SupportDraft(email=email, can_answer=can_answer, draft_reply=result.get("reply", ""))
 
     def save_outbound(self, uid: str, draft: SupportDraft) -> None:
-        """Save sent reply to thread history."""
         thread_id = self._uid_thread.pop(uid, None)
         if not thread_id:
             return
@@ -56,7 +66,6 @@ class TechSupportHandler:
         self._db.save_message(thread_id, msg, "outbound")
 
     def discard(self, uid: str, draft: SupportDraft | None = None) -> None:
-        """Clean up thread tracking for a skipped email."""
         thread_id = self._uid_thread.pop(uid, None)
         if draft and thread_id:
             msg = self._build_thread_message(draft, f"draft-rejected-{uuid.uuid4().hex}")
@@ -78,12 +87,16 @@ class TechSupportHandler:
 
     def _fetch_user_data(self, email_text: str, fallback_email: str) -> str:
         try:
-            prompt, model, _ = compose_request.support_triage(email_text)
+            triage_knowledge = self._retriever.retrieve_full_domain("support_triage")
+            prompt = load_template("email/support-triage.md", {
+                "KNOWLEDGE": triage_knowledge,
+                "EMAIL": email_text,
+            })
             t0 = time.time()
-            result = self._gemini.call(prompt, model)
+            result = self._gemini.call(prompt, "gemini-2.5-flash")
             latency_ms = int((time.time() - t0) * 1000)
             try:
-                self._db.log_classification("SUPPORT_TRIAGE", model, prompt, json.dumps(result), latency_ms)
+                self._db.log_classification("SUPPORT_TRIAGE", "gemini-2.5-flash", prompt, json.dumps(result), latency_ms)
             except Exception:
                 logger.warning("Failed to log classification for task=SUPPORT_TRIAGE", exc_info=True)
             needs = result.get("needs", [])

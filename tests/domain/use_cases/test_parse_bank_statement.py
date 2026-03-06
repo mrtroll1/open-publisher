@@ -2,7 +2,7 @@ import pytest
 from decimal import Decimal
 from unittest.mock import patch
 
-from backend.domain.use_cases.parse_bank_statement import (
+from backend.commands.bank.parse_statement import (
     _bo,
     _categorize_transactions,
     _classify_person,
@@ -208,7 +208,7 @@ class TestMatchService:
 # ===================================================================
 
 # Module path prefix for patching config values used inside parse_bank_statement
-_MOD = "backend.domain.use_cases.parse_bank_statement"
+_MOD = "backend.commands.bank.parse_statement"
 
 # Fixed test config values
 _TEST_OWNER_NAME = "Test Owner"

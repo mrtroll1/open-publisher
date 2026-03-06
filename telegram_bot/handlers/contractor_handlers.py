@@ -39,13 +39,15 @@ from backend import (
     upload_invoice_pdf,
     validate_contractor_fields,
 )
-from backend.domain.services.contractor_service import (
+from backend.commands.contractor.create import (
     check_registration_complete,
     create_contractor,
+)
+from backend.commands.contractor.registration import (
     parse_registration_data,
     translate_contractor_name,
 )
-from backend.domain.services.invoice_service import (
+from backend.commands.invoice.service import (
     DeliveryAction,
     prepare_new_invoice_data,
     resolve_existing_invoice,

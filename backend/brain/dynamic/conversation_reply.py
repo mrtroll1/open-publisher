@@ -87,4 +87,12 @@ class ConversationReply(BaseGenAI):
         }
 
     def _parse_response(self, raw: dict) -> dict:
-        return {"reply": raw.get("reply", str(raw))}
+        # Gemini sometimes uses different key names
+        reply = raw.get("reply") or raw.get("response") or raw.get("results") or raw.get("answer")
+        if not reply:
+            # Take the first string value from the dict
+            for v in raw.values():
+                if isinstance(v, str) and len(v) > 10:
+                    reply = v
+                    break
+        return {"reply": reply or str(raw)}

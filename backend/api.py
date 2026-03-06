@@ -61,13 +61,13 @@ class UidTextRequest(BaseModel):
     uid: str
     text: str
 
-class ConversationSaveRequest(BaseModel):
-    chat_id: int
-    user_id: int
-    role: str
-    content: str
-    reply_to_id: str | None = None
-    message_id: int | None = None
+class MessageSaveRequest(BaseModel):
+    text: str
+    environment: str | None = None
+    chat_id: int | None = None
+    type: str = "user"
+    user_id: str | None = None
+    parent_id: str | None = None
     metadata: dict | None = None
 
 class EnvironmentCreateRequest(BaseModel):
@@ -85,22 +85,8 @@ class EnvironmentBindRequest(BaseModel):
     chat_id: int
     name: str
 
-class ClassificationLogRequest(BaseModel):
-    task: str
-    model: str
-    prompt: str
-    result: str
-    latency_ms: int
-
-class CodeTaskCreateRequest(BaseModel):
-    requested_by: str
-    input_text: str
-    output_text: str
-    verbose: bool = False
-
-class CodeTaskRateRequest(BaseModel):
-    task_id: str
-    rating: int
+class MessageUpdateMetadataRequest(BaseModel):
+    updates: dict
 
 class StoreFeedbackRequest(BaseModel):
     text: str
@@ -410,67 +396,32 @@ def add_user_note(user_id: str, req: UserNoteRequest) -> BrainResponse:
         return BrainResponse(result=None, error=str(e))
 
 
-# --- Conversation endpoints ---
+# --- Message endpoints ---
 
-@app.post("/conversation/save")
-def save_conversation(req: ConversationSaveRequest) -> BrainResponse:
+@app.post("/message/save")
+def save_message(req: MessageSaveRequest) -> BrainResponse:
     try:
-        entry_id = db.save_conversation(
-            chat_id=req.chat_id, user_id=req.user_id,
-            role=req.role, content=req.content,
-            reply_to_id=req.reply_to_id, message_id=req.message_id,
+        msg_id = db.save_message(
+            text=req.text, environment=req.environment,
+            chat_id=req.chat_id, type=req.type,
+            user_id=req.user_id, parent_id=req.parent_id,
             metadata=req.metadata,
         )
-        return BrainResponse(result={"id": entry_id})
+        return BrainResponse(result={"id": msg_id})
     except Exception as e:
         return BrainResponse(result=None, error=str(e))
 
-@app.get("/conversation/by-message-id")
-def get_conversation_by_message_id(chat_id: int, message_id: int) -> BrainResponse:
+@app.get("/message/by-telegram-id")
+def get_by_telegram_message_id(chat_id: int, telegram_message_id: int) -> BrainResponse:
     try:
-        return BrainResponse(result=db.get_conversation_by_message_id(chat_id, message_id))
+        return BrainResponse(result=db.get_by_telegram_message_id(chat_id, telegram_message_id))
     except Exception as e:
         return BrainResponse(result=None, error=str(e))
 
-
-# --- Classification / code tasks ---
-
-@app.post("/classification/log")
-def log_classification(req: ClassificationLogRequest) -> BrainResponse:
+@app.put("/message/{message_id}/metadata")
+def update_message_metadata(message_id: str, req: MessageUpdateMetadataRequest) -> BrainResponse:
     try:
-        db.log_classification(req.task, req.model, req.prompt, req.result, req.latency_ms)
-        return BrainResponse(result="ok")
-    except Exception as e:
-        return BrainResponse(result=None, error=str(e))
-
-@app.post("/code-task/create")
-def create_code_task(req: CodeTaskCreateRequest) -> BrainResponse:
-    try:
-        task_id = db.create_code_task(
-            requested_by=req.requested_by,
-            input_text=req.input_text,
-            output_text=req.output_text,
-            verbose=req.verbose,
-        )
-        return BrainResponse(result={"id": task_id})
-    except Exception as e:
-        return BrainResponse(result=None, error=str(e))
-
-@app.post("/code-task/rate")
-def rate_code_task(req: CodeTaskRateRequest) -> BrainResponse:
-    try:
-        db.rate_code_task(req.task_id, req.rating)
-        return BrainResponse(result="ok")
-    except Exception as e:
-        return BrainResponse(result=None, error=str(e))
-
-class PaymentValidationRequest(BaseModel):
-    validation_id: str
-
-@app.post("/payment/finalize-validation")
-def finalize_payment_validation(req: PaymentValidationRequest) -> BrainResponse:
-    try:
-        db.finalize_payment_validation(req.validation_id)
+        db.update_metadata(message_id, req.updates)
         return BrainResponse(result="ok")
     except Exception as e:
         return BrainResponse(result=None, error=str(e))

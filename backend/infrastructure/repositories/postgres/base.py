@@ -9,71 +9,6 @@ from common.config import DATABASE_URL
 _SCHEMA_SQL = """
 CREATE EXTENSION IF NOT EXISTS vector;
 
-CREATE TABLE IF NOT EXISTS email_threads (
-    thread_id TEXT PRIMARY KEY,
-    subject TEXT,
-    normalized_subject TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS email_messages (
-    id SERIAL PRIMARY KEY,
-    thread_id TEXT REFERENCES email_threads(thread_id),
-    message_id TEXT UNIQUE,
-    in_reply_to TEXT,
-    from_addr TEXT,
-    to_addr TEXT,
-    subject TEXT,
-    body TEXT,
-    date TEXT,
-    direction TEXT,
-    created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS email_decisions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at TIMESTAMP DEFAULT NOW(),
-    task TEXT NOT NULL,
-    channel TEXT NOT NULL DEFAULT 'EMAIL',
-    input_message_ids TEXT[] NOT NULL,
-    output TEXT NOT NULL DEFAULT '',
-    status TEXT NOT NULL DEFAULT 'PENDING',
-    decided_by TEXT DEFAULT '',
-    decided_at TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS llm_classifications (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at TIMESTAMP DEFAULT NOW(),
-    task TEXT NOT NULL,
-    model TEXT NOT NULL,
-    input_text TEXT NOT NULL,
-    output_json TEXT NOT NULL,
-    latency_ms INT DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS payment_validations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at TIMESTAMP DEFAULT NOW(),
-    contractor_id TEXT,
-    contractor_type TEXT,
-    input_text TEXT NOT NULL,
-    parsed_json TEXT NOT NULL,
-    validation_warnings TEXT[],
-    is_final BOOLEAN DEFAULT FALSE
-);
-
-CREATE TABLE IF NOT EXISTS code_tasks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at TIMESTAMP DEFAULT NOW(),
-    requested_by TEXT,
-    input_text TEXT NOT NULL,
-    output_text TEXT NOT NULL,
-    is_verbose BOOLEAN DEFAULT FALSE,
-    rating INT,
-    rated_at TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS knowledge_domains (
     name TEXT PRIMARY KEY,
     description TEXT NOT NULL DEFAULT ''
@@ -103,26 +38,6 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_tier
 UPDATE knowledge_entries SET tier = 'meta'
 WHERE tier = 'core' AND domain != 'identity';
 
-CREATE TABLE IF NOT EXISTS conversations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    chat_id BIGINT NOT NULL,
-    user_id BIGINT NOT NULL,
-    role TEXT NOT NULL,
-    content TEXT NOT NULL,
-    reply_to_id UUID REFERENCES conversations(id),
-    message_id BIGINT,
-    metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMP DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_conv_chat ON conversations(chat_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_conv_msg ON conversations(chat_id, message_id);
-CREATE INDEX IF NOT EXISTS idx_conv_reply ON conversations(reply_to_id);
-
--- Migrate: add knowledge_extracted_at (existing rows get NOW so they're skipped; new rows get NULL)
-ALTER TABLE conversations ADD COLUMN IF NOT EXISTS knowledge_extracted_at TIMESTAMP DEFAULT NOW();
-ALTER TABLE conversations ALTER COLUMN knowledge_extracted_at DROP DEFAULT;
-CREATE INDEX IF NOT EXISTS idx_conv_unextracted ON conversations(chat_id, knowledge_extracted_at) WHERE knowledge_extracted_at IS NULL;
-
 CREATE TABLE IF NOT EXISTS environments (
     name         TEXT PRIMARY KEY,
     description  TEXT NOT NULL DEFAULT '',
@@ -143,12 +58,34 @@ CREATE TABLE IF NOT EXISTS users (
     name          TEXT NOT NULL DEFAULT '',
     role          TEXT NOT NULL DEFAULT 'user',
     telegram_id   BIGINT UNIQUE,
+    email         TEXT UNIQUE,
     created_at    TIMESTAMP DEFAULT NOW(),
     updated_at    TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id) WHERE telegram_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+
+CREATE TABLE IF NOT EXISTS messages (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    text          TEXT NOT NULL DEFAULT '',
+    embedding     vector(256),
+    environment   TEXT REFERENCES environments(name),
+    chat_id       BIGINT,
+    type          TEXT NOT NULL DEFAULT 'user',
+    user_id       UUID REFERENCES users(id),
+    parent_id     UUID REFERENCES messages(id),
+    created_at    TIMESTAMP DEFAULT NOW(),
+    metadata      JSONB DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_msg_chat ON messages(chat_id, created_at) WHERE chat_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_msg_parent ON messages(parent_id) WHERE parent_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_msg_environment ON messages(environment, created_at) WHERE environment IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_msg_user ON messages(user_id) WHERE user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_msg_telegram_mid ON messages((metadata->>'telegram_message_id')) WHERE metadata->>'telegram_message_id' IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_msg_email_mid ON messages((metadata->>'email_message_id')) WHERE metadata->>'email_message_id' IS NOT NULL;
 
 -- user FK on knowledge_entries
 DO $$ BEGIN
@@ -158,8 +95,6 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS idx_knowledge_user
     ON knowledge_entries(user_id) WHERE user_id IS NOT NULL;
-
--- Legacy: keep entity_id column if it exists but don't create it for new DBs
 
 DO $$ BEGIN
     ALTER TABLE knowledge_entries ADD COLUMN source_url TEXT;

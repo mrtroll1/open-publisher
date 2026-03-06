@@ -11,7 +11,7 @@ from backend.infrastructure.repositories.postgres import DbGateway
 def _format_reply_chain(chain: list[dict]) -> str:
     parts = []
     for entry in chain:
-        parts.append(f"{entry['role']}: {entry['content']}")
+        parts.append(f"{entry['type']}: {entry['text']}")
     return "\n".join(parts)
 
 
@@ -19,16 +19,16 @@ def _build_conversation_context(
     chat_id: int, reply_message_id: int, reply_text: str,
     db: DbGateway, max_verbatim: int = 8,
 ) -> tuple[str, str | None]:
-    conv_entry = db.get_conversation_by_message_id(chat_id, reply_message_id)
-    if conv_entry:
-        chain = db.get_reply_chain(conv_entry["id"], depth=20)
+    msg = db.get_by_telegram_message_id(chat_id, reply_message_id)
+    if msg:
+        chain = db.get_reply_chain(msg["id"], depth=20)
         if len(chain) > max_verbatim:
             skipped = len(chain) - max_verbatim
             chain = chain[-max_verbatim:]
             history = f"[{skipped} предыдущих сообщений опущено]\n" + _format_reply_chain(chain)
         else:
             history = _format_reply_chain(chain)
-        return history, conv_entry["id"]
+        return history, msg["id"]
     return f"assistant: {reply_text}", None
 
 

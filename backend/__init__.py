@@ -87,7 +87,11 @@ def translate_name_to_russian(name_en: str) -> str:
     latency_ms = int((time.time() - t0) * 1000)
     try:
         from backend.infrastructure.repositories.postgres import DbGateway
-        DbGateway().log_classification("TRANSLATE_NAME", "gemini-2.5-flash", prompt, json.dumps(result), latency_ms)
+        DbGateway().save_message(
+            text=prompt, type="system",
+            metadata={"task": "TRANSLATE_NAME", "model": "gemini-2.5-flash",
+                      "result": json.dumps(result), "latency_ms": latency_ms},
+        )
     except Exception:
         pass
     return result.get("translated_name", "")

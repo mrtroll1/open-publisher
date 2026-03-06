@@ -209,58 +209,31 @@ async def add_user_note(user_id: str, text: str, domain: str = "general"):
     return _unwrap(resp)
 
 
-# --- Conversation ---
+# --- Messages ---
 
-async def save_turn(chat_id: int, user_id: int, role: str, content: str,
-                    reply_to_id: str | None = None, message_id: int | None = None,
-                    metadata: dict | None = None) -> str:
-    resp = await _client.post("/conversation/save", json={
-        "chat_id": chat_id, "user_id": user_id,
-        "role": role, "content": content,
-        "reply_to_id": reply_to_id, "message_id": message_id,
+async def save_message(text: str, environment: str | None = None,
+                       chat_id: int | None = None, type: str = "user",
+                       user_id: str | None = None, parent_id: str | None = None,
+                       metadata: dict | None = None) -> str:
+    resp = await _client.post("/message/save", json={
+        "text": text, "environment": environment,
+        "chat_id": chat_id, "type": type,
+        "user_id": user_id, "parent_id": parent_id,
         "metadata": metadata,
-    })
-    result = _unwrap(resp)
-    return result["id"]
-
-
-async def get_conversation_by_message_id(chat_id: int, message_id: int) -> dict | None:
-    resp = await _client.get("/conversation/by-message-id", params={
-        "chat_id": chat_id, "message_id": message_id,
-    })
-    return _unwrap(resp)
-
-
-# --- Classification / code tasks ---
-
-async def log_classification(task: str, model: str, prompt: str,
-                             result: str, latency_ms: int):
-    resp = await _client.post("/classification/log", json={
-        "task": task, "model": model, "prompt": prompt,
-        "result": result, "latency_ms": latency_ms,
-    })
-    return _unwrap(resp)
-
-
-async def create_code_task(requested_by: str, input_text: str,
-                           output_text: str, verbose: bool = False) -> str:
-    resp = await _client.post("/code-task/create", json={
-        "requested_by": requested_by, "input_text": input_text,
-        "output_text": output_text, "verbose": verbose,
     })
     return _unwrap(resp)["id"]
 
 
-async def rate_code_task(task_id: str, rating: int):
-    resp = await _client.post("/code-task/rate", json={
-        "task_id": task_id, "rating": rating,
+async def get_message_by_telegram_id(chat_id: int, telegram_message_id: int) -> dict | None:
+    resp = await _client.get("/message/by-telegram-id", params={
+        "chat_id": chat_id, "telegram_message_id": telegram_message_id,
     })
     return _unwrap(resp)
 
 
-async def finalize_payment_validation(validation_id: str):
-    resp = await _client.post("/payment/finalize-validation", json={
-        "validation_id": validation_id,
+async def update_message_metadata(message_id: str, updates: dict):
+    resp = await _client.put(f"/message/{message_id}/metadata", json={
+        "updates": updates,
     })
     return _unwrap(resp)
 

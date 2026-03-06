@@ -723,7 +723,7 @@ async def _finish_registration(
     validation_id = collected.get("_validation_id")
     if validation_id:
         try:
-            await backend_client.finalize_payment_validation(validation_id)
+            await backend_client.update_message_metadata(validation_id, {"is_final": True})
         except Exception:
             logger.warning("Failed to finalize payment validation %s", validation_id, exc_info=True)
 

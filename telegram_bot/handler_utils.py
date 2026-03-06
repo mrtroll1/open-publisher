@@ -199,28 +199,28 @@ async def _save_turn(
     user_text: str, bot_text: str, metadata: dict,
     parent_id: str | None = None,
 ) -> None:
-    """Save user+assistant conversation turn to DB. Never raises.
+    """Save user+assistant message pair to DB. Never raises.
 
     Args:
-        parent_id: conversation entry id of the message being replied to.
+        parent_id: message id of the message being replied to.
                    Links the user entry into an existing reply chain.
     """
     try:
         channel = "group" if message.chat.type in ("group", "supergroup") else "dm"
-        meta = {**metadata, "channel": channel}
-        user_entry_id = await backend_client.save_turn(
-            chat_id=message.chat.id, user_id=message.from_user.id,
-            role="user", content=user_text,
-            reply_to_id=parent_id,
-            message_id=message.message_id, metadata=meta,
+        meta = {**metadata, "channel": channel,
+                "telegram_message_id": message.message_id}
+        user_entry_id = await backend_client.save_message(
+            text=user_text, chat_id=message.chat.id, type="user",
+            parent_id=parent_id, metadata=meta,
         )
-        await backend_client.save_turn(
-            chat_id=message.chat.id, user_id=message.from_user.id,
-            role="assistant", content=bot_text,
-            reply_to_id=user_entry_id, message_id=sent.message_id, metadata=meta,
+        bot_meta = {**metadata, "channel": channel,
+                    "telegram_message_id": sent.message_id}
+        await backend_client.save_message(
+            text=bot_text, chat_id=message.chat.id, type="assistant",
+            parent_id=user_entry_id, metadata=bot_meta,
         )
     except Exception:
-        logger.exception("Failed to save conversation turn")
+        logger.exception("Failed to save message turn")
 
 
 def _parse_flags(text: str) -> tuple[bool, bool, str]:

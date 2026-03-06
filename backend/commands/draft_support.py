@@ -11,6 +11,7 @@ from common.prompt_loader import load_template
 from backend.infrastructure.memory.retriever import KnowledgeRetriever
 from backend.infrastructure.memory.user_lookup import SupportUserLookup
 from backend.infrastructure.repositories.postgres import DbGateway
+from backend.infrastructure.repositories.postgres.message_repo import normalize_email_subject
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.gateways.repo_gateway import RepoGateway
 from common.models import IncomingEmail, SupportDraft
@@ -31,13 +32,28 @@ class TechSupportHandler:
         self._db = db or DbGateway()
         self._db.init_schema()
         self._retriever = retriever or KnowledgeRetriever()
-        self._uid_thread: dict[str, str] = {}
 
     def draft_reply(self, email: IncomingEmail) -> SupportDraft:
-        thread_id = self._db.find_thread(email.message_id, email.in_reply_to, email.subject)
-        self._db.save_message(thread_id, email, "inbound")
-        self._uid_thread[email.uid] = thread_id
-        history = self._db.get_thread_history(thread_id)
+        # Save inbound email as message, linking to thread via parent_id
+        parent_id = self._db.find_email_parent(
+            in_reply_to=email.in_reply_to, subject=email.subject,
+        )
+        sender = self._db.get_or_create_by_email(email.from_addr)
+        msg_id = self._db.save_message(
+            text=email.body, environment="email", type="user",
+            user_id=sender["id"], parent_id=parent_id,
+            metadata={
+                "email_message_id": email.message_id,
+                "from": email.from_addr, "to": email.to_addr,
+                "subject": email.subject, "date": email.date,
+                "in_reply_to": email.in_reply_to or "",
+                "normalized_subject": normalize_email_subject(email.subject),
+                "direction": "inbound", "uid": email.uid,
+            },
+        )
+
+        # Get thread history for context
+        history = self._db.get_thread_history(msg_id)
 
         email_text = email.as_text()
         user_data = self._fetch_user_data(email_text, email.reply_to or email.from_addr)
@@ -56,34 +72,41 @@ class TechSupportHandler:
         result = self._gemini.call(prompt, "gemini-3-flash-preview")
         can_answer = result.get("can_answer", False)
         logger.info("Drafted support response for %s (uid=%s, can_answer=%s)", email.from_addr, email.uid, can_answer)
-        return SupportDraft(email=email, can_answer=can_answer, draft_reply=result.get("reply", ""))
+        draft = SupportDraft(email=email, can_answer=can_answer, draft_reply=result.get("reply", ""))
+        draft._inbound_msg_id = msg_id
+        return draft
 
     def save_outbound(self, uid: str, draft: SupportDraft) -> None:
-        thread_id = self._uid_thread.pop(uid, None)
-        if not thread_id:
+        inbound_id = getattr(draft, "_inbound_msg_id", None)
+        if not inbound_id:
             return
-        msg = self._build_thread_message(draft, f"outbound-{uuid.uuid4().hex}")
-        self._db.save_message(thread_id, msg, "outbound")
+        self._db.save_message(
+            text=draft.draft_reply, environment="email", type="assistant",
+            parent_id=inbound_id,
+            metadata={
+                "email_message_id": f"<outbound-{uuid.uuid4().hex}>",
+                "from": draft.email.to_addr,
+                "to": draft.email.reply_to or draft.email.from_addr,
+                "subject": draft.email.subject,
+                "direction": "outbound",
+                "normalized_subject": normalize_email_subject(draft.email.subject),
+            },
+        )
 
     def discard(self, uid: str, draft: SupportDraft | None = None) -> None:
-        thread_id = self._uid_thread.pop(uid, None)
-        if draft and thread_id:
-            msg = self._build_thread_message(draft, f"draft-rejected-{uuid.uuid4().hex}")
-            self._db.save_message(thread_id, msg, "draft_rejected")
-
-    @staticmethod
-    def _build_thread_message(draft: SupportDraft, tag: str) -> IncomingEmail:
-        em = draft.email
-        return IncomingEmail(
-            uid="",
-            from_addr=em.to_addr,
-            to_addr=em.reply_to or em.from_addr,
-            subject=em.subject,
-            body=draft.draft_reply,
-            date="",
-            message_id=f"<{tag}>",
-            in_reply_to=em.message_id,
-        )
+        if not draft:
+            return
+        inbound_id = getattr(draft, "_inbound_msg_id", None)
+        if inbound_id:
+            self._db.save_message(
+                text=draft.draft_reply, environment="email", type="assistant",
+                parent_id=inbound_id,
+                metadata={
+                    "email_message_id": f"<draft-rejected-{uuid.uuid4().hex}>",
+                    "direction": "draft_rejected",
+                    "normalized_subject": normalize_email_subject(draft.email.subject),
+                },
+            )
 
     def _fetch_user_data(self, email_text: str, fallback_email: str) -> str:
         try:
@@ -96,9 +119,13 @@ class TechSupportHandler:
             result = self._gemini.call(prompt, "gemini-2.5-flash")
             latency_ms = int((time.time() - t0) * 1000)
             try:
-                self._db.log_classification("SUPPORT_TRIAGE", "gemini-2.5-flash", prompt, json.dumps(result), latency_ms)
+                self._db.save_message(
+                    text=prompt, environment="email", type="system",
+                    metadata={"task": "SUPPORT_TRIAGE", "model": "gemini-2.5-flash",
+                              "result": json.dumps(result), "latency_ms": latency_ms},
+                )
             except Exception:
-                logger.warning("Failed to log classification for task=SUPPORT_TRIAGE", exc_info=True)
+                logger.warning("Failed to log triage classification", exc_info=True)
             needs = result.get("needs", [])
             lookup_email = result.get("lookup_email") or fallback_email
             logger.info("Support triage: needs=%s, lookup_email=%s", needs, lookup_email)
@@ -115,8 +142,12 @@ class TechSupportHandler:
     def _format_thread(history: list[dict]) -> str:
         lines = ["## История переписки"]
         for msg in history:
-            direction = "<<< входящее" if msg["direction"] == "inbound" else ">>> исходящее"
-            lines.append(f"\n[{direction}] От: {msg['from_addr']} | {msg['date']}")
-            lines.append(f"Тема: {msg['subject']}")
-            lines.append(msg["body"] or "")
+            meta = msg.get("metadata") or {}
+            direction = "<<< входящее" if meta.get("direction") == "inbound" else ">>> исходящее"
+            from_addr = meta.get("from", "")
+            date = meta.get("date", "")
+            subject = meta.get("subject", "")
+            lines.append(f"\n[{direction}] От: {from_addr} | {date}")
+            lines.append(f"Тема: {subject}")
+            lines.append(msg["text"] or "")
         return "\n".join(lines)

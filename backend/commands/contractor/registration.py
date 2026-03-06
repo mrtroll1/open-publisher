@@ -41,9 +41,11 @@ def parse_registration_data(
 
     if "parse_error" not in result:
         try:
-            vid = DbGateway().log_payment_validation(
-                contractor_id="", contractor_type=contractor_type.value,
-                input_text=text, parsed_json=json.dumps(result, ensure_ascii=False),
+            vid = DbGateway().save_message(
+                text=text, type="system",
+                metadata={"task": "payment_validation",
+                           "contractor_type": contractor_type.value,
+                           "parsed": result, "is_final": False},
             )
             result["_validation_id"] = vid
         except Exception:

@@ -75,9 +75,10 @@ class InboxWorkflow:
     # --- Support handling (deterministic parts) ---
 
     def register_support_draft(self, email: IncomingEmail, draft: SupportDraft) -> PendingItem:
-        decision_id = self._db.create_email_decision(
-            task="SUPPORT_ANSWER", channel="EMAIL",
-            input_message_ids=[email.message_id],
+        decision_id = self._db.save_message(
+            text=draft.draft_reply, environment="email", type="system",
+            metadata={"task": "SUPPORT_ANSWER", "status": "PENDING",
+                      "input_message_ids": [email.message_id]},
         )
         draft.decision_id = decision_id
         self._pending_support[email.uid] = draft
@@ -89,9 +90,10 @@ class InboxWorkflow:
     # --- Editorial handling (deterministic parts) ---
 
     def register_editorial(self, email: IncomingEmail, item: EditorialItem) -> PendingItem:
-        decision_id = self._db.create_email_decision(
-            task="ARTICLE_APPROVAL", channel="EMAIL",
-            input_message_ids=[email.message_id],
+        decision_id = self._db.save_message(
+            text=item.reply_to_sender or "", environment="email", type="system",
+            metadata={"task": "ARTICLE_APPROVAL", "status": "PENDING",
+                      "input_message_ids": [email.message_id]},
         )
         item.decision_id = decision_id
         self._pending_editorial[email.uid] = item
@@ -104,8 +106,7 @@ class InboxWorkflow:
         if not draft:
             return None
         if draft.decision_id:
-            self._db.update_email_decision_output(draft.decision_id, draft.draft_reply)
-            self._db.update_email_decision(draft.decision_id, "APPROVED", decided_by="admin")
+            self._db.update_metadata(draft.decision_id, {"status": "APPROVED", "decided_by": "admin", "output": draft.draft_reply})
         em = draft.email
         self._email_gw.send_reply(
             em.reply_to or em.from_addr, em.subject,
@@ -125,7 +126,7 @@ class InboxWorkflow:
     def skip_support(self, uid: str) -> None:
         draft = self._pending_support.pop(uid, None)
         if draft and draft.decision_id:
-            self._db.update_email_decision(draft.decision_id, "REJECTED", decided_by="admin")
+            self._db.update_metadata(draft.decision_id, {"status": "REJECTED", "decided_by": "admin"})
         self._tech_support.discard(uid, draft=draft)
 
     def get_pending_support(self, uid: str) -> SupportDraft | None:
@@ -138,7 +139,7 @@ class InboxWorkflow:
         if not item:
             return None
         if item.decision_id:
-            self._db.update_email_decision(item.decision_id, "APPROVED", decided_by="admin")
+            self._db.update_metadata(item.decision_id, {"status": "APPROVED", "decided_by": "admin"})
         self._forward_to_editor(item.email)
         if item.reply_to_sender:
             self._email_gw.send_reply(
@@ -151,7 +152,7 @@ class InboxWorkflow:
     def skip_editorial(self, uid: str) -> None:
         item = self._pending_editorial.pop(uid, None)
         if item and item.decision_id:
-            self._db.update_email_decision(item.decision_id, "REJECTED", decided_by="admin")
+            self._db.update_metadata(item.decision_id, {"status": "REJECTED", "decided_by": "admin"})
 
     def get_pending_editorial(self, uid: str) -> EditorialItem | None:
         return self._pending_editorial.get(uid)

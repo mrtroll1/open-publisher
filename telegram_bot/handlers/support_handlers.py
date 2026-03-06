@@ -86,11 +86,11 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
     reply = message.reply_to_message
     if reply and reply.from_user and reply.from_user.is_bot:
         try:
-            conv = await backend_client.get_conversation_by_message_id(
+            msg = await backend_client.get_message_by_telegram_id(
                 message.chat.id, reply.message_id,
             )
-            if conv and conv.get("metadata", {}).get("claude_session_id"):
-                resume_session_id = conv["metadata"]["claude_session_id"]
+            if msg and (msg.get("metadata") or {}).get("claude_session_id"):
+                resume_session_id = msg["metadata"]["claude_session_id"]
         except Exception:
             logger.debug("Could not look up session_id for reply", exc_info=True)
 
@@ -116,11 +116,10 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
             # Save to DB and build rating keyboard
             reply_markup = None
             try:
-                task_id = await backend_client.create_code_task(
-                    requested_by=str(message.from_user.id),
-                    input_text=text,
-                    output_text=answer,
-                    verbose=verbose,
+                task_id = await backend_client.save_message(
+                    text=answer, type="system",
+                    metadata={"task": "CODE", "requested_by": str(message.from_user.id),
+                              "input_text": text, "verbose": verbose},
                 )
                 reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
                     InlineKeyboardButton(text=str(i), callback_data=f"code_rate:{task_id}:{i}")
@@ -156,7 +155,7 @@ async def handle_code_rate_callback(callback: CallbackQuery) -> None:
         return
     _, task_id, rating = parts
     try:
-        await backend_client.rate_code_task(task_id, int(rating))
+        await backend_client.update_message_metadata(task_id, {"rating": int(rating)})
     except Exception:
         logger.exception("Failed to save code task rating")
     await callback.answer("Оценка сохранена!")

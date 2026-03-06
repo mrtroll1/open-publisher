@@ -70,9 +70,12 @@ class ConversationReply(BaseGenAI):
                             lines.append(" | ".join(parts))
                         context_parts.append(f"## Данные из {name}\n" + "\n".join(lines))
                     elif result.get("error"):
-                        context_parts.append(f"## Данные из {name}\n(запрос не удался: {result['error']})")
-                except Exception:
-                    logger.warning("QueryTool %s failed", name, exc_info=True)
+                        context_parts.append(f"## {name}: запрос не удался ({result['error']}). Скажи пользователю об ошибке.")
+                    else:
+                        context_parts.append(f"## {name}: запрос выполнен, но данных нет.")
+                except Exception as e:
+                    logger.warning("QueryTool %s failed: %s", name, e, exc_info=True)
+                    context_parts.append(f"## {name}: инструмент недоступен ({e}). Скажи пользователю об ошибке.")
 
         knowledge_context = "\n\n".join(context_parts)
         verbose_text = "Можешь дать развёрнутый ответ." if verbose else "Отвечай кратко и по делу."
@@ -87,12 +90,8 @@ class ConversationReply(BaseGenAI):
         }
 
     def _parse_response(self, raw: dict) -> dict:
-        # Gemini sometimes uses different key names
-        reply = raw.get("reply") or raw.get("response") or raw.get("results") or raw.get("answer")
+        reply = raw.get("reply") or raw.get("response") or raw.get("answer")
         if not reply:
-            # Take the first string value from the dict
-            for v in raw.values():
-                if isinstance(v, str) and len(v) > 10:
-                    reply = v
-                    break
-        return {"reply": reply or str(raw)}
+            logger.warning("ConversationReply: unexpected response format: %s", list(raw.keys()))
+            return {"reply": "Не удалось сформировать ответ. Попробуй переформулировать вопрос."}
+        return {"reply": reply}

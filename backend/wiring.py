@@ -203,6 +203,7 @@ def create_brain() -> BrainComponents:
             examples=defn.get("examples", []),
             permissions=defn.get("permissions", {"admin"}),
             slash_command=defn.get("slash_command"),
+            nl_routable=defn.get("nl_routable", True),
         ))
 
     authorizer = Authorizer(db)

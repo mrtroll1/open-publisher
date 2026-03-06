@@ -13,6 +13,7 @@ class Route:
     examples: list[str] = field(default_factory=list)
     permissions: set[str] = field(default_factory=lambda: {"admin"})
     slash_command: str | None = None
+    nl_routable: bool = True
 
 
 ROUTES: dict[str, Route] = {}
@@ -57,13 +58,6 @@ ROUTE_DEFINITIONS: list[dict] = [
         "examples": ["запомни: республика это медиа"],
         "permissions": {"admin"},
         "slash_command": "teach",
-    },
-    {
-        "name": "search",
-        "description": "Поиск в базе знаний",
-        "examples": ["найди информацию о конкурентах"],
-        "permissions": {"admin"},
-        "slash_command": "ksearch",
     },
     {
         "name": "invoice",

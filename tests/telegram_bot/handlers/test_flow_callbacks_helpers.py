@@ -480,25 +480,23 @@ def _make_sent(message_id=11):
 
 class TestSaveTurn:
 
-    @patch("telegram_bot.flow_callbacks._db")
-    def test_save_turn_saves_both_turns(self, mock_db):
-        mock_db.save_conversation.return_value = "user-uuid"
+    @patch("telegram_bot.backend_client.save_turn", new_callable=AsyncMock, return_value="user-uuid")
+    def test_save_turn_saves_both_turns(self, mock_save):
         msg = _make_message()
         sent = _make_sent()
 
         asyncio.run(_save_turn(msg, sent, "hello", "hi back", {"command": "code"}))
 
-        assert mock_db.save_conversation.call_count == 2
+        assert mock_save.await_count == 2
 
-    @patch("telegram_bot.flow_callbacks._db")
-    def test_save_turn_links_reply_to_id(self, mock_db):
-        mock_db.save_conversation.return_value = "user-turn-uuid"
+    @patch("telegram_bot.backend_client.save_turn", new_callable=AsyncMock, return_value="user-turn-uuid")
+    def test_save_turn_links_reply_to_id(self, mock_save):
         msg = _make_message()
         sent = _make_sent()
 
         asyncio.run(_save_turn(msg, sent, "hello", "hi back", {}))
 
-        calls = mock_db.save_conversation.call_args_list
+        calls = mock_save.call_args_list
         # First call (user turn) has no reply_to_id
         user_call_kwargs = calls[0][1]
         assert user_call_kwargs.get("reply_to_id") is None
@@ -506,15 +504,14 @@ class TestSaveTurn:
         assistant_call_kwargs = calls[1][1]
         assert assistant_call_kwargs["reply_to_id"] == "user-turn-uuid"
 
-    @patch("telegram_bot.flow_callbacks._db")
-    def test_save_turn_with_parent_id_links_user_entry(self, mock_db):
-        mock_db.save_conversation.return_value = "user-turn-uuid"
+    @patch("telegram_bot.backend_client.save_turn", new_callable=AsyncMock, return_value="user-turn-uuid")
+    def test_save_turn_with_parent_id_links_user_entry(self, mock_save):
         msg = _make_message()
         sent = _make_sent()
 
         asyncio.run(_save_turn(msg, sent, "hello", "hi back", {}, parent_id="prev-assistant-uuid"))
 
-        calls = mock_db.save_conversation.call_args_list
+        calls = mock_save.call_args_list
         # First call (user turn) links to parent conversation entry
         user_call_kwargs = calls[0][1]
         assert user_call_kwargs["reply_to_id"] == "prev-assistant-uuid"
@@ -522,46 +519,43 @@ class TestSaveTurn:
         assistant_call_kwargs = calls[1][1]
         assert assistant_call_kwargs["reply_to_id"] == "user-turn-uuid"
 
-    @patch("telegram_bot.flow_callbacks._db")
-    def test_save_turn_channel_detection_dm(self, mock_db):
-        mock_db.save_conversation.return_value = "uuid"
+    @patch("telegram_bot.backend_client.save_turn", new_callable=AsyncMock, return_value="uuid")
+    def test_save_turn_channel_detection_dm(self, mock_save):
         msg = _make_message(chat_type="private")
         sent = _make_sent()
 
         asyncio.run(_save_turn(msg, sent, "q", "a", {}))
 
-        user_call_kwargs = mock_db.save_conversation.call_args_list[0][1]
+        user_call_kwargs = mock_save.call_args_list[0][1]
         assert user_call_kwargs["metadata"]["channel"] == "dm"
 
-    @patch("telegram_bot.flow_callbacks._db")
-    def test_save_turn_channel_detection_group(self, mock_db):
-        mock_db.save_conversation.return_value = "uuid"
+    @patch("telegram_bot.backend_client.save_turn", new_callable=AsyncMock, return_value="uuid")
+    def test_save_turn_channel_detection_group(self, mock_save):
         msg = _make_message(chat_type="group")
         sent = _make_sent()
 
         asyncio.run(_save_turn(msg, sent, "q", "a", {}))
 
-        user_call_kwargs = mock_db.save_conversation.call_args_list[0][1]
+        user_call_kwargs = mock_save.call_args_list[0][1]
         assert user_call_kwargs["metadata"]["channel"] == "group"
 
-    @patch("telegram_bot.flow_callbacks._db")
-    def test_save_turn_db_error_silenced(self, mock_db):
-        mock_db.save_conversation.side_effect = RuntimeError("db down")
+    @patch("telegram_bot.backend_client.save_turn", new_callable=AsyncMock,
+           side_effect=RuntimeError("backend down"))
+    def test_save_turn_db_error_silenced(self, mock_save):
         msg = _make_message()
         sent = _make_sent()
 
         # Should not raise
         asyncio.run(_save_turn(msg, sent, "q", "a", {}))
 
-    @patch("telegram_bot.flow_callbacks._db")
-    def test_save_turn_metadata_merged_with_channel(self, mock_db):
-        mock_db.save_conversation.return_value = "uuid"
+    @patch("telegram_bot.backend_client.save_turn", new_callable=AsyncMock, return_value="uuid")
+    def test_save_turn_metadata_merged_with_channel(self, mock_save):
         msg = _make_message(chat_type="supergroup")
         sent = _make_sent()
 
         asyncio.run(_save_turn(msg, sent, "q", "a", {"command": "support"}))
 
-        user_call_kwargs = mock_db.save_conversation.call_args_list[0][1]
+        user_call_kwargs = mock_save.call_args_list[0][1]
         meta = user_call_kwargs["metadata"]
         assert meta["command"] == "support"
         assert meta["channel"] == "group"

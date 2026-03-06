@@ -1594,39 +1594,37 @@ class TestHandleKeditReply:
 
 class TestResolveEnvironment:
 
-    @patch("telegram_bot.handler_utils._memory")
-    def test_unbound_returns_defaults(self, mock_memory):
+    @patch("telegram_bot.backend_client.get_environment", new_callable=AsyncMock, return_value=None)
+    def test_unbound_returns_defaults(self, mock_get_env):
         from telegram_bot.handler_utils import resolve_environment
 
-        mock_memory.get_environment.return_value = None
+        result = asyncio.run(resolve_environment(chat_id=100))
 
-        result = resolve_environment(chat_id=100)
-
-        mock_memory.get_environment.assert_called_once_with(chat_id=100)
+        mock_get_env.assert_awaited_once_with(chat_id=100)
         assert result == ("", None)
 
-    @patch("telegram_bot.handler_utils._memory")
-    def test_bound_returns_context(self, mock_memory):
+    @patch("telegram_bot.backend_client.get_environment", new_callable=AsyncMock)
+    def test_bound_returns_context(self, mock_get_env):
         from telegram_bot.handler_utils import resolve_environment
 
-        mock_memory.get_environment.return_value = {
+        mock_get_env.return_value = {
             "system_context": "You are an editorial bot.",
             "allowed_domains": ["editorial", "general"],
         }
 
-        result = resolve_environment(chat_id=200)
+        result = asyncio.run(resolve_environment(chat_id=200))
 
         assert result == ("You are an editorial bot.", ["editorial", "general"])
 
-    @patch("telegram_bot.handler_utils._memory")
-    def test_no_domains(self, mock_memory):
+    @patch("telegram_bot.backend_client.get_environment", new_callable=AsyncMock)
+    def test_no_domains(self, mock_get_env):
         from telegram_bot.handler_utils import resolve_environment
 
-        mock_memory.get_environment.return_value = {
+        mock_get_env.return_value = {
             "system_context": "Admin context",
         }
 
-        result = resolve_environment(chat_id=300)
+        result = asyncio.run(resolve_environment(chat_id=300))
 
         assert result == ("Admin context", None)
 
@@ -1637,42 +1635,29 @@ class TestResolveEnvironment:
 
 class TestResolveEntityContext:
 
-    @patch("telegram_bot.handler_utils._memory")
-    def test_entity_not_found(self, mock_memory):
+    @patch("telegram_bot.backend_client.get_entity_context", new_callable=AsyncMock, return_value="")
+    def test_entity_not_found(self, mock_get_ctx):
         from telegram_bot.handler_utils import resolve_entity_context
 
-        mock_memory.find_entity.return_value = None
+        result = asyncio.run(resolve_entity_context(user_id=42))
 
-        result = resolve_entity_context(user_id=42)
-
-        mock_memory.find_entity.assert_called_once_with(
-            external_key="telegram_user_id", external_value="42",
-        )
+        mock_get_ctx.assert_awaited_once_with(42)
         assert result == ""
 
-    @patch("telegram_bot.handler_utils._get_retriever")
-    @patch("telegram_bot.handler_utils._memory")
-    def test_entity_found_returns_context(self, mock_memory, mock_get_retriever):
+    @patch("telegram_bot.backend_client.get_entity_context", new_callable=AsyncMock,
+           return_value="Alice is the editor-in-chief.")
+    def test_entity_found_returns_context(self, mock_get_ctx):
         from telegram_bot.handler_utils import resolve_entity_context
 
-        mock_memory.find_entity.return_value = {"id": "e-1", "name": "Alice"}
-        mock_retriever = MagicMock()
-        mock_retriever.get_entity_context.return_value = "Alice is the editor-in-chief."
-        mock_get_retriever.return_value = mock_retriever
+        result = asyncio.run(resolve_entity_context(user_id=42))
 
-        result = resolve_entity_context(user_id=42)
-
-        mock_retriever.get_entity_context.assert_called_once_with("e-1")
+        mock_get_ctx.assert_awaited_once_with(42)
         assert result == "Alice is the editor-in-chief."
 
-    @patch("telegram_bot.handler_utils._memory")
-    def test_passes_correct_external_key(self, mock_memory):
+    @patch("telegram_bot.backend_client.get_entity_context", new_callable=AsyncMock, return_value="")
+    def test_passes_correct_external_key(self, mock_get_ctx):
         from telegram_bot.handler_utils import resolve_entity_context
 
-        mock_memory.find_entity.return_value = None
+        asyncio.run(resolve_entity_context(user_id=999))
 
-        resolve_entity_context(user_id=999)
-
-        call_kwargs = mock_memory.find_entity.call_args
-        assert call_kwargs[1]["external_key"] == "telegram_user_id"
-        assert call_kwargs[1]["external_value"] == "999"
+        mock_get_ctx.assert_awaited_once_with(999)

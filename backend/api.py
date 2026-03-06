@@ -9,6 +9,8 @@ _components = create_brain()
 brain = _components.brain
 memory = _components.memory
 inbox = _components.inbox
+db = _components.db
+retriever = _components.retriever
 
 
 # --- Request / Response models ---
@@ -48,6 +50,15 @@ class EntryUpdateRequest(BaseModel):
 
 class UidRequest(BaseModel):
     uid: str
+
+class ConversationSaveRequest(BaseModel):
+    chat_id: int
+    user_id: int
+    role: str
+    content: str
+    reply_to_id: str | None = None
+    message_id: int | None = None
+    metadata: dict | None = None
 
 
 # --- Brain endpoints ---
@@ -197,5 +208,45 @@ def add_entity_note(entity_id: str, req: EntityNoteRequest) -> BrainResponse:
         entry_id = memory.remember(req.text, domain=req.domain,
                                    source="api", entity_id=entity_id)
         return BrainResponse(result={"id": entry_id})
+    except Exception as e:
+        return BrainResponse(result=None, error=str(e))
+
+@app.get("/entity/context")
+def get_entity_context(user_id: str) -> BrainResponse:
+    """Find entity by telegram_user_id, return formatted context string."""
+    try:
+        entity = memory.find_entity(external_key="telegram_user_id",
+                                    external_value=user_id)
+        if not entity:
+            return BrainResponse(result="")
+        context = retriever.get_entity_context(entity["id"])
+        return BrainResponse(result=context)
+    except Exception as e:
+        return BrainResponse(result=None, error=str(e))
+
+
+# --- Conversation endpoints ---
+
+@app.post("/conversation/save")
+def save_conversation(req: ConversationSaveRequest) -> BrainResponse:
+    try:
+        entry_id = db.save_conversation(
+            chat_id=req.chat_id, user_id=req.user_id,
+            role=req.role, content=req.content,
+            reply_to_id=req.reply_to_id, message_id=req.message_id,
+            metadata=req.metadata,
+        )
+        return BrainResponse(result={"id": entry_id})
+    except Exception as e:
+        return BrainResponse(result=None, error=str(e))
+
+
+# --- Environment endpoint ---
+
+@app.get("/memory/environment")
+def get_environment(chat_id: int = 0, name: str = "") -> BrainResponse:
+    try:
+        result = memory.get_environment(name=name, chat_id=chat_id)
+        return BrainResponse(result=result)
     except Exception as e:
         return BrainResponse(result=None, error=str(e))

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from aiogram import types
@@ -10,9 +9,9 @@ from aiogram.enums import ChatAction
 from aiogram.exceptions import TelegramBadRequest
 
 from backend.wiring import create_db, create_inbox_service, create_knowledge_retriever, create_memory_service, create_query_tools, create_tool_router
-from backend.domain.services.compose_request import set_retriever, _get_retriever
+from backend.domain.services.compose_request import set_retriever
 from telegram_bot.bot_helpers import bot, get_contractors, md_to_tg_html, prev_month
-from telegram_bot import replies
+from telegram_bot import backend_client, replies
 from backend import find_contractor, find_contractor_by_id, find_contractor_by_telegram_id, fuzzy_find
 
 logger = logging.getLogger(__name__)
@@ -109,25 +108,22 @@ class ThinkingMessage:
         pass
 
 
-def resolve_environment_record(chat_id: int) -> dict | None:
+async def resolve_environment_record(chat_id: int) -> dict | None:
     """Return the full environment dict for a chat, or None if unbound."""
-    return _memory.get_environment(chat_id=chat_id)
+    return await backend_client.get_environment(chat_id=chat_id)
 
 
-def resolve_environment(chat_id: int) -> tuple[str, list[str] | None]:
+async def resolve_environment(chat_id: int) -> tuple[str, list[str] | None]:
     """Return (system_context, allowed_domains) for a chat, or ("", None) if unbound."""
-    env = _memory.get_environment(chat_id=chat_id)
+    env = await backend_client.get_environment(chat_id=chat_id)
     if env is None:
         return "", None
     return env["system_context"], env.get("allowed_domains")
 
 
-def resolve_entity_context(user_id: int) -> str:
+async def resolve_entity_context(user_id: int) -> str:
     """Look up entity by telegram_user_id, return formatted context or empty string."""
-    entity = _memory.find_entity(external_key="telegram_user_id", external_value=str(user_id))
-    if not entity:
-        return ""
-    return _get_retriever().get_entity_context(entity["id"])
+    return await backend_client.get_entity_context(user_id)
 
 
 async def get_current_contractor(telegram_id: int) -> "Contractor | None":
@@ -226,15 +222,13 @@ async def _save_turn(
     try:
         channel = "group" if message.chat.type in ("group", "supergroup") else "dm"
         meta = {**metadata, "channel": channel}
-        user_entry_id = await asyncio.to_thread(
-            _db.save_conversation,
+        user_entry_id = await backend_client.save_turn(
             chat_id=message.chat.id, user_id=message.from_user.id,
             role="user", content=user_text,
             reply_to_id=parent_id,
             message_id=message.message_id, metadata=meta,
         )
-        await asyncio.to_thread(
-            _db.save_conversation,
+        await backend_client.save_turn(
             chat_id=message.chat.id, user_id=message.from_user.id,
             role="assistant", content=bot_text,
             reply_to_id=user_entry_id, message_id=sent.message_id, metadata=meta,

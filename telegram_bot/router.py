@@ -280,8 +280,8 @@ async def handle_group_message(
 
             async with ThinkingMessage(message) as thinking:
                 retriever = _get_retriever()
-                env_ctx, env_domains = await asyncio.to_thread(resolve_environment, message.chat.id)
-                user_ctx = await asyncio.to_thread(resolve_entity_context, message.from_user.id)
+                env_ctx, env_domains = await resolve_environment(message.chat.id)
+                user_ctx = await resolve_entity_context(message.from_user.id)
                 from telegram_bot.handler_utils import _tool_router, _query_tools
                 answer = await asyncio.to_thread(
                     generate_nl_reply, clean_text, "", retriever, GeminiGateway(),
@@ -360,7 +360,7 @@ async def _route_group(message: types.Message, state: FSMContext) -> None:
                 await handler(message, state)
             return
 
-    env = await asyncio.to_thread(resolve_environment_record, message.chat.id)
+    env = await resolve_environment_record(message.chat.id)
     if not env:
         return
 

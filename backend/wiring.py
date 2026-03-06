@@ -117,6 +117,8 @@ class BrainComponents:
     brain: Any
     inbox: Any
     memory: Any
+    db: Any
+    retriever: Any
 
 
 def create_brain() -> BrainComponents:
@@ -226,6 +228,8 @@ def create_brain() -> BrainComponents:
         brain=Brain(authorizer, router),
         inbox=inbox_workflow,
         memory=memory,
+        db=db,
+        retriever=retriever,
     )
 
 

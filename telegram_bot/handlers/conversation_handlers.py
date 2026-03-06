@@ -100,8 +100,8 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
 
             # Generate reply via LLM
             retriever = _get_retriever()
-            env_ctx, env_domains = await asyncio.to_thread(resolve_environment, message.chat.id)
-            user_ctx = await asyncio.to_thread(resolve_entity_context, message.from_user.id)
+            env_ctx, env_domains = await resolve_environment(message.chat.id)
+            user_ctx = await resolve_entity_context(message.from_user.id)
             answer = await asyncio.to_thread(
                 generate_nl_reply,
                 message.text, history, retriever, GeminiGateway(),
@@ -142,8 +142,8 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
         try:
             async with ThinkingMessage(message) as thinking:
                 retriever = _get_retriever()
-                env_ctx, env_domains = await asyncio.to_thread(resolve_environment, message.chat.id)
-                user_ctx = await asyncio.to_thread(resolve_entity_context, message.from_user.id)
+                env_ctx, env_domains = await resolve_environment(message.chat.id)
+                user_ctx = await resolve_entity_context(message.from_user.id)
                 answer = await asyncio.to_thread(
                     generate_nl_reply, text, "", retriever, GeminiGateway(),
                     environment=env_ctx, allowed_domains=env_domains,

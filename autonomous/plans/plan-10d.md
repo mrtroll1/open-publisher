@@ -10,8 +10,8 @@ After this phase: backend runs as a separate uvicorn process, telegram bot calls
 
 - [x] Step 1: Create `backend/api.py` — FastAPI Application
 - [x] Step 2: Create `backend/run.py` — Uvicorn Entrypoint
-- [ ] Step 3: Create `telegram_bot/backend_client.py` — HTTP Client
-- [ ] Step 4: Refactor `telegram_bot/handler_utils.py`
+- [x] Step 3: Create `telegram_bot/backend_client.py` — HTTP Client
+- [x] Step 4: Refactor `telegram_bot/handler_utils.py`
 - [ ] Step 5: Refactor Telegram Handlers
 - [ ] Step 6: Delete `domain/` Directory
 - [ ] Step 7: Update `backend/__init__.py` (Facade)

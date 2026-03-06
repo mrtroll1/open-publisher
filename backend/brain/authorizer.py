@@ -24,7 +24,10 @@ class Authorizer:
         return AuthContext(env=env, user=user, routes=routes)
 
     def _resolve_env(self, environment_id: str) -> dict:
-        result = self._db.get_environment(chat_id=int(environment_id))
+        # Try by name first, then by chat_id if numeric
+        result = self._db.get_environment(environment_id)
+        if not result and environment_id.lstrip("-").isdigit():
+            result = self._db.get_environment_by_chat_id(int(environment_id))
         return result or {}
 
     def _resolve_user(self, user_id: str) -> dict:

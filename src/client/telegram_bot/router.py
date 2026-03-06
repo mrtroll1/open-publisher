@@ -24,7 +24,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import BotCommand
 
-from common.config import BOT_USERNAME
+from telegram_bot.config import BOT_USERNAME
 from telegram_bot import backend_client, replies
 from telegram_bot.bot_helpers import is_admin
 from telegram_bot.handler_utils import _save_turn, _send_html, resolve_environment_record, send_typing, ThinkingMessage
@@ -80,25 +80,6 @@ _FSM_HANDLERS: dict[str, Callable] = {
     "waiting_update_data": handle_update_data,
     "waiting_editor_source_name": handle_editor_source_name,
 }
-
-# (from_state, handler_return_key) → (target_state | "end", transition_message | None)
-_FSM_TRANSITIONS: dict[tuple[str, str], tuple[str, str | None]] = {
-    ("lookup", "register"):                 ("waiting_type", replies.registration.begin),
-    ("waiting_verification", "verified"):   ("end", None),
-    ("waiting_verification", "invoice"):    ("waiting_amount", None),
-    ("waiting_type", "valid"):              ("waiting_data", None),
-    ("waiting_data", "complete"):           ("end", None),
-    ("waiting_data", "invoice"):            ("waiting_amount", None),
-    ("waiting_amount", "done"):             ("end", None),
-    ("waiting_update_data", "done"):        ("end", None),
-    ("waiting_editor_source_name", "done"): ("end", None),
-}
-
-# state name → message sent when entering this state
-_FSM_ENTRY_MESSAGES: dict[str, str] = {
-    "waiting_type": replies.registration.type_prompt,
-}
-
 
 # ── Command Registries ────────────────────────────────────────────────
 
@@ -170,8 +151,6 @@ __all__ = [
     "_DM_COMMANDS",
     "_ADMIN_COMMANDS",
     "_FSM_HANDLERS",
-    "_FSM_TRANSITIONS",
-    "_FSM_ENTRY_MESSAGES",
     "register_all",
     "set_bot_commands",
 ]
@@ -261,28 +240,7 @@ async def handle_group_message(
         logger.exception("Group NL processing failed")
 
 
-# ── FSM Transition Logic ─────────────────────────────────────────────
-
-async def _apply_fsm_transition(
-    message: types.Message, state: FSMContext,
-    from_state: str, key: str,
-) -> None:
-    transition = _FSM_TRANSITIONS.get((from_state, key))
-    if not transition:
-        return
-    target, msg_text = transition
-    if msg_text:
-        await message.answer(msg_text)
-    if target == "end":
-        await state.clear()
-    else:
-        target_obj = getattr(ContractorStates, target, None)
-        if target_obj:
-            await state.set_state(target_obj)
-            entry_msg = _FSM_ENTRY_MESSAGES.get(target)
-            if entry_msg:
-                await message.answer(entry_msg)
-
+# ── FSM Routing ──────────────────────────────────────────────────────
 
 async def _route_fsm(
     message: types.Message, state: FSMContext, current_state: str,
@@ -292,9 +250,7 @@ async def _route_fsm(
     if not handler:
         return
     await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
-    result = await handler(message, state)
-    if result is not None:
-        await _apply_fsm_transition(message, state, state_name, result)
+    await handler(message, state)
 
 
 # ── Main Router ───────────────────────────────────────────────────────
@@ -361,9 +317,7 @@ async def _route_text(message: types.Message, state: FSMContext) -> None:
 
     # 5. Catch-all: contractor free text
     await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
-    result = await handle_contractor_text(message, state)
-    if result is not None:
-        await _apply_fsm_transition(message, state, "lookup", result)
+    await handle_contractor_text(message, state)
 
 
 # ── Registration ──────────────────────────────────────────────────────

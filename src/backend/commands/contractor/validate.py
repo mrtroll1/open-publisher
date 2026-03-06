@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from common.models import ContractorType
+from backend.models import ContractorType
 
 
 def _digits_only(val: str) -> str:

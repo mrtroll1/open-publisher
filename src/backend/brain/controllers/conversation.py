@@ -130,6 +130,7 @@ def conversation_handler(
         if resp_content:
             turn_history.append(resp_content)
 
+        failed_tools: dict[str, int] = {}
         for step in range(MAX_TOOL_STEPS):
             if text:
                 return {"reply": text, "parent_id": parent_id}
@@ -146,10 +147,19 @@ def conversation_handler(
                     continue
                 try:
                     result = tool.execute(tc["args"], auth.ctx)
+                    has_error = isinstance(result, dict) and result.get("error")
+                    if has_error:
+                        failed_tools[tc["name"]] = failed_tools.get(tc["name"], 0) + 1
                     results.append({"name": tc["name"], "result": result})
                 except Exception as e:
                     logger.warning("Tool %s failed: %s", tc["name"], e, exc_info=True)
+                    failed_tools[tc["name"]] = failed_tools.get(tc["name"], 0) + 1
                     results.append({"name": tc["name"], "result": {"error": str(e)}})
+
+            if any(c >= 2 for c in failed_tools.values()):
+                errors = "; ".join(f"{n}: {c}x" for n, c in failed_tools.items() if c >= 2)
+                logger.warning("Breaking ReAct loop — repeated tool failures: %s", errors)
+                break
 
             # Continue conversation with tool results
             text, tool_calls, resp_content = gemini.continue_with_tool_results(

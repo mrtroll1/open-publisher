@@ -10,8 +10,7 @@ Usage in handlers:
     await message.answer(replies.verification.no_articles.format(month=month))
 """
 
-from common.config import ADMIN_TELEGRAM_TAG, PRODUCT_NAME
-from common.models import ContractorType
+from telegram_bot.config import ADMIN_TELEGRAM_TAG, PRODUCT_NAME
 
 
 # ── /start ───────────────────────────────────────────────────────────
@@ -53,27 +52,6 @@ class registration:
         "Отправьте цифру (1, 2 или 3)."
     )
     type_invalid = "Пожалуйста, выберите 1, 2 или 3."
-    data_prompts = {
-        ContractorType.SAMOZANYATY: (
-            "Отправьте ваши данные в свободной форме или по пунктам:\n\n"
-            "- ФИО\n- Серия и номер паспорта\n- ИНН\n- Адрес\n- Email\n"
-            "- Банк, номер счёта (рубли), БИК, корр. счёт\n\n"
-            "Можно одним сообщением — я разберусь."
-        ),
-        ContractorType.IP: (
-            "Отправьте ваши данные в свободной форме или по пунктам:\n\n"
-            "- ФИО\n- ОГРНИП\n- Серия и номер паспорта\n"
-            "- Кем выдан, дата выдачи, код подразделения\n"
-            "- Email\n- Банк, номер счёта (рубли), БИК, корр. счёт\n\n"
-            "Можно одним сообщением — я разберусь."
-        ),
-        ContractorType.GLOBAL: (
-            "Отправьте ваши данные в свободной форме или по пунктам:\n\n"
-            "- Полное имя (латиницей)\n- Адрес\n- Email\n"
-            "- Название банка, IBAN или номер счёта, BIC/SWIFT (если есть)\n\n"
-            "Можно одним сообщением — я разберусь."
-        ),
-    }
     parse_error = "Не удалось обработать сообщение. Попробуйте отправить данные ещё раз."
     progress_header = "Вот что я уже получил:\n{filled}"
     still_needed = "Ещё нужно: {fields}."

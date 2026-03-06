@@ -427,6 +427,21 @@ def update_message_metadata(message_id: str, req: MessageUpdateMetadataRequest) 
         return BrainResponse(result=None, error=str(e))
 
 
+class InteractRequest(BaseModel):
+    action: str
+    payload: dict = {}
+    context: dict = {}
+
+@app.post("/interact")
+def interact(req: InteractRequest) -> BrainResponse:
+    from backend.interact import handle
+    try:
+        result = handle(req.action, req.payload, req.context)
+        return BrainResponse(result=result)
+    except Exception as e:
+        return BrainResponse(result=None, error=str(e))
+
+
 @app.post("/admin/store-feedback")
 def store_feedback(req: StoreFeedbackRequest) -> BrainResponse:
     try:

@@ -58,7 +58,7 @@ def create_parse_bank_statement() -> ParseBankStatement:
 
 def create_query_gateways() -> dict[str, QueryGateway]:
     """Create query gateways for available external DBs."""
-    from common.config import (
+    from backend.config import (
         REPUBLIC_SSH_HOST, REPUBLIC_SSH_USER, REPUBLIC_SSH_KEY_PATH,
         REPUBLIC_RO_DB_HOST, REPUBLIC_RO_DB_PORT, REPUBLIC_RO_DB_NAME,
         REPUBLIC_RO_DB_USER, REPUBLIC_RO_DB_PASS,
@@ -140,7 +140,7 @@ def create_brain() -> BrainComponents:
     # QueryDB instances for external DBs + our own DB
     # Each uses its own schema_domain so Gemini sees only relevant schema
     from backend.infrastructure.gateways.query_gateway import LocalQueryGateway
-    from common.config import DATABASE_URL
+    from backend.config import DATABASE_URL
     query_db_map: dict = {}
     for name, gw in query_gateways.items():
         # republic_db → republic, redefine_db → redefine

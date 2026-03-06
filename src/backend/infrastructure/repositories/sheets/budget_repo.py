@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 
-from common.config import BUDGET_SHEETS_FOLDER_ID, BUDGET_TEMPLATE_SHEET_ID, EUR_RUB_CELL
-from common.models import Contractor, Currency
+from backend.config import BUDGET_SHEETS_FOLDER_ID, BUDGET_TEMPLATE_SHEET_ID, EUR_RUB_CELL
+from backend.models import Contractor, Currency
 from backend.infrastructure.gateways.drive_gateway import DriveGateway
 from backend.infrastructure.gateways.sheets_gateway import SheetsGateway
 from backend.infrastructure.repositories.sheets.sheets_utils import parse_int

@@ -9,8 +9,8 @@ from typing import Optional
 
 from pydantic import ValidationError
 
-from common.config import CONTRACTORS_SHEET_ID
-from common.models import (
+from backend.config import CONTRACTORS_SHEET_ID
+from backend.models import (
     CONTRACTOR_CLASS_BY_TYPE,
     Contractor,
     ContractorType,

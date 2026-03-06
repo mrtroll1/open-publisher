@@ -8,7 +8,7 @@ from urllib.parse import quote
 
 import requests
 
-from common.config import (
+from backend.config import (
     REDEFINE_API_URL,
     REDEFINE_SUPPORT_API_KEY,
 )

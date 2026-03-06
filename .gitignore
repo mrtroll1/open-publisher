@@ -1,5 +1,4 @@
-config/*
-!config/example/
+config/
 docs
 __pycache__/
 *.pyc

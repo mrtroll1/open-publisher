@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from backend.brain.base_controller import BaseUseCase
-from common.config import REPOS_DIR
+from backend.config import REPOS_DIR
 
 logger = logging.getLogger(__name__)
 

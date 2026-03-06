@@ -7,7 +7,7 @@ from typing import Any
 import requests
 
 from backend.brain.base_controller import BaseUseCase
-from common.config import HEALTHCHECK_DOMAINS, KUBECTL_ENABLED
+from backend.config import HEALTHCHECK_DOMAINS, KUBECTL_ENABLED
 
 
 @dataclass

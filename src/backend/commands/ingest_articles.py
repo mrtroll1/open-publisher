@@ -7,7 +7,7 @@ from typing import Any
 
 from backend.brain.base_controller import BaseUseCase
 from backend.brain.dynamic.summarize_article import SummarizeArticle
-from common.config import EXPIRY_ARTICLE_SUMMARY_DAYS
+from backend.config import EXPIRY_ARTICLE_SUMMARY_DAYS
 from backend.infrastructure.memory.memory_service import MemoryService
 
 

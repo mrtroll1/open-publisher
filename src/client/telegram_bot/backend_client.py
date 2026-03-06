@@ -1,7 +1,7 @@
 """Thin async HTTP client wrapping all backend API endpoints."""
 
 import httpx
-from common.config import BACKEND_URL
+from telegram_bot.config import BACKEND_URL
 
 _client = httpx.AsyncClient(base_url=BACKEND_URL, timeout=300.0)
 
@@ -16,6 +16,15 @@ def _unwrap(resp: httpx.Response) -> dict | str | list | None:
     if data.get("error"):
         raise BackendError(data["error"])
     return data["result"]
+
+
+# --- Interact ---
+
+async def interact(action: str, payload: dict = None, context: dict = None) -> dict:
+    resp = await _client.post("/interact", json={
+        "action": action, "payload": payload or {}, "context": context or {},
+    })
+    return _unwrap(resp)
 
 
 # --- Brain ---

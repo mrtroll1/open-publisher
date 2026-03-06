@@ -63,7 +63,7 @@ def fetch_articles_by_name(author: str, month: str) -> list[int]:
 
 def parse_contractor_data(text: str, fields_csv: str, context: str = "") -> dict:
     """Parse contractor data from free-form text using LLM."""
-    from common.prompt_loader import load_template
+    from backend.brain.prompt_loader import load_template
     r = _get_retriever()
     knowledge = r.get_domain_context("contractor") + "\n\n" + r.retrieve_full_domain("contractor")
     prompt = load_template("contractor/contractor-parse.md", {
@@ -80,7 +80,7 @@ def translate_name_to_russian(name_en: str) -> str:
     """Translate a name to Russian."""
     import json
     import time
-    from common.prompt_loader import load_template
+    from backend.brain.prompt_loader import load_template
     prompt = load_template("contractor/translate-name.md", {"NAME": name_en})
     t0 = time.time()
     result = _gemini.call(prompt, "gemini-2.5-flash")

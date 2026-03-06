@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from common.models import Contractor, Currency
+from backend.models import Contractor, Currency
 
 
 def plural_ru(n: int, one: str, few: str, many: str) -> str:

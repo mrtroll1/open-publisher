@@ -10,7 +10,7 @@ from google import genai
 from google.genai.errors import ClientError, ServerError
 
 
-from common.config import GEMINI_API_KEY
+from backend.config import GEMINI_API_KEY
 
 logger = logging.getLogger(__name__)
 

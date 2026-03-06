@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import psycopg2
 
-from common.config import DATABASE_URL
+from backend.config import DATABASE_URL
 
 _SCHEMA_SQL = """
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -163,7 +163,7 @@ class BasePostgresRepo:
         self._seed_bindings()
 
     def _seed_bindings(self):
-        from common.config import ADMIN_TELEGRAM_IDS
+        from backend.config import ADMIN_TELEGRAM_IDS
 
         conn = self._get_conn()
         with conn.cursor() as cur:

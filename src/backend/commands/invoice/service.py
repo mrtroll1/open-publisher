@@ -8,8 +8,8 @@ from enum import Enum, auto
 from backend import fetch_articles, read_budget_amounts
 from backend.commands.invoice.resolve_amount import plural_ru, resolve_amount
 from backend.commands.invoice.prepare import PreparedInvoice, prepare_existing_invoice
-from common.config import DRIVE_FOLDER_GLOBAL, DRIVE_FOLDER_RU
-from common.models import Contractor, Currency, GlobalContractor, InvoiceStatus
+from backend.config import DRIVE_FOLDER_GLOBAL, DRIVE_FOLDER_RU
+from backend.models import Contractor, Currency, GlobalContractor, InvoiceStatus
 
 
 class DeliveryAction(Enum):

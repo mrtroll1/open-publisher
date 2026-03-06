@@ -2,7 +2,7 @@
 
 from googleapiclient.discovery import build
 
-from common.config import get_google_creds
+from backend.config import get_google_creds
 
 
 def build_google_service(api: str, version: str):

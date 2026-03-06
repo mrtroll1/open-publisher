@@ -7,8 +7,8 @@ import time
 
 import requests
 
-from common.config import REPUBLIC_API_URL, REPUBLIC_SUPPORT_API_KEY
-from common.models import ArticleEntry, Contractor
+from backend.config import REPUBLIC_API_URL, REPUBLIC_SUPPORT_API_KEY
+from backend.models import ArticleEntry, Contractor
 
 logger = logging.getLogger(__name__)
 

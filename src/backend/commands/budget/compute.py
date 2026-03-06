@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from common.config import EUR_RUB_CELL
-from common.models import Contractor, Currency, RoleCode
+from backend.config import EUR_RUB_CELL
+from backend.models import Contractor, Currency, RoleCode
 from backend.infrastructure.gateways.exchange_rate_gateway import fetch_eur_rub_rate
 from backend.infrastructure.gateways.redefine_gateway import RedefineGateway
 from backend.infrastructure.gateways.republic_gateway import RepublicGateway

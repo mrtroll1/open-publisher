@@ -2,7 +2,7 @@ services:
   db:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
-    env_file: config/.env
+    env_file: config/backend.env
     environment:
       POSTGRES_DB: republic_agent
       POSTGRES_USER: agent
@@ -10,10 +10,9 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   api:
-    build: .
-    command: ["python", "-m", "backend.run"]
+    build: src/backend
     restart: unless-stopped
-    env_file: config/.env
+    env_file: config/backend.env
     depends_on:
       - db
     healthcheck:
@@ -27,21 +26,17 @@ services:
       - ./config/business_config.json:/app/config/business_config.json:ro
       - ./config/tech_config.json:/app/config/tech_config.json:ro
       - ./config/keys:/app/config/keys:ro
+      - ./repos:/opt/repos
+      - ${CLAUDE_AUTH_DIR:-.}/.claude:/root/.claude
+      - ${CLAUDE_AUTH_DIR:-.}/.claude.json:/root/.claude.json
 
   bot:
-    build: .
+    build: src/client/telegram_bot
     restart: unless-stopped
-    env_file: config/.env
+    env_file: config/bot.env
     depends_on:
       api:
         condition: service_healthy
-    volumes:
-      - ./config/service_account.json:/app/config/service_account.json:ro
-      - ./config/business_config.json:/app/config/business_config.json:ro
-      - ./config/tech_config.json:/app/config/tech_config.json:ro
-      - ./repos:/opt/repos
-      - ${CLAUDE_AUTH_DIR}/.claude:/root/.claude
-      - ${CLAUDE_AUTH_DIR}/.claude.json:/root/.claude.json
 
 volumes:
   pgdata:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from common.google_auth import build_google_service
+from backend.infrastructure.gateways.google_auth import build_google_service
 
 
 class SheetsGateway:

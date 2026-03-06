@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from common.models import Contractor, RoleCode
+from backend.models import Contractor, RoleCode
 
 
 _ROLE_LABELS = {

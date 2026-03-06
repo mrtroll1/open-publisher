@@ -9,7 +9,7 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
-from common.config import (
+from backend.config import (
     DEFAULT_ENTITY,
     KNOWN_PEOPLE,
     OWNER_KEYWORDS,
@@ -18,7 +18,7 @@ from common.config import (
     UNIT_PRIMARY,
     UNIT_SECONDARY,
 )
-from common.models import AirtableExpense
+from backend.models import AirtableExpense
 from backend.infrastructure.gateways.airtable_gateway import AirtableGateway
 
 logger = logging.getLogger(__name__)

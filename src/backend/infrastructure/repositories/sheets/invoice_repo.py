@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-from common.config import CONTRACTORS_SHEET_ID
-from common.models import Currency, Invoice, InvoiceStatus
+from backend.config import CONTRACTORS_SHEET_ID
+from backend.models import Currency, Invoice, InvoiceStatus
 from backend.infrastructure.gateways.sheets_gateway import SheetsGateway
 from backend.infrastructure.repositories.sheets.sheets_utils import index_to_column_letter
 

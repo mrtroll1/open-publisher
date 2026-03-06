@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from common.config import SPECIAL_RULES_SHEET_ID
+from backend.config import SPECIAL_RULES_SHEET_ID
 from backend.infrastructure.gateways.sheets_gateway import SheetsGateway
 from backend.infrastructure.repositories.sheets.sheets_utils import parse_int
 

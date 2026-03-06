@@ -8,9 +8,8 @@ from aiogram import types
 from aiogram.enums import ChatAction
 from aiogram.exceptions import TelegramBadRequest
 
-from telegram_bot.bot_helpers import bot, get_contractors, md_to_tg_html, prev_month
+from telegram_bot.bot_helpers import bot, md_to_tg_html, prev_month
 from telegram_bot import backend_client, replies
-from backend import find_contractor, find_contractor_by_id, find_contractor_by_telegram_id, fuzzy_find
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +30,6 @@ __all__ = [
     "ThinkingMessage",
     "parse_month_arg",
     "parse_date_range_arg",
-    "get_current_contractor",
-    "get_contractor_by_id",
     "resolve_environment_record",
     "resolve_environment",
     "resolve_user_context",
@@ -41,7 +38,6 @@ __all__ = [
     "_send_html",
     "_save_turn",
     "_parse_flags",
-    "_find_contractor_or_suggest",
     "_admin_reply_map",
     "_support_draft_map",
     "_kedit_pending",
@@ -110,16 +106,6 @@ async def resolve_environment(chat_id: int) -> tuple[str, list[str] | None]:
 async def resolve_user_context(user_id: int) -> str:
     """Look up user by telegram_id, return formatted context or empty string."""
     return await backend_client.get_user_context(user_id)
-
-
-async def get_current_contractor(telegram_id: int) -> "Contractor | None":
-    contractors = await get_contractors()
-    return find_contractor_by_telegram_id(telegram_id, contractors)
-
-
-async def get_contractor_by_id(contractor_id: str) -> "Contractor | None":
-    contractors = await get_contractors()
-    return find_contractor_by_id(contractor_id, contractors)
 
 
 def parse_month_arg(args: list[str]) -> str:
@@ -241,19 +227,3 @@ def _parse_flags(text: str) -> tuple[bool, bool, str]:
     return verbose, expert, text
 
 
-async def _find_contractor_or_suggest(
-    raw_name: str, message: types.Message,
-) -> "Contractor | None":
-    contractors = await get_contractors()
-    contractor = find_contractor(raw_name, contractors)
-    if contractor:
-        return contractor
-    matches = fuzzy_find(raw_name, contractors, threshold=0.4)
-    if matches:
-        suggestions = "\n".join(
-            f"  - {c.display_name} ({c.type.value})" for c, _ in matches[:5]
-        )
-        await message.answer(replies.lookup.fuzzy_suggestions.format(suggestions=suggestions))
-    else:
-        await message.answer(replies.lookup.not_found)
-    return None

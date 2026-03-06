@@ -7,7 +7,7 @@ from typing import Optional
 
 from googleapiclient.http import MediaInMemoryUpload
 
-from common.google_auth import build_google_service
+from backend.infrastructure.gateways.google_auth import build_google_service
 
 logger = logging.getLogger(__name__)
 

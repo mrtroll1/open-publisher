@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from common.config import (
+from backend.config import (
     TEMPLATE_GLOBAL_ID,
     TEMPLATE_GLOBAL_PHOTO_ID,
     TEMPLATE_IP_ID,
@@ -15,7 +15,7 @@ from common.config import (
     TEMPLATE_SAMOZANYATY_ID,
     TEMPLATE_SAMOZANYATY_PHOTO_ID,
 )
-from common.models import (
+from backend.models import (
     ArticleEntry,
     Contractor,
     Currency,

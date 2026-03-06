@@ -8,8 +8,8 @@ from datetime import datetime
 
 from pyairtable import Api
 
-from common.config import AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME, AIRTABLE_TOKEN
-from common.models import AirtableExpense
+from backend.config import AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME, AIRTABLE_TOKEN
+from backend.models import AirtableExpense
 
 logger = logging.getLogger(__name__)
 

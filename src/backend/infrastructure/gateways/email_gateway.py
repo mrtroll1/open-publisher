@@ -10,13 +10,13 @@ from email.mime.text import MIMEText
 
 from googleapiclient.discovery import build
 
-from common.email_utils import parse_email_message
-from common.config import EMAIL_ADDRESS, get_gmail_creds
-from common.models import IncomingEmail
+from backend.infrastructure.gateways.email_utils import parse_email_message
+from backend.config import EMAIL_ADDRESS, get_gmail_creds
+from backend.models import IncomingEmail
 
 logger = logging.getLogger(__name__)
 
-from common.config import EMAIL_POLL_INTERVAL as _POLL_INTERVAL, EMAIL_RECENT_WINDOW as _RECENT_WINDOW
+from backend.config import EMAIL_POLL_INTERVAL as _POLL_INTERVAL, EMAIL_RECENT_WINDOW as _RECENT_WINDOW
 
 
 class EmailGateway:

@@ -6,7 +6,7 @@ import email
 from email.header import decode_header
 from email.utils import parseaddr
 
-from common.models import IncomingEmail
+from backend.models import IncomingEmail
 
 
 def parse_email_message(uid: str, msg: email.message.Message) -> IncomingEmail:

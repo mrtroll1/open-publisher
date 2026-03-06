@@ -37,7 +37,7 @@ class LocalQueryGateway:
         self._ensure_conn()
         try:
             with self._conn.cursor() as cur:
-                cur.execute(sql, params)
+                cur.execute(sql, params or None)
                 cols = [desc[0] for desc in cur.description]
                 return [dict(zip(cols, row)) for row in cur.fetchall()]
         except Exception:
@@ -118,7 +118,7 @@ class QueryGateway:
         self._ensure_conn()
         try:
             with self._conn.cursor() as cur:
-                cur.execute(sql, params)
+                cur.execute(sql, params or None)
                 cols = [desc[0] for desc in cur.description]
                 return [dict(zip(cols, row)) for row in cur.fetchall()]
         except Exception:

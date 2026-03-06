@@ -8,12 +8,12 @@ from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
 
 _ROOT = Path(__file__).resolve().parent.parent
-_CONFIG = _ROOT / "config"
+_CONFIG = Path(os.getenv("CONFIG_DIR", _ROOT / "config"))
 
-load_dotenv(_CONFIG / ".env")
+# In Docker: env vars come from env_file directive. Locally: load from file.
+load_dotenv(_CONFIG / "backend.env", override=False)
 
-# --- Telegram ---
-TELEGRAM_BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+# --- Admin ---
 ADMIN_TELEGRAM_IDS = [
     int(x.strip()) for x in os.getenv("ADMIN_TELEGRAM_IDS", "").split(",") if x.strip()
 ]

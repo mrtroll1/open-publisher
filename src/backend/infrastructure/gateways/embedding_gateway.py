@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from common.config import GEMINI_API_KEY
+from backend.config import GEMINI_API_KEY
 
 
 class EmbeddingGateway:

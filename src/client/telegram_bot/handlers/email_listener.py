@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-
-from common.config import EMAIL_ADDRESS, EMAIL_IDLE_TIMEOUT, EMAIL_ERROR_RETRY_DELAY
+import os
 from telegram_bot import backend_client
 from telegram_bot.bot_helpers import get_admin_ids
 from telegram_bot.handlers.support_handlers import _send_support_draft, _send_editorial
@@ -28,7 +27,8 @@ async def email_listener_task() -> None:
         logger.warning("No admin IDs configured, email listener disabled")
         return
     admin_id = next(iter(admin_ids))
-    logger.info("Email listener started for %s", EMAIL_ADDRESS)
+    poll_interval = int(os.getenv("EMAIL_POLL_INTERVAL", 300))
+    logger.info("Email listener started (poll every %ds)", poll_interval)
     while True:
         try:
             result = await backend_client.fetch_unread()
@@ -41,4 +41,4 @@ async def email_listener_task() -> None:
                         await _send_editorial(admin_id, item["editorial"])
         except Exception as e:
             logger.exception("Email listener error: %s", e)
-        await asyncio.sleep(EMAIL_IDLE_TIMEOUT)
+        await asyncio.sleep(poll_interval)

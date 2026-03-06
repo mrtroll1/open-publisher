@@ -6,7 +6,7 @@ import logging
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from common.models import (
+from backend.models import (
     Contractor,
     Currency,
     GlobalContractor,

@@ -14,8 +14,8 @@ from backend.brain.dynamic.inbox_classify import InboxClassify
 from backend.commands.draft_support import TechSupportHandler
 from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.gateways.email_gateway import EmailGateway
-from common.config import CHIEF_EDITOR_EMAIL, SUPPORT_ADDRESSES
-from common.models import EditorialItem, IncomingEmail, PendingItem, SupportDraft
+from backend.config import CHIEF_EDITOR_EMAIL, SUPPORT_ADDRESSES
+from backend.models import EditorialItem, IncomingEmail, PendingItem, SupportDraft
 
 logger = logging.getLogger(__name__)
 

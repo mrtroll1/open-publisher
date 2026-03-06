@@ -9,7 +9,7 @@ from backend import (
     pop_random_secret_code,
     save_contractor,
 )
-from common.models import CONTRACTOR_CLASS_BY_TYPE, Contractor, ContractorType
+from backend.models import CONTRACTOR_CLASS_BY_TYPE, Contractor, ContractorType
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from common.prompt_loader import load_template
+from backend.brain.prompt_loader import load_template
 from backend.brain.base_genai import BaseGenAI
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.memory.retriever import KnowledgeRetriever

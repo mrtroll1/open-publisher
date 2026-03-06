@@ -31,7 +31,7 @@ class Authorizer:
         return result or {}
 
     def _resolve_user(self, user_id: str) -> dict:
-        result = self._db.find_entity(external_key="telegram_user_id", external_value=user_id)
+        result = self._db.find_entity_by_external_id("telegram_user_id", user_id)
         return result or {}
 
     def _filter_routes(self, env: dict, user: dict) -> list[Route]:

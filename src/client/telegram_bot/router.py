@@ -139,7 +139,7 @@ _COMMAND_DESCRIPTIONS: dict[str, str] = {
     "lookup": "Информация о контрагенте (автор/редактор/корректор/...)",
 }
 
-_GROUP_ALLOWED_COMMANDS = ["menu", "health", "support", "articles", "lookup"]
+_GROUP_ALLOWED_COMMANDS = ["health", "support", "articles", "lookup"]
 
 __all__ = [
     "ContractorStates",
@@ -168,9 +168,6 @@ def _extract_bot_mention(text: str, bot_username: str) -> str | None:
 async def _dispatch_group_command(
     command: str, args_text: str, message: types.Message, state: FSMContext,
 ) -> None:
-    if command == "menu":
-        await message.answer(replies.menu.group)
-        return
     handler = _GROUP_COMMAND_HANDLERS.get(command)
     if not handler:
         return

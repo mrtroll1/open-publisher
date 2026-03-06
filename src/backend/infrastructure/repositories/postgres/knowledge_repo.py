@@ -13,8 +13,7 @@ class KnowledgeRepo(BasePostgresRepo):
                              source_url: str | None = None,
                              expires_at=None,
                              parent_id: str | None = None) -> str:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 """INSERT INTO knowledge_entries (tier, domain, title, content, source, embedding,
                               user_id, source_url, expires_at, parent_id)
@@ -28,8 +27,7 @@ class KnowledgeRepo(BasePostgresRepo):
 
     def update_knowledge_entry(self, entry_id: str, content: str, embedding: list[float] | None = None) -> bool:
         """Update a knowledge entry. Returns True if an entry was actually updated."""
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 """UPDATE knowledge_entries
                    SET content = %s, embedding = %s, updated_at = NOW()
@@ -39,9 +37,8 @@ class KnowledgeRepo(BasePostgresRepo):
             return cur.rowcount > 0
 
     def search_knowledge(self, query_embedding: list[float], domain: str | None = None, limit: int = 5) -> list[dict]:
-        conn = self._get_conn()
         emb_str = str(query_embedding)
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             if domain is not None:
                 cur.execute(
                     """SELECT id, tier, domain, title, content, source,
@@ -77,9 +74,8 @@ class KnowledgeRepo(BasePostgresRepo):
         domains: list[str] | None = None,
         limit: int = 5,
     ) -> list[dict]:
-        conn = self._get_conn()
         emb_str = str(query_embedding)
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             if domains is not None:
                 cur.execute(
                     """SELECT id, tier, domain, title, content, source,
@@ -111,8 +107,7 @@ class KnowledgeRepo(BasePostgresRepo):
             return rows
 
     def get_knowledge_by_tier(self, tier: str) -> list[dict]:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 """SELECT id, tier, domain, title, content, source
                    FROM knowledge_entries
@@ -130,8 +125,7 @@ class KnowledgeRepo(BasePostgresRepo):
 
     def get_domain_context(self, domain: str) -> list[dict]:
         """Fetch core (global) + meta (domain-wide) entries for a domain."""
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 """SELECT id, tier, domain, title, content, source
                    FROM knowledge_entries
@@ -150,8 +144,7 @@ class KnowledgeRepo(BasePostgresRepo):
 
     def get_multi_domain_context(self, domains: list[str]) -> list[dict]:
         """Fetch core (global) + meta entries for multiple domains."""
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 """SELECT id, tier, domain, title, content, source
                    FROM knowledge_entries
@@ -169,8 +162,7 @@ class KnowledgeRepo(BasePostgresRepo):
             return rows
 
     def get_knowledge_by_domain(self, domain: str) -> list[dict]:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 """SELECT id, tier, domain, title, content, source
                    FROM knowledge_entries
@@ -187,8 +179,7 @@ class KnowledgeRepo(BasePostgresRepo):
             return rows
 
     def list_knowledge(self, domain: str | None = None, tier: str | None = None) -> list[dict]:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             sql = """SELECT id, tier, domain, title, content, source, created_at
                      FROM knowledge_entries
                      WHERE is_active = TRUE"""
@@ -210,8 +201,7 @@ class KnowledgeRepo(BasePostgresRepo):
             return rows
 
     def get_knowledge_entry(self, entry_id: str) -> dict | None:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 """SELECT id, tier, domain, title, content, source, created_at
                    FROM knowledge_entries
@@ -228,8 +218,7 @@ class KnowledgeRepo(BasePostgresRepo):
 
     def deactivate_knowledge(self, entry_id: str) -> bool:
         """Soft-delete a knowledge entry. Returns True if an entry was actually deactivated."""
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 "UPDATE knowledge_entries SET is_active = FALSE, updated_at = NOW() WHERE id = %s",
                 (entry_id,),
@@ -239,15 +228,13 @@ class KnowledgeRepo(BasePostgresRepo):
     # ── Knowledge domains ────────────────────────────────────────────
 
     def list_domains(self) -> list[dict]:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute("SELECT name, description FROM knowledge_domains ORDER BY name")
             return [{"name": row[0], "description": row[1]} for row in cur.fetchall()]
 
     def find_by_source_url(self, source_url: str) -> dict | None:
         """Find active knowledge entry by source_url. Returns most recent if multiple."""
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 """SELECT id, tier, domain, title, content, source, source_url
                    FROM knowledge_entries
@@ -265,8 +252,7 @@ class KnowledgeRepo(BasePostgresRepo):
             return d
 
     def get_or_create_domain(self, name: str, description: str = "") -> str:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 "INSERT INTO knowledge_domains (name, description) VALUES (%s, %s) ON CONFLICT (name) DO NOTHING",
                 (name, description),

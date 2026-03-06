@@ -36,8 +36,7 @@ class MessageRepo(BasePostgresRepo):
                      chat_id: int | None = None, type: str = "user",
                      user_id: str | None = None, parent_id: str | None = None,
                      metadata: dict | None = None, embedding: list[float] | None = None) -> str:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 """INSERT INTO messages (text, environment, chat_id, type, user_id,
                               parent_id, metadata, embedding)
@@ -50,8 +49,7 @@ class MessageRepo(BasePostgresRepo):
             return str(cur.fetchone()[0])
 
     def get_message(self, message_id: str) -> dict | None:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 f"SELECT {', '.join(_MSG_COLS)} FROM messages WHERE id = %s",
                 (message_id,),
@@ -60,8 +58,7 @@ class MessageRepo(BasePostgresRepo):
             return _row_to_dict(row) if row else None
 
     def get_by_telegram_message_id(self, chat_id: int, telegram_message_id: int) -> dict | None:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 f"""SELECT {', '.join(_MSG_COLS)} FROM messages
                     WHERE chat_id = %s AND metadata->>'telegram_message_id' = %s""",
@@ -71,10 +68,9 @@ class MessageRepo(BasePostgresRepo):
             return _row_to_dict(row) if row else None
 
     def get_reply_chain(self, message_id: str, depth: int = 20) -> list[dict]:
-        conn = self._get_conn()
         chain: list[dict] = []
         current_id = message_id
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             for _ in range(depth):
                 cur.execute(
                     f"SELECT {', '.join(_MSG_COLS)} FROM messages WHERE id = %s",
@@ -92,8 +88,7 @@ class MessageRepo(BasePostgresRepo):
         return chain
 
     def get_recent(self, chat_id: int, hours: int = 24) -> list[dict]:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 f"""SELECT {', '.join(_MSG_COLS)} FROM messages
                     WHERE chat_id = %s AND created_at >= NOW() - %s * INTERVAL '1 hour'
@@ -103,8 +98,7 @@ class MessageRepo(BasePostgresRepo):
             return [_row_to_dict(row) for row in cur.fetchall()]
 
     def update_metadata(self, message_id: str, updates: dict) -> bool:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 "UPDATE messages SET metadata = metadata || %s WHERE id = %s",
                 (json.dumps(updates), message_id),
@@ -116,8 +110,7 @@ class MessageRepo(BasePostgresRepo):
     def find_email_parent(self, in_reply_to: str | None = None,
                           subject: str | None = None) -> str | None:
         """Find parent message for an email thread by in_reply_to or normalized subject."""
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             if in_reply_to:
                 cur.execute(
                     "SELECT id FROM messages WHERE metadata->>'email_message_id' = %s",
@@ -142,10 +135,9 @@ class MessageRepo(BasePostgresRepo):
 
     def get_thread_history(self, message_id: str, limit: int = 10) -> list[dict]:
         """Get all messages in a thread by walking up to root, then fetching all descendants."""
-        conn = self._get_conn()
         # Walk up to find root
         root_id = message_id
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             for _ in range(50):
                 cur.execute("SELECT parent_id FROM messages WHERE id = %s", (root_id,))
                 row = cur.fetchone()

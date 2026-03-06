@@ -2,9 +2,20 @@
 
 from __future__ import annotations
 
+import logging
+import re
+import time
+
 import psycopg2
 
 from backend.config import DATABASE_URL
+
+logger = logging.getLogger(__name__)
+
+_OP_RE = re.compile(r"^\s*(SELECT|INSERT|UPDATE|DELETE|WITH)", re.IGNORECASE)
+_TABLE_RE = re.compile(
+    r"(?:FROM|INTO|UPDATE|JOIN)\s+(\w+)", re.IGNORECASE,
+)
 
 _SCHEMA_SQL = """
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -146,6 +157,34 @@ ON CONFLICT (name) DO NOTHING;
 """
 
 
+class _LoggingCursor:
+    """Thin wrapper that logs operation type, table, and duration."""
+
+    def __init__(self, cur):
+        self._cur = cur
+
+    def execute(self, sql, params=None):
+        op = m.group(1).upper() if (m := _OP_RE.match(sql)) else "?"
+        table = m.group(1) if (m := _TABLE_RE.search(sql)) else "?"
+        t0 = time.monotonic()
+        self._cur.execute(sql, params)
+        ms = (time.monotonic() - t0) * 1000
+        rows = self._cur.rowcount if self._cur.rowcount >= 0 else 0
+        logger.debug("db %s %s → %d rows (%.1fms)", op, table, rows, ms)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self._cur.close()
+
+    def __getattr__(self, name):
+        return getattr(self._cur, name)
+
+    def __iter__(self):
+        return iter(self._cur)
+
+
 class BasePostgresRepo:
 
     def __init__(self):
@@ -156,6 +195,9 @@ class BasePostgresRepo:
             self._conn = psycopg2.connect(DATABASE_URL)
             self._conn.autocommit = True
         return self._conn
+
+    def _cursor(self):
+        return _LoggingCursor(self._get_conn().cursor())
 
     def init_schema(self):
         with self._get_conn().cursor() as cur:

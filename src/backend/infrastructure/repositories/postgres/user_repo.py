@@ -18,8 +18,7 @@ class UserRepo(BasePostgresRepo):
     def save_user(self, name: str, role: str = "user",
                   telegram_id: int | None = None,
                   email: str | None = None) -> str:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 """INSERT INTO users (name, role, telegram_id, email)
                    VALUES (%s, %s, %s, %s)
@@ -29,22 +28,19 @@ class UserRepo(BasePostgresRepo):
             return str(cur.fetchone()[0])
 
     def get_user(self, user_id: str) -> dict | None:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(f"SELECT {', '.join(_USER_COLS)} FROM users WHERE id = %s", (user_id,))
             row = cur.fetchone()
             return _user_row(row) if row else None
 
     def get_user_by_telegram_id(self, telegram_id: int) -> dict | None:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(f"SELECT {', '.join(_USER_COLS)} FROM users WHERE telegram_id = %s", (telegram_id,))
             row = cur.fetchone()
             return _user_row(row) if row else None
 
     def get_user_by_email(self, email: str) -> dict | None:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(f"SELECT {', '.join(_USER_COLS)} FROM users WHERE email = %s", (email,))
             row = cur.fetchone()
             return _user_row(row) if row else None
@@ -65,22 +61,19 @@ class UserRepo(BasePostgresRepo):
         set_parts.append("updated_at = NOW()")
         params = list(to_update.values()) + [user_id]
         sql = f"UPDATE users SET {', '.join(set_parts)} WHERE id = %s"
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(sql, tuple(params))
             return cur.rowcount > 0
 
     def get_admin_telegram_ids(self) -> list[int]:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 "SELECT telegram_id FROM users WHERE role = 'admin' AND telegram_id IS NOT NULL",
             )
             return [row[0] for row in cur.fetchall()]
 
     def get_user_knowledge(self, user_id: str, limit: int = 10) -> list[dict]:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 """SELECT id, tier, domain, title, content, source, created_at
                    FROM knowledge_entries

@@ -8,8 +8,7 @@ from backend.infrastructure.repositories.postgres.base import BasePostgresRepo
 class EnvironmentRepo(BasePostgresRepo):
 
     def get_environment(self, name: str) -> dict | None:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 """SELECT name, description, system_context, allowed_domains,
                           created_at, updated_at
@@ -24,8 +23,7 @@ class EnvironmentRepo(BasePostgresRepo):
             return dict(zip(cols, row))
 
     def get_environment_by_chat_id(self, chat_id: int) -> dict | None:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 """SELECT e.name, e.description, e.system_context, e.allowed_domains,
                           e.created_at, e.updated_at
@@ -42,8 +40,7 @@ class EnvironmentRepo(BasePostgresRepo):
             return dict(zip(cols, row))
 
     def list_environments(self) -> list[dict]:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 """SELECT name, description, system_context, allowed_domains,
                           created_at, updated_at
@@ -55,8 +52,7 @@ class EnvironmentRepo(BasePostgresRepo):
 
     def save_environment(self, name: str, description: str, system_context: str,
                          allowed_domains: list[str] | None = None) -> str:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 """INSERT INTO environments (name, description, system_context, allowed_domains)
                    VALUES (%s, %s, %s, %s)
@@ -78,14 +74,12 @@ class EnvironmentRepo(BasePostgresRepo):
         set_parts.append("updated_at = NOW()")
         sql = f"UPDATE environments SET {', '.join(set_parts)} WHERE name = %s"
         params = list(to_update.values()) + [name]
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(sql, tuple(params))
             return cur.rowcount > 0
 
     def get_bindings_for_environment(self, environment: str) -> list[int]:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 "SELECT chat_id FROM environment_bindings WHERE environment = %s ORDER BY chat_id",
                 (environment,),
@@ -93,8 +87,7 @@ class EnvironmentRepo(BasePostgresRepo):
             return [row[0] for row in cur.fetchall()]
 
     def bind_chat(self, chat_id: int, environment: str) -> None:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 """INSERT INTO environment_bindings (chat_id, environment)
                    VALUES (%s, %s)
@@ -104,8 +97,7 @@ class EnvironmentRepo(BasePostgresRepo):
             )
 
     def unbind_chat(self, chat_id: int) -> None:
-        conn = self._get_conn()
-        with conn.cursor() as cur:
+        with self._cursor() as cur:
             cur.execute(
                 "DELETE FROM environment_bindings WHERE chat_id = %s",
                 (chat_id,),

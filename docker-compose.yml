@@ -26,6 +26,7 @@ services:
       - ./config/service_account.json:/app/config/service_account.json:ro
       - ./config/business_config.json:/app/config/business_config.json:ro
       - ./config/tech_config.json:/app/config/tech_config.json:ro
+      - ./config/keys:/app/config/keys:ro
 
   bot:
     build: .

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from backend.brain.base_genai import BaseGenAI
-from backend.brain.routes import Route
+from backend.brain.tool import Tool
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 
 
@@ -9,21 +9,25 @@ class Router(BaseGenAI):
     def __init__(self, gemini: GeminiGateway):
         super().__init__(gemini)
 
-    def route(self, input: str, routes: list[Route]) -> Route:
-        context = {"routes": routes}
+    def route(self, input: str, tools: list[Tool]) -> Tool | None:
+        """Classify NL input to a tool, or None for conversation mode."""
+        routable = [t for t in tools if t.nl_routable]
+        if not routable:
+            return None
+        context = {"tools": routable}
         result = self.run(input, context)
-        route_name = result.get("command", "")
-        matched = next((r for r in routes if r.name == route_name), None)
-        if matched:
-            return matched
-        return next((r for r in routes if r.name == "conversation"), routes[0])
+        tool_name = result.get("command", "")
+        if tool_name == "conversation":
+            return None
+        matched = next((t for t in routable if t.name == tool_name), None)
+        return matched  # None = conversation mode
 
     def _pick_template(self, input: str, context: dict) -> str:
         return "chat/classify-command.md"
 
     def _build_context(self, input: str, context: dict) -> dict:
-        routes = context["routes"]
-        commands_desc = "\n".join(f"- **{r.name}** -- {r.description}" for r in routes)
+        tools = context["tools"]
+        commands_desc = "\n".join(f"- **{t.name}** -- {t.description}" for t in tools)
         return {"COMMANDS": commands_desc, "TEXT": input, "CONTEXT": ""}
 
     def _parse_response(self, raw: dict) -> dict:

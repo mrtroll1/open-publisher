@@ -1,4 +1,4 @@
-"""Read-only SQL gateway — connects to external DBs via SSH tunnel."""
+"""Read-only SQL gateways for external and local DBs."""
 
 from __future__ import annotations
 
@@ -11,6 +11,43 @@ from sshtunnel import SSHTunnelForwarder
 logger = logging.getLogger(__name__)
 
 _SELECT_RE = re.compile(r"^\s*(SELECT|WITH)\b", re.IGNORECASE)
+
+
+class LocalQueryGateway:
+    """Execute read-only SQL against a local postgres (no SSH tunnel)."""
+
+    def __init__(self, dsn: str, name: str = "local"):
+        self._dsn = dsn
+        self._name = name
+        self._conn = None
+
+    @property
+    def available(self) -> bool:
+        return bool(self._dsn)
+
+    def _ensure_conn(self):
+        if self._conn and not self._conn.closed:
+            return
+        self._conn = psycopg2.connect(self._dsn)
+        self._conn.autocommit = True
+
+    def execute(self, sql: str, params: tuple = ()) -> list[dict]:
+        if not _SELECT_RE.match(sql):
+            raise ValueError("Only SELECT queries are allowed")
+        self._ensure_conn()
+        try:
+            with self._conn.cursor() as cur:
+                cur.execute(sql, params)
+                cols = [desc[0] for desc in cur.description]
+                return [dict(zip(cols, row)) for row in cur.fetchall()]
+        except Exception:
+            self._conn = None
+            raise
+
+    def close(self):
+        if self._conn and not self._conn.closed:
+            self._conn.close()
+            self._conn = None
 
 
 class QueryGateway:

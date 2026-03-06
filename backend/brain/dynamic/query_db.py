@@ -4,7 +4,7 @@ import logging
 
 from backend.brain.base_genai import BaseGenAI
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
-from backend.infrastructure.gateways.query_gateway import QueryGateway
+from backend.infrastructure.gateways.query_gateway import LocalQueryGateway, QueryGateway
 from backend.infrastructure.repositories.postgres import DbGateway
 
 logger = logging.getLogger(__name__)
@@ -15,11 +15,11 @@ _MAX_ROWS = 50
 class QueryDB(BaseGenAI):
     """Compose SQL from natural language, execute, return rows.
 
-    Used as a tool by ConversationReply — not a standalone route.
+    Used as a conversational tool by the Brain's ReAct loop.
     Schema knowledge is fetched from the knowledge DB (domain=infra).
     """
 
-    def __init__(self, gemini: GeminiGateway, gateway: QueryGateway,
+    def __init__(self, gemini: GeminiGateway, gateway: QueryGateway | LocalQueryGateway,
                  db: DbGateway, schema_domain: str = "databases"):
         super().__init__(gemini)
         self._model = "gemini-2.5-flash"

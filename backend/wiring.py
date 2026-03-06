@@ -102,22 +102,22 @@ class BrainComponents:
 
 
 def create_brain() -> BrainComponents:
-    """Wire up Brain with all controllers and routes. Returns shared components."""
+    """Wire up Brain with all tools. Returns shared components."""
     from backend.brain import Brain
     from backend.brain.authorizer import Authorizer
     from backend.brain.dynamic import (
-        ClassifyTeaching, ConversationReply, EditorialAssess,
-        InboxClassify, SummarizeArticle, TechSupport, ToolRouting,
+        ClassifyTeaching, EditorialAssess,
+        InboxClassify, SummarizeArticle, TechSupport,
     )
     from backend.brain.dynamic.query_db import QueryDB
     from backend.brain.router import Router
-    from backend.brain.routes import ROUTE_DEFINITIONS, ROUTES, Route, register_route
-    from backend.brain.controllers import (
-        BudgetController, CodeController, ConversationController,
-        HealthController, InboxController, IngestController,
-        InvoiceController, SearchController,
-        SupportController, TeachController,
+    from backend.brain.tool import register_tool
+    from backend.brain.tools import (
+        make_teach_tool, make_search_tool, make_support_tool,
+        make_code_tool, make_health_tool, make_invoice_tool,
+        make_budget_tool, make_ingest_tool, make_query_db_tools,
     )
+    from backend.brain.controllers.conversation import conversation_handler
     from backend.commands.process_inbox import InboxWorkflow
 
     # Infrastructure
@@ -130,41 +130,47 @@ def create_brain() -> BrainComponents:
     # Query gateways (SSH-tunneled external DBs)
     query_gateways = create_query_gateways()
 
-    # Dynamic (GenAI) instances
-    tool_routing = ToolRouting(gemini, available_tools=["rag"] + list(query_gateways.keys()))
-
-    # ConversationReply needs QueryDB (BaseGenAI), not raw gateway
-    query_db_map: dict = {}
-    for name, gw in query_gateways.items():
-        query_db_map[name] = QueryDB(gemini, gw, db)
-
-    conversation_reply = ConversationReply(gemini, retriever, tool_routing, query_db_map)
+    # GenAI instances (still needed by some tools)
     classify_teaching = ClassifyTeaching(gemini, db, embed)
     tech_support = TechSupport(gemini, retriever, db)
     inbox_classify = InboxClassify(gemini, retriever)
     editorial_assess = EditorialAssess(gemini, retriever)
     summarize_article = SummarizeArticle(gemini, retriever)
 
-    # Controllers
-    conv_ctrl = ConversationController(conversation_reply, db, retriever)
-    support_ctrl = SupportController(tech_support)
+    # QueryDB instances for external DBs + our own DB
+    from backend.infrastructure.gateways.query_gateway import LocalQueryGateway
+    from common.config import DATABASE_URL
+    query_db_map: dict = {}
+    for name, gw in query_gateways.items():
+        query_db_map[name] = QueryDB(gemini, gw, db)
+    own_db_gw = LocalQueryGateway(DATABASE_URL, name="agent")
+    if own_db_gw.available:
+        query_db_map["agent_db"] = QueryDB(gemini, own_db_gw, db)
+
+    # Register all tools
+    register_tool(make_teach_tool(classify_teaching, memory))
+    register_tool(make_search_tool(retriever))
+    register_tool(make_support_tool(tech_support))
     from backend.commands.run_code import _set_retriever
     _set_retriever(retriever)
-    code_ctrl = CodeController()
-    health_ctrl = HealthController()
-    teach_ctrl = TeachController(classify_teaching, memory)
-    search_ctrl = SearchController(retriever)
-    ingest_ctrl = IngestController(summarize_article, memory)
+    register_tool(make_code_tool())
+    register_tool(make_health_tool())
 
-    # Invoice controller
     gen_invoice = GenerateInvoice(docs_gw=DocsGateway(), drive_gw=DriveGateway())
-    invoice_ctrl = InvoiceController(gen_invoice)
+    register_tool(make_invoice_tool(gen_invoice))
 
-    # Budget controller
     compute_budget = ComputeBudget(republic_gw=RepublicGateway(), redefine_gw=RedefineGateway())
-    budget_ctrl = BudgetController(compute_budget)
+    register_tool(make_budget_tool(compute_budget))
 
-    # Inbox controller
+    register_tool(make_ingest_tool(summarize_article, memory))
+
+    for tool in make_query_db_tools(query_db_map):
+        register_tool(tool)
+
+    # Conversation handler (ReAct loop)
+    conv_handler = conversation_handler(gemini, db, retriever)
+
+    # Inbox workflow
     republic = RepublicGateway()
     redefine = RedefineGateway()
     email_gw = EmailGateway()
@@ -174,46 +180,14 @@ def create_brain() -> BrainComponents:
         tech_support=tech_support_handler, email_gw=email_gw, db=db,
         classifier=inbox_classify, assessor=editorial_assess,
     )
-    inbox_ctrl = InboxController(inbox_classify, inbox_workflow)
-
-    ctrl_map = {
-        "conversation": conv_ctrl,
-        "support": support_ctrl,
-        "code": code_ctrl,
-        "health": health_ctrl,
-        "teach": teach_ctrl,
-        "search": search_ctrl,
-        "invoice": invoice_ctrl,
-        "budget": budget_ctrl,
-        "ingest": ingest_ctrl,
-        "inbox": inbox_ctrl,
-    }
-
-    # Register routes
-    ROUTES.clear()
-    for defn in ROUTE_DEFINITIONS:
-        controller = ctrl_map.get(defn["name"])
-        if controller is None:
-            continue
-        register_route(Route(
-            name=defn["name"],
-            controller=controller,
-            description=defn["description"],
-            examples=defn.get("examples", []),
-            permissions=defn.get("permissions", {"admin"}),
-            slash_command=defn.get("slash_command"),
-            nl_routable=defn.get("nl_routable", True),
-        ))
 
     authorizer = Authorizer(db)
     router = Router(gemini)
     return BrainComponents(
-        brain=Brain(authorizer, router),
+        brain=Brain(authorizer, router, conversation_fn=conv_handler),
         inbox=inbox_workflow,
         memory=memory,
         db=db,
         retriever=retriever,
         classify_teaching=classify_teaching,
     )
-
-

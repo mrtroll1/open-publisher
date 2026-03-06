@@ -2,15 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from backend.brain.routes import Route, ROUTES
+from backend.brain.tool import Tool, ToolContext, TOOLS
 from backend.infrastructure.repositories.postgres import DbGateway
 
 
 @dataclass
 class AuthContext:
-    env: dict
-    user: dict
-    routes: list[Route]
+    ctx: ToolContext
+    tools: list[Tool]
+    env_name: str
+    role: str
 
 
 class Authorizer:
@@ -22,8 +23,9 @@ class Authorizer:
         user = self._resolve_user(user_id)
         role = user.get("role", "user")
         env_name = env.get("name", "")
-        routes = self._filter_routes(role, env_name)
-        return AuthContext(env=env, user=user, routes=routes)
+        tools = self._filter_tools(role, env_name)
+        ctx = ToolContext(env=env, user=user)
+        return AuthContext(ctx=ctx, tools=tools, env_name=env_name, role=role)
 
     def _resolve_env(self, environment_id: str) -> dict:
         result = self._db.get_environment(environment_id)
@@ -40,10 +42,10 @@ class Authorizer:
                 return result
         return {}
 
-    def _filter_routes(self, role: str, env_name: str) -> list[Route]:
+    def _filter_tools(self, role: str, env_name: str) -> list[Tool]:
         result = []
-        for route in ROUTES.values():
-            allowed = route.permissions.get(env_name) or route.permissions.get("*", set())
+        for tool in TOOLS.values():
+            allowed = tool.permissions.get(env_name) or tool.permissions.get("*", set())
             if role in allowed:
-                result.append(route)
+                result.append(tool)
         return result

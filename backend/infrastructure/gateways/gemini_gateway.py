@@ -7,7 +7,7 @@ import logging
 import time
 from google.genai import types
 from google import genai
-from google.genai.errors import ServerError
+from google.genai.errors import ClientError, ServerError
 
 
 from common.config import GEMINI_API_KEY
@@ -64,12 +64,12 @@ class GeminiGateway:
                 )
                 raw = response.text.strip()
                 return self._extract_json(raw)
-            except ServerError:
+            except (ServerError, ClientError) as e:
                 if attempt == 2:
                     raise
                 wait = (attempt + 1) * 5
-                logger.warning("Gemini 503, retrying in %ds (attempt %d/3)",
-                               wait, attempt + 1)
+                logger.warning("Gemini error (%s), retrying in %ds (attempt %d/3)",
+                               e, wait, attempt + 1)
                 time.sleep(wait)
 
     @staticmethod

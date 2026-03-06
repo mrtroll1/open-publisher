@@ -67,7 +67,6 @@ async def main():
     logger.info("Starting bot...")
     await set_bot_commands(bot)
     asyncio.create_task(email_listener_task())
-    asyncio.create_task(knowledge_pipeline_task())
     asyncio.create_task(daily_article_ingest_task())
     await dp.start_polling(bot)
 

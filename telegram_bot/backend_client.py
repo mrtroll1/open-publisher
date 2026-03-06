@@ -3,7 +3,7 @@
 import httpx
 from common.config import BACKEND_URL
 
-_client = httpx.AsyncClient(base_url=BACKEND_URL, timeout=120.0)
+_client = httpx.AsyncClient(base_url=BACKEND_URL, timeout=300.0)
 
 
 class BackendError(Exception):

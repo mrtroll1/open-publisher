@@ -13,6 +13,11 @@ db = _components.db
 retriever = _components.retriever
 
 
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
 # --- Request / Response models ---
 
 class ProcessRequest(BaseModel):

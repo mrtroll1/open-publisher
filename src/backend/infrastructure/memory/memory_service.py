@@ -65,8 +65,8 @@ class MemoryService:
         return results
 
     # ── TEACH ──────────────────────────────────────────────────
-    def teach(self, text: str, domain: str, tier: str) -> str:
-        return self._retriever.store_teaching(text, domain=domain, tier=tier)
+    def teach(self, text: str, domain: str, tier: str, title: str = "") -> str:
+        return self._retriever.store_teaching(text, domain=domain, tier=tier, title=title)
 
     # ── CONTEXT ────────────────────────────────────────────────
     def get_context(self, environment: str | None = None,

@@ -3,21 +3,14 @@
 from __future__ import annotations
 
 import logging
-from typing import Callable
 
 from aiogram import types
 from aiogram.fsm.context import FSMContext
 
 from telegram_bot import backend_client, replies
-from telegram_bot.bot_helpers import is_admin
 from telegram_bot.handler_utils import _kedit_pending, _save_turn, _send, _send_html, send_typing, ThinkingMessage
 
 logger = logging.getLogger(__name__)
-
-_TEACHING_KEYWORDS = ("запомни", "учти", "имей в виду", "remember")
-
-# Commands where original user text should be passed as-is (LLM processes it)
-_LLM_COMMANDS = {"code", "support"}
 
 # All commands available for admin /nl classification
 _ADMIN_NL_DESCRIPTIONS: dict[str, str] = {
@@ -65,16 +58,6 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
 
     try:
         async with ThinkingMessage(message) as thinking:
-            # Detect teaching patterns — store before LLM call
-            user_text_lower = (message.text or "").lower()
-            if any(kw in user_text_lower for kw in _TEACHING_KEYWORDS):
-                if is_admin(message.from_user.id):
-                    try:
-                        await backend_client.teach(message.text, domain="general")
-                    except Exception:
-                        logger.exception("Failed to store NL teaching")
-
-            # Call Brain with reply context for conversation history
             result = await backend_client.process(
                 input=message.text,
                 environment_id=str(message.chat.id),
@@ -144,15 +127,15 @@ async def cmd_teach(message: types.Message, state: FSMContext) -> None:
 
     text = args[1].strip()
     try:
-        classification = await backend_client.classify_teaching(text)
-        domain = classification["domain"]
-        tier = classification["tier"]
-        await backend_client.teach(text, domain, tier)
+        result = await backend_client.teach(text)
     except Exception:
         logger.exception("Failed to store teaching")
         await message.answer("Не удалось сохранить.")
         return
-    await message.answer(replies.teach.stored_fmt.format(domain=domain, tier=tier))
+    confirmation = result.get("confirmation", "Запомнил!")
+    domain = result.get("domain", "?")
+    tier = result.get("tier", "?")
+    await message.answer(f"{confirmation}\n\n<code>[{tier}] {domain}</code>", parse_mode="HTML")
 
 
 async def cmd_knowledge(message: types.Message, state: FSMContext) -> None:

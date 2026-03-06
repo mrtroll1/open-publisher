@@ -11,7 +11,6 @@ memory = _components.memory
 inbox = _components.inbox
 db = _components.db
 retriever = _components.retriever
-_classify_teaching = _components.classify_teaching
 
 
 @app.get("/health")
@@ -41,11 +40,9 @@ class BrainResponse(BaseModel):
 
 class TeachRequest(BaseModel):
     text: str
-    domain: str
-    tier: str = "specific"
-
-class ClassifyRequest(BaseModel):
-    text: str
+    context: str = ""
+    domain: str = ""
+    tier: str = ""
 
 class UserNoteRequest(BaseModel):
     text: str
@@ -235,16 +232,16 @@ def get_pending_editorial(uid: str) -> BrainResponse:
 
 @app.post("/memory/teach")
 def teach(req: TeachRequest) -> BrainResponse:
+    from backend.brain.tool import TOOLS, ToolContext
     try:
-        entry_id = memory.teach(req.text, req.domain, req.tier)
-        return BrainResponse(result={"id": entry_id})
-    except Exception as e:
-        return BrainResponse(result=None, error=str(e))
-
-@app.post("/memory/classify-teaching")
-def classify_teaching(req: ClassifyRequest) -> BrainResponse:
-    try:
-        result = _classify_teaching.run(req.text, {})
+        teach_tool = TOOLS["teach"]
+        ctx = ToolContext(env={}, user={})
+        args = {"text": req.text, "context": req.context}
+        if req.domain:
+            args["domain"] = req.domain
+        if req.tier:
+            args["tier"] = req.tier
+        result = teach_tool.execute(args, ctx)
         return BrainResponse(result=result)
     except Exception as e:
         return BrainResponse(result=None, error=str(e))

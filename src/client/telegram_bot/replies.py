@@ -285,7 +285,6 @@ class editorial:
 # ── Teaching & knowledge management ──────────────────────────────────
 
 class teach:
-    stored_fmt = "Запомнил. [{tier}] {domain}"
     usage = "Использование: /teach <текст для запоминания>"
 
 

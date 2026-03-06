@@ -99,15 +99,10 @@ async def update_and_approve_support(uid: str, text: str):
 
 # --- Memory ---
 
-async def teach(text: str, domain: str, tier: str = "specific") -> dict:
+async def teach(text: str, context: str = "") -> dict:
     resp = await _client.post("/memory/teach", json={
-        "text": text, "domain": domain, "tier": tier,
+        "text": text, "context": context,
     })
-    return _unwrap(resp)
-
-
-async def classify_teaching(text: str) -> dict:
-    resp = await _client.post("/memory/classify-teaching", json={"text": text})
     return _unwrap(resp)
 
 

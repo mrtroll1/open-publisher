@@ -96,7 +96,8 @@ class KnowledgeRetriever:
             embedding=embedding, user_id=user_id,
         )
 
-    def store_teaching(self, text: str, domain: str = "general", tier: str = "specific") -> str:
+    def store_teaching(self, text: str, domain: str = "general", tier: str = "specific",
+                       title: str = "") -> str:
         embedding = self._embed.embed_one(text)
         # Only dedup specific-tier entries; core/meta are intentionally distinct
         if tier == "specific":
@@ -105,7 +106,8 @@ class KnowledgeRetriever:
                 entry_id = existing[0]["id"]
                 self._db.update_knowledge_entry(entry_id, text, embedding)
                 return entry_id
-        title = text[:60].strip()
+        if not title:
+            title = text[:60].strip()
         return self._db.save_knowledge_entry(
             tier=tier,
             domain=domain,

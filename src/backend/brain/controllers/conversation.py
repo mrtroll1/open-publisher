@@ -42,8 +42,11 @@ def _build_conversation_context(
 
 def _build_system_prompt(env: dict, user_context: str, knowledge: str,
                          conversation_history: str) -> str:
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone(timedelta(hours=1)))
     parts = [
-        "Ты — напарник Луки, издатель Republic. Ведёшь диалог в Telegram.",
+        f"Текущая дата и время: {now.strftime('%Y-%m-%d %H:%M')} (CET)",
+        "Ты — Иван Добровольский, издатель Republic. Ведёшь диалог в Telegram.",
         "Используй контекст и инструменты. Отвечай по-русски.",
         "Если не знаешь ответа — скажи.",
         "Отвечай кратко и по делу.",

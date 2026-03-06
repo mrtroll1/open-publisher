@@ -98,7 +98,6 @@ class BrainComponents:
     memory: Any
     db: Any
     retriever: Any
-    classify_teaching: Any = None
 
 
 def create_brain() -> BrainComponents:
@@ -151,7 +150,7 @@ def create_brain() -> BrainComponents:
         query_db_map["agent_db"] = QueryDB(gemini, own_db_gw, db, schema_domain="agent_db")
 
     # Register all tools
-    register_tool(make_teach_tool(classify_teaching, memory))
+    register_tool(make_teach_tool(classify_teaching, memory, gemini))
     register_tool(make_search_tool(retriever))
     register_tool(make_support_tool(tech_support))
     from backend.commands.run_code import _set_retriever
@@ -192,5 +191,4 @@ def create_brain() -> BrainComponents:
         memory=memory,
         db=db,
         retriever=retriever,
-        classify_teaching=classify_teaching,
     )

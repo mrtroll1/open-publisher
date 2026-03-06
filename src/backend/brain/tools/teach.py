@@ -1,27 +1,61 @@
 from __future__ import annotations
 
+import logging
+
 from backend.brain.tool import Tool, ToolContext
 
+logger = logging.getLogger(__name__)
 
-def make_teach_tool(classify_teaching, memory) -> Tool:
+
+def make_teach_tool(classify_teaching, memory, gemini) -> Tool:
+    from backend.brain.prompt_loader import load_template
+
     def fn(args: dict, ctx: ToolContext) -> dict:
         text = args.get("text") or args.get("input", "")
+        context = args.get("context", "")
+
+        # Extract clean knowledge via LLM
+        extracted = _extract_knowledge(gemini, text, context)
+        title = extracted.get("title", "")
+        content = extracted.get("content", text)
+
+        # Classify into domain/tier
         domain = args.get("domain")
         tier = args.get("tier", "specific")
         if not domain:
-            result = classify_teaching.run(text, {})
+            result = classify_teaching.run(content, {})
             domain = result["domain"]
             tier = result.get("tier", tier)
-        entry_id = memory.teach(text, domain, tier)
-        return {"entry_id": entry_id, "domain": domain, "tier": tier}
+
+        entry_id = memory.teach(content, domain, tier, title=title)
+
+        return {
+            "confirmation": f"Запомнил: {title}" if title else "Запомнил!",
+            "entry_id": entry_id,
+            "domain": domain,
+            "tier": tier,
+            "title": title,
+        }
+
+    def _extract_knowledge(gemini_gw, message: str, context: str) -> dict:
+        prompt = load_template("knowledge/extract-teaching.md", {
+            "CONTEXT": context or "(нет контекста)",
+            "MESSAGE": message,
+        })
+        try:
+            return gemini_gw.call(prompt)
+        except Exception:
+            logger.warning("Knowledge extraction failed, storing raw text")
+            return {"title": "", "content": message}
 
     return Tool(
         name="teach",
-        description="Запомнить новое знание",
+        description="Запомнить новое знание. Передай text (что запомнить) и context (предыдущие сообщения из переписки для контекста).",
         parameters={
             "type": "object",
             "properties": {
-                "text": {"type": "string", "description": "Текст для запоминания"},
+                "text": {"type": "string", "description": "Сообщение пользователя с просьбой запомнить"},
+                "context": {"type": "string", "description": "Предыдущие сообщения из переписки (для контекста)"},
                 "domain": {"type": "string", "description": "Домен знаний (определяется автоматически если не указан)"},
                 "tier": {"type": "string", "description": "Уровень: core, meta, specific"},
             },

@@ -124,7 +124,7 @@ def create_brain() -> BrainComponents:
     from backend.brain.controllers import (
         BudgetController, CodeController, ConversationController,
         HealthController, InboxController, IngestController,
-        InvoiceController, QueryController, SearchController,
+        InvoiceController, SearchController,
         SupportController, TeachController,
     )
     from backend.commands.process_inbox import InboxWorkflow
@@ -165,9 +165,6 @@ def create_brain() -> BrainComponents:
     search_ctrl = SearchController(retriever)
     ingest_ctrl = IngestController(summarize_article, memory)
 
-    # Query controller — use first available QueryDB, or stub
-    query_ctrl = _create_query_ctrl(gemini, query_tools)
-
     # Invoice controller
     gen_invoice = GenerateInvoice(docs_gw=DocsGateway(), drive_gw=DriveGateway())
     invoice_ctrl = InvoiceController(gen_invoice)
@@ -196,7 +193,6 @@ def create_brain() -> BrainComponents:
         "health": health_ctrl,
         "teach": teach_ctrl,
         "search": search_ctrl,
-        "query": query_ctrl,
         "invoice": invoice_ctrl,
         "budget": budget_ctrl,
         "ingest": ingest_ctrl,
@@ -229,15 +225,3 @@ def create_brain() -> BrainComponents:
     )
 
 
-def _create_query_ctrl(gemini, query_tools):
-    """Create query controller from available query gateways, or stub."""
-    from backend.brain.base_controller import BaseController, PassThroughPreparer, StubUseCase
-    from backend.brain.controllers import QueryController
-    from backend.brain.dynamic.query_db import QueryDB
-
-    for qs in query_tools.values():
-        if qs.available:
-            query_db = QueryDB(gemini, qs.gateway, qs.schema_template)
-            return QueryController(query_db)
-
-    return BaseController(PassThroughPreparer(), StubUseCase("Query DB not available"))

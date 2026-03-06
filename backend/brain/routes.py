@@ -66,13 +66,6 @@ ROUTE_DEFINITIONS: list[dict] = [
         "slash_command": "ksearch",
     },
     {
-        "name": "query",
-        "description": "SQL-запрос к базе данных Republic/Redefine",
-        "examples": ["сколько подписчиков?", "топ авторов за месяц"],
-        "permissions": {"admin"},
-        "slash_command": None,
-    },
-    {
         "name": "invoice",
         "description": "Генерация счёта для автора",
         "examples": [],

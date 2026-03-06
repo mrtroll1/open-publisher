@@ -13,6 +13,10 @@ _MAX_ROWS = 50
 
 
 class QueryDB(BaseGenAI):
+    """Compose SQL from natural language, execute, return rows.
+
+    Used as a tool by ConversationReply — not a standalone route.
+    """
 
     def __init__(self, gemini: GeminiGateway, gateway: QueryGateway,
                  schema_template: str):

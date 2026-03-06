@@ -6,7 +6,7 @@ from typing import Any
 
 import requests
 
-from backend.brain.base_controller import BaseController, BaseUseCase, PassThroughPreparer
+from backend.brain.base_controller import BaseUseCase
 from common.config import HEALTHCHECK_DOMAINS, KUBECTL_ENABLED
 
 
@@ -74,5 +74,3 @@ class CheckHealthUseCase(BaseUseCase):
         return run_healthchecks()
 
 
-def create_health_controller() -> BaseController:
-    return BaseController(PassThroughPreparer(), CheckHealthUseCase())

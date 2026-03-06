@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import uuid
 
-from backend.brain.base_controller import BaseController, BasePreparer, GenAIUseCase
-from backend.commands.utils import parse_flags
 from common.models import IncomingEmail, SupportDraft
 
 
@@ -50,11 +48,3 @@ def discard(uid: str, draft: SupportDraft | None, uid_thread: dict[str, str], db
         db.save_message(thread_id, msg, "draft_rejected")
 
 
-class SupportPreparer(BasePreparer):
-    def prepare(self, input: str, env: dict, user: dict):
-        verbose, expert, text = parse_flags(input)
-        return {"question": text, "verbose": verbose, "expert": expert}
-
-
-def create_support_controller(tech_support) -> BaseController:
-    return BaseController(SupportPreparer(), GenAIUseCase(tech_support))

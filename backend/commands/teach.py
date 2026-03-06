@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from backend.brain.base_controller import BaseController, BaseUseCase, PassThroughPreparer
+from backend.brain.base_controller import BaseUseCase
 from backend.brain.dynamic.classify_teaching import ClassifyTeaching
 from backend.infrastructure.memory.memory_service import MemoryService
 
@@ -20,5 +20,3 @@ class TeachUseCase(BaseUseCase):
         return {"entry_id": entry_id, "domain": result["domain"], "tier": result["tier"]}
 
 
-def create_teach_controller(classify: ClassifyTeaching, memory: MemoryService) -> BaseController:
-    return BaseController(PassThroughPreparer(), TeachUseCase(classify, memory))

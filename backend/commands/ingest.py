@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
-from backend.brain.base_controller import BaseController, BaseUseCase, PassThroughPreparer
+from backend.brain.base_controller import BaseUseCase
 from backend.brain.dynamic.summarize_article import SummarizeArticle
 from common.config import EXPIRY_ARTICLE_SUMMARY_DAYS
 from backend.infrastructure.memory.memory_service import MemoryService
@@ -77,5 +77,3 @@ class IngestUseCase(BaseUseCase):
         )
 
 
-def create_ingest_controller(summarizer: SummarizeArticle, memory: MemoryService) -> BaseController:
-    return BaseController(PassThroughPreparer(), IngestUseCase(summarizer, memory))

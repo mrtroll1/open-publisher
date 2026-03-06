@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from backend.brain.base_controller import BaseController, BaseUseCase, PassThroughPreparer
+from backend.brain.base_controller import BaseUseCase
 from backend.brain.dynamic.inbox_classify import InboxClassify
 from backend.commands.support_handler import TechSupportHandler
 from backend.infrastructure.repositories.postgres import DbGateway
@@ -164,5 +164,3 @@ class InboxProcessUseCase(BaseUseCase):
         return {"category": result.get("category", "unknown"), "reason": result.get("reason", ""), "source": "ai"}
 
 
-def create_inbox_controller(classifier: InboxClassify, workflow: InboxWorkflow) -> BaseController:
-    return BaseController(PassThroughPreparer(), InboxProcessUseCase(classifier, workflow))

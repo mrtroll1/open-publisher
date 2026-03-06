@@ -133,17 +133,13 @@ def create_brain() -> BrainComponents:
     from backend.brain.dynamic.query_db import QueryDB
     from backend.brain.router import Router
     from backend.brain.routes import ROUTE_DEFINITIONS, ROUTES, Route, register_route
-    from backend.commands.budget import create_budget_controller
-    from backend.commands.code import create_code_controller
-    from backend.commands.conversation import create_conversation_controller
-    from backend.commands.health import create_health_controller
-    from backend.commands.support import create_support_controller
-    from backend.commands.inbox import InboxWorkflow, create_inbox_controller
-    from backend.commands.ingest import create_ingest_controller
-    from backend.commands.invoice import create_invoice_controller
-    from backend.commands.query import create_query_controller
-    from backend.commands.search import create_search_controller
-    from backend.commands.teach import create_teach_controller
+    from backend.brain.controllers import (
+        BudgetController, CodeController, ConversationController,
+        HealthController, InboxController, IngestController,
+        InvoiceController, QueryController, SearchController,
+        SupportController, TeachController,
+    )
+    from backend.commands.inbox import InboxWorkflow
 
     # Infrastructure
     db = create_db()
@@ -170,26 +166,26 @@ def create_brain() -> BrainComponents:
     summarize_article = SummarizeArticle(gemini, retriever)
 
     # Controllers
-    conv_ctrl = create_conversation_controller(conversation_reply, db, retriever)
-    support_ctrl = create_support_controller(tech_support)
+    conv_ctrl = ConversationController(conversation_reply, db, retriever)
+    support_ctrl = SupportController(tech_support)
     from backend.commands.code import _set_retriever
     _set_retriever(retriever)
-    code_ctrl = create_code_controller()
-    health_ctrl = create_health_controller()
-    teach_ctrl = create_teach_controller(classify_teaching, memory)
-    search_ctrl = create_search_controller(retriever)
-    ingest_ctrl = create_ingest_controller(summarize_article, memory)
+    code_ctrl = CodeController()
+    health_ctrl = HealthController()
+    teach_ctrl = TeachController(classify_teaching, memory)
+    search_ctrl = SearchController(retriever)
+    ingest_ctrl = IngestController(summarize_article, memory)
 
     # Query controller — use first available QueryDB, or stub
     query_ctrl = _create_query_ctrl(gemini, query_tools)
 
     # Invoice controller
     gen_invoice = GenerateInvoice(docs_gw=DocsGateway(), drive_gw=DriveGateway())
-    invoice_ctrl = create_invoice_controller(gen_invoice)
+    invoice_ctrl = InvoiceController(gen_invoice)
 
     # Budget controller
     compute_budget = ComputeBudget(republic_gw=RepublicGateway(), redefine_gw=RedefineGateway())
-    budget_ctrl = create_budget_controller(compute_budget)
+    budget_ctrl = BudgetController(compute_budget)
 
     # Inbox controller
     republic = RepublicGateway()
@@ -199,7 +195,7 @@ def create_brain() -> BrainComponents:
     tech_support_handler = TechSupportHandler(gemini=gemini, user_lookup=user_lookup, db=db, retriever=retriever)
     inbox_service = InboxService(tech_support=tech_support_handler, gemini=gemini, email_gw=email_gw, db=db, retriever=retriever)
     inbox_workflow = InboxWorkflow(tech_support=tech_support_handler, email_gw=email_gw, db=db)
-    inbox_ctrl = create_inbox_controller(inbox_classify, inbox_workflow)
+    inbox_ctrl = InboxController(inbox_classify, inbox_workflow)
 
     # Build controller map
     ctrl_map = {
@@ -246,12 +242,12 @@ def create_brain() -> BrainComponents:
 def _create_query_ctrl(gemini, query_tools):
     """Create query controller from available query gateways, or stub."""
     from backend.brain.base_controller import BaseController, PassThroughPreparer, StubUseCase
+    from backend.brain.controllers import QueryController
     from backend.brain.dynamic.query_db import QueryDB
-    from backend.commands.query import create_query_controller
 
     for qs in query_tools.values():
         if qs.available:
             query_db = QueryDB(gemini, qs.gateway, qs.schema_template)
-            return create_query_controller(query_db)
+            return QueryController(query_db)
 
     return BaseController(PassThroughPreparer(), StubUseCase("Query DB not available"))

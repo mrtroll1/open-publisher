@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from backend.brain.base_controller import BaseController, BaseUseCase, PassThroughPreparer
+from backend.brain.base_controller import BaseUseCase
 from backend.infrastructure.memory.retriever import KnowledgeRetriever
 
 
@@ -17,5 +17,3 @@ class SearchUseCase(BaseUseCase):
         return {"results": self._retriever.retrieve(prepared, domains=domains)}
 
 
-def create_search_controller(retriever: KnowledgeRetriever) -> BaseController:
-    return BaseController(PassThroughPreparer(), SearchUseCase(retriever))

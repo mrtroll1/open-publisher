@@ -20,7 +20,18 @@ MAX_TOOL_STEPS = 5
 def _format_reply_chain(chain: list[dict]) -> str:
     parts = []
     for entry in chain:
-        parts.append(f"{entry['type']}: {entry['text']}")
+        meta = entry.get("metadata") or {}
+        if isinstance(meta, str):
+            import json
+            try:
+                meta = json.loads(meta)
+            except (json.JSONDecodeError, TypeError):
+                meta = {}
+        prefix = f"{entry['type']}"
+        if meta:
+            meta_str = " ".join(f"{k}={v}" for k, v in meta.items())
+            prefix += f" [{meta_str}]"
+        parts.append(f"{prefix}: {entry['text']}")
     return "\n".join(parts)
 
 
@@ -51,7 +62,7 @@ def _build_system_prompt(env: dict, user_context: str, knowledge: str,
         "Используй контекст и инструменты. Отвечай по-русски.",
         "Если не знаешь ответа — скажи.",
         "Отвечай кратко и по делу.",
-        "Если спрашивают о твоих прошлых действиях, запросах или результатах — используй agent_db для поиска в run_logs. Не выдумывай.",
+        "Если спрашивают о твоих прошлых действиях, запросах или результатах — используй agent_db для поиска в run_logs по run_id из истории. НИКОГДА не выдумывай SQL-запросы или результаты — только цитируй из run_logs.",
     ]
     environment = env.get("system_context", "")
     if environment:

@@ -17,7 +17,17 @@ deploy-api:
     - cd /opt/open-publisher
     - git pull
     - docker compose up -d --build api
-    - for i in $(seq 1 30); do docker compose exec api python -c "import urllib.request; urllib.request.urlopen('http://localhost:8100/health')" && exit 0; sleep 1; done; exit 1
+    - |
+      for i in $(seq 1 30); do
+        if docker compose exec api python -c "import urllib.request; urllib.request.urlopen('http://localhost:8100/health')" 2>/dev/null; then
+          echo "Health check passed"
+          exit 0
+        fi
+        sleep 1
+      done
+      echo "Health check failed, showing logs:"
+      docker compose logs --tail=50 api
+      exit 1
 
 deploy-bot:
   stage: deploy-bot

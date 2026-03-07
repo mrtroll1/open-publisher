@@ -15,5 +15,4 @@ deploy:
   script:
     - cd /opt/open-publisher
     - git pull
-    - docker compose up -d --build --no-deps api
-    - docker compose up -d --build bot
+    - docker compose up -d --build

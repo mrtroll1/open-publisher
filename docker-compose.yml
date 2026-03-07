@@ -35,8 +35,7 @@ services:
     restart: unless-stopped
     env_file: config/bot.env
     depends_on:
-      api:
-        condition: service_healthy
+      - api
 
 volumes:
   pgdata:

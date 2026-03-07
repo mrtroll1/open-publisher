@@ -17,7 +17,7 @@ deploy-api:
     - cd /opt/open-publisher
     - git pull
     - docker compose up -d --build api
-    - docker compose exec api python -c "import urllib.request; urllib.request.urlopen('http://localhost:8100/health')"
+    - for i in $(seq 1 30); do docker compose exec api python -c "import urllib.request; urllib.request.urlopen('http://localhost:8100/health')" && exit 0; sleep 1; done; exit 1
 
 deploy-bot:
   stage: deploy-bot

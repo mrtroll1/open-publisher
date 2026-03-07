@@ -60,6 +60,7 @@ def _find_or_suggest(raw_name: str, contractors: list) -> tuple[Contractor | Non
 
 
 def handle_generate(payload: Payload, ctx: InteractContext) -> dict:
+    progress = ctx.get("progress")
     text = payload.get("text", "").strip()
     if not text:
         return respond([msg("Использование: /generate <имя контрагента>")])
@@ -86,6 +87,8 @@ def handle_generate(payload: Payload, ctx: InteractContext) -> dict:
     if not amount_int:
         return respond([msg(f"Сумма для {contractor.display_name} за {month} не указана в бюджетной таблице.")])
 
+    if progress:
+        progress.emit("generate_invoice", f"Генерирую документ для {contractor.display_name}")
     try:
         result = create_and_save_invoice(contractor, month, Decimal(str(amount_int)), articles, debug=debug)
     except Exception as e:
@@ -170,12 +173,20 @@ def handle_lookup(payload: Payload, ctx: InteractContext) -> dict:
 
 
 def handle_batch_generate(payload: Payload, ctx: InteractContext) -> dict:
+    progress = ctx.get("progress")
     debug = "debug" in payload.get("text", "").lower().split()
     month = prev_month()
     contractors = load_all_contractors()
 
+    def _on_batch_progress(done: int, total: int) -> None:
+        if progress:
+            progress.emit("batch_progress", f"Генерирую счета: {done}/{total}")
+
+    if progress:
+        progress.emit("batch_start", f"Запускаю генерацию за {month}")
     try:
-        batch_result = create_generate_batch_invoices().execute(contractors, month, debug)
+        batch_result = create_generate_batch_invoices().execute(
+            contractors, month, debug, on_progress=_on_batch_progress)
     except ValueError as e:
         return respond([msg(str(e))])
 
@@ -340,6 +351,7 @@ def handle_orphans(payload: Payload, ctx: InteractContext) -> dict:
 
 
 def handle_upload_statement(payload: Payload, ctx: InteractContext) -> dict:
+    progress = ctx.get("progress")
     import base64
     file_b64 = payload.get("file_b64")
     rate_str = payload.get("rate", "")
@@ -358,6 +370,8 @@ def handle_upload_statement(payload: Payload, ctx: InteractContext) -> dict:
         with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
             tmp.write(file_bytes)
             tmp_path = tmp.name
+        if progress:
+            progress.emit("parse_statement", "Обрабатываю выписку")
         uc = create_parse_bank_statement()
         expenses = uc.execute(tmp_path, rate, True)
         review_count = sum(1 for e in expenses if e.comment == "NEEDS REVIEW")

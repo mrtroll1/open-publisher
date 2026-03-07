@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from enum import StrEnum
@@ -41,6 +42,26 @@ class FieldMeta:
     """Metadata for a user-facing contractor field."""
     label: str
     required: bool = False
+
+
+@dataclass
+class ProgressEvent:
+    """A progress update emitted during a flow."""
+    stage: str
+    detail: str = ""
+
+
+@dataclass
+class ProgressEmitter:
+    """Collects progress events. Optionally calls a listener on each emit."""
+    events: list[ProgressEvent] = field(default_factory=list)
+    _on_event: Callable[[ProgressEvent], None] | None = None
+
+    def emit(self, stage: str, detail: str = "") -> None:
+        event = ProgressEvent(stage, detail)
+        self.events.append(event)
+        if self._on_event:
+            self._on_event(event)
 
 
 class Contractor(BaseModel):

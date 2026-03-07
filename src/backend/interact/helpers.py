@@ -6,7 +6,7 @@ import base64
 from datetime import date
 from typing import TypedDict
 
-from backend.models import Contractor, RoleCode
+from backend.models import Contractor, ProgressEmitter, RoleCode
 from backend.models import ResponseDataType as DT
 
 
@@ -29,6 +29,7 @@ class InteractContext(TypedDict, total=False):
     admin_ids: list[int]
     fsm_state: str | None
     fsm_data: dict
+    progress: ProgressEmitter
 
 
 ROLE_LABELS = {

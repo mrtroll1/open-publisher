@@ -1,8 +1,16 @@
 """Thin async HTTP client wrapping all backend API endpoints."""
 
+from __future__ import annotations
+
+import json
+import logging
+from collections.abc import Callable
+
 import httpx
 
 from telegram_bot.config import BACKEND_URL
+
+logger = logging.getLogger(__name__)
 
 _client = httpx.AsyncClient(base_url=BACKEND_URL, timeout=300.0)
 
@@ -26,6 +34,39 @@ async def interact(action: str, payload: dict = None, context: dict = None) -> d
         "action": action, "payload": payload or {}, "context": context or {},
     })
     return _unwrap(resp)
+
+
+async def interact_stream(
+    action: str,
+    payload: dict = None,
+    context: dict = None,
+    on_progress: Callable[[str, str], None] | None = None,
+) -> dict:
+    """Call /interact/stream SSE endpoint. Calls on_progress(stage, detail) for each event.
+
+    on_progress can be sync or async — both are supported.
+    """
+    import asyncio
+
+    body = {"action": action, "payload": payload or {}, "context": context or {}}
+    async with _client.stream("POST", "/interact/stream", json=body) as resp:
+        resp.raise_for_status()
+        result = None
+        event_type = None
+        async for line in resp.aiter_lines():
+            if line.startswith("event: "):
+                event_type = line[7:]
+            elif line.startswith("data: "):
+                data = json.loads(line[6:])
+                if event_type == "progress" and on_progress:
+                    ret = on_progress(data["stage"], data["detail"])
+                    if asyncio.iscoroutine(ret):
+                        await ret
+                elif event_type == "done":
+                    if data.get("error"):
+                        raise BackendError(data["error"])
+                    result = data["result"]
+    return result
 
 
 # --- Brain ---

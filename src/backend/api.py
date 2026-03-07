@@ -441,6 +441,55 @@ def interact(req: InteractRequest) -> BrainResponse:
         return BrainResponse(result=None, error=str(e))
 
 
+@app.post("/interact/stream")
+def interact_stream(req: InteractRequest):
+    """SSE endpoint: yields progress events, then the final result."""
+    import json
+    import queue
+    import threading
+
+    from starlette.responses import StreamingResponse
+
+    from backend.interact import handle
+    from backend.models import ProgressEmitter, ProgressEvent
+
+    event_queue: queue.Queue[ProgressEvent | None] = queue.Queue()
+
+    def _on_event(event: ProgressEvent) -> None:
+        event_queue.put(event)
+
+    emitter = ProgressEmitter(_on_event=_on_event)
+    result_holder: list[dict] = []
+    error_holder: list[str] = []
+
+    def _run() -> None:
+        try:
+            result_holder.append(handle(req.action, req.payload, req.context, progress=emitter))
+        except Exception as e:
+            error_holder.append(str(e))
+        finally:
+            event_queue.put(None)  # sentinel
+
+    thread = threading.Thread(target=_run)
+    thread.start()
+
+    def _generate():
+        while True:
+            event = event_queue.get()
+            if event is None:
+                break
+            data = json.dumps({"stage": event.stage, "detail": event.detail}, ensure_ascii=False)
+            yield f"event: progress\ndata: {data}\n\n"
+        thread.join()
+        if error_holder:
+            data = json.dumps({"result": None, "error": error_holder[0]}, ensure_ascii=False)
+        else:
+            data = json.dumps({"result": result_holder[0]}, ensure_ascii=False)
+        yield f"event: done\ndata: {data}\n\n"
+
+    return StreamingResponse(_generate(), media_type="text/event-stream")
+
+
 @app.post("/admin/store-feedback")
 def store_feedback(req: StoreFeedbackRequest) -> BrainResponse:
     try:

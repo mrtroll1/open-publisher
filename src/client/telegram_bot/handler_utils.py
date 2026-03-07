@@ -84,10 +84,16 @@ class ThinkingMessage:
                 await self._status_msg.delete()
             except TelegramBadRequest:
                 pass
+            self._status_msg = None
         return await _send_html(self._message, text, **kwargs)
 
     async def __aexit__(self, *exc) -> None:
-        pass
+        if self._status_msg:
+            try:
+                await self._status_msg.delete()
+            except TelegramBadRequest:
+                pass
+            self._status_msg = None
 
 
 async def resolve_environment_record(chat_id: int) -> dict | None:

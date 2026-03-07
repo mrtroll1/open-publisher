@@ -269,12 +269,15 @@ def handle_type_selection(payload: Payload, ctx: InteractContext) -> dict:
 
 
 def handle_data_input(payload: Payload, ctx: InteractContext) -> dict:
+    progress = ctx.get("progress")
     fsm_data = ctx.get("fsm_data", {})
     ctype = ContractorType(fsm_data["contractor_type"])
     raw_text = payload.get("text", "").strip()
     collected = fsm_data.get("collected_data", {})
     cls = CONTRACTOR_CLASS_BY_TYPE[ctype]
 
+    if progress:
+        progress.emit("parse_data", "Обрабатываю данные")
     prev_warnings = validate_contractor_fields(collected, ctype) if collected else []
     parsed = parse_registration_data(raw_text, ctype, collected, prev_warnings or None)
     if "parse_error" in parsed:
@@ -474,6 +477,7 @@ def handle_manage_redirects(payload: Payload, ctx: InteractContext) -> dict:
 
 
 def handle_amount_input(payload: Payload, ctx: InteractContext) -> dict:
+    progress = ctx.get("progress")
     fsm_data = ctx.get("fsm_data", {})
     contractor_id = fsm_data.get("invoice_contractor_id")
     month = fsm_data.get("invoice_month")
@@ -495,8 +499,12 @@ def handle_amount_input(payload: Payload, ctx: InteractContext) -> dict:
         except Exception:
             return respond([msg("Не удалось распознать сумму. Попробуйте ещё раз.")])
 
+    if progress:
+        progress.emit("fetch_articles", f"Загружаю публикации за {month}")
     articles = fetch_articles(contractor, month)
 
+    if progress:
+        progress.emit("generate_invoice", f"Генерирую документ для {contractor.display_name}")
     try:
         result = create_and_save_invoice(contractor, month, amount, articles)
     except Exception as e:
@@ -666,6 +674,7 @@ def handle_menu_callback(payload: Payload, ctx: InteractContext) -> dict:
 
 
 def handle_document(payload: Payload, ctx: InteractContext) -> dict:
+    progress = ctx.get("progress")
     user_id = ctx["user_id"]
     admin_ids = ctx.get("admin_ids", [])
     contractor, _ = _get_contractor(user_id)
@@ -685,6 +694,8 @@ def handle_document(payload: Payload, ctx: InteractContext) -> dict:
         try:
             content = base64.b64decode(file_b64)
             month = prev_month()
+            if progress:
+                progress.emit("upload_drive", "Загружаю документ на Google Drive")
             drive_link = upload_invoice_pdf(contractor, month, filename, content)
             update_invoice_status(contractor.id, month, InvoiceStatus.SIGNED)
         except Exception as e:

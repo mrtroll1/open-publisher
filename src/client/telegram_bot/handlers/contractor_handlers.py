@@ -11,7 +11,7 @@ from aiogram.types import CallbackQuery
 
 from telegram_bot import backend_client
 from telegram_bot.bot_helpers import bot, get_admin_ids, is_admin
-from telegram_bot.handler_utils import send_typing
+from telegram_bot.handler_utils import ThinkingMessage, send_typing
 from telegram_bot.renderer import render
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,17 @@ __all__ = [
 ]
 
 
+def _build_context(user_id: int, chat_id: int, state_name: str | None, data: dict) -> dict:
+    return {
+        "user_id": user_id,
+        "chat_id": chat_id,
+        "is_admin": is_admin(user_id),
+        "fsm_state": state_name,
+        "fsm_data": data,
+        "admin_ids": list(get_admin_ids()),
+    }
+
+
 async def _interact(message: types.Message, state: FSMContext, action: str,
                     extra_payload: dict = None) -> None:
     payload = {"text": message.text or ""}
@@ -35,18 +46,25 @@ async def _interact(message: types.Message, state: FSMContext, action: str,
         payload.update(extra_payload)
     fsm_state = await state.get_state()
     fsm_data = await state.get_data()
-    result = await backend_client.interact(
-        action=action,
-        payload=payload,
-        context={
-            "user_id": message.from_user.id,
-            "chat_id": message.chat.id,
-            "is_admin": is_admin(message.from_user.id),
-            "fsm_state": fsm_state,
-            "fsm_data": fsm_data,
-            "admin_ids": list(get_admin_ids()),
-        },
+    ctx = _build_context(message.from_user.id, message.chat.id, fsm_state, fsm_data)
+
+    thinking: ThinkingMessage | None = None
+
+    async def _on_progress(stage: str, detail: str) -> None:
+        nonlocal thinking
+        text = detail or stage
+        if thinking is None:
+            thinking = ThinkingMessage(message, text)
+            await thinking.__aenter__()
+        else:
+            await thinking.update(text)
+
+    result = await backend_client.interact_stream(
+        action=action, payload=payload, context=ctx,
+        on_progress=_on_progress,
     )
+    if thinking:
+        await thinking.__aexit__(None, None, None)
     await render(message, state, result)
 
 
@@ -56,17 +74,12 @@ async def _interact_callback(callback: CallbackQuery, state: FSMContext,
     msg = callback.message
     fsm_state = await state.get_state()
     fsm_data = await state.get_data()
-    result = await backend_client.interact(
+    ctx = _build_context(callback.from_user.id, msg.chat.id, fsm_state, fsm_data)
+
+    result = await backend_client.interact_stream(
         action=action,
         payload={"callback_data": callback.data},
-        context={
-            "user_id": callback.from_user.id,
-            "chat_id": msg.chat.id,
-            "is_admin": is_admin(callback.from_user.id),
-            "fsm_state": fsm_state,
-            "fsm_data": fsm_data,
-            "admin_ids": list(get_admin_ids()),
-        },
+        context=ctx,
     )
     await render(msg, state, result)
 

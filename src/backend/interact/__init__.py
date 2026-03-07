@@ -7,6 +7,7 @@ import logging
 from backend.interact import admin as _admin
 from backend.interact import contractor as _contractor
 from backend.interact.helpers import InteractContext, Payload
+from backend.models import ProgressEmitter
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,8 @@ _HANDLERS = {
 }
 
 
-def handle(action: str, payload: Payload, context: InteractContext) -> dict:
+def handle(action: str, payload: Payload, context: InteractContext,
+           progress: ProgressEmitter | None = None) -> dict:
     """Dispatch to the appropriate handler.
 
     Response format:
@@ -57,12 +59,19 @@ def handle(action: str, payload: Payload, context: InteractContext) -> dict:
         side_messages: list of {chat_id, text, file_b64?, filename?, track?}
         fsm_state: str (set) | None (clear) | absent (keep)
         fsm_data: dict (replace) | absent (keep)
+        progress: list of {stage, detail} — only if events were emitted
     """
     handler = _HANDLERS.get(action)
     if not handler:
         return {"messages": [{"text": f"Неизвестное действие: {action}"}]}
+    if progress is None:
+        progress = ProgressEmitter()
+    context["progress"] = progress
     try:
-        return handler(payload, context)
+        result = handler(payload, context)
     except Exception as e:
         logger.exception("Interact error: action=%s", action)
         return {"messages": [{"text": f"Ошибка: {e}"}]}
+    if progress.events:
+        result["progress"] = [{"stage": e.stage, "detail": e.detail} for e in progress.events]
+    return result

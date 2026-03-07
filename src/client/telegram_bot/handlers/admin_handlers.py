@@ -11,6 +11,7 @@ from aiogram.fsm.context import FSMContext
 from telegram_bot import backend_client, replies
 from telegram_bot.bot_helpers import bot
 from telegram_bot.handler_utils import (
+    ThinkingMessage,
     _admin_reply_map,
     _support_draft_map,
     parse_date_range_arg,
@@ -41,7 +42,7 @@ __all__ = [
 
 async def _interact_cmd(message: types.Message, state: FSMContext,
                         action: str, extra_payload: dict = None) -> None:
-    """Send a command to backend /interact and render the result."""
+    """Send a command to backend /interact/stream and render the result."""
     args = message.text.split(maxsplit=1)
     text = args[1].strip() if len(args) > 1 else ""
 
@@ -49,8 +50,18 @@ async def _interact_cmd(message: types.Message, state: FSMContext,
     if extra_payload:
         payload.update(extra_payload)
 
-    await send_typing(message.chat.id)
-    result = await backend_client.interact(
+    thinking: ThinkingMessage | None = None
+
+    async def _on_progress(stage: str, detail: str) -> None:
+        nonlocal thinking
+        text = detail or stage
+        if thinking is None:
+            thinking = ThinkingMessage(message, text)
+            await thinking.__aenter__()
+        else:
+            await thinking.update(text)
+
+    result = await backend_client.interact_stream(
         action=action,
         payload=payload,
         context={
@@ -59,7 +70,10 @@ async def _interact_cmd(message: types.Message, state: FSMContext,
             "is_admin": True,
             "admin_ids": [],
         },
+        on_progress=_on_progress,
     )
+    if thinking:
+        await thinking.__aexit__(None, None, None)
     await render(message, state, result)
 
 

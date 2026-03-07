@@ -51,6 +51,7 @@ def _build_system_prompt(env: dict, user_context: str, knowledge: str,
         "Используй контекст и инструменты. Отвечай по-русски.",
         "Если не знаешь ответа — скажи.",
         "Отвечай кратко и по делу.",
+        "Если спрашивают о твоих прошлых действиях, запросах или результатах — используй agent_db для поиска в run_logs. Не выдумывай.",
     ]
     environment = env.get("system_context", "")
     if environment:

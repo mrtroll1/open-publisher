@@ -45,23 +45,32 @@ class GenerateBatchInvoices:
         debug: bool = False,
         on_progress: callable = None,
     ) -> BatchResult:
-        """Generate invoices for all contractors that have a budget entry and no existing invoice.
+        """Generate invoices for all contractors that have a budget entry and no existing invoice."""
+        to_generate = self._pending_contractors(contractors, month)
+        result = BatchResult(total=len(to_generate))
+        done = 0
 
-        Args:
-            contractors: all known contractors
-            month: e.g. "2026-01"
-            debug: if True, skip invoice number increment and sheet save
-            on_progress: optional callback(done, total) for progress updates
-        """
-        existing_invoices = load_invoices(month)
-        already_generated = {inv.contractor_id for inv in existing_invoices}
+        for contractor, amount_int in to_generate:
+            try:
+                self._generate_one(contractor, month, amount_int, debug, result)
+            finally:
+                done += 1
+                if on_progress:
+                    on_progress(done, result.total)
 
+        return result
+
+    @staticmethod
+    def _pending_contractors(
+        contractors: list[Contractor], month: str,
+    ) -> list[tuple[Contractor, int]]:
+        """Filter to contractors that need invoices this month."""
+        already_generated = {inv.contractor_id for inv in load_invoices(month)}
         budget_amounts = load_all_amounts(month)
         if not budget_amounts:
             raise ValueError(f"Бюджетная таблица за {month} не найдена. Сначала выполните /budget.")
 
-        # Filter to contractors that need invoices
-        to_generate: list[tuple[Contractor, int]] = []
+        pending: list[tuple[Contractor, int]] = []
         for contractor in contractors:
             if contractor.id in already_generated:
                 continue
@@ -72,41 +81,34 @@ class GenerateBatchInvoices:
             eur, rub, _note = budget_entry
             amount_int = eur if contractor.currency == Currency.EUR else rub
             if amount_int:
-                to_generate.append((contractor, amount_int))
+                pending.append((contractor, amount_int))
+        return pending
 
-        result = BatchResult(total=len(to_generate))
-        done = 0
+    def _generate_one(
+        self, contractor: Contractor, month: str, amount_int: int,
+        debug: bool, result: BatchResult,
+    ) -> None:
+        """Generate a single invoice, updating result in place."""
+        try:
+            articles = self._content.fetch_articles(contractor, month)
+        except Exception as e:
+            result.errors.append(f"{contractor.display_name}: ошибка API ({e})")
+            return
 
-        for contractor, amount_int in to_generate:
-            try:
-                amount = Decimal(str(amount_int))
+        try:
+            inv_result = self._gen.create_and_save(
+                contractor, month, Decimal(str(amount_int)), articles, debug=debug,
+            )
+        except Exception as e:
+            result.errors.append(f"{contractor.display_name}: ошибка генерации ({e})")
+            logger.exception("Generate failed for %s", contractor.display_name)
+            return
 
-                try:
-                    articles = self._content.fetch_articles(contractor, month)
-                except Exception as e:
-                    result.errors.append(f"{contractor.display_name}: ошибка API ({e})")
-                    continue
+        if isinstance(contractor, GlobalContractor):
+            result.counts["global"] += 1
+        elif isinstance(contractor, SamozanyatyContractor):
+            result.counts["samozanyaty"] += 1
+        elif isinstance(contractor, IPContractor):
+            result.counts["ip"] += 1
 
-                try:
-                    inv_result = self._gen.create_and_save(
-                        contractor, month, amount, articles, debug=debug,
-                    )
-                except Exception as e:
-                    result.errors.append(f"{contractor.display_name}: ошибка генерации ({e})")
-                    logger.exception("Generate failed for %s", contractor.display_name)
-                    continue
-
-                if isinstance(contractor, GlobalContractor):
-                    result.counts["global"] += 1
-                elif isinstance(contractor, SamozanyatyContractor):
-                    result.counts["samozanyaty"] += 1
-                elif isinstance(contractor, IPContractor):
-                    result.counts["ip"] += 1
-
-                result.generated.append((inv_result.pdf_bytes, contractor, inv_result.invoice))
-            finally:
-                done += 1
-                if on_progress:
-                    on_progress(done, result.total)
-
-        return result
+        result.generated.append((inv_result.pdf_bytes, contractor, inv_result.invoice))

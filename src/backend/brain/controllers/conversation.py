@@ -176,7 +176,7 @@ class _ConversationContext:
         try:
             self.db.log_run_step(self.run_id, self._step, type, content)
         except Exception:
-            logger.debug("Failed to write run log step %d", self._step)
+            logger.warning("Failed to write run log step %d", self._step, exc_info=True)
         self._step += 1
 
     def _emit(self, stage: str, detail: str):
@@ -212,7 +212,7 @@ class _ConversationContext:
         self._emit("llm", "Генерирую ответ")
         prompt = system_prompt + f"\n\n## Сообщение\n{self.input}\n\nВерни JSON: {{\"reply\": \"<ответ>\"}}"
         result = self.gemini.call(prompt, GEMINI_MODEL_SMART)
-        reply = result.get("reply") or result.get("response") or result.get("answer") or "Не удалось сформировать ответ."
+        reply = result.get("reply") or result.get("raw_parsed") or "Не удалось сформировать ответ."
         return self._reply(reply)
 
     def react_loop(self, system_prompt: str, conv_tools: list[Tool]) -> dict:

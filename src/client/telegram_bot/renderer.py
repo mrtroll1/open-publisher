@@ -176,7 +176,7 @@ async def _send_side_messages(side_messages: list[dict]) -> None:
             if sent:
                 _track_admin_reply(chat_id, sent.message_id, sm)
         except Exception:
-            logger.debug("Failed to send side message to %s", sm.get("chat_id"), exc_info=True)
+            logger.warning("Failed to send side message to %s", sm.get("chat_id"), exc_info=True)
 
 
 async def _send_message_to_chat(chat_id: int, m: dict, reply_message=None):

@@ -192,7 +192,7 @@ async def handle_document(message: types.Message, state: FSMContext) -> None:
             try:
                 await bot.forward_message(admin_id, message.chat.id, message.message_id)
             except Exception:
-                pass
+                logger.warning("Failed to forward document to admin %s", admin_id, exc_info=True)
 
 
 async def handle_non_document(message: types.Message, state: FSMContext) -> None:

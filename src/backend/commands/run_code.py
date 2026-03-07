@@ -73,7 +73,7 @@ def _write_claude_md() -> None:
         if context:
             Path(REPOS_DIR, "CLAUDE.md").write_text(context, encoding="utf-8")
     except Exception:
-        logger.debug("Could not write CLAUDE.md from DB", exc_info=True)
+        logger.warning("Could not write CLAUDE.md from DB", exc_info=True)
 
 
 def _format_tool_status(name: str, tool_input: dict) -> str | None:

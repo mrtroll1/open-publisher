@@ -86,13 +86,9 @@ class GenerateInvoice:
 
         # 4. Upload to Google Drive
         filename = f"{contractor.display_name}+Unsigned.pdf"
-        try:
-            gdrive_link = self._drive.upload_invoice_pdf(
-                contractor, month, filename, pdf_bytes,
-            )
-        except Exception:
-            logger.exception("Drive upload failed for %s", contractor.display_name)
-            gdrive_link = ""
+        gdrive_link = self._drive.upload_invoice_pdf(
+            contractor, month, filename, pdf_bytes,
+        )
         invoice.gdrive_path = gdrive_link
 
         # 5. Save to invoices sheet (skip in debug)

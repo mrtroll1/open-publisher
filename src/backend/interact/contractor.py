@@ -363,9 +363,6 @@ def _finish_registration(collected: dict, ctype: ContractorType, cls: type,
         "secret_code": secret_code,
     })]
 
-    if not contractor:
-        return respond(messages, side_messages=sides, fsm_state=None)
-
     # Try starting invoice flow
     month = prev_month()
     invoice_result = _start_invoice_flow(contractor, month, {})

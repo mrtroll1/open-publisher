@@ -5,7 +5,7 @@ from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.memory.retriever import KnowledgeRetriever
 
 
-class InboxClassify(BaseGenAI):
+class ClassifyInbox(BaseGenAI):
 
     def __init__(self, gemini: GeminiGateway, retriever: KnowledgeRetriever):
         super().__init__(gemini)

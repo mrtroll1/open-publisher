@@ -15,7 +15,7 @@ from backend.models import (
     SamozanyatyContractor,
 )
 from backend.infrastructure.gateways.republic_gateway import RepublicGateway
-from backend.infrastructure.repositories.sheets.budget_repo import read_all_amounts
+from backend.infrastructure.repositories.sheets.budget_repo import load_all_amounts
 from backend.infrastructure.repositories.sheets.invoice_repo import load_invoices
 from backend.commands.invoice.generate import GenerateInvoice
 
@@ -56,7 +56,7 @@ class GenerateBatchInvoices:
         existing_invoices = load_invoices(month)
         already_generated = {inv.contractor_id for inv in existing_invoices}
 
-        budget_amounts = read_all_amounts(month)
+        budget_amounts = load_all_amounts(month)
         if not budget_amounts:
             raise ValueError(f"Бюджетная таблица за {month} не найдена. Сначала выполните /budget.")
 

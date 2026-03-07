@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from backend import fetch_articles, read_budget_amounts
+from backend import fetch_articles, load_budget_amounts
 from backend.commands.invoice.resolve_amount import plural_ru, resolve_amount
 from backend.commands.invoice.prepare import PreparedInvoice, prepare_existing_invoice
 from backend.config import DRIVE_FOLDER_GLOBAL, DRIVE_FOLDER_RU
@@ -59,7 +59,7 @@ def resolve_existing_invoice(contractor: Contractor, month: str) -> ExistingInvo
 
 
 def prepare_new_invoice_data(contractor: Contractor, month: str) -> NewInvoiceData | None:
-    budget_amounts = read_budget_amounts(month)
+    budget_amounts = load_budget_amounts(month)
     articles = fetch_articles(contractor, month)
     num_articles = len(articles)
 

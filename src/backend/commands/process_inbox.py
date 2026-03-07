@@ -9,8 +9,8 @@ import logging
 from typing import Any
 
 from backend.brain.base_controller import BaseUseCase
-from backend.brain.dynamic.editorial_assess import EditorialAssess
-from backend.brain.dynamic.inbox_classify import InboxClassify
+from backend.brain.dynamic.assess_editorial import AssessEditorial
+from backend.brain.dynamic.classify_inbox import ClassifyInbox
 from backend.commands.draft_support import TechSupportHandler
 from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.gateways.email_gateway import EmailGateway
@@ -25,8 +25,8 @@ class InboxWorkflow:
 
     def __init__(self, tech_support: TechSupportHandler | None = None,
                  email_gw: EmailGateway | None = None, db: DbGateway | None = None,
-                 classifier: InboxClassify | None = None,
-                 assessor: EditorialAssess | None = None):
+                 classifier: ClassifyInbox | None = None,
+                 assessor: AssessEditorial | None = None):
         self._tech_support = tech_support or TechSupportHandler()
         self._email_gw = email_gw or EmailGateway()
         self._db = db or DbGateway()
@@ -184,7 +184,7 @@ class InboxWorkflow:
 
 class InboxProcessUseCase(BaseUseCase):
     """Classify incoming email. Full orchestration (approve/reject) handled by InboxWorkflow."""
-    def __init__(self, classifier: InboxClassify, workflow: InboxWorkflow):
+    def __init__(self, classifier: ClassifyInbox, workflow: InboxWorkflow):
         self._classifier = classifier
         self._workflow = workflow
 

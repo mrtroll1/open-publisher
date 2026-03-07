@@ -103,10 +103,10 @@ def upload_invoice_pdf(contractor, month, filename, pdf_bytes):
     return _drive.upload_invoice_pdf(contractor, month, filename, pdf_bytes)
 
 
-def read_budget_amounts(month: str) -> dict:
+def load_budget_amounts(month: str) -> dict:
     """Read budget sheet for a month. Returns {name_lower: (eur, rub, note)}."""
-    from backend.infrastructure.repositories.sheets.budget_repo import read_all_amounts
-    return read_all_amounts(month)
+    from backend.infrastructure.repositories.sheets.budget_repo import load_all_amounts
+    return load_all_amounts(month)
 
 
 def redirect_in_budget(source_name: str, target, month: str) -> None:

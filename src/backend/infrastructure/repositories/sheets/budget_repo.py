@@ -29,7 +29,7 @@ def _find_sheet(month: str) -> str | None:
     return _drive.find_file_by_name(_sheet_name(month), BUDGET_SHEETS_FOLDER_ID)
 
 
-def read_all_amounts(month: str) -> dict[str, tuple[int, int, str]]:
+def load_all_amounts(month: str) -> dict[str, tuple[int, int, str]]:
     """Read all payment entries for a month.
 
     Returns {name_lower: (eur, rub, note)}.

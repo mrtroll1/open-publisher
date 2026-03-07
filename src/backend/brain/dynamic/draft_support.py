@@ -5,7 +5,7 @@ from backend.brain.dynamic.tech_support import TechSupport
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 
 
-class SupportDraft(BaseGenAI):
+class DraftSupport(BaseGenAI):
     """Thin wrapper that delegates to TechSupport for inbox support handling."""
 
     def __init__(self, gemini: GeminiGateway, tech_support: TechSupport):

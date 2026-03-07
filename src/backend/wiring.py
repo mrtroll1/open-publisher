@@ -105,8 +105,8 @@ def create_brain() -> BrainComponents:
     from backend.brain import Brain
     from backend.brain.authorizer import Authorizer
     from backend.brain.dynamic import (
-        ClassifyTeaching, EditorialAssess,
-        InboxClassify, SummarizeArticle, TechSupport,
+        ClassifyTeaching, AssessEditorial,
+        ClassifyInbox, SummarizeArticle, TechSupport,
     )
     from backend.brain.dynamic.query_db import QueryDB
     from backend.brain.router import Router
@@ -132,8 +132,8 @@ def create_brain() -> BrainComponents:
     # GenAI instances (still needed by some tools)
     classify_teaching = ClassifyTeaching(gemini, db, embed)
     tech_support = TechSupport(gemini, retriever, db)
-    inbox_classify = InboxClassify(gemini, retriever)
-    editorial_assess = EditorialAssess(gemini, retriever)
+    inbox_classify = ClassifyInbox(gemini, retriever)
+    editorial_assess = AssessEditorial(gemini, retriever)
     summarize_article = SummarizeArticle(gemini, retriever)
 
     # QueryDB instances for external DBs + our own DB

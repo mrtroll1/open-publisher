@@ -9,7 +9,7 @@ from backend import (
     create_and_save_invoice, export_pdf, fetch_articles,
     find_contractor, find_contractor_by_id, find_contractor_by_telegram_id,
     fuzzy_find, load_all_contractors, load_invoices,
-    prepare_existing_invoice, read_budget_amounts,
+    prepare_existing_invoice, load_budget_amounts,
     update_invoice_status, update_legium_link,
 )
 from backend.config import ADMIN_TELEGRAM_TAG
@@ -52,7 +52,7 @@ def handle_generate(payload: dict, ctx: dict) -> dict:
         return respond([not_found])
 
     month = prev_month()
-    budget_amounts = read_budget_amounts(month)
+    budget_amounts = load_budget_amounts(month)
     articles = fetch_articles(contractor, month)
 
     name_lower = contractor.display_name.lower().strip()
@@ -306,7 +306,7 @@ def handle_send_legium(payload: dict, ctx: dict) -> dict:
 def handle_orphans(payload: dict, ctx: dict) -> dict:
     month = prev_month()
     contractors = load_all_contractors()
-    budget_amounts = read_budget_amounts(month)
+    budget_amounts = load_budget_amounts(month)
     contractor_names = {c.display_name.lower().strip() for c in contractors}
     orphans = sorted(n for n in budget_amounts if n not in contractor_names)
     if not orphans:

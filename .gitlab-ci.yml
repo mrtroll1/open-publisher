@@ -22,7 +22,11 @@ deploy-bot:
   tags:
     - self-hosted
   only:
-    - main
+    changes:
+      - src/client/telegram_bot/**/*
+      - docker-compose.yml
+    refs:
+      - main
   script:
     - cd /opt/open-publisher && git pull
     - docker compose up -d --build bot

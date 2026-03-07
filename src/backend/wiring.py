@@ -1,10 +1,16 @@
 """Composition root — wires up all dependencies."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING
 
 from backend.infrastructure.gateways.airtable_gateway import AirtableGateway
 from backend.infrastructure.repositories.postgres import DbGateway
+
+if TYPE_CHECKING:
+    from backend.brain import Brain
+    from backend.commands.process_inbox import InboxWorkflow
 from backend.infrastructure.gateways.docs_gateway import DocsGateway
 from backend.infrastructure.gateways.drive_gateway import DriveGateway
 from backend.infrastructure.gateways.email_gateway import EmailGateway
@@ -93,11 +99,11 @@ def create_query_gateways() -> dict[str, QueryGateway]:
 
 @dataclass
 class BrainComponents:
-    brain: Any
-    inbox: Any
-    memory: Any
-    db: Any
-    retriever: Any
+    brain: Brain
+    inbox: InboxWorkflow
+    memory: MemoryService
+    db: DbGateway
+    retriever: KnowledgeRetriever
 
 
 def create_brain() -> BrainComponents:

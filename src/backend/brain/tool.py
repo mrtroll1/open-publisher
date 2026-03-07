@@ -7,14 +7,29 @@ Slash commands and Gemini tool calls both invoke Tool.execute().
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any, Callable, TypedDict
+
+
+class EnvContext(TypedDict, total=False):
+    """Environment configuration from the DB."""
+    name: str
+    system_context: str
+    allowed_domains: list[str] | None
+
+
+class UserContext(TypedDict, total=False):
+    """User record from the DB."""
+    id: str
+    role: str
+    name: str
+    telegram_id: int
 
 
 @dataclass
 class ToolContext:
     """Execution context passed to every tool."""
-    env: dict
-    user: dict
+    env: EnvContext
+    user: UserContext
 
 
 @dataclass

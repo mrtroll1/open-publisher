@@ -1,8 +1,11 @@
 """Unified interaction handler — single entry point for all bot business logic."""
 
+from __future__ import annotations
+
 import logging
 from backend.interact import contractor as _contractor
 from backend.interact import admin as _admin
+from backend.interact.helpers import Payload, InteractContext
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +48,7 @@ _HANDLERS = {
 }
 
 
-def handle(action: str, payload: dict, context: dict) -> dict:
+def handle(action: str, payload: Payload, context: InteractContext) -> dict:
     """Dispatch to the appropriate handler.
 
     Response format:

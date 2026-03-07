@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from googleapiclient.http import MediaInMemoryUpload
 
@@ -18,7 +17,7 @@ class DriveGateway:
     def _service(self):
         return build_google_service("drive", "v3")
 
-    def find_subfolder(self, parent_id: str, name: str) -> Optional[str]:
+    def find_subfolder(self, parent_id: str, name: str) -> str | None:
         """Find a subfolder by name inside a parent folder. Returns folder ID or None."""
         drive = self._service()
         escaped_name = name.replace("'", "\\'")
@@ -100,7 +99,7 @@ class DriveGateway:
         month_id = self.ensure_folder(parent_folder_id, month_folder)
         return self.ensure_folder(month_id, contractor_folder)
 
-    def find_file_by_name(self, name: str, parent_id: str) -> Optional[str]:
+    def find_file_by_name(self, name: str, parent_id: str) -> str | None:
         """Find a file by exact name in a folder. Returns file ID or None."""
         drive = self._service()
         escaped_name = name.replace("'", "\\'")

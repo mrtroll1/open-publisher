@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import random
 from difflib import SequenceMatcher
-from typing import Optional
 
 from pydantic import ValidationError
 
@@ -140,7 +139,7 @@ def fuzzy_find(
     return results
 
 
-def find_contractor_by_id(contractor_id: str, contractors: list[Contractor]) -> Optional[Contractor]:
+def find_contractor_by_id(contractor_id: str, contractors: list[Contractor]) -> Contractor | None:
     """Find a contractor by their unique ID."""
     for c in contractors:
         if c.id == contractor_id:
@@ -148,7 +147,7 @@ def find_contractor_by_id(contractor_id: str, contractors: list[Contractor]) -> 
     return None
 
 
-def find_contractor(query: str, contractors: list[Contractor]) -> Optional[Contractor]:
+def find_contractor(query: str, contractors: list[Contractor]) -> Contractor | None:
     """Find the single best matching contractor, or None."""
     matches = fuzzy_find(query, contractors)
     if matches and matches[0][1] >= 0.8:
@@ -156,7 +155,7 @@ def find_contractor(query: str, contractors: list[Contractor]) -> Optional[Contr
     return None
 
 
-def find_contractor_strict(query: str, contractors: list[Contractor]) -> Optional[Contractor]:
+def find_contractor_strict(query: str, contractors: list[Contractor]) -> Contractor | None:
     """Find a contractor by exact name/alias match (case-insensitive)."""
     query_norm = query.lower().strip()
     for c in contractors:
@@ -166,7 +165,7 @@ def find_contractor_strict(query: str, contractors: list[Contractor]) -> Optiona
     return None
 
 
-def find_contractor_by_telegram_id(telegram_id: int, contractors: list[Contractor]) -> Optional[Contractor]:
+def find_contractor_by_telegram_id(telegram_id: int, contractors: list[Contractor]) -> Contractor | None:
     """Find a contractor already bound to this Telegram user ID."""
     tid = str(telegram_id)
     for c in contractors:

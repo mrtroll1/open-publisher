@@ -22,6 +22,7 @@ from backend.models import (
     GlobalContractor, InvoiceStatus, RoleCode,
 )
 from backend.interact.helpers import (
+    Payload, InteractContext,
     msg, file_msg, side_msg, respond,
     prev_month, invoice_admin_data, ROLE_LABELS,
 )
@@ -163,7 +164,7 @@ def _deliver_existing_invoice(contractor, month, admin_ids) -> dict | None:
 
 # ── Handlers ─────────────────────────────────────────────────────────
 
-def handle_start(payload: dict, ctx: dict) -> dict:
+def handle_start(payload: Payload, ctx: InteractContext) -> dict:
     if ctx.get("is_admin"):
         return respond([msg(
             "Привет! Я бот для работы с контрагентами.\n\n"
@@ -175,7 +176,7 @@ def handle_start(payload: dict, ctx: dict) -> dict:
     )], fsm_state=None)
 
 
-def handle_menu(payload: dict, ctx: dict) -> dict:
+def handle_menu(payload: Payload, ctx: InteractContext) -> dict:
     contractor, _ = _get_contractor(ctx["user_id"])
     if contractor:
         return respond(
@@ -188,7 +189,7 @@ def handle_menu(payload: dict, ctx: dict) -> dict:
     )], fsm_state=None)
 
 
-def handle_free_text(payload: dict, ctx: dict) -> dict:
+def handle_free_text(payload: Payload, ctx: InteractContext) -> dict:
     user_id = ctx["user_id"]
     contractors = load_all_contractors()
     contractor = find_contractor_by_telegram_id(user_id, contractors)
@@ -221,7 +222,7 @@ def handle_free_text(payload: dict, ctx: dict) -> dict:
     )
 
 
-def handle_type_selection(payload: dict, ctx: dict) -> dict:
+def handle_type_selection(payload: Payload, ctx: InteractContext) -> dict:
     text = payload.get("text", "").strip().rstrip(".")
     type_map = {
         "1": ContractorType.SAMOZANYATY, "2": ContractorType.IP, "3": ContractorType.GLOBAL,
@@ -242,7 +243,7 @@ def handle_type_selection(payload: dict, ctx: dict) -> dict:
     )
 
 
-def handle_data_input(payload: dict, ctx: dict) -> dict:
+def handle_data_input(payload: Payload, ctx: InteractContext) -> dict:
     fsm_data = ctx.get("fsm_data", {})
     ctype = ContractorType(fsm_data["contractor_type"])
     raw_text = payload.get("text", "").strip()
@@ -302,7 +303,7 @@ def handle_data_input(payload: dict, ctx: dict) -> dict:
 
 
 def _finish_registration(collected: dict, ctype: ContractorType, cls: type,
-                         raw_text: str, ctx: dict) -> dict:
+                         raw_text: str, ctx: InteractContext) -> dict:
     all_labels = cls.all_field_labels()
     fields = [
         {"label": label, "value": collected.get(field, "")}
@@ -355,7 +356,7 @@ def _finish_registration(collected: dict, ctype: ContractorType, cls: type,
     return respond(messages, side_messages=sides, fsm_state=None)
 
 
-def handle_verification_code(payload: dict, ctx: dict) -> dict:
+def handle_verification_code(payload: Payload, ctx: InteractContext) -> dict:
     fsm_data = ctx.get("fsm_data", {})
     contractor_id = fsm_data.get("pending_contractor_id")
     attempts = fsm_data.get("verification_attempts", 0)
@@ -394,7 +395,7 @@ def handle_verification_code(payload: dict, ctx: dict) -> dict:
     )
 
 
-def handle_sign_doc(payload: dict, ctx: dict) -> dict:
+def handle_sign_doc(payload: Payload, ctx: InteractContext) -> dict:
     contractor, _ = _get_contractor(ctx["user_id"])
     if not contractor:
         return respond([msg(
@@ -421,7 +422,7 @@ def handle_sign_doc(payload: dict, ctx: dict) -> dict:
     )])
 
 
-def handle_update_payment_data(payload: dict, ctx: dict) -> dict:
+def handle_update_payment_data(payload: Payload, ctx: InteractContext) -> dict:
     contractor, _ = _get_contractor(ctx["user_id"])
     if not contractor:
         return respond([msg(
@@ -435,7 +436,7 @@ def handle_update_payment_data(payload: dict, ctx: dict) -> dict:
     )
 
 
-def handle_manage_redirects(payload: dict, ctx: dict) -> dict:
+def handle_manage_redirects(payload: Payload, ctx: InteractContext) -> dict:
     contractor, _ = _get_contractor(ctx["user_id"])
     if not contractor or contractor.role_code != RoleCode.REDAKTOR:
         return respond([msg(
@@ -447,7 +448,7 @@ def handle_manage_redirects(payload: dict, ctx: dict) -> dict:
     return respond([msg(text, keyboard=keyboard)])
 
 
-def handle_amount_input(payload: dict, ctx: dict) -> dict:
+def handle_amount_input(payload: Payload, ctx: InteractContext) -> dict:
     fsm_data = ctx.get("fsm_data", {})
     contractor_id = fsm_data.get("invoice_contractor_id")
     month = fsm_data.get("invoice_month")
@@ -504,7 +505,7 @@ def handle_amount_input(payload: dict, ctx: dict) -> dict:
     return respond(messages, side_messages=sides, fsm_state=None)
 
 
-def handle_update_data(payload: dict, ctx: dict) -> dict:
+def handle_update_data(payload: Payload, ctx: InteractContext) -> dict:
     text = payload.get("text", "").strip()
     if text.lower() == "отмена":
         return respond([msg("Обновление отменено.")], fsm_state=None)
@@ -527,7 +528,7 @@ def handle_update_data(payload: dict, ctx: dict) -> dict:
     return respond([msg("Данные обновлены.")], fsm_state=None)
 
 
-def handle_editor_source_name(payload: dict, ctx: dict) -> dict:
+def handle_editor_source_name(payload: Payload, ctx: InteractContext) -> dict:
     text = payload.get("text", "").strip()
     if text.lower() == "отмена":
         return respond([msg("Добавление отменено.")], fsm_state=None)
@@ -549,7 +550,7 @@ def handle_editor_source_name(payload: dict, ctx: dict) -> dict:
     )
 
 
-def handle_dup_callback(payload: dict, ctx: dict) -> dict:
+def handle_dup_callback(payload: Payload, ctx: InteractContext) -> dict:
     callback_data = payload.get("callback_data", "")
 
     if callback_data == "dup:new":
@@ -584,7 +585,7 @@ def handle_dup_callback(payload: dict, ctx: dict) -> dict:
     )
 
 
-def handle_esrc_callback(payload: dict, ctx: dict) -> dict:
+def handle_esrc_callback(payload: Payload, ctx: InteractContext) -> dict:
     callback_data = payload.get("callback_data", "")
     data = callback_data.removeprefix("esrc:")
 
@@ -615,7 +616,7 @@ def handle_esrc_callback(payload: dict, ctx: dict) -> dict:
     return respond([msg("Неизвестное действие.")])
 
 
-def handle_menu_callback(payload: dict, ctx: dict) -> dict:
+def handle_menu_callback(payload: Payload, ctx: InteractContext) -> dict:
     callback_data = payload.get("callback_data", "")
     action = callback_data.removeprefix("menu:")
 
@@ -639,7 +640,7 @@ def handle_menu_callback(payload: dict, ctx: dict) -> dict:
     return respond([msg("Неизвестное действие.")])
 
 
-def handle_document(payload: dict, ctx: dict) -> dict:
+def handle_document(payload: Payload, ctx: InteractContext) -> dict:
     user_id = ctx["user_id"]
     admin_ids = ctx.get("admin_ids", [])
     contractor, _ = _get_contractor(user_id)
@@ -679,7 +680,7 @@ def handle_document(payload: dict, ctx: dict) -> dict:
     )
 
 
-def handle_non_document(payload: dict, ctx: dict) -> dict:
+def handle_non_document(payload: Payload, ctx: InteractContext) -> dict:
     fsm_state = ctx.get("fsm_state")
     if fsm_state is not None:
         return respond([msg("Пожалуйста, отправьте текстовое сообщение.")])

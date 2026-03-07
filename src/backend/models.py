@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import ClassVar, Optional, Union
+from typing import ClassVar
 
 from pydantic import BaseModel, Field
 
@@ -248,7 +248,7 @@ class SamozanyatyContractor(Contractor):
         return names
 
 
-AnyContractor = Union[GlobalContractor, IPContractor, SamozanyatyContractor]
+AnyContractor = GlobalContractor | IPContractor | SamozanyatyContractor
 
 # Map ContractorType enum → subclass for construction
 CONTRACTOR_CLASS_BY_TYPE: dict[ContractorType, type[Contractor]] = {
@@ -327,13 +327,13 @@ class PendingItem(BaseModel):
     """A classified inbox item pending approval."""
     category: str  # "tech_support" | "editorial"
     uid: str
-    draft: Optional[SupportDraft] = None
-    editorial: Optional[EditorialItem] = None
+    draft: SupportDraft | None = None
+    editorial: EditorialItem | None = None
 
 
 class AirtableExpense(BaseModel):
     """A row to be pushed to the Airtable expenses table."""
-    id: Optional[int] = None
+    id: int | None = None
     payed: str = ""  # date string ISO format (YYYY-MM-DD)
     amount_rub: float = 0.0  # numeric amount in RUB
     contractor: str = ""

@@ -18,6 +18,7 @@ from backend.models import (
 )
 from backend.wiring import create_generate_batch_invoices, create_parse_bank_statement
 from backend.interact.helpers import (
+    Payload, InteractContext,
     msg, file_msg, side_msg, respond,
     prev_month, invoice_admin_data, ROLE_LABELS,
 )
@@ -38,7 +39,7 @@ def _find_or_suggest(raw_name: str, contractors: list) -> tuple[Contractor | Non
     return None, msg("Контрагент не найден.")
 
 
-def handle_generate(payload: dict, ctx: dict) -> dict:
+def handle_generate(payload: Payload, ctx: InteractContext) -> dict:
     text = payload.get("text", "").strip()
     if not text:
         return respond([msg("Использование: /generate <имя контрагента>")])
@@ -95,7 +96,7 @@ def handle_generate(payload: dict, ctx: dict) -> dict:
     }])
 
 
-def handle_articles(payload: dict, ctx: dict) -> dict:
+def handle_articles(payload: Payload, ctx: InteractContext) -> dict:
     text = payload.get("text", "").strip()
     if not text:
         return respond([msg("Использование: /articles <имя> [YYYY-MM]")])
@@ -125,7 +126,7 @@ def handle_articles(payload: dict, ctx: dict) -> dict:
     })])
 
 
-def handle_lookup(payload: dict, ctx: dict) -> dict:
+def handle_lookup(payload: Payload, ctx: InteractContext) -> dict:
     text = payload.get("text", "").strip()
     if not text:
         return respond([msg("Использование: /lookup <имя>")])
@@ -148,7 +149,7 @@ def handle_lookup(payload: dict, ctx: dict) -> dict:
     })])
 
 
-def handle_batch_generate(payload: dict, ctx: dict) -> dict:
+def handle_batch_generate(payload: Payload, ctx: InteractContext) -> dict:
     debug = "debug" in payload.get("text", "").lower().split()
     month = prev_month()
     contractors = load_all_contractors()
@@ -194,7 +195,7 @@ def handle_batch_generate(payload: dict, ctx: dict) -> dict:
     return respond(messages)
 
 
-def handle_send_global(payload: dict, ctx: dict) -> dict:
+def handle_send_global(payload: Payload, ctx: InteractContext) -> dict:
     debug = "debug" in payload.get("text", "").lower().split()
     month = prev_month()
     invoices = load_invoices(month)
@@ -250,7 +251,7 @@ def handle_send_global(payload: dict, ctx: dict) -> dict:
     return respond(messages, side_messages=sides)
 
 
-def handle_send_legium(payload: dict, ctx: dict) -> dict:
+def handle_send_legium(payload: Payload, ctx: InteractContext) -> dict:
     debug = "debug" in payload.get("text", "").lower().split()
     month = prev_month()
     invoices = load_invoices(month)
@@ -303,7 +304,7 @@ def handle_send_legium(payload: dict, ctx: dict) -> dict:
     return respond(messages, side_messages=sides)
 
 
-def handle_orphans(payload: dict, ctx: dict) -> dict:
+def handle_orphans(payload: Payload, ctx: InteractContext) -> dict:
     month = prev_month()
     contractors = load_all_contractors()
     budget_amounts = load_budget_amounts(month)
@@ -318,7 +319,7 @@ def handle_orphans(payload: dict, ctx: dict) -> dict:
     })])
 
 
-def handle_upload_statement(payload: dict, ctx: dict) -> dict:
+def handle_upload_statement(payload: Payload, ctx: InteractContext) -> dict:
     import base64
     file_b64 = payload.get("file_b64")
     rate_str = payload.get("rate", "")
@@ -353,7 +354,7 @@ def handle_upload_statement(payload: dict, ctx: dict) -> dict:
             os.unlink(tmp_path)
 
 
-def handle_legium_reply(payload: dict, ctx: dict) -> dict:
+def handle_legium_reply(payload: Payload, ctx: InteractContext) -> dict:
     """Admin replied to an invoice message with a legium URL."""
     url = payload.get("text", "").strip()
     contractor_id = payload.get("contractor_id", "")

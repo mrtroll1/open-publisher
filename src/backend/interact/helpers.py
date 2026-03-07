@@ -1,9 +1,33 @@
 """Response builders and shared helpers for interact handlers."""
 
+from __future__ import annotations
+
 import base64
 from datetime import date
+from typing import TypedDict
 
-from backend.models import RoleCode
+from backend.models import Contractor, RoleCode
+
+
+class Payload(TypedDict, total=False):
+    """Inbound data from the bot. Keys vary by action."""
+    text: str
+    file_b64: str
+    filename: str
+    mime: str
+    callback_data: str
+    rate: str
+    contractor_id: str
+    contractor_telegram: str
+
+
+class InteractContext(TypedDict, total=False):
+    """Session context passed by the bot alongside each request."""
+    user_id: int
+    is_admin: bool
+    admin_ids: list[int]
+    fsm_state: str | None
+    fsm_data: dict
 
 
 ROLE_LABELS = {
@@ -20,7 +44,7 @@ def prev_month() -> str:
     return f"{today.year}-{today.month - 1:02d}"
 
 
-def invoice_admin_data(contractor, month, amount) -> dict:
+def invoice_admin_data(contractor: Contractor, month: str, amount: int) -> dict:
     return {
         "type": "invoice_admin_caption",
         "name": contractor.display_name,
@@ -30,7 +54,7 @@ def invoice_admin_data(contractor, month, amount) -> dict:
     }
 
 
-def msg(text: str = "", *, keyboard=None, data=None) -> dict:
+def msg(text: str = "", *, keyboard: list | None = None, data: dict | None = None) -> dict:
     m = {}
     if text:
         m["text"] = text
@@ -42,7 +66,7 @@ def msg(text: str = "", *, keyboard=None, data=None) -> dict:
 
 
 def file_msg(pdf_bytes: bytes, filename: str, caption: str = "", *,
-             data=None) -> dict:
+             data: dict | None = None) -> dict:
     m = {
         "file_b64": base64.b64encode(pdf_bytes).decode(),
         "filename": filename,
@@ -54,8 +78,9 @@ def file_msg(pdf_bytes: bytes, filename: str, caption: str = "", *,
     return m
 
 
-def side_msg(chat_id: int, text: str = "", *, pdf_bytes: bytes = None,
-             filename: str = None, track: dict = None, data=None) -> dict:
+def side_msg(chat_id: int, text: str = "", *, pdf_bytes: bytes | None = None,
+             filename: str | None = None, track: dict | None = None,
+             data: dict | None = None) -> dict:
     sm = {"chat_id": chat_id}
     if text:
         sm["text"] = text
@@ -72,7 +97,8 @@ def side_msg(chat_id: int, text: str = "", *, pdf_bytes: bytes = None,
 _SENTINEL = object()
 
 
-def respond(messages=None, side_messages=None, fsm_state=_SENTINEL, fsm_data=None) -> dict:
+def respond(messages: list[dict] | None = None, side_messages: list[dict] | None = None,
+            fsm_state: str | None = _SENTINEL, fsm_data: dict | None = None) -> dict:
     """Build response dict.
 
     fsm_state: string = set state, None = clear state, omitted = keep current.

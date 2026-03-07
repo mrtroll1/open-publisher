@@ -18,20 +18,16 @@ class YandexMetricaGateway:
     def available(self) -> bool:
         return bool(YANDEX_METRICA_TOKEN and YANDEX_METRICA_COUNTER_ID)
 
-    def _get(self, endpoint: str, params: dict) -> dict | None:
+    def _get(self, endpoint: str, params: dict) -> dict:
         params["id"] = YANDEX_METRICA_COUNTER_ID
-        try:
-            resp = requests.get(
-                f"{_BASE}/{endpoint}",
-                headers={"Authorization": f"OAuth {YANDEX_METRICA_TOKEN}"},
-                params=params,
-                timeout=30,
-            )
-            resp.raise_for_status()
-            return resp.json()
-        except Exception:
-            logger.exception("Yandex Metrica API error: %s %s", endpoint, params)
-            return None
+        resp = requests.get(
+            f"{_BASE}/{endpoint}",
+            headers={"Authorization": f"OAuth {YANDEX_METRICA_TOKEN}"},
+            params=params,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()
 
     def get_popular_pages(self, date_from: str, date_to: str, limit: int = 20) -> list[dict]:
         """Top pages by pageviews. Dates: YYYY-MM-DD."""

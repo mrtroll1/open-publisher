@@ -278,6 +278,7 @@ async def _handle_group_nl(
         if thinking:
             await thinking.__aexit__(None, None, None)
         logger.exception("Group NL processing failed")
+        await message.answer("Не удалось обработать сообщение.")
 
 
 def _build_nl_kwargs(clean_text: str, message: types.Message, is_reply_to_bot: bool) -> dict:

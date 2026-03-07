@@ -31,31 +31,21 @@ class RepoGateway:
     def ensure_repos(self) -> None:
         if not self._repo_urls:
             return
-        try:
-            self._repos_dir.mkdir(parents=True, exist_ok=True)
-        except OSError as e:
-            logger.warning("Cannot create repos dir %s: %s", self._repos_dir, e)
-            return
+        self._repos_dir.mkdir(parents=True, exist_ok=True)
         # Remove stale repo dirs (e.g. from old naming conventions)
         expected = set(self._repo_urls.keys())
         for child in self._repos_dir.iterdir():
             if child.is_dir() and not child.name.startswith(".") and child.name not in expected:
-                try:
-                    shutil.rmtree(child)
-                    logger.info("Removed stale repo dir: %s", child.name)
-                except Exception as e:
-                    logger.warning("Cannot remove stale dir %s: %s", child.name, e)
+                shutil.rmtree(child)
+                logger.info("Removed stale repo dir: %s", child.name)
         for name, url in self._repo_urls.items():
             path = self._repo_path(name)
-            try:
-                if path.exists():
-                    shutil.rmtree(path)
-                subprocess.run(
-                    ["git", "clone", "--depth", "1", url, str(path)],
-                    capture_output=True, timeout=60,
-                )
-            except Exception as e:
-                logger.warning("Git op failed for %s: %s", name, e)
+            if path.exists():
+                shutil.rmtree(path)
+            subprocess.run(
+                ["git", "clone", "--depth", "1", url, str(path)],
+                capture_output=True, timeout=60,
+            )
 
     def search_code(
         self, query: str, repo: str | None = None,
@@ -68,25 +58,22 @@ class RepoGateway:
             path = self._repo_path(name)
             if not path.exists():
                 continue
-            try:
-                proc = subprocess.run(
-                    ["grep", "-rn", *_GREP_EXTENSIONS, "--", query, str(path)],
-                    capture_output=True, text=True, timeout=30,
-                )
-                for line in proc.stdout.splitlines()[:20]:
-                    parts = line.split(":", 2)
-                    if len(parts) >= 3:
-                        filepath = parts[0]
-                        try:
-                            lineno = int(parts[1])
-                        except ValueError:
-                            continue
-                        content = parts[2]
-                        # Make filepath relative to repos dir
-                        rel = filepath.replace(str(self._repos_dir) + "/", "", 1)
-                        results.append((rel, lineno, content))
-            except Exception as e:
-                logger.warning("Grep failed for %s: %s", name, e)
+            proc = subprocess.run(
+                ["grep", "-rn", *_GREP_EXTENSIONS, "--", query, str(path)],
+                capture_output=True, text=True, timeout=30,
+            )
+            for line in proc.stdout.splitlines()[:20]:
+                parts = line.split(":", 2)
+                if len(parts) >= 3:
+                    filepath = parts[0]
+                    try:
+                        lineno = int(parts[1])
+                    except ValueError:
+                        continue
+                    content = parts[2]
+                    # Make filepath relative to repos dir
+                    rel = filepath.replace(str(self._repos_dir) + "/", "", 1)
+                    results.append((rel, lineno, content))
         return results[:20]
 
     def fetch_snippets(self, search_terms: list[str], max_files: int = 5, context_lines: int = 25) -> str:
@@ -116,8 +103,5 @@ class RepoGateway:
         full = (self._repo_path(repo) / filepath).resolve()
         if not full.is_relative_to(self._repos_dir) or not full.exists():
             return ""
-        try:
-            lines = full.read_text(encoding="utf-8", errors="replace").splitlines()
-            return "\n".join(lines[:max_lines])
-        except Exception:
-            return ""
+        lines = full.read_text(encoding="utf-8", errors="replace").splitlines()
+        return "\n".join(lines[:max_lines])

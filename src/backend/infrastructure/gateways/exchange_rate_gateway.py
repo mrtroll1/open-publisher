@@ -10,18 +10,14 @@ logger = logging.getLogger(__name__)
 class ExchangeRateGateway:
 
     def fetch_eur_rub_rate(self) -> float:
-        try:
-            resp = requests.get("https://open.er-api.com/v6/latest/EUR", timeout=10)
-            resp.raise_for_status()
-            rate = resp.json().get("rates", {}).get("RUB", 0.0)
-            if rate:
-                logger.info("EUR/RUB rate: %.2f", rate)
-            else:
-                logger.warning("RUB rate missing from exchange rate response")
-            return float(rate)
-        except Exception as e:
-            logger.error("EUR/RUB rate fetch failed: %s", e)
-            return 0.0
+        resp = requests.get("https://open.er-api.com/v6/latest/EUR", timeout=10)
+        resp.raise_for_status()
+        rate = resp.json().get("rates", {}).get("RUB", 0.0)
+        if rate:
+            logger.info("EUR/RUB rate: %.2f", rate)
+        else:
+            raise ValueError("RUB rate missing from exchange rate response")
+        return float(rate)
 
 
 # Backward-compat module-level function

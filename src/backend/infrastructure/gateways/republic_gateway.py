@@ -52,22 +52,13 @@ class RepublicGateway:
                 if not post_ids:
                     logger.warning("Content API returned empty data for %s: %s", label, body)
                 return post_ids
-            except requests.HTTPError:
-                logger.error("Content API HTTP %s for %s (body=%s)",
-                             resp.status_code, label, resp.text[:500])
-                return []
             except (requests.ConnectionError, requests.Timeout) as e:
-                logger.warning("Content API %s for %s (attempt %d/%d): %s",
-                               type(e).__name__, label, attempt, MAX_RETRIES, e)
                 if attempt < MAX_RETRIES:
+                    logger.warning("Content API %s for %s (attempt %d/%d): %s",
+                                   type(e).__name__, label, attempt, MAX_RETRIES, e)
                     time.sleep(RETRY_DELAY)
                     continue
-                logger.error("Content API error for %s after %d attempts: %s",
-                             label, MAX_RETRIES, e)
-                return []
-            except Exception as e:
-                logger.error("Content API error for %s: %s", label, e)
-                return []
+                raise
         return []
 
     def fetch_articles(self, contractor: Contractor, month: str) -> list[ArticleEntry]:
@@ -115,23 +106,19 @@ class RepublicGateway:
         ordered by post_count descending.
         """
         url = f"{REPUBLIC_API_URL}/posts/authors"
-        try:
-            resp = requests.get(
-                url, params={"month": month}, timeout=15,
-                headers={"Accept": "application/json"},
-            )
-            logger.info("Content API %s month=%s → HTTP %s", url, month, resp.status_code)
-            resp.raise_for_status()
-            body = resp.json()
-            rows = body.get("$data") or body.get("data") or []
-            return [
-                {"author": str(r["author"]), "post_count": int(r["post_count"])}
-                for r in rows
-                if isinstance(r, dict) and "author" in r
-            ]
-        except Exception as e:
-            logger.error("Content API error for /posts/authors: %s", e)
-            return []
+        resp = requests.get(
+            url, params={"month": month}, timeout=15,
+            headers={"Accept": "application/json"},
+        )
+        logger.info("Content API %s month=%s → HTTP %s", url, month, resp.status_code)
+        resp.raise_for_status()
+        body = resp.json()
+        rows = body.get("$data") or body.get("data") or []
+        return [
+            {"author": str(r["author"]), "post_count": int(r["post_count"])}
+            for r in rows
+            if isinstance(r, dict) and "author" in r
+        ]
 
     # ------------------------------------------------------------------
     #  Support API (posts)
@@ -142,18 +129,14 @@ class RepublicGateway:
 
         Returns list of {id, title, excerpt, content, author, url}.
         """
-        try:
-            resp = requests.get(
-                f"{REPUBLIC_API_URL}/support/posts",
-                params={"date_from": date_from, "date_to": date_to},
-                headers={"X-Api-Key": REPUBLIC_SUPPORT_API_KEY},
-                timeout=30,
-            )
-            resp.raise_for_status()
-            return resp.json().get("data", [])
-        except Exception as e:
-            logger.error("Republic posts fetch failed (%s – %s): %s", date_from, date_to, e)
-            return []
+        resp = requests.get(
+            f"{REPUBLIC_API_URL}/support/posts",
+            params={"date_from": date_from, "date_to": date_to},
+            headers={"X-Api-Key": REPUBLIC_SUPPORT_API_KEY},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json().get("data", [])
 
     # ------------------------------------------------------------------
     #  Support API (user lookup)
@@ -161,15 +144,11 @@ class RepublicGateway:
 
     def get_user_by_email(self, email: str) -> dict | None:
         """Look up a Republic user by email. Returns user dict or None."""
-        try:
-            resp = requests.get(
-                f"{REPUBLIC_API_URL}/support/user-by-email",
-                params={"email": email},
-                headers={"X-Api-Key": REPUBLIC_SUPPORT_API_KEY},
-                timeout=10,
-            )
-            resp.raise_for_status()
-            return resp.json().get("user")
-        except Exception as e:
-            logger.error("Republic user lookup failed for %s: %s", email, e)
-            return None
+        resp = requests.get(
+            f"{REPUBLIC_API_URL}/support/user-by-email",
+            params={"email": email},
+            headers={"X-Api-Key": REPUBLIC_SUPPORT_API_KEY},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return resp.json().get("user")

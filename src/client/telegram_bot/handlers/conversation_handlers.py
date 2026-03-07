@@ -95,6 +95,7 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
         if thinking:
             await thinking.__aexit__(None, None, None)
         logger.exception("NL reply failed")
+        await message.answer("Не удалось ответить.")
         return False
 
 

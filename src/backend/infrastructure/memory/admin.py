@@ -23,8 +23,5 @@ def classify_draft_reply(reply_text: str) -> str:
 
 
 def store_admin_feedback(text: str, domain: str, retriever) -> None:
-    """Store teaching feedback via retriever. Logs and swallows errors."""
-    try:
-        retriever.store_feedback(text, domain=domain)
-    except Exception:
-        logger.exception("Failed to store admin feedback")
+    """Store teaching feedback via retriever."""
+    retriever.store_feedback(text, domain=domain)

@@ -50,12 +50,9 @@ class AirtableGateway:
         created = 0
         for i in range(0, len(records), 10):
             batch = records[i : i + 10]
-            try:
-                table.batch_create([r["fields"] for r in batch], typecast=True)
-                created += len(batch)
-                time.sleep(0.2)
-            except Exception as e:
-                logger.error("Airtable batch upload failed at %d: %s", i, e)
+            table.batch_create([r["fields"] for r in batch], typecast=True)
+            created += len(batch)
+            time.sleep(0.2)
 
         logger.info("Uploaded %d/%d records to Airtable", created, len(records))
         return created

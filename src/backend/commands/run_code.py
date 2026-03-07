@@ -66,14 +66,11 @@ def _set_retriever(r) -> None:
 
 def _write_claude_md() -> None:
     """Write CLAUDE.md from DB knowledge (scope=code) into REPOS_DIR."""
-    try:
-        if _retriever is None:
-            return
-        context = _retriever.retrieve_full_scope("code")
-        if context:
-            Path(REPOS_DIR, "CLAUDE.md").write_text(context, encoding="utf-8")
-    except Exception:
-        logger.warning("Could not write CLAUDE.md from DB", exc_info=True)
+    if _retriever is None:
+        return
+    context = _retriever.retrieve_full_scope("code")
+    if context:
+        Path(REPOS_DIR, "CLAUDE.md").write_text(context, encoding="utf-8")
 
 
 def _format_tool_status(name: str, tool_input: dict) -> str | None:

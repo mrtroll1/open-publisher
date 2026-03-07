@@ -688,15 +688,12 @@ def handle_document(payload: Payload, ctx: InteractContext) -> dict:
                 "Пожалуйста, отправьте подписанный документ в формате PDF.\n\n"
                 f"Если возникли вопросы — напишите {ADMIN_TELEGRAM_TAG}."
             )])
-        try:
-            content = base64.b64decode(file_b64)
-            month = prev_month()
-            if progress:
-                progress.emit("upload_drive", "Загружаю документ на Google Drive")
-            drive_link = upload_invoice_pdf(contractor, month, filename, content)
-            update_invoice_status(contractor.id, month, InvoiceStatus.SIGNED)
-        except Exception as e:
-            logger.error("Failed to upload signed doc to Drive: %s", e)
+        content = base64.b64decode(file_b64)
+        month = prev_month()
+        if progress:
+            progress.emit("upload_drive", "Загружаю документ на Google Drive")
+        drive_link = upload_invoice_pdf(contractor, month, filename, content)
+        update_invoice_status(contractor.id, month, InvoiceStatus.SIGNED)
 
     sides = []
     for admin_id in admin_ids:

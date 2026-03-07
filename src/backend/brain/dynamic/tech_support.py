@@ -40,10 +40,7 @@ class TechSupport(BaseGenAI):
         # Fetch user data if triage determined it's needed
         user_data = ""
         if needs and lookup_email:
-            try:
-                user_data = self._user_lookup.fetch_and_format(lookup_email, needs)
-            except Exception:
-                logger.warning("User lookup failed for %s", lookup_email, exc_info=True)
+            user_data = self._user_lookup.fetch_and_format(lookup_email, needs)
 
         # Step 2: draft reply
         combined_context = "\n\n".join(filter(None, [user_data, thread_context]))

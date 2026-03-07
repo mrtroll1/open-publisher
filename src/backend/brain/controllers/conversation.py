@@ -173,10 +173,7 @@ class _ConversationContext:
         self.knowledge = ""
 
     def log(self, type: str, content: dict):
-        try:
-            self.db.log_run_step(self.run_id, self._step, type, content)
-        except Exception:
-            logger.warning("Failed to write run log step %d", self._step, exc_info=True)
+        self.db.log_run_step(self.run_id, self._step, type, content)
         self._step += 1
 
     def _emit(self, stage: str, detail: str):

@@ -20,25 +20,20 @@ class CloudflareGateway:
 
     def _query(self, graphql: str, variables: dict) -> dict | None:
         variables["zoneTag"] = CLOUDFLARE_ZONE_ID
-        try:
-            resp = requests.post(
-                _GRAPHQL_URL,
-                headers={
-                    "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
-                    "Content-Type": "application/json",
-                },
-                json={"query": graphql, "variables": variables},
-                timeout=30,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            if data.get("errors"):
-                logger.warning("Cloudflare GraphQL errors: %s", data["errors"])
-                return None
-            return data.get("data")
-        except Exception:
-            logger.exception("Cloudflare API error")
-            return None
+        resp = requests.post(
+            _GRAPHQL_URL,
+            headers={
+                "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
+                "Content-Type": "application/json",
+            },
+            json={"query": graphql, "variables": variables},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("errors"):
+            raise RuntimeError(f"Cloudflare GraphQL errors: {data['errors']}")
+        return data.get("data")
 
     def get_traffic_summary(self, date_from: str, date_to: str) -> dict | None:
         """Overall HTTP traffic: requests, pageviews, unique visitors, bandwidth."""

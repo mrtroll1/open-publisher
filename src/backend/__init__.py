@@ -86,15 +86,12 @@ def translate_name_to_russian(name_en: str) -> str:
     t0 = time.time()
     result = _gemini.call(prompt)
     latency_ms = int((time.time() - t0) * 1000)
-    try:
-        from backend.infrastructure.repositories.postgres import DbGateway
-        DbGateway().save_message(
-            text=prompt, type="system",
-            metadata={"task": "TRANSLATE_NAME", "model": GEMINI_MODEL_FAST,
-                      "result": json.dumps(result), "latency_ms": latency_ms},
-        )
-    except Exception:
-        pass
+    from backend.infrastructure.repositories.postgres import DbGateway
+    DbGateway().save_message(
+        text=prompt, type="system",
+        metadata={"task": "TRANSLATE_NAME", "model": GEMINI_MODEL_FAST,
+                  "result": json.dumps(result), "latency_ms": latency_ms},
+    )
     return result.get("translated_name", "")
 
 

@@ -33,36 +33,29 @@ class EmailGateway:
 
     def fetch_unread(self) -> list[IncomingEmail]:
         """Fetch all unread emails from the inbox."""
-        try:
-            gmail = self._gmail()
-            after = int(time.time()) - _RECENT_WINDOW
-            resp = gmail.users().messages().list(
-                userId="me", q=f"is:unread after:{after}"
-            ).execute()
-            message_ids = [m["id"] for m in resp.get("messages", [])]
-            logger.info("Gmail poll: %d recent unread messages", len(message_ids))
+        gmail = self._gmail()
+        after = int(time.time()) - _RECENT_WINDOW
+        resp = gmail.users().messages().list(
+            userId="me", q=f"is:unread after:{after}"
+        ).execute()
+        message_ids = [m["id"] for m in resp.get("messages", [])]
+        logger.info("Gmail poll: %d recent unread messages", len(message_ids))
 
-            emails = []
-            for msg_id in message_ids:
-                raw_resp = gmail.users().messages().get(
-                    userId="me", id=msg_id, format="raw"
-                ).execute()
-                raw_bytes = base64.urlsafe_b64decode(raw_resp["raw"])
-                msg = email.message_from_bytes(raw_bytes)
-                emails.append(parse_email_message(msg_id, msg))
-            return emails
-        except Exception:
-            logger.warning("Failed to fetch unread emails", exc_info=True)
-            return []
+        emails = []
+        for msg_id in message_ids:
+            raw_resp = gmail.users().messages().get(
+                userId="me", id=msg_id, format="raw"
+            ).execute()
+            raw_bytes = base64.urlsafe_b64decode(raw_resp["raw"])
+            msg = email.message_from_bytes(raw_bytes)
+            emails.append(parse_email_message(msg_id, msg))
+        return emails
 
     def mark_read(self, uid: str) -> None:
         """Remove UNREAD label from a message."""
-        try:
-            self._gmail().users().messages().modify(
-                userId="me", id=uid, body={"removeLabelIds": ["UNREAD"]}
-            ).execute()
-        except Exception:
-            logger.warning("Failed to mark message %s as read", uid, exc_info=True)
+        self._gmail().users().messages().modify(
+            userId="me", id=uid, body={"removeLabelIds": ["UNREAD"]}
+        ).execute()
 
     def send_reply(
         self, to: str, subject: str, body: str, in_reply_to: str = "", from_addr: str = ""
@@ -80,14 +73,10 @@ class EmailGateway:
             msg["References"] = in_reply_to
 
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-        try:
-            self._gmail().users().messages().send(
-                userId="me", body={"raw": raw}
-            ).execute()
-            logger.info("Sent reply to %s: %s", to, subject)
-        except Exception:
-            logger.error("Failed to send reply to %s: %s", to, subject, exc_info=True)
-            raise
+        self._gmail().users().messages().send(
+            userId="me", body={"raw": raw}
+        ).execute()
+        logger.info("Sent reply to %s: %s", to, subject)
 
     def idle_wait(self, timeout: int = 300) -> bool:
         """Poll for new unread mail. Just sleeps — actual check happens in fetch_unread."""

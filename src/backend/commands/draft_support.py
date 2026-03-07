@@ -110,35 +110,28 @@ class TechSupportHandler:
             )
 
     def _fetch_user_data(self, email_text: str, fallback_email: str) -> str:
-        try:
-            triage_knowledge = self._retriever.retrieve_full_domain("support_triage")
-            prompt = load_template("email/support-triage.md", {
-                "KNOWLEDGE": triage_knowledge,
-                "EMAIL": email_text,
-            })
-            t0 = time.time()
-            from backend.config import GEMINI_MODEL_FAST
-            result = self._gemini.call(prompt, GEMINI_MODEL_FAST)
-            latency_ms = int((time.time() - t0) * 1000)
-            try:
-                self._db.save_message(
-                    text=prompt, environment="email", type="system",
-                    metadata={"task": "SUPPORT_TRIAGE", "model": GEMINI_MODEL_FAST,
-                              "result": json.dumps(result), "latency_ms": latency_ms},
-                )
-            except Exception:
-                logger.warning("Failed to log triage classification", exc_info=True)
-            needs = result.get("needs", [])
-            lookup_email = result.get("lookup_email") or fallback_email
-            logger.info("Support triage: needs=%s, lookup_email=%s", needs, lookup_email)
-            if not needs or not lookup_email:
-                return ""
-            user_data = self._user_lookup.fetch_and_format(lookup_email, needs)
-            logger.info("User data for %s:\n%s", lookup_email, user_data or "(empty)")
-            return user_data
-        except Exception as e:
-            logger.error("Support triage/lookup failed: %s", e)
+        triage_knowledge = self._retriever.retrieve_full_domain("support_triage")
+        prompt = load_template("email/support-triage.md", {
+            "KNOWLEDGE": triage_knowledge,
+            "EMAIL": email_text,
+        })
+        t0 = time.time()
+        from backend.config import GEMINI_MODEL_FAST
+        result = self._gemini.call(prompt, GEMINI_MODEL_FAST)
+        latency_ms = int((time.time() - t0) * 1000)
+        self._db.save_message(
+            text=prompt, environment="email", type="system",
+            metadata={"task": "SUPPORT_TRIAGE", "model": GEMINI_MODEL_FAST,
+                      "result": json.dumps(result), "latency_ms": latency_ms},
+        )
+        needs = result.get("needs", [])
+        lookup_email = result.get("lookup_email") or fallback_email
+        logger.info("Support triage: needs=%s, lookup_email=%s", needs, lookup_email)
+        if not needs or not lookup_email:
             return ""
+        user_data = self._user_lookup.fetch_and_format(lookup_email, needs)
+        logger.info("User data for %s:\n%s", lookup_email, user_data or "(empty)")
+        return user_data
 
     @staticmethod
     def _format_thread(history: list[dict]) -> str:

@@ -4,6 +4,7 @@ import logging
 
 from backend.brain.prompt_loader import load_template
 from backend.brain.base_genai import BaseGenAI
+from backend.config import GEMINI_MODEL_FAST, GEMINI_MODEL_SMART
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.memory.retriever import KnowledgeRetriever
 from backend.infrastructure.repositories.postgres import DbGateway
@@ -31,7 +32,7 @@ class TechSupport(BaseGenAI):
             "KNOWLEDGE": triage_knowledge,
             "EMAIL": input,
         })
-        triage_result = self._gemini.call(triage_prompt, "gemini-2.5-flash")
+        triage_result = self._gemini.call(triage_prompt, GEMINI_MODEL_FAST)
 
         needs = triage_result.get("needs", [])
         lookup_email = triage_result.get("lookup_email") or fallback_email
@@ -54,7 +55,7 @@ class TechSupport(BaseGenAI):
             "USER_DATA": combined_context,
             "EMAIL": input,
         })
-        draft_result = self._gemini.call(draft_prompt, "gemini-3-flash-preview")
+        draft_result = self._gemini.call(draft_prompt, GEMINI_MODEL_SMART)
 
         return {
             "reply": draft_result.get("reply", ""),

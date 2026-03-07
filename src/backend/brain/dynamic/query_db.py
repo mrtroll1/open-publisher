@@ -22,7 +22,6 @@ class QueryDB(BaseGenAI):
     def __init__(self, gemini: GeminiGateway, gateway: QueryGateway | LocalQueryGateway,
                  db: DbGateway, schema_domain: str = "databases"):
         super().__init__(gemini)
-        self._model = "gemini-2.5-flash"
         self._gateway = gateway
         self._db = db
         self._schema_domain = schema_domain

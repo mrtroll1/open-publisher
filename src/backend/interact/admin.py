@@ -3,7 +3,6 @@
 import logging
 import os
 import tempfile
-from datetime import date
 from decimal import Decimal
 
 from backend import (
@@ -15,25 +14,15 @@ from backend import (
 )
 from backend.config import ADMIN_TELEGRAM_TAG
 from backend.models import (
-    Contractor, Currency, GlobalContractor, InvoiceStatus, RoleCode,
+    Contractor, Currency, GlobalContractor, InvoiceStatus,
 )
 from backend.wiring import create_generate_batch_invoices, create_parse_bank_statement
-from backend.interact.helpers import msg, file_msg, side_msg, respond
+from backend.interact.helpers import (
+    msg, file_msg, side_msg, respond,
+    prev_month, invoice_admin_data, ROLE_LABELS,
+)
 
 logger = logging.getLogger(__name__)
-
-_ROLE_LABELS = {
-    RoleCode.AUTHOR: "автор",
-    RoleCode.REDAKTOR: "редактор",
-    RoleCode.KORREKTOR: "корректор",
-}
-
-
-def _prev_month() -> str:
-    today = date.today()
-    if today.month == 1:
-        return f"{today.year - 1}-12"
-    return f"{today.year}-{today.month - 1:02d}"
 
 
 def _find_or_suggest(raw_name: str, contractors: list) -> tuple[Contractor | None, dict | None]:
@@ -49,16 +38,6 @@ def _find_or_suggest(raw_name: str, contractors: list) -> tuple[Contractor | Non
     return None, msg("Контрагент не найден.")
 
 
-def _invoice_admin_data(contractor, month, amount) -> dict:
-    return {
-        "type": "invoice_admin_caption",
-        "name": contractor.display_name,
-        "contractor_type": contractor.type.value,
-        "month": month,
-        "amount": int(amount),
-    }
-
-
 def handle_generate(payload: dict, ctx: dict) -> dict:
     text = payload.get("text", "").strip()
     if not text:
@@ -72,7 +51,7 @@ def handle_generate(payload: dict, ctx: dict) -> dict:
     if not contractor:
         return respond([not_found])
 
-    month = _prev_month()
+    month = prev_month()
     budget_amounts = read_budget_amounts(month)
     articles = fetch_articles(contractor, month)
 
@@ -107,7 +86,7 @@ def handle_generate(payload: dict, ctx: dict) -> dict:
 
     # RUB invoice — send with legium tracking
     return respond([{
-        "data": _invoice_admin_data(contractor, month, amount_int),
+        "data": invoice_admin_data(contractor, month, amount_int),
         "file_b64": file_msg(pdf_bytes, filename)["file_b64"],
         "filename": filename,
         "track": {"type": "admin_reply",
@@ -125,7 +104,7 @@ def handle_articles(payload: dict, ctx: dict) -> dict:
     if len(parts) == 2 and len(parts[1]) >= 6 and parts[1][:4].isdigit() and "-" in parts[1]:
         raw_name, month = parts[0], parts[1]
     else:
-        raw_name, month = text, _prev_month()
+        raw_name, month = text, prev_month()
 
     contractors = load_all_contractors()
     contractor, not_found = _find_or_suggest(raw_name, contractors)
@@ -139,7 +118,7 @@ def handle_articles(payload: dict, ctx: dict) -> dict:
     return respond([msg(data={
         "type": "articles_list",
         "name": contractor.display_name,
-        "role": _ROLE_LABELS.get(contractor.role_code, contractor.role_code.value),
+        "role": ROLE_LABELS.get(contractor.role_code, contractor.role_code.value),
         "month": month,
         "count": len(articles),
         "article_ids": [a.article_id for a in articles],
@@ -160,7 +139,7 @@ def handle_lookup(payload: dict, ctx: dict) -> dict:
         "type": "contractor_info",
         "name": contractor.display_name,
         "contractor_type": contractor.type.value,
-        "role": _ROLE_LABELS.get(contractor.role_code, contractor.role_code.value),
+        "role": ROLE_LABELS.get(contractor.role_code, contractor.role_code.value),
         "mags": contractor.mags or "",
         "email": contractor.email or "",
         "telegram_linked": bool(contractor.telegram),
@@ -171,7 +150,7 @@ def handle_lookup(payload: dict, ctx: dict) -> dict:
 
 def handle_batch_generate(payload: dict, ctx: dict) -> dict:
     debug = "debug" in payload.get("text", "").lower().split()
-    month = _prev_month()
+    month = prev_month()
     contractors = load_all_contractors()
 
     try:
@@ -204,7 +183,7 @@ def handle_batch_generate(payload: dict, ctx: dict) -> dict:
         elif contractor.currency == Currency.RUB:
             fname = f"СчетОферта_{contractor.display_name}_{month}.pdf"
             messages.append({
-                "data": _invoice_admin_data(contractor, month, invoice.amount),
+                "data": invoice_admin_data(contractor, month, invoice.amount),
                 "file_b64": file_msg(pdf_bytes, fname)["file_b64"],
                 "filename": fname,
                 "track": {"type": "admin_reply",
@@ -217,7 +196,7 @@ def handle_batch_generate(payload: dict, ctx: dict) -> dict:
 
 def handle_send_global(payload: dict, ctx: dict) -> dict:
     debug = "debug" in payload.get("text", "").lower().split()
-    month = _prev_month()
+    month = prev_month()
     invoices = load_invoices(month)
     draft_global = [inv for inv in invoices if inv.status == InvoiceStatus.DRAFT and inv.currency == Currency.EUR]
 
@@ -273,7 +252,7 @@ def handle_send_global(payload: dict, ctx: dict) -> dict:
 
 def handle_send_legium(payload: dict, ctx: dict) -> dict:
     debug = "debug" in payload.get("text", "").lower().split()
-    month = _prev_month()
+    month = prev_month()
     invoices = load_invoices(month)
     pending = [inv for inv in invoices if inv.legium_link and inv.status == InvoiceStatus.DRAFT]
 
@@ -325,7 +304,7 @@ def handle_send_legium(payload: dict, ctx: dict) -> dict:
 
 
 def handle_orphans(payload: dict, ctx: dict) -> dict:
-    month = _prev_month()
+    month = prev_month()
     contractors = load_all_contractors()
     budget_amounts = read_budget_amounts(month)
     contractor_names = {c.display_name.lower().strip() for c in contractors}
@@ -379,7 +358,7 @@ def handle_legium_reply(payload: dict, ctx: dict) -> dict:
     url = payload.get("text", "").strip()
     contractor_id = payload.get("contractor_id", "")
     contractor_telegram = payload.get("contractor_telegram", "")
-    month = _prev_month()
+    month = prev_month()
 
     contractors = load_all_contractors()
     contractor = find_contractor_by_id(contractor_id, contractors)

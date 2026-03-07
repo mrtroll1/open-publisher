@@ -8,8 +8,9 @@ from backend.infrastructure.memory.retriever import KnowledgeRetriever
 class EditorialAssess(BaseGenAI):
 
     def __init__(self, gemini: GeminiGateway, retriever: KnowledgeRetriever):
+        from backend.config import GEMINI_MODEL_SMART
         super().__init__(gemini)
-        self._model = "gemini-3-flash-preview"
+        self._model = GEMINI_MODEL_SMART
         self._retriever = retriever
 
     def _pick_template(self, input: str, context: dict) -> str:

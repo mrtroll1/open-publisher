@@ -76,8 +76,10 @@ SPECIAL_RULES_SHEET_ID = os.getenv("SPECIAL_RULES_SHEET_ID")
 # --- Republic API ---
 REPUBLIC_API_URL = os.environ.get("REPUBLIC_API_URL", "")
 
-# --- Gemini (for new-contractor parsing) ---
+# --- Gemini ---
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL_FAST = os.getenv("GEMINI_MODEL_FAST", "gemini-2.5-flash")
+GEMINI_MODEL_SMART = os.getenv("GEMINI_MODEL_SMART", "gemini-3-flash-preview")
 
 # --- Database ---
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://agent:agent_dev_pass@db:5432/republic_agent")

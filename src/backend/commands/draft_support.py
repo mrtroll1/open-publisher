@@ -69,7 +69,8 @@ class TechSupportHandler:
             "USER_DATA": context,
             "EMAIL": email_text,
         })
-        result = self._gemini.call(prompt, "gemini-3-flash-preview")
+        from backend.config import GEMINI_MODEL_SMART
+        result = self._gemini.call(prompt, GEMINI_MODEL_SMART)
         can_answer = result.get("can_answer", False)
         logger.info("Drafted support response for %s (uid=%s, can_answer=%s)", email.from_addr, email.uid, can_answer)
         draft = SupportDraft(email=email, can_answer=can_answer, draft_reply=result.get("reply", ""))
@@ -116,12 +117,13 @@ class TechSupportHandler:
                 "EMAIL": email_text,
             })
             t0 = time.time()
-            result = self._gemini.call(prompt, "gemini-2.5-flash")
+            from backend.config import GEMINI_MODEL_FAST
+            result = self._gemini.call(prompt, GEMINI_MODEL_FAST)
             latency_ms = int((time.time() - t0) * 1000)
             try:
                 self._db.save_message(
                     text=prompt, environment="email", type="system",
-                    metadata={"task": "SUPPORT_TRIAGE", "model": "gemini-2.5-flash",
+                    metadata={"task": "SUPPORT_TRIAGE", "model": GEMINI_MODEL_FAST,
                               "result": json.dumps(result), "latency_ms": latency_ms},
                 )
             except Exception:

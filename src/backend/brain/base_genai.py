@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from backend.brain.prompt_loader import load_template
+from backend.config import GEMINI_MODEL_FAST
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 
 
@@ -13,7 +14,7 @@ class BaseGenAI:
 
     def __init__(self, gemini: GeminiGateway):
         self._gemini = gemini
-        self._model = "gemini-2.5-flash"
+        self._model = GEMINI_MODEL_FAST
 
     def run(self, input: str, context: dict, *, _depth: int = 0) -> dict:
         if _depth >= self.MAX_DEPTH:

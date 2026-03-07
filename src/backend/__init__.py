@@ -73,7 +73,7 @@ def parse_contractor_data(text: str, fields_csv: str, context: str = "") -> dict
     })
     if knowledge:
         prompt = knowledge + "\n\n" + prompt
-    return _gemini.call(prompt, "gemini-2.5-flash")
+    return _gemini.call(prompt)
 
 
 def translate_name_to_russian(name_en: str) -> str:
@@ -81,15 +81,16 @@ def translate_name_to_russian(name_en: str) -> str:
     import json
     import time
     from backend.brain.prompt_loader import load_template
+    from backend.config import GEMINI_MODEL_FAST
     prompt = load_template("contractor/translate-name.md", {"NAME": name_en})
     t0 = time.time()
-    result = _gemini.call(prompt, "gemini-2.5-flash")
+    result = _gemini.call(prompt)
     latency_ms = int((time.time() - t0) * 1000)
     try:
         from backend.infrastructure.repositories.postgres import DbGateway
         DbGateway().save_message(
             text=prompt, type="system",
-            metadata={"task": "TRANSLATE_NAME", "model": "gemini-2.5-flash",
+            metadata={"task": "TRANSLATE_NAME", "model": GEMINI_MODEL_FAST,
                       "result": json.dumps(result), "latency_ms": latency_ms},
         )
     except Exception:

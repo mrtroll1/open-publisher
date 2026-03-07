@@ -1,6 +1,33 @@
-"""Response builders for interact handlers."""
+"""Response builders and shared helpers for interact handlers."""
 
 import base64
+from datetime import date
+
+from backend.models import RoleCode
+
+
+ROLE_LABELS = {
+    RoleCode.AUTHOR: "автор",
+    RoleCode.REDAKTOR: "редактор",
+    RoleCode.KORREKTOR: "корректор",
+}
+
+
+def prev_month() -> str:
+    today = date.today()
+    if today.month == 1:
+        return f"{today.year - 1}-12"
+    return f"{today.year}-{today.month - 1:02d}"
+
+
+def invoice_admin_data(contractor, month, amount) -> dict:
+    return {
+        "type": "invoice_admin_caption",
+        "name": contractor.display_name,
+        "contractor_type": contractor.type.value,
+        "month": month,
+        "amount": int(amount),
+    }
 
 
 def msg(text: str = "", *, keyboard=None, data=None) -> dict:

@@ -3,7 +3,6 @@
 import base64
 import logging
 import re
-from datetime import date
 from decimal import Decimal
 
 from backend import (
@@ -22,18 +21,15 @@ from backend.models import (
     CONTRACTOR_CLASS_BY_TYPE, Contractor, ContractorType, Currency,
     GlobalContractor, InvoiceStatus, RoleCode,
 )
-from backend.interact.helpers import msg, file_msg, side_msg, respond
+from backend.interact.helpers import (
+    msg, file_msg, side_msg, respond,
+    prev_month, invoice_admin_data, ROLE_LABELS,
+)
 
 logger = logging.getLogger(__name__)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
-
-def _prev_month() -> str:
-    today = date.today()
-    if today.month == 1:
-        return f"{today.year - 1}-12"
-    return f"{today.year}-{today.month - 1:02d}"
 
 
 def _linked_menu_keyboard(contractor: Contractor) -> list:
@@ -79,13 +75,6 @@ _DATA_PROMPTS = {
     ),
 }
 
-_ROLE_LABELS = {
-    RoleCode.AUTHOR: "автор",
-    RoleCode.REDAKTOR: "редактор",
-    RoleCode.KORREKTOR: "корректор",
-}
-
-
 def _editor_sources_keyboard(rules) -> tuple[str, list]:
     rows = []
     if rules:
@@ -98,16 +87,6 @@ def _editor_sources_keyboard(rules) -> tuple[str, list]:
     rows.append([{"text": "Добавить автора", "data": "esrc:add"}])
     rows.append([{"text": "← Назад", "data": "esrc:back"}])
     return text, rows
-
-
-def _invoice_admin_data(contractor, month, amount) -> dict:
-    return {
-        "type": "invoice_admin_caption",
-        "name": contractor.display_name,
-        "contractor_type": contractor.type.value,
-        "month": month,
-        "amount": int(amount),
-    }
 
 
 def _start_invoice_flow(contractor, month, fsm_data: dict) -> dict | None:
@@ -168,7 +147,7 @@ def _deliver_existing_invoice(contractor, month, admin_ids) -> dict | None:
         for admin_id in admin_ids:
             sides.append(side_msg(
                 admin_id,
-                data=_invoice_admin_data(contractor, month, inv.amount),
+                data=invoice_admin_data(contractor, month, inv.amount),
                 pdf_bytes=pdf_bytes, filename=filename,
                 track={"type": "admin_reply",
                        "contractor_telegram": contractor.telegram or "",
@@ -359,7 +338,7 @@ def _finish_registration(collected: dict, ctype: ContractorType, cls: type,
         return respond(messages, side_messages=sides, fsm_state=None)
 
     # Try starting invoice flow
-    month = _prev_month()
+    month = prev_month()
     invoice_result = _start_invoice_flow(contractor, month, {})
     if invoice_result:
         messages.extend(invoice_result["messages"])
@@ -423,7 +402,7 @@ def handle_sign_doc(payload: dict, ctx: dict) -> dict:
             f"Под каким именем/псевдонимом вы работаете на {PRODUCT_NAME}?"
         )])
 
-    month = _prev_month()
+    month = prev_month()
     admin_ids = ctx.get("admin_ids", [])
 
     # Try delivering existing invoice
@@ -515,7 +494,7 @@ def handle_amount_input(payload: dict, ctx: dict) -> dict:
         for admin_id in ctx.get("admin_ids", []):
             sides.append(side_msg(
                 admin_id,
-                data=_invoice_admin_data(contractor, month, invoice.amount),
+                data=invoice_admin_data(contractor, month, invoice.amount),
                 pdf_bytes=pdf_bytes, filename=filename,
                 track={"type": "admin_reply",
                        "contractor_telegram": contractor.telegram or "",
@@ -557,7 +536,7 @@ def handle_editor_source_name(payload: dict, ctx: dict) -> dict:
     if not contractor:
         return respond([msg("Контрагент не найден.")], fsm_state=None)
 
-    month = _prev_month()
+    month = prev_month()
     add_redirect_rule(text, contractor.id)
     delete_invoice(contractor.id, month)
     redirect_in_budget(text, contractor, month)
@@ -615,7 +594,7 @@ def handle_esrc_callback(payload: dict, ctx: dict) -> dict:
 
     if data.startswith("rm:"):
         source_name = data.removeprefix("rm:")
-        month = _prev_month()
+        month = prev_month()
         removed = remove_redirect_rule(source_name, contractor.id)
         if removed:
             delete_invoice(contractor.id, month)
@@ -679,7 +658,7 @@ def handle_document(payload: dict, ctx: dict) -> dict:
             )])
         try:
             content = base64.b64decode(file_b64)
-            month = _prev_month()
+            month = prev_month()
             drive_link = upload_invoice_pdf(contractor, month, filename, content)
             update_invoice_status(contractor.id, month, InvoiceStatus.SIGNED)
         except Exception as e:

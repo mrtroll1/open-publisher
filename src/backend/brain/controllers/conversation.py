@@ -8,6 +8,7 @@ from typing import Any
 
 from backend.brain.authorizer import AuthContext
 from backend.brain.tool import Tool, ToolContext
+from backend.config import GEMINI_MODEL_SMART
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.memory.retriever import KnowledgeRetriever
 from backend.infrastructure.repositories.postgres import DbGateway
@@ -95,6 +96,34 @@ def _truncate(obj, max_len=500) -> Any:
     return obj
 
 
+def _execute_tool_calls(tool_calls, tools_by_name, auth_ctx, failed_tools, _log):
+    """Run each tool call, track failures, return results list."""
+    results = []
+    for tc in tool_calls:
+        _log("tool_call", {"tool": tc["name"], "args": _truncate(tc["args"])})
+        tool = tools_by_name.get(tc["name"])
+        if not tool:
+            results.append({"name": tc["name"], "result": {"error": f"Unknown tool: {tc['name']}"}})
+            _log("tool_error", {"tool": tc["name"], "error": "unknown tool"})
+            continue
+        try:
+            result = tool.execute(tc["args"], auth_ctx)
+            if isinstance(result, dict) and result.get("error"):
+                failed_tools[tc["name"]] = failed_tools.get(tc["name"], 0) + 1
+            results.append({"name": tc["name"], "result": result})
+            _log("tool_result", {"tool": tc["name"], "result": _truncate(result)})
+        except Exception as e:
+            logger.warning("Tool %s failed: %s", tc["name"], e, exc_info=True)
+            failed_tools[tc["name"]] = failed_tools.get(tc["name"], 0) + 1
+            results.append({"name": tc["name"], "result": {"error": str(e)}})
+            _log("tool_error", {"tool": tc["name"], "error": str(e)})
+    return results
+
+
+def _has_repeated_failures(failed_tools) -> bool:
+    return any(c >= 2 for c in failed_tools.values())
+
+
 def conversation_handler(
     gemini: GeminiGateway, db: DbGateway, retriever: KnowledgeRetriever,
 ) -> callable:
@@ -111,6 +140,10 @@ def conversation_handler(
             except Exception:
                 logger.debug("Failed to write run log step %d", step)
             step += 1
+
+        def _reply(text: str) -> dict:
+            _log("llm_reply", {"reply": _truncate(text)})
+            return {"reply": text, "parent_id": parent_id, "run_id": run_id}
 
         # Build conversation history
         history = ""
@@ -141,10 +174,8 @@ def conversation_handler(
             relevant = retriever.retrieve(input)
         knowledge = (core + "\n\n" + relevant) if core else relevant
 
-        # Build system prompt
         system_prompt = _build_system_prompt(env, user_context, knowledge, history)
 
-        # Get conversational tools available to this user
         conv_tools = [t for t in auth.tools if t.conversational]
         declarations = _tool_declarations(conv_tools)
         tools_by_name = {t.name: t for t in conv_tools}
@@ -157,18 +188,15 @@ def conversation_handler(
         })
 
         if not declarations:
-            # No tools available — plain call
             prompt = system_prompt + f"\n\n## Сообщение\n{input}\n\nВерни JSON: {{\"reply\": \"<ответ>\"}}"
-            result = gemini.call(prompt, "gemini-3-flash-preview")
+            result = gemini.call(prompt, GEMINI_MODEL_SMART)
             reply = result.get("reply") or result.get("response") or result.get("answer") or "Не удалось сформировать ответ."
-            _log("llm_reply", {"reply": _truncate(reply)})
-            return {"reply": reply, "parent_id": parent_id, "run_id": run_id}
+            return _reply(reply)
 
         # ReAct loop
         text, tool_calls, resp_content = gemini.call_with_tools(
-            system_prompt, input, declarations, model="gemini-3-flash-preview",
+            system_prompt, input, declarations, model=GEMINI_MODEL_SMART,
         )
-        # Build history for multi-turn
         from google.genai import types
         turn_history = [
             types.Content(role="user", parts=[types.Part.from_text(text=input)]),
@@ -177,58 +205,30 @@ def conversation_handler(
             turn_history.append(resp_content)
 
         failed_tools: dict[str, int] = {}
-        for loop_step in range(MAX_TOOL_STEPS):
+        for _ in range(MAX_TOOL_STEPS):
             if text:
-                _log("llm_reply", {"reply": _truncate(text)})
-                return {"reply": text, "parent_id": parent_id, "run_id": run_id}
-
+                return _reply(text)
             if not tool_calls:
-                _log("llm_reply", {"reply": "(empty)", "error": "no tool calls and no text"})
-                return {"reply": "Не удалось сформировать ответ.", "parent_id": parent_id, "run_id": run_id}
+                return _reply("Не удалось сформировать ответ.")
 
-            # Execute tool calls
-            results = []
-            for tc in tool_calls:
-                _log("tool_call", {"tool": tc["name"], "args": _truncate(tc["args"])})
+            results = _execute_tool_calls(tool_calls, tools_by_name, auth.ctx, failed_tools, _log)
 
-                tool = tools_by_name.get(tc["name"])
-                if not tool:
-                    results.append({"name": tc["name"], "result": {"error": f"Unknown tool: {tc['name']}"}})
-                    _log("tool_error", {"tool": tc["name"], "error": "unknown tool"})
-                    continue
-                try:
-                    result = tool.execute(tc["args"], auth.ctx)
-                    has_error = isinstance(result, dict) and result.get("error")
-                    if has_error:
-                        failed_tools[tc["name"]] = failed_tools.get(tc["name"], 0) + 1
-                    results.append({"name": tc["name"], "result": result})
-                    _log("tool_result", {"tool": tc["name"], "result": _truncate(result)})
-                except Exception as e:
-                    logger.warning("Tool %s failed: %s", tc["name"], e, exc_info=True)
-                    failed_tools[tc["name"]] = failed_tools.get(tc["name"], 0) + 1
-                    results.append({"name": tc["name"], "result": {"error": str(e)}})
-                    _log("tool_error", {"tool": tc["name"], "error": str(e)})
-
-            if any(c >= 2 for c in failed_tools.values()):
+            if _has_repeated_failures(failed_tools):
                 errors = "; ".join(f"{n}: {c}x" for n, c in failed_tools.items() if c >= 2)
                 logger.warning("Breaking ReAct loop — repeated tool failures: %s", errors)
                 _log("loop_break", {"reason": "repeated failures", "details": errors})
                 break
 
-            # Continue conversation with tool results
             text, tool_calls, resp_content = gemini.continue_with_tool_results(
-                turn_history, results, declarations, model="gemini-3-flash-preview",
+                turn_history, results, declarations, model=GEMINI_MODEL_SMART,
             )
             if resp_content:
-                # Add tool result content + new response to history
                 turn_history.append(types.Content(parts=[
                     types.Part.from_function_response(name=r["name"], response=r["result"])
                     for r in results
                 ]))
                 turn_history.append(resp_content)
 
-        final_reply = text or "Превышен лимит шагов."
-        _log("llm_reply", {"reply": _truncate(final_reply)})
-        return {"reply": final_reply, "parent_id": parent_id, "run_id": run_id}
+        return _reply(text or "Превышен лимит шагов.")
 
     return handle

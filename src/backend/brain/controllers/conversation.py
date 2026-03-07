@@ -231,8 +231,15 @@ def conversation_handler(
 
             if progress:
                 progress.emit("llm", f"Думаю... (шаг {iteration + 2})")
+            is_last_step = iteration == MAX_TOOL_STEPS - 2
+            final_hint = (
+                "\n\n[SYSTEM: это последний доступный шаг. "
+                "Сформулируй финальный ответ на основе уже полученных данных. "
+                "НЕ вызывай инструменты.]"
+            ) if is_last_step else None
             text, tool_calls, resp_content = gemini.continue_with_tool_results(
                 turn_history, results, declarations, model=GEMINI_MODEL_SMART,
+                extra_instruction=final_hint,
             )
             if resp_content:
                 turn_history.append(types.Content(parts=[

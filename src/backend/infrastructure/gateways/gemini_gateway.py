@@ -90,14 +90,18 @@ class GeminiGateway:
 
     def continue_with_tool_results(self, history: list, tool_results: list[dict],
                                    tool_declarations: list[dict],
-                                   model: str | None = None) -> tuple[str | None, list[dict], types.Content]:
+                                   model: str | None = None,
+                                   extra_instruction: str | None = None) -> tuple[str | None, list[dict], types.Content]:
         """Continue a conversation after tool execution."""
         model_used = model or self._model
         config = self._config(model_used, tools=[self._build_tool(tool_declarations)])
-        tool_response_content = types.Content(parts=[
+        tool_parts = [
             types.Part.from_function_response(name=r["name"], response=r["result"])
             for r in tool_results
-        ])
+        ]
+        if extra_instruction:
+            tool_parts.append(types.Part.from_text(text=extra_instruction))
+        tool_response_content = types.Content(parts=tool_parts)
         contents = history + [tool_response_content]
         response = self._generate(model_used, contents, config)
         return self._parse_tool_response(response)

@@ -16,7 +16,6 @@ ignore = [
     "E501",   # line length — ruff format handles this better than hard errors
     "SIM105", # contextlib.suppress — less clear than try/except for async code
     "SIM108", # ternary — not always clearer
-    "UP042",  # StrEnum — defer migration, changes serialization behavior
 ]
 
 [tool.ruff.lint.mccabe]

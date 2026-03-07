@@ -3,6 +3,7 @@ from typing import Any
 from fastapi import FastAPI
 from pydantic import BaseModel
 
+from backend.models import InboxCategory
 from backend.wiring import create_brain
 
 app = FastAPI(title="Republic Agent Backend")
@@ -161,7 +162,7 @@ def fetch_unread() -> BrainResponse:
             if not item:
                 continue
             entry = {"category": item.category, "uid": item.uid}
-            if item.category == "tech_support" and item.draft:
+            if item.category == InboxCategory.TECH_SUPPORT and item.draft:
                 d = item.draft
                 entry["draft"] = {
                     "uid": d.email.uid,
@@ -172,7 +173,7 @@ def fetch_unread() -> BrainResponse:
                     "draft_reply": d.draft_reply,
                     "can_answer": d.can_answer,
                 }
-            elif item.category == "editorial" and item.editorial:
+            elif item.category == InboxCategory.EDITORIAL and item.editorial:
                 e = item.editorial
                 entry["editorial"] = {
                     "uid": e.email.uid,

@@ -46,6 +46,10 @@ from backend.models import (
     GlobalContractor,
     InvoiceStatus,
     RoleCode,
+    SideMessageTrackType,
+)
+from backend.models import (
+    ResponseDataType as DT,
 )
 
 logger = logging.getLogger(__name__)
@@ -125,7 +129,7 @@ def _start_invoice_flow(contractor, month, fsm_data: dict) -> dict | None:
     }
     return respond(
         [msg(data={
-            "type": "invoice_prompt",
+            "type": DT.INVOICE_PROMPT,
             "pub_word": data.pub_word,
             "month": month,
             "explanation": data.explanation,
@@ -171,7 +175,7 @@ def _deliver_existing_invoice(contractor, month, admin_ids) -> dict | None:
                 admin_id,
                 data=invoice_admin_data(contractor, month, inv.amount),
                 pdf_bytes=pdf_bytes, filename=filename,
-                track={"type": "admin_reply",
+                track={"type": SideMessageTrackType.ADMIN_REPLY,
                        "contractor_telegram": contractor.telegram or "",
                        "contractor_id": contractor.id},
             ))
@@ -300,7 +304,7 @@ def handle_data_input(payload: Payload, ctx: InteractContext) -> dict:
         ]
         return respond(
             [msg(data={
-                "type": "registration_progress",
+                "type": DT.REGISTRATION_PROGRESS,
                 "filled": filled,
                 "missing": list(missing.values()) if missing else [],
                 "warnings": warnings,
@@ -343,14 +347,14 @@ def _finish_registration(collected: dict, ctype: ContractorType, cls: type,
     admin_data = {k: v for k, v in collected.items() if v and not k.startswith("_")}
     for admin_id in admin_ids:
         sides.append(side_msg(admin_id, data={
-            "type": "new_registration",
+            "type": DT.NEW_REGISTRATION,
             "contractor_type": ctype.value,
             "raw_text": raw_text,
             "parsed_data": admin_data,
         }))
 
     messages = [msg(data={
-        "type": "registration_complete",
+        "type": DT.REGISTRATION_COMPLETE,
         "fields": fields,
         "aliases": aliases,
         "secret_code": secret_code,
@@ -518,7 +522,7 @@ def handle_amount_input(payload: Payload, ctx: InteractContext) -> dict:
                 admin_id,
                 data=invoice_admin_data(contractor, month, invoice.amount),
                 pdf_bytes=pdf_bytes, filename=filename,
-                track={"type": "admin_reply",
+                track={"type": SideMessageTrackType.ADMIN_REPLY,
                        "contractor_telegram": contractor.telegram or "",
                        "contractor_id": contractor.id},
             ))
@@ -690,7 +694,7 @@ def handle_document(payload: Payload, ctx: InteractContext) -> dict:
     for admin_id in admin_ids:
         if admin_id != user_id:
             sides.append(side_msg(admin_id, data={
-                "type": "document_received",
+                "type": DT.DOCUMENT_RECEIVED,
                 "sender": sender_info,
                 "drive_link": drive_link,
             }))

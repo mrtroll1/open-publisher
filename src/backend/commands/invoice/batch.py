@@ -12,11 +12,9 @@ from backend.infrastructure.repositories.sheets.budget_repo import load_all_amou
 from backend.infrastructure.repositories.sheets.invoice_repo import load_invoices
 from backend.models import (
     Contractor,
+    ContractorType,
     Currency,
-    GlobalContractor,
     Invoice,
-    IPContractor,
-    SamozanyatyContractor,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,7 +23,9 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BatchResult:
     generated: list[tuple[bytes, Contractor, Invoice]] = field(default_factory=list)
-    counts: dict[str, int] = field(default_factory=lambda: {"global": 0, "ip": 0, "samozanyaty": 0})
+    counts: dict[ContractorType, int] = field(
+        default_factory=lambda: {t: 0 for t in ContractorType}
+    )
     errors: list[str] = field(default_factory=list)
     skipped: int = 0
     total: int = 0
@@ -104,11 +104,6 @@ class GenerateBatchInvoices:
             logger.exception("Generate failed for %s", contractor.display_name)
             return
 
-        if isinstance(contractor, GlobalContractor):
-            result.counts["global"] += 1
-        elif isinstance(contractor, SamozanyatyContractor):
-            result.counts["samozanyaty"] += 1
-        elif isinstance(contractor, IPContractor):
-            result.counts["ip"] += 1
+        result.counts[contractor.type] += 1
 
         result.generated.append((inv_result.pdf_bytes, contractor, inv_result.invoice))

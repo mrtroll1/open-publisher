@@ -36,6 +36,10 @@ from backend.models import (
     Currency,
     GlobalContractor,
     InvoiceStatus,
+    SideMessageTrackType,
+)
+from backend.models import (
+    ResponseDataType as DT,
 )
 from backend.wiring import create_generate_batch_invoices, create_parse_bank_statement
 
@@ -49,7 +53,7 @@ def _find_or_suggest(raw_name: str, contractors: list) -> tuple[Contractor | Non
         return contractor, None
     matches = fuzzy_find(raw_name, contractors, threshold=0.4)
     if matches:
-        return None, msg(data={"type": "fuzzy_suggestions", "matches": [
+        return None, msg(data={"type": DT.FUZZY_SUGGESTIONS, "matches": [
             {"name": c.display_name, "type": c.type.value} for c, _ in matches[:5]
         ]})
     return None, msg("Контрагент не найден.")
@@ -106,7 +110,7 @@ def handle_generate(payload: Payload, ctx: InteractContext) -> dict:
         "data": invoice_admin_data(contractor, month, amount_int),
         "file_b64": file_msg(pdf_bytes, filename)["file_b64"],
         "filename": filename,
-        "track": {"type": "admin_reply",
+        "track": {"type": SideMessageTrackType.ADMIN_REPLY,
                   "contractor_telegram": contractor.telegram or "",
                   "contractor_id": contractor.id},
     }])
@@ -133,7 +137,7 @@ def handle_articles(payload: Payload, ctx: InteractContext) -> dict:
         return respond([msg(f"У {contractor.display_name} нет публикаций за {month}.")])
 
     return respond([msg(data={
-        "type": "articles_list",
+        "type": DT.ARTICLES_LIST,
         "name": contractor.display_name,
         "role": ROLE_LABELS.get(contractor.role_code, contractor.role_code.value),
         "month": month,
@@ -153,7 +157,7 @@ def handle_lookup(payload: Payload, ctx: InteractContext) -> dict:
         return respond([not_found])
 
     return respond([msg(data={
-        "type": "contractor_info",
+        "type": DT.CONTRACTOR_INFO,
         "name": contractor.display_name,
         "contractor_type": contractor.type.value,
         "role": ROLE_LABELS.get(contractor.role_code, contractor.role_code.value),
@@ -182,10 +186,10 @@ def handle_batch_generate(payload: Payload, ctx: InteractContext) -> dict:
     counts = batch_result.counts
 
     messages = [msg(data={
-        "type": "operation_summary",
+        "type": DT.OPERATION_SUMMARY,
         "header": f"{prefix}Генерация за {month} завершена.",
         "counts": counts,
-        "total_generated": counts["global"] + counts["samozanyaty"] + counts["ip"],
+        "total_generated": sum(counts.values()),
         "errors": list(batch_result.errors),
     })]
 
@@ -203,7 +207,7 @@ def handle_batch_generate(payload: Payload, ctx: InteractContext) -> dict:
                 "data": invoice_admin_data(contractor, month, invoice.amount),
                 "file_b64": file_msg(pdf_bytes, fname)["file_b64"],
                 "filename": fname,
-                "track": {"type": "admin_reply",
+                "track": {"type": SideMessageTrackType.ADMIN_REPLY,
                           "contractor_telegram": contractor.telegram or "",
                           "contractor_id": contractor.id},
             })
@@ -260,7 +264,7 @@ def handle_send_global(payload: Payload, ctx: InteractContext) -> dict:
 
     prefix = "[DEBUG] " if debug else ""
     messages.insert(0, msg(data={
-        "type": "operation_summary",
+        "type": DT.OPERATION_SUMMARY,
         "header": f"{prefix}Отправлено {sent_count} глобальных счетов за {month}.",
         "errors": errors,
     }))
@@ -313,7 +317,7 @@ def handle_send_legium(payload: Payload, ctx: InteractContext) -> dict:
 
     prefix = "[DEBUG] " if debug else ""
     messages.insert(0, msg(data={
-        "type": "operation_summary",
+        "type": DT.OPERATION_SUMMARY,
         "header": f"{prefix}Отправлено {sent_count} ссылок на Легиум за {month}.",
         "errors": errors,
     }))
@@ -329,7 +333,7 @@ def handle_orphans(payload: Payload, ctx: InteractContext) -> dict:
     if not orphans:
         return respond([msg(f"Все записи в бюджете за {month} совпадают с контрагентами.")])
     return respond([msg(data={
-        "type": "orphan_list",
+        "type": DT.ORPHAN_LIST,
         "month": month,
         "orphans": orphans,
     })])
@@ -358,7 +362,7 @@ def handle_upload_statement(payload: Payload, ctx: InteractContext) -> dict:
         expenses = uc.execute(tmp_path, rate, True)
         review_count = sum(1 for e in expenses if e.comment == "NEEDS REVIEW")
         return respond([msg(data={
-            "type": "upload_result",
+            "type": DT.UPLOAD_RESULT,
             "count": len(expenses),
             "review_count": review_count,
         })])

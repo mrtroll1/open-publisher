@@ -15,7 +15,7 @@ from backend.commands.draft_support import TechSupportHandler
 from backend.config import CHIEF_EDITOR_EMAIL, SUPPORT_ADDRESSES
 from backend.infrastructure.gateways.email_gateway import EmailGateway
 from backend.infrastructure.repositories.postgres import DbGateway
-from backend.models import EditorialItem, IncomingEmail, PendingItem, SupportDraft
+from backend.models import EditorialItem, InboxCategory, IncomingEmail, PendingItem, SupportDraft
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +43,9 @@ class InboxWorkflow:
         if category == "unknown" and self._classifier:
             result = self._classifier.run(email.as_text(), {})
             category = result.get("category", "ignore")
-        if category == "tech_support":
+        if category == InboxCategory.TECH_SUPPORT:
             return self._handle_support(email)
-        if category == "editorial":
+        if category == InboxCategory.EDITORIAL:
             return self._handle_editorial(email)
         return None
 
@@ -69,7 +69,7 @@ class InboxWorkflow:
     def classify_by_address(self, email: IncomingEmail) -> str:
         """Rule-based classification by recipient address."""
         if email.to_addr in SUPPORT_ADDRESSES:
-            return "tech_support"
+            return InboxCategory.TECH_SUPPORT
         return "unknown"
 
     # --- Support handling (deterministic parts) ---
@@ -82,7 +82,7 @@ class InboxWorkflow:
         )
         draft.decision_id = decision_id
         self._pending_support[email.uid] = draft
-        return PendingItem(category="tech_support", uid=email.uid, draft=draft)
+        return PendingItem(category=InboxCategory.TECH_SUPPORT, uid=email.uid, draft=draft)
 
     def is_support_pending(self, uid: str) -> bool:
         return uid in self._pending_support
@@ -97,7 +97,7 @@ class InboxWorkflow:
         )
         item.decision_id = decision_id
         self._pending_editorial[email.uid] = item
-        return PendingItem(category="editorial", uid=email.uid, editorial=item)
+        return PendingItem(category=InboxCategory.EDITORIAL, uid=email.uid, editorial=item)
 
     # --- Approval: tech support ---
 

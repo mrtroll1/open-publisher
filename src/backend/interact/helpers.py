@@ -7,6 +7,7 @@ from datetime import date
 from typing import TypedDict
 
 from backend.models import Contractor, RoleCode
+from backend.models import ResponseDataType as DT
 
 
 class Payload(TypedDict, total=False):
@@ -46,7 +47,7 @@ def prev_month() -> str:
 
 def invoice_admin_data(contractor: Contractor, month: str, amount: int) -> dict:
     return {
-        "type": "invoice_admin_caption",
+        "type": DT.INVOICE_ADMIN_CAPTION,
         "name": contractor.display_name,
         "contractor_type": contractor.type.value,
         "month": month,

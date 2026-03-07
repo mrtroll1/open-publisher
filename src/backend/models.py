@@ -5,31 +5,31 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
 from typing import ClassVar
 
 from pydantic import BaseModel, Field
 
 
-class ContractorType(str, Enum):
+class ContractorType(StrEnum):
     SAMOZANYATY = "самозанятый"
     IP = "ИП"
     GLOBAL = "global"
 
 
-class Currency(str, Enum):
+class Currency(StrEnum):
     EUR = "EUR"
     RUB = "RUB"
     USD = "USD"
 
 
-class RoleCode(str, Enum):
+class RoleCode(StrEnum):
     AUTHOR = "A"
     REDAKTOR = "R"
     KORREKTOR = "K"
 
 
-class InvoiceStatus(str, Enum):
+class InvoiceStatus(StrEnum):
     DRAFT = "draft"
     SENT = "sent"
     SIGNED = "signed"
@@ -323,9 +323,33 @@ class EditorialItem(BaseModel):
     decision_id: str = ""
 
 
+class InboxCategory(StrEnum):
+    TECH_SUPPORT = "tech_support"
+    EDITORIAL = "editorial"
+
+
+class ResponseDataType(StrEnum):
+    CONTRACTOR_INFO = "contractor_info"
+    ARTICLES_LIST = "articles_list"
+    OPERATION_SUMMARY = "operation_summary"
+    ORPHAN_LIST = "orphan_list"
+    FUZZY_SUGGESTIONS = "fuzzy_suggestions"
+    REGISTRATION_PROGRESS = "registration_progress"
+    REGISTRATION_COMPLETE = "registration_complete"
+    INVOICE_ADMIN_CAPTION = "invoice_admin_caption"
+    INVOICE_PROMPT = "invoice_prompt"
+    UPLOAD_RESULT = "upload_result"
+    NEW_REGISTRATION = "new_registration"
+    DOCUMENT_RECEIVED = "document_received"
+
+
+class SideMessageTrackType(StrEnum):
+    ADMIN_REPLY = "admin_reply"
+
+
 class PendingItem(BaseModel):
     """A classified inbox item pending approval."""
-    category: str  # "tech_support" | "editorial"
+    category: InboxCategory
     uid: str
     draft: SupportDraft | None = None
     editorial: EditorialItem | None = None

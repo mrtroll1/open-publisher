@@ -212,36 +212,42 @@ async def handle_group_message(
 ) -> None:
     text = message.text or ""
 
-    # Explicit /command
     if text.startswith("/"):
-        raw_cmd = text.split()[0].lstrip("/")
-        if "@" in raw_cmd:
-            raw_cmd = raw_cmd.split("@", 1)[0]
-        if raw_cmd not in group_config.allowed_commands:
-            return
-        args = text.split(maxsplit=1)
-        args_text = args[1] if len(args) > 1 else ""
-        await _dispatch_group_command(raw_cmd, args_text, message, state)
+        await _handle_group_command(text, message, state, group_config)
         return
 
-    # NL: @mention or reply to bot
-    if not group_config.natural_language:
-        return
+    if group_config.natural_language:
+        await _handle_group_nl(text, message, state)
 
+
+async def _handle_group_command(
+    text: str, message: types.Message, state: FSMContext, group_config,
+) -> None:
+    raw_cmd = text.split()[0].lstrip("/")
+    if "@" in raw_cmd:
+        raw_cmd = raw_cmd.split("@", 1)[0]
+    if raw_cmd not in group_config.allowed_commands:
+        return
+    args = text.split(maxsplit=1)
+    args_text = args[1] if len(args) > 1 else ""
+    await _dispatch_group_command(raw_cmd, args_text, message, state)
+
+
+async def _handle_group_nl(
+    text: str, message: types.Message, state: FSMContext,
+) -> None:
     clean_text = _extract_bot_mention(text, BOT_USERNAME)
     is_reply_to_bot = (
         message.reply_to_message
         and message.reply_to_message.from_user
         and message.reply_to_message.from_user.is_bot
     )
-
     if clean_text is None and not is_reply_to_bot:
         return
-
     if clean_text is None:
         clean_text = text
 
-    # Let Brain handle everything: classification + routing + reply
+    kwargs = _build_nl_kwargs(clean_text, message, is_reply_to_bot)
     thinking: ThinkingMessage | None = None
 
     async def _on_progress(stage: str, detail: str) -> None:
@@ -253,18 +259,8 @@ async def handle_group_message(
         else:
             await thinking.update(txt)
 
+    kwargs["on_progress"] = _on_progress
     try:
-        kwargs = {
-            "input": clean_text,
-            "environment_id": str(message.chat.id),
-            "user_id": str(message.from_user.id),
-            "on_progress": _on_progress,
-        }
-        if is_reply_to_bot and message.reply_to_message:
-            kwargs["chat_id"] = message.chat.id
-            kwargs["reply_to_message_id"] = message.reply_to_message.message_id
-            kwargs["reply_to_text"] = message.reply_to_message.text or ""
-
         result = await backend_client.process_stream(**kwargs)
         answer = result.get("reply", str(result)) if isinstance(result, dict) else str(result)
         parent_id = result.get("parent_id") if isinstance(result, dict) else None
@@ -277,12 +273,24 @@ async def handle_group_message(
         meta = {"command": "nl_group"}
         if run_id:
             meta["run_id"] = run_id
-        await _save_turn(message, sent, clean_text, answer, meta,
-                         parent_id=parent_id)
+        await _save_turn(message, sent, clean_text, answer, meta, parent_id=parent_id)
     except Exception:
         if thinking:
             await thinking.__aexit__(None, None, None)
         logger.exception("Group NL processing failed")
+
+
+def _build_nl_kwargs(clean_text: str, message: types.Message, is_reply_to_bot: bool) -> dict:
+    kwargs = {
+        "input": clean_text,
+        "environment_id": str(message.chat.id),
+        "user_id": str(message.from_user.id),
+    }
+    if is_reply_to_bot and message.reply_to_message:
+        kwargs["chat_id"] = message.chat.id
+        kwargs["reply_to_message_id"] = message.reply_to_message.message_id
+        kwargs["reply_to_text"] = message.reply_to_message.text or ""
+    return kwargs
 
 
 # ── FSM Routing ──────────────────────────────────────────────────────

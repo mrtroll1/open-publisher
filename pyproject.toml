@@ -23,11 +23,6 @@ max-complexity = 12
 
 [tool.ruff.lint.per-file-ignores]
 "src/backend/__init__.py" = ["E402", "F401"]
-"src/backend/infrastructure/repositories/sheets/budget_repo.py" = ["E402"]
-"src/backend/brain/controllers/conversation.py" = ["C901"]  # ReAct loop — inherent complexity
-"src/backend/commands/run_code.py" = ["C901"]               # streaming parser — inherent complexity
-"src/client/telegram_bot/renderer.py" = ["C901"]            # dispatch logic — inherent complexity
-"src/client/telegram_bot/router.py" = ["C901"]              # group message routing — inherent complexity
 
 [tool.ruff.lint.isort]
 known-first-party = ["backend", "client"]

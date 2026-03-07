@@ -100,8 +100,6 @@ def write_pnl_section(sheet_id: str, start_row: int, eur_rub_rate: float, pnl_ro
         _sheets.write(sheet_id, f"A{start_row}:E{end_row}", pnl_rows)
 
 
-from backend.commands.budget.redirect import redirect_in_budget, unredirect_in_budget  # noqa: F401
-
 
 def sheet_url(sheet_id: str) -> str:
     return f"https://docs.google.com/spreadsheets/d/{sheet_id}"

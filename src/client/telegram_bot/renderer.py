@@ -156,59 +156,55 @@ def _build_keyboard(data: list[list[dict]]) -> InlineKeyboardMarkup:
 
 async def render(message, state, result: dict) -> None:
     """Render an interact response: send messages, apply FSM, send side messages."""
-    # Main messages
-    for m in result.get("messages", []):
-        keyboard = _build_keyboard(m["keyboard"]) if m.get("keyboard") else None
-        text = _resolve_text(m)
+    await _send_main_messages(message, result.get("messages", []))
+    await _send_side_messages(result.get("side_messages", []))
+    await _apply_fsm(state, result)
 
-        if m.get("file_b64"):
-            doc = BufferedInputFile(
-                base64.b64decode(m["file_b64"]),
-                filename=m.get("filename", "file"),
-            )
-            sent = await bot.send_document(
-                message.chat.id, doc,
-                caption=text or None,
-                reply_markup=keyboard,
-            )
-        elif text:
-            sent = await _send(message, text, reply_markup=keyboard)
-        else:
-            continue
 
-        # Track reply mappings (e.g., admin replies to invoice messages)
-        track = m.get("track")
-        if track and track.get("type") == "admin_reply" and sent:
-            _admin_reply_map[(message.chat.id, sent.message_id)] = (
-                track["contractor_telegram"], track["contractor_id"],
-            )
+async def _send_main_messages(message, messages: list[dict]) -> None:
+    for m in messages:
+        sent = await _send_message_to_chat(message.chat.id, m, reply_message=message)
+        if sent:
+            _track_admin_reply(message.chat.id, sent.message_id, m)
 
-    # Side messages (to other chats)
-    for sm in result.get("side_messages", []):
+
+async def _send_side_messages(side_messages: list[dict]) -> None:
+    for sm in side_messages:
         try:
             chat_id = sm["chat_id"]
-            text = _resolve_text(sm)
-
-            if sm.get("file_b64"):
-                doc = BufferedInputFile(
-                    base64.b64decode(sm["file_b64"]),
-                    filename=sm.get("filename", "file"),
-                )
-                sent = await bot.send_document(chat_id, doc, caption=text or None)
-            elif text:
-                sent = await bot.send_message(chat_id, text)
-            else:
-                continue
-
-            track = sm.get("track")
-            if track and track.get("type") == "admin_reply" and sent:
-                _admin_reply_map[(chat_id, sent.message_id)] = (
-                    track["contractor_telegram"], track["contractor_id"],
-                )
+            sent = await _send_message_to_chat(chat_id, sm)
+            if sent:
+                _track_admin_reply(chat_id, sent.message_id, sm)
         except Exception:
             logger.debug("Failed to send side message to %s", sm.get("chat_id"), exc_info=True)
 
-    # FSM updates
+
+async def _send_message_to_chat(chat_id: int, m: dict, reply_message=None):
+    keyboard = _build_keyboard(m["keyboard"]) if m.get("keyboard") else None
+    text = _resolve_text(m)
+
+    if m.get("file_b64"):
+        doc = BufferedInputFile(
+            base64.b64decode(m["file_b64"]),
+            filename=m.get("filename", "file"),
+        )
+        return await bot.send_document(chat_id, doc, caption=text or None, reply_markup=keyboard)
+    if text and reply_message:
+        return await _send(reply_message, text, reply_markup=keyboard)
+    if text:
+        return await bot.send_message(chat_id, text)
+    return None
+
+
+def _track_admin_reply(chat_id: int, message_id: int, m: dict) -> None:
+    track = m.get("track")
+    if track and track.get("type") == "admin_reply":
+        _admin_reply_map[(chat_id, message_id)] = (
+            track["contractor_telegram"], track["contractor_id"],
+        )
+
+
+async def _apply_fsm(state, result: dict) -> None:
     if "fsm_state" in result:
         if result["fsm_state"] is None:
             await state.clear()

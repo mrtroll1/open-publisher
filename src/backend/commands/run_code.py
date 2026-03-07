@@ -175,71 +175,85 @@ def _run_streaming(full_prompt: str, on_event: Callable[[str], None],
     except FileNotFoundError:
         return CodeResult(text="Claude Code CLI не найден. Убедитесь, что он установлен.")
 
-    last_update = 0.0
-    final_text_parts: list[str] = []
-    session_id: str | None = None
-    pending_status: str | None = None
-
-    def _flush_status(force: bool = False) -> None:
-        nonlocal pending_status, last_update
-        if not pending_status:
-            return
-        now = time.monotonic()
-        if force or (now - last_update) >= _UPDATE_INTERVAL:
-            on_event(pending_status)
-            last_update = now
-            pending_status = None
-
+    parser = _StreamParser(on_event)
     try:
         for line in proc.stdout:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-
-            etype = event.get("type")
-
-            if etype == "system" and event.get("subtype") == "init":
-                session_id = event.get("session_id")
-
-            elif etype == "assistant":
-                content = event.get("message", {}).get("content", [])
-                for block in content:
-                    if block.get("type") == "tool_use":
-                        status = _format_tool_status(block.get("name", ""), block.get("input", {}))
-                        if status:
-                            pending_status = status
-                            _flush_status()
-                    elif block.get("type") == "text":
-                        text = block.get("text", "")
-                        if text:
-                            final_text_parts.append(text)
-
-            elif etype == "result":
-                result_text = event.get("result", "")
-                sid = event.get("session_id") or session_id
-                if result_text:
-                    return CodeResult(text=result_text, session_id=sid)
-
+            result = parser.feed_line(line)
+            if result:
+                return result
         proc.wait(timeout=300)
     except subprocess.TimeoutExpired:
         proc.kill()
-        return CodeResult(text="Таймаут: Claude Code не ответил за 5 минут.", session_id=session_id)
+        return CodeResult(text="Таймаут: Claude Code не ответил за 5 минут.", session_id=parser.session_id)
     except Exception as e:
         logger.exception("Claude Code streaming failed")
         proc.kill()
-        return CodeResult(text=f"Ошибка выполнения: {e}", session_id=session_id)
+        return CodeResult(text=f"Ошибка выполнения: {e}", session_id=parser.session_id)
 
-    if final_text_parts:
-        return CodeResult(text="\n".join(final_text_parts), session_id=session_id)
+    return parser.finalize(proc)
 
-    stderr = proc.stderr.read() if proc.stderr else ""
-    if stderr.strip():
-        return CodeResult(text=f"stderr: {stderr.strip()}", session_id=session_id)
-    return CodeResult(text="(пустой ответ от Claude Code)", session_id=session_id)
+
+class _StreamParser:
+    """Parses Claude Code stream-json events, throttling status updates."""
+
+    def __init__(self, on_event: Callable[[str], None]):
+        self._on_event = on_event
+        self._last_update = 0.0
+        self._pending_status: str | None = None
+        self._text_parts: list[str] = []
+        self.session_id: str | None = None
+
+    def feed_line(self, line: str) -> CodeResult | None:
+        line = line.strip()
+        if not line:
+            return None
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            return None
+
+        etype = event.get("type")
+        if etype == "system" and event.get("subtype") == "init":
+            self.session_id = event.get("session_id")
+        elif etype == "assistant":
+            self._handle_assistant(event)
+        elif etype == "result":
+            return self._handle_result(event)
+        return None
+
+    def _handle_assistant(self, event: dict):
+        for block in event.get("message", {}).get("content", []):
+            if block.get("type") == "tool_use":
+                status = _format_tool_status(block.get("name", ""), block.get("input", {}))
+                if status:
+                    self._pending_status = status
+                    self._flush_status()
+            elif block.get("type") == "text" and block.get("text"):
+                self._text_parts.append(block["text"])
+
+    def _handle_result(self, event: dict) -> CodeResult | None:
+        result_text = event.get("result", "")
+        sid = event.get("session_id") or self.session_id
+        if result_text:
+            return CodeResult(text=result_text, session_id=sid)
+        return None
+
+    def _flush_status(self):
+        if not self._pending_status:
+            return
+        now = time.monotonic()
+        if (now - self._last_update) >= _UPDATE_INTERVAL:
+            self._on_event(self._pending_status)
+            self._last_update = now
+            self._pending_status = None
+
+    def finalize(self, proc) -> CodeResult:
+        if self._text_parts:
+            return CodeResult(text="\n".join(self._text_parts), session_id=self.session_id)
+        stderr = proc.stderr.read() if proc.stderr else ""
+        if stderr.strip():
+            return CodeResult(text=f"stderr: {stderr.strip()}", session_id=self.session_id)
+        return CodeResult(text="(пустой ответ от Claude Code)", session_id=self.session_id)
 
 
 class RunClaudeCodeUseCase(BaseUseCase):

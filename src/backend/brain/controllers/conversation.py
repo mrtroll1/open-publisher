@@ -134,124 +134,148 @@ def conversation_handler(
     """Create the conversation handler function used by Brain."""
 
     def handle(input: str, auth: AuthContext, **kwargs) -> dict:
-        progress = kwargs.get("progress")
-        run_id = str(uuid.uuid4())
-        step = 0
+        ctx = _ConversationContext(gemini, db, retriever, input, auth, **kwargs)
+        ctx.load_history()
+        ctx.load_knowledge()
+        system_prompt = _build_system_prompt(auth.ctx.env, ctx.user_context, ctx.knowledge, ctx.history)
+        conv_tools = [t for t in auth.tools if t.conversational]
+        ctx.log("input", {
+            "user_input": input,
+            "environment": auth.ctx.env.get("name", ""),
+            "tools": [t.name for t in conv_tools],
+            "has_history": bool(ctx.history),
+        })
+        if not conv_tools:
+            return ctx.single_llm_call(system_prompt)
+        return ctx.react_loop(system_prompt, conv_tools)
 
-        def _log(type: str, content: dict):
-            nonlocal step
-            try:
-                db.log_run_step(run_id, step, type, content)
-            except Exception:
-                logger.debug("Failed to write run log step %d", step)
-            step += 1
+    return handle
 
-        def _reply(text: str) -> dict:
-            _log("llm_reply", {"reply": _truncate(text)})
-            return {"reply": text, "parent_id": parent_id, "run_id": run_id}
 
-        # Build conversation history
-        if progress:
-            progress.emit("context", "Загружаю контекст")
-        history = ""
-        parent_id = None
-        chat_id = kwargs.get("chat_id")
-        reply_to_message_id = kwargs.get("reply_to_message_id")
-        reply_to_text = kwargs.get("reply_to_text", "")
+class _ConversationContext:
+    """Holds state for a single conversation turn."""
 
-        if chat_id and reply_to_message_id:
-            history, parent_id = _build_conversation_context(
-                chat_id, reply_to_message_id, reply_to_text, db,
+    def __init__(self, gemini, db, retriever, input, auth, **kwargs):
+        self.gemini = gemini
+        self.db = db
+        self.retriever = retriever
+        self.input = input
+        self.auth = auth
+        self.progress = kwargs.get("progress")
+        self.chat_id = kwargs.get("chat_id")
+        self.reply_to_message_id = kwargs.get("reply_to_message_id")
+        self.reply_to_text = kwargs.get("reply_to_text", "")
+        self.run_id = str(uuid.uuid4())
+        self._step = 0
+        self.history = ""
+        self.parent_id = None
+        self.user_context = ""
+        self.knowledge = ""
+
+    def log(self, type: str, content: dict):
+        try:
+            self.db.log_run_step(self.run_id, self._step, type, content)
+        except Exception:
+            logger.debug("Failed to write run log step %d", self._step)
+        self._step += 1
+
+    def _emit(self, stage: str, detail: str):
+        if self.progress:
+            self.progress.emit(stage, detail)
+
+    def _reply(self, text: str) -> dict:
+        self.log("llm_reply", {"reply": _truncate(text)})
+        return {"reply": text, "parent_id": self.parent_id, "run_id": self.run_id}
+
+    def load_history(self):
+        self._emit("context", "Загружаю контекст")
+        if self.chat_id and self.reply_to_message_id:
+            self.history, self.parent_id = _build_conversation_context(
+                self.chat_id, self.reply_to_message_id, self.reply_to_text, self.db,
             )
 
-        # User context
-        user_context = ""
-        user = auth.ctx.user
+    def load_knowledge(self):
+        user = self.auth.ctx.user
         if user and user.get("id"):
-            user_context = retriever.get_user_context(user["id"])
-
-        # RAG context
-        env = auth.ctx.env
+            self.user_context = self.retriever.get_user_context(user["id"])
+        env = self.auth.ctx.env
         allowed_domains = env.get("allowed_domains")
         if allowed_domains is not None:
-            core = retriever.get_multi_domain_context(allowed_domains)
-            relevant = retriever.retrieve(input, domains=allowed_domains)
+            core = self.retriever.get_multi_domain_context(allowed_domains)
+            relevant = self.retriever.retrieve(self.input, domains=allowed_domains)
         else:
-            core = retriever.get_core()
-            relevant = retriever.retrieve(input)
-        knowledge = (core + "\n\n" + relevant) if core else relevant
+            core = self.retriever.get_core()
+            relevant = self.retriever.retrieve(self.input)
+        self.knowledge = (core + "\n\n" + relevant) if core else relevant
 
-        system_prompt = _build_system_prompt(env, user_context, knowledge, history)
+    def single_llm_call(self, system_prompt: str) -> dict:
+        self._emit("llm", "Генерирую ответ")
+        prompt = system_prompt + f"\n\n## Сообщение\n{self.input}\n\nВерни JSON: {{\"reply\": \"<ответ>\"}}"
+        result = self.gemini.call(prompt, GEMINI_MODEL_SMART)
+        reply = result.get("reply") or result.get("response") or result.get("answer") or "Не удалось сформировать ответ."
+        return self._reply(reply)
 
-        conv_tools = [t for t in auth.tools if t.conversational]
+    def react_loop(self, system_prompt: str, conv_tools: list[Tool]) -> dict:
         declarations = _tool_declarations(conv_tools)
         tools_by_name = {t.name: t for t in conv_tools}
 
-        _log("input", {
-            "user_input": input,
-            "environment": env.get("name", ""),
-            "tools": [t.name for t in conv_tools],
-            "has_history": bool(history),
-        })
-
-        if not declarations:
-            if progress:
-                progress.emit("llm", "Генерирую ответ")
-            prompt = system_prompt + f"\n\n## Сообщение\n{input}\n\nВерни JSON: {{\"reply\": \"<ответ>\"}}"
-            result = gemini.call(prompt, GEMINI_MODEL_SMART)
-            reply = result.get("reply") or result.get("response") or result.get("answer") or "Не удалось сформировать ответ."
-            return _reply(reply)
-
-        # ReAct loop
-        if progress:
-            progress.emit("llm", "Думаю...")
-        text, tool_calls, resp_content = gemini.call_with_tools(
-            system_prompt, input, declarations, model=GEMINI_MODEL_SMART,
+        self._emit("llm", "Думаю...")
+        text, tool_calls, resp_content = self.gemini.call_with_tools(
+            system_prompt, self.input, declarations, model=GEMINI_MODEL_SMART,
         )
-        from google.genai import types
-        turn_history = [
-            types.Content(role="user", parts=[types.Part.from_text(text=input)]),
-        ]
-        if resp_content:
-            turn_history.append(resp_content)
-
+        turn_history = self._init_turn_history(resp_content)
         failed_tools: dict[str, int] = {}
+
         for iteration in range(MAX_TOOL_STEPS):
             if text:
-                return _reply(text)
+                return self._reply(text)
             if not tool_calls:
-                return _reply("Не удалось сформировать ответ.")
+                return self._reply("Не удалось сформировать ответ.")
 
-            tool_names = ", ".join(tc["name"] for tc in tool_calls)
-            if progress:
-                progress.emit("tool", f"Вызываю {tool_names}")
-            results = _execute_tool_calls(tool_calls, tools_by_name, auth.ctx, failed_tools, _log)
+            self._emit("tool", ", ".join(tc["name"] for tc in tool_calls))
+            results = _execute_tool_calls(tool_calls, tools_by_name, self.auth.ctx, failed_tools, self.log)
 
             if _has_repeated_failures(failed_tools):
-                errors = "; ".join(f"{n}: {c}x" for n, c in failed_tools.items() if c >= 2)
-                logger.warning("Breaking ReAct loop — repeated tool failures: %s", errors)
-                _log("loop_break", {"reason": "repeated failures", "details": errors})
+                self._log_repeated_failures(failed_tools)
                 break
 
-            if progress:
-                progress.emit("llm", f"Думаю... (шаг {iteration + 2})")
-            is_last_step = iteration == MAX_TOOL_STEPS - 2
-            final_hint = (
-                "\n\n[SYSTEM: это последний доступный шаг. "
-                "Сформулируй финальный ответ на основе уже полученных данных. "
-                "НЕ вызывай инструменты.]"
-            ) if is_last_step else None
-            text, tool_calls, resp_content = gemini.continue_with_tool_results(
-                turn_history, results, declarations, model=GEMINI_MODEL_SMART,
-                extra_instruction=final_hint,
+            text, tool_calls, resp_content = self._continue_loop(
+                turn_history, results, declarations, iteration,
             )
-            if resp_content:
-                turn_history.append(types.Content(parts=[
-                    types.Part.from_function_response(name=r["name"], response=r["result"])
-                    for r in results
-                ]))
-                turn_history.append(resp_content)
+            self._append_turn(turn_history, results, resp_content)
 
-        return _reply(text or "Превышен лимит шагов.")
+        return self._reply(text or "Превышен лимит шагов.")
 
-    return handle
+    def _init_turn_history(self, resp_content):
+        from google.genai import types
+        history = [types.Content(role="user", parts=[types.Part.from_text(text=self.input)])]
+        if resp_content:
+            history.append(resp_content)
+        return history
+
+    def _continue_loop(self, turn_history, results, declarations, iteration):
+        self._emit("llm", f"Думаю... (шаг {iteration + 2})")
+        is_last_step = iteration == MAX_TOOL_STEPS - 2
+        final_hint = (
+            "\n\n[SYSTEM: это последний доступный шаг. "
+            "Сформулируй финальный ответ на основе уже полученных данных. "
+            "НЕ вызывай инструменты.]"
+        ) if is_last_step else None
+        return self.gemini.continue_with_tool_results(
+            turn_history, results, declarations, model=GEMINI_MODEL_SMART,
+            extra_instruction=final_hint,
+        )
+
+    def _append_turn(self, turn_history, results, resp_content):
+        if resp_content:
+            from google.genai import types
+            turn_history.append(types.Content(parts=[
+                types.Part.from_function_response(name=r["name"], response=r["result"])
+                for r in results
+            ]))
+            turn_history.append(resp_content)
+
+    def _log_repeated_failures(self, failed_tools):
+        errors = "; ".join(f"{n}: {c}x" for n, c in failed_tools.items() if c >= 2)
+        logger.warning("Breaking ReAct loop — repeated tool failures: %s", errors)
+        self.log("loop_break", {"reason": "repeated failures", "details": errors})

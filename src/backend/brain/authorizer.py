@@ -37,15 +37,13 @@ class Authorizer:
         if not user_id:
             return {}
         if user_id.lstrip("-").isdigit():
-            result = self._db.get_user_by_telegram_id(int(user_id))
-            if result:
-                return result
+            return self._db.get_or_create_by_telegram_id(int(user_id))
         return {}
 
     def _filter_tools(self, role: str, env_name: str) -> list[Tool]:
         result = []
         for tool in TOOLS.values():
             allowed = tool.permissions.get(env_name) or tool.permissions.get("*", set())
-            if role in allowed:
+            if "*" in allowed or role in allowed:
                 result.append(tool)
         return result

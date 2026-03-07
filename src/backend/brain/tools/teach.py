@@ -62,7 +62,7 @@ def make_teach_tool(classify_teaching, memory, gemini) -> Tool:
             "required": ["text"],
         },
         fn=fn,
-        permissions={"*": {"admin"}, "editorial_group": {"admin", "editor"}},
+        permissions={"*": {"admin"}, "editorial_group": {"*"}},
         slash_command="teach",
         examples=["запомни, что я сейчас скажу ..."],
         nl_routable=True,

@@ -1,5 +1,6 @@
 """Tool factory functions."""
 
+from backend.brain.tools.analytics import make_cloudflare_tool, make_yandex_metrica_tool
 from backend.brain.tools.budget import make_budget_tool
 from backend.brain.tools.code import make_code_tool
 from backend.brain.tools.health import make_health_tool
@@ -20,4 +21,6 @@ __all__ = [
     "make_budget_tool",
     "make_ingest_tool",
     "make_query_db_tools",
+    "make_yandex_metrica_tool",
+    "make_cloudflare_tool",
 ]

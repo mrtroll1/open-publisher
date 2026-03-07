@@ -113,6 +113,18 @@ REPUBLIC_SUPPORT_API_KEY = os.getenv("REPUBLIC_SUPPORT_API_KEY", "")
 REDEFINE_API_URL = os.getenv("REDEFINE_API_URL", "")
 REDEFINE_SUPPORT_API_KEY = os.getenv("REDEFINE_SUPPORT_API_KEY", "")
 
+# --- Yandex Metrica ---
+YANDEX_METRICA_TOKEN = os.getenv("YANDEX_METRICA_TOKEN", "")
+YANDEX_METRICA_COUNTER_ID = os.getenv("YANDEX_METRICA_COUNTER_ID", "")
+
+# --- Cloudflare ---
+CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN", "")
+CLOUDFLARE_ZONE_ID = os.getenv("CLOUDFLARE_ZONE_ID", "")
+
+# --- Site URLs ---
+REPUBLIC_SITE_URL = os.environ["REPUBLIC_SITE_URL"]
+REDEFINE_SITE_URL = os.environ["REDEFINE_SITE_URL"]
+
 # --- PNL (uses Redefine API) ---
 EUR_RUB_CELL = os.getenv("EUR_RUB_CELL", "")
 

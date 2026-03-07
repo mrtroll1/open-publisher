@@ -56,14 +56,16 @@ def _build_conversation_context(
 def _build_system_prompt(env: dict, user_context: str, knowledge: str,
                          conversation_history: str) -> str:
     from datetime import datetime, timedelta, timezone
+
+    from backend.config import REPUBLIC_SITE_URL
     now = datetime.now(timezone(timedelta(hours=1)))
     parts = [
         f"Текущая дата и время: {now.strftime('%Y-%m-%d %H:%M')} (CET)",
-        "Ты — Иван Добровольский, издатель Republic (republicmag.io). Ведёшь диалог в Telegram.",
+        f"Ты — Иван Добровольский, издатель Republic ({REPUBLIC_SITE_URL}). Ведёшь диалог в Telegram.",
         "Используй контекст и инструменты. Отвечай по-русски.",
         "Если не знаешь ответа — скажи.",
         "Отвечай кратко и по делу.",
-        "ФОРМАТ: Telegram. ЗАПРЕЩЕНО: markdown-таблицы (|---|), republic.ru. Для списков данных — нумерованный список. Ссылки на статьи: https://republicmag.io/posts/<id>.",
+        f"ФОРМАТ: Telegram. ЗАПРЕЩЕНО: markdown-таблицы (|---|), republic.ru. Для списков данных — нумерованный список. Ссылки на статьи: {REPUBLIC_SITE_URL}/posts/<id>.",
         "НИКОГДА не выдумывай данные. Если инструмент не вернул результат (ошибка, пустой ответ, 'LLM did not produce a query') — сообщи об этом пользователю, но НЕ придумывай заголовки, названия, цифры или другие данные. Используй ТОЛЬКО те данные, которые вернули инструменты.",
         "Если спрашивают о твоих прошлых действиях, запросах или результатах — используй agent_db для поиска в run_logs по run_id из истории. НИКОГДА не выдумывай SQL-запросы или результаты — только цитируй из run_logs.",
     ]

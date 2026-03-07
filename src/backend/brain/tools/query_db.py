@@ -38,7 +38,7 @@ def make_query_db_tools(query_db_map: dict) -> list[Tool]:
                 "required": ["question"],
             },
             fn=_make_fn(query_db),
-            permissions={"*": {"admin"}, "editorial_group": {"admin", "editor", "user"}},
+            permissions={"*": {"admin"}, "editorial_group": {"*"}},
             nl_routable=False,
             conversational=True,
         ))

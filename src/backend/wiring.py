@@ -24,6 +24,7 @@ from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.gateways.query_gateway import QueryGateway
 from backend.infrastructure.gateways.redefine_gateway import RedefineGateway
 from backend.infrastructure.gateways.republic_gateway import RepublicGateway
+from backend.infrastructure.gateways.yandex_metrica_gateway import YandexMetricaGateway
 from backend.infrastructure.memory.memory_service import MemoryService
 from backend.infrastructure.memory.retriever import KnowledgeRetriever
 from backend.infrastructure.memory.user_lookup import SupportUserLookup
@@ -133,6 +134,7 @@ def create_brain() -> BrainComponents:
     from backend.brain.tool import register_tool
     from backend.brain.tools import (
         make_budget_tool,
+        make_cloudflare_tool,
         make_code_tool,
         make_health_tool,
         make_ingest_tool,
@@ -141,6 +143,7 @@ def create_brain() -> BrainComponents:
         make_search_tool,
         make_support_tool,
         make_teach_tool,
+        make_yandex_metrica_tool,
     )
     from backend.commands.process_inbox import InboxWorkflow
 
@@ -193,6 +196,14 @@ def create_brain() -> BrainComponents:
 
     for tool in make_query_db_tools(query_db_map):
         register_tool(tool)
+
+    from backend.infrastructure.gateways.cloudflare_gateway import CloudflareGateway
+    ym_gw = YandexMetricaGateway()
+    if ym_gw.available:
+        register_tool(make_yandex_metrica_tool(ym_gw))
+    cf_gw = CloudflareGateway()
+    if cf_gw.available:
+        register_tool(make_cloudflare_tool(cf_gw))
 
     # Conversation handler (ReAct loop)
     conv_handler = conversation_handler(gemini, db, retriever)

@@ -52,6 +52,13 @@ class UserRepo(BasePostgresRepo):
         user_id = self.save_user(name=email.split("@")[0], email=email)
         return self.get_user(user_id)
 
+    def get_or_create_by_telegram_id(self, telegram_id: int) -> dict:
+        existing = self.get_user_by_telegram_id(telegram_id)
+        if existing:
+            return existing
+        user_id = self.save_user(name="", telegram_id=telegram_id)
+        return self.get_user(user_id)
+
     def update_user(self, user_id: str, **fields) -> bool:
         allowed = {"name", "role", "telegram_id", "email"}
         to_update = {k: v for k, v in fields.items() if k in allowed}

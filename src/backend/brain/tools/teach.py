@@ -2,15 +2,14 @@ from __future__ import annotations
 
 import logging
 
+from backend.brain.prompt_loader import load_template
 from backend.brain.tool import Tool, ToolContext
 
 logger = logging.getLogger(__name__)
 
 
 def make_teach_tool(classify_teaching, memory, gemini) -> Tool:
-    from backend.brain.prompt_loader import load_template
-
-    def fn(args: dict, ctx: ToolContext) -> dict:
+    def fn(args: dict, _ctx: ToolContext) -> dict:
         text = args.get("text") or args.get("input", "")
         context = args.get("context", "")
 

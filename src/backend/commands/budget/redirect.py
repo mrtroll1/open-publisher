@@ -124,8 +124,8 @@ def _extract_bonus_from_note(note: str, source_name: str) -> tuple[int, str]:
     """Parse 'name (amount)' entries from note. Returns (source_amount, cleaned_note)."""
     source_amount = 0
     new_parts = []
-    for part in note.split(","):
-        part = part.strip()
+    for raw_part in note.split(","):
+        part = raw_part.strip()
         if "(" not in part or ")" not in part:
             new_parts.append(part)
             continue

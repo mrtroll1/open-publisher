@@ -42,8 +42,9 @@ class GenerateBatchInvoices:
         self,
         contractors: list[Contractor],
         month: str,
+        *,
         debug: bool = False,
-        on_progress: callable = None,
+        on_progress: callable | None = None,
     ) -> BatchResult:
         """Generate invoices for all contractors that have a budget entry and no existing invoice."""
         to_generate = self._pending_contractors(contractors, month)
@@ -52,7 +53,7 @@ class GenerateBatchInvoices:
 
         for contractor, amount_int in to_generate:
             try:
-                self._generate_one(contractor, month, amount_int, debug, result)
+                self._generate_one(contractor, month, amount_int, result, debug=debug)
             finally:
                 done += 1
                 if on_progress:
@@ -86,7 +87,7 @@ class GenerateBatchInvoices:
 
     def _generate_one(
         self, contractor: Contractor, month: str, amount_int: int,
-        debug: bool, result: BatchResult,
+        result: BatchResult, *, debug: bool,
     ) -> None:
         """Generate a single invoice, updating result in place."""
         try:

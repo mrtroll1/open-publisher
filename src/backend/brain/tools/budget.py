@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from backend.brain.tool import Tool, ToolContext
+from backend.commands.budget import ComputeBudgetUseCase
 
 
 def make_budget_tool(compute_budget) -> Tool:
@@ -13,7 +14,6 @@ def make_budget_tool(compute_budget) -> Tool:
         return f"{today.year}-{today.month - 1:02d}"
 
     def fn(args: dict, ctx: ToolContext) -> dict:
-        from backend.commands.budget import ComputeBudgetUseCase
         month = args.get("month") or args.get("input", "").strip() or _prev_month()
         use_case = ComputeBudgetUseCase(compute_budget)
         return use_case.execute({"month": month}, ctx.env, ctx.user)

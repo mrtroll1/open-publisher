@@ -13,10 +13,10 @@ class ClassifyTeaching(BaseGenAI):
         self._db = db
         self._embed = embed
 
-    def _pick_template(self, input: str, context: dict) -> str:
+    def _pick_template(self, _input: str, _context: dict) -> str:
         return "knowledge/classify-teaching.md"
 
-    def _build_context(self, input: str, context: dict) -> dict:
+    def _build_context(self, input: str, _context: dict) -> dict:
         embedding = self._embed.embed_one(input)
         similar = self._db.search_knowledge(embedding, limit=5)
         examples = "\n".join(e["content"][:200] for e in similar) if similar else "(пусто)"

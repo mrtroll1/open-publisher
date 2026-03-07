@@ -30,10 +30,10 @@ class QueryDB(BaseGenAI):
     def available(self) -> bool:
         return self._gateway.available
 
-    def _pick_template(self, input: str, context: dict) -> str:
+    def _pick_template(self, _input: str, _context: dict) -> str:
         return "db-query/compose-query.md"
 
-    def _build_context(self, input: str, context: dict) -> dict:
+    def _build_context(self, input: str, _context: dict) -> dict:
         entries = self._db.get_knowledge_by_domain(self._schema_domain)
         schema = "\n\n".join(e["content"] for e in entries) if entries else "(schema not available)"
         return {

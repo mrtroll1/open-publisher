@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from backend.brain.tool import Tool, ToolContext
+from backend.commands.invoice import GenerateInvoiceUseCase
 
 
 def make_invoice_tool(gen_invoice) -> Tool:
     def fn(args: dict, ctx: ToolContext) -> dict:
-        from backend.commands.invoice import GenerateInvoiceUseCase
         use_case = GenerateInvoiceUseCase(gen_invoice)
         inp = args.get("input", "")
         if not inp:

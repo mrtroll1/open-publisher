@@ -14,7 +14,7 @@ class TeachUseCase(BaseUseCase):
         self._classify = classify
         self._memory = memory
 
-    def execute(self, prepared: Any, env: dict, user: dict) -> Any:
+    def execute(self, prepared: Any, _env: dict, _user: dict) -> Any:
         result = self._classify.run(prepared, {})
         entry_id = self._memory.teach(prepared, domain=result["domain"], tier=result["tier"])
         return {"entry_id": entry_id, "domain": result["domain"], "tier": result["tier"]}

@@ -75,7 +75,14 @@ from telegram_bot.handlers.conversation_handlers import (
     cmd_nl,
     cmd_teach,
 )
-from telegram_bot.handlers.support_handlers import cmd_code, cmd_health, cmd_support
+from telegram_bot.handlers.support_handlers import (
+    cmd_code,
+    cmd_health,
+    cmd_support,
+    handle_code_rate_callback,
+    handle_editorial_callback,
+    handle_support_callback,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -169,15 +176,15 @@ _COMMAND_DESCRIPTIONS: dict[str, str] = {
 _GROUP_ALLOWED_COMMANDS = ["health", "support", "articles", "lookup"]
 
 __all__ = [
-    "ContractorStates",
-    "_extract_bot_mention",
-    "_dispatch_group_command",
-    "handle_group_message",
-    "_GROUP_COMMAND_HANDLERS",
+    "_ADMIN_COMMANDS",
     "_COMMAND_DESCRIPTIONS",
     "_DM_COMMANDS",
-    "_ADMIN_COMMANDS",
     "_FSM_HANDLERS",
+    "_GROUP_COMMAND_HANDLERS",
+    "ContractorStates",
+    "_dispatch_group_command",
+    "_extract_bot_mention",
+    "handle_group_message",
     "register_all",
     "set_bot_commands",
 ]
@@ -187,7 +194,7 @@ __all__ = [
 
 def _extract_bot_mention(text: str, bot_username: str) -> str | None:
     prefix = f"@{bot_username}"
-    if text.startswith(prefix + " ") or text.startswith(prefix + "\n"):
+    if text.startswith((prefix + " ", prefix + "\n")):
         return text[len(prefix):].strip()
     return None
 
@@ -223,7 +230,7 @@ async def handle_group_message(
 async def _handle_group_command(
     text: str, message: types.Message, state: FSMContext, group_config,
 ) -> None:
-    raw_cmd = text.split()[0].lstrip("/")
+    raw_cmd = text.split(maxsplit=1)[0].lstrip("/")
     if "@" in raw_cmd:
         raw_cmd = raw_cmd.split("@", 1)[0]
     if raw_cmd not in group_config.allowed_commands:
@@ -234,7 +241,7 @@ async def _handle_group_command(
 
 
 async def _handle_group_nl(
-    text: str, message: types.Message, state: FSMContext,
+    text: str, message: types.Message, _state: FSMContext,
 ) -> None:
     clean_text = _extract_bot_mention(text, BOT_USERNAME)
     is_reply_to_bot = (
@@ -247,7 +254,7 @@ async def _handle_group_nl(
     if clean_text is None:
         clean_text = text
 
-    kwargs = _build_nl_kwargs(clean_text, message, is_reply_to_bot)
+    kwargs = _build_nl_kwargs(clean_text, message, is_reply_to_bot=is_reply_to_bot)
     thinking: ThinkingMessage | None = None
 
     async def _on_progress(stage: str, detail: str) -> None:
@@ -281,7 +288,7 @@ async def _handle_group_nl(
         await message.answer("Не удалось обработать сообщение.")
 
 
-def _build_nl_kwargs(clean_text: str, message: types.Message, is_reply_to_bot: bool) -> dict:
+def _build_nl_kwargs(clean_text: str, message: types.Message, *, is_reply_to_bot: bool) -> dict:
     kwargs = {
         "input": clean_text,
         "environment_id": str(message.chat.id),
@@ -299,7 +306,7 @@ def _build_nl_kwargs(clean_text: str, message: types.Message, is_reply_to_bot: b
 async def _route_fsm(
     message: types.Message, state: FSMContext, current_state: str,
 ) -> None:
-    state_name = current_state.split(":")[-1]
+    state_name = current_state.rsplit(":", maxsplit=1)[-1]
     handler = _FSM_HANDLERS.get(state_name)
     if not handler:
         return
@@ -384,12 +391,6 @@ async def set_bot_commands(bot) -> None:
 
 def register_all(dp: Dispatcher) -> None:
     """Wire everything onto the dispatcher — one place to see all handlers."""
-    from telegram_bot.handlers.support_handlers import (
-        handle_code_rate_callback,
-        handle_editorial_callback,
-        handle_support_callback,
-    )
-
     # Callback queries
     dp.callback_query.register(handle_support_callback, F.data.startswith("support:"))
     dp.callback_query.register(handle_editorial_callback, F.data.startswith("editorial:"))

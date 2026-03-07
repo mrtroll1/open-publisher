@@ -11,5 +11,5 @@ class ComputeBudgetUseCase(BaseUseCase):
     def __init__(self, compute_budget):
         self._compute = compute_budget
 
-    def execute(self, prepared: Any, env: dict, user: dict) -> Any:
+    def execute(self, prepared: Any, _env: dict, _user: dict) -> Any:
         return self._compute.execute(prepared["month"])

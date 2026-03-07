@@ -1,10 +1,16 @@
+import json
 import logging
+import queue
+import threading
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from starlette.responses import StreamingResponse
 
-from backend.models import InboxCategory
+from backend.brain.tool import TOOLS, ToolContext
+from backend.interact import handle
+from backend.models import InboxCategory, ProgressEmitter, ProgressEvent
 from backend.wiring import create_brain
 
 logger = logging.getLogger(__name__)
@@ -118,14 +124,6 @@ def process(req: ProcessRequest) -> BrainResponse:
 @app.post("/brain/process/stream")
 def process_stream(req: ProcessRequest):
     """SSE endpoint: yields progress events from Brain, then the final result."""
-    import json
-    import queue
-    import threading
-
-    from starlette.responses import StreamingResponse
-
-    from backend.models import ProgressEmitter, ProgressEvent
-
     event_queue: queue.Queue[ProgressEvent | None] = queue.Queue()
 
     def _on_event(event: ProgressEvent) -> None:
@@ -267,7 +265,6 @@ def get_pending_editorial(uid: str) -> BrainResponse:
 
 @app.post("/memory/teach")
 def teach(req: TeachRequest) -> BrainResponse:
-    from backend.brain.tool import TOOLS, ToolContext
     teach_tool = TOOLS["teach"]
     ctx = ToolContext(env={}, user={})
     args = {"text": req.text, "context": req.context}
@@ -393,22 +390,12 @@ class InteractRequest(BaseModel):
 
 @app.post("/interact")
 def interact(req: InteractRequest) -> BrainResponse:
-    from backend.interact import handle
     return BrainResponse(result=handle(req.action, req.payload, req.context))
 
 
 @app.post("/interact/stream")
 def interact_stream(req: InteractRequest):
     """SSE endpoint: yields progress events, then the final result."""
-    import json
-    import queue
-    import threading
-
-    from starlette.responses import StreamingResponse
-
-    from backend.interact import handle
-    from backend.models import ProgressEmitter, ProgressEvent
-
     event_queue: queue.Queue[ProgressEvent | None] = queue.Queue()
 
     def _on_event(event: ProgressEvent) -> None:

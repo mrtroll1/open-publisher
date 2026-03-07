@@ -9,6 +9,7 @@ import requests
 
 from backend.brain.base_controller import BaseUseCase
 from backend.config import HEALTHCHECK_DOMAINS, KUBECTL_ENABLED
+from backend.infrastructure.gateways.cloudflare_gateway import CloudflareGateway
 
 
 @dataclass
@@ -18,11 +19,15 @@ class HealthResult:
     details: str
 
 
+_ICON_OK = "\u2705"
+_ICON_ERR = "\u274c"
+
+
 def format_healthcheck_results(results: list[HealthResult]) -> str:
-    lines = []
-    for r in results:
-        icon = "\u2705" if r.status == "ok" else "\u274c"
-        lines.append(f"{icon} {r.name} — {r.details}")
+    lines = [
+        f'{_ICON_OK if r.status == "ok" else _ICON_ERR} {r.name} — {r.details}'
+        for r in results
+    ]
     return "\n".join(lines) if lines else "No checks configured."
 
 
@@ -30,7 +35,7 @@ def _kubectl_checks() -> list[HealthResult]:
     try:
         proc = subprocess.run(
             ["kubectl", "get", "pods", "--no-headers"],
-            capture_output=True, timeout=10, text=True,
+            capture_output=True, timeout=10, text=True, check=False,
         )
         if proc.returncode != 0:
             return [HealthResult("kubectl", "error", proc.stderr.strip())]
@@ -53,7 +58,6 @@ def _kubectl_checks() -> list[HealthResult]:
 
 
 def _cloudflare_checks() -> list[HealthResult]:
-    from backend.infrastructure.gateways.cloudflare_gateway import CloudflareGateway
     gw = CloudflareGateway()
     if not gw.available:
         return []
@@ -100,7 +104,7 @@ def _cloudflare_checks() -> list[HealthResult]:
 
 
 class CheckHealthUseCase(BaseUseCase):
-    def execute(self, prepared: Any, env: dict, user: dict) -> list[HealthResult]:
+    def execute(self, _prepared: Any, _env: dict, _user: dict) -> list[HealthResult]:
         results = []
         for domain in HEALTHCHECK_DOMAINS:
             try:

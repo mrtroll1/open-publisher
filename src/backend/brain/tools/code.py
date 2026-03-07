@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from backend.brain.tool import Tool, ToolContext
+from backend.commands.run_code import run_claude_code
 
 
 def make_code_tool() -> Tool:
-    def fn(args: dict, ctx: ToolContext) -> dict:
-        from backend.commands.run_code import run_claude_code
+    def fn(args: dict, _ctx: ToolContext) -> dict:
         prompt = args.get("prompt") or args.get("input", "")
         result = run_claude_code(
             prompt,

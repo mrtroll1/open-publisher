@@ -9,7 +9,7 @@ from aiogram import types
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery
 
-from telegram_bot import backend_client
+from telegram_bot import backend_client, replies
 from telegram_bot.bot_helpers import bot, get_admin_ids, is_admin
 from telegram_bot.handler_utils import ThinkingMessage, send_typing
 from telegram_bot.renderer import render
@@ -17,14 +17,23 @@ from telegram_bot.renderer import render
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "handle_start", "handle_menu", "handle_sign_doc",
-    "handle_update_payment_data", "handle_manage_redirects",
-    "handle_type_selection", "handle_data_input", "handle_contractor_text",
-    "handle_verification_code", "handle_amount_input", "handle_update_data",
+    "handle_amount_input",
+    "handle_contractor_text",
+    "handle_data_input",
+    "handle_document",
+    "handle_duplicate_callback",
+    "handle_editor_source_callback",
     "handle_editor_source_name",
-    "handle_duplicate_callback", "handle_editor_source_callback",
     "handle_linked_menu_callback",
-    "handle_document", "handle_non_document",
+    "handle_manage_redirects",
+    "handle_menu",
+    "handle_non_document",
+    "handle_sign_doc",
+    "handle_start",
+    "handle_type_selection",
+    "handle_update_data",
+    "handle_update_payment_data",
+    "handle_verification_code",
 ]
 
 
@@ -40,7 +49,7 @@ def _build_context(user_id: int, chat_id: int, state_name: str | None, data: dic
 
 
 async def _interact(message: types.Message, state: FSMContext, action: str,
-                    extra_payload: dict = None) -> None:
+                    extra_payload: dict | None = None) -> None:
     payload = {"text": message.text or ""}
     if extra_payload:
         payload.update(extra_payload)
@@ -92,7 +101,6 @@ async def handle_start(message: types.Message, state: FSMContext) -> None:
 
 async def handle_menu(message: types.Message, state: FSMContext) -> None:
     if is_admin(message.from_user.id):
-        from telegram_bot import replies
         await state.clear()
         await message.answer(replies.menu.admin)
         return

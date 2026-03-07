@@ -140,7 +140,7 @@ def _start_invoice_flow(contractor, month, fsm_data: dict) -> dict | None:
     )
 
 
-def _deliver_existing_invoice(contractor, month, admin_ids) -> dict | None:
+def _deliver_existing_invoice(contractor, month, admin_ids) -> dict | None:  # noqa: PLR0911 — guard clauses
     """Check for pre-generated invoice. Returns response dict or None."""
     result = resolve_existing_invoice(contractor, month)
     if not result:
@@ -169,16 +169,14 @@ def _deliver_existing_invoice(contractor, month, admin_ids) -> dict | None:
 
     if action == DeliveryAction.SEND_RUB_DRAFT:
         caption = "Ваш счёт-оферта. Скоро пришлю ссылку на Легиум."
-        sides = []
-        for admin_id in admin_ids:
-            sides.append(side_msg(
-                admin_id,
-                data=invoice_admin_data(contractor, month, inv.amount),
-                pdf_bytes=pdf_bytes, filename=filename,
-                track={"type": SideMessageTrackType.ADMIN_REPLY,
-                       "contractor_telegram": contractor.telegram or "",
-                       "contractor_id": contractor.id},
-            ))
+        sides = [side_msg(
+            admin_id,
+            data=invoice_admin_data(contractor, month, inv.amount),
+            file=(pdf_bytes, filename),
+            track={"type": SideMessageTrackType.ADMIN_REPLY,
+                   "contractor_telegram": contractor.telegram or "",
+                   "contractor_id": contractor.id},
+        ) for admin_id in admin_ids]
         return respond([file_msg(pdf_bytes, filename, caption)], side_messages=sides)
 
     if action == DeliveryAction.RUB_ALREADY_SENT:
@@ -189,7 +187,7 @@ def _deliver_existing_invoice(contractor, month, admin_ids) -> dict | None:
 
 # ── Handlers ─────────────────────────────────────────────────────────
 
-def handle_start(payload: Payload, ctx: InteractContext) -> dict:
+def handle_start(_payload: Payload, ctx: InteractContext) -> dict:
     if ctx.get("is_admin"):
         return respond([msg(
             "Привет! Я бот для работы с контрагентами.\n\n"
@@ -201,7 +199,7 @@ def handle_start(payload: Payload, ctx: InteractContext) -> dict:
     )], fsm_state=None)
 
 
-def handle_menu(payload: Payload, ctx: InteractContext) -> dict:
+def handle_menu(_payload: Payload, ctx: InteractContext) -> dict:
     contractor, _ = _get_contractor(ctx["user_id"])
     if contractor:
         return respond(
@@ -315,19 +313,26 @@ def handle_data_input(payload: Payload, ctx: InteractContext) -> dict:
             fsm_data={**fsm_data, "collected_data": collected},
         )
 
-    # For Global contractors, translate name and add as alias
-    if ctype == ContractorType.GLOBAL:
-        name_en = collected.get("name_en", "")
-        if name_en:
-            name_ru = translate_contractor_name(name_en)
-            if name_ru:
-                aliases = collected.get("aliases", [])
-                if name_ru not in aliases:
-                    aliases.append(name_ru)
-                collected["aliases"] = aliases
+    _maybe_add_russian_alias(collected, ctype)
 
     # Registration complete — save and start invoice flow
     return _finish_registration(collected, ctype, cls, raw_text, ctx)
+
+
+def _maybe_add_russian_alias(collected: dict, ctype: ContractorType) -> None:
+    """For Global contractors, translate English name and add as alias."""
+    if ctype != ContractorType.GLOBAL:
+        return
+    name_en = collected.get("name_en", "")
+    if not name_en:
+        return
+    name_ru = translate_contractor_name(name_en)
+    if not name_ru:
+        return
+    aliases = collected.get("aliases", [])
+    if name_ru not in aliases:
+        aliases.append(name_ru)
+    collected["aliases"] = aliases
 
 
 def _finish_registration(collected: dict, ctype: ContractorType, cls: type,
@@ -346,15 +351,13 @@ def _finish_registration(collected: dict, ctype: ContractorType, cls: type,
 
     # Notify admins
     admin_ids = ctx.get("admin_ids", [])
-    sides = []
     admin_data = {k: v for k, v in collected.items() if v and not k.startswith("_")}
-    for admin_id in admin_ids:
-        sides.append(side_msg(admin_id, data={
-            "type": DT.NEW_REGISTRATION,
-            "contractor_type": ctype.value,
-            "raw_text": raw_text,
-            "parsed_data": admin_data,
-        }))
+    sides = [side_msg(admin_id, data={
+        "type": DT.NEW_REGISTRATION,
+        "contractor_type": ctype.value,
+        "raw_text": raw_text,
+        "parsed_data": admin_data,
+    }) for admin_id in admin_ids]
 
     messages = [msg(data={
         "type": DT.REGISTRATION_COMPLETE,
@@ -395,10 +398,9 @@ def handle_verification_code(payload: Payload, ctx: InteractContext) -> dict:
         user_id = ctx["user_id"]
         bind_telegram_id(contractor.id, user_id)
 
-        sides = []
-        for admin_id in ctx.get("admin_ids", []):
-            sides.append(side_msg(admin_id,
-                f"Контрагент {contractor.display_name} привязался к Telegram."))
+        sides = [side_msg(admin_id,
+            text=f"Контрагент {contractor.display_name} привязался к Telegram.")
+            for admin_id in ctx.get("admin_ids", [])]
 
         messages = [
             msg(f"Отлично! Вы привязаны как {contractor.display_name}."),
@@ -420,7 +422,7 @@ def handle_verification_code(payload: Payload, ctx: InteractContext) -> dict:
     )
 
 
-def handle_sign_doc(payload: Payload, ctx: InteractContext) -> dict:
+def handle_sign_doc(_payload: Payload, ctx: InteractContext) -> dict:
     contractor, _ = _get_contractor(ctx["user_id"])
     if not contractor:
         return respond([msg(
@@ -447,7 +449,7 @@ def handle_sign_doc(payload: Payload, ctx: InteractContext) -> dict:
     )])
 
 
-def handle_update_payment_data(payload: Payload, ctx: InteractContext) -> dict:
+def handle_update_payment_data(_payload: Payload, ctx: InteractContext) -> dict:
     contractor, _ = _get_contractor(ctx["user_id"])
     if not contractor:
         return respond([msg(
@@ -461,7 +463,7 @@ def handle_update_payment_data(payload: Payload, ctx: InteractContext) -> dict:
     )
 
 
-def handle_manage_redirects(payload: Payload, ctx: InteractContext) -> dict:
+def handle_manage_redirects(_payload: Payload, ctx: InteractContext) -> dict:
     contractor, _ = _get_contractor(ctx["user_id"])
     if not contractor or contractor.role_code != RoleCode.REDAKTOR:
         return respond([msg(
@@ -522,15 +524,14 @@ def handle_amount_input(payload: Payload, ctx: InteractContext) -> dict:
     else:
         messages.append(file_msg(pdf_bytes, filename,
             "Ваш счёт-оферта. Скоро пришлю ссылку на Легиум."))
-        for admin_id in ctx.get("admin_ids", []):
-            sides.append(side_msg(
-                admin_id,
-                data=invoice_admin_data(contractor, month, invoice.amount),
-                pdf_bytes=pdf_bytes, filename=filename,
-                track={"type": SideMessageTrackType.ADMIN_REPLY,
-                       "contractor_telegram": contractor.telegram or "",
-                       "contractor_id": contractor.id},
-            ))
+        sides.extend(side_msg(
+            admin_id,
+            data=invoice_admin_data(contractor, month, invoice.amount),
+            file=(pdf_bytes, filename),
+            track={"type": SideMessageTrackType.ADMIN_REPLY,
+                   "contractor_telegram": contractor.telegram or "",
+                   "contractor_id": contractor.id},
+        ) for admin_id in ctx.get("admin_ids", []))
 
     return respond(messages, side_messages=sides, fsm_state=None)
 
@@ -695,14 +696,11 @@ def handle_document(payload: Payload, ctx: InteractContext) -> dict:
         drive_link = upload_invoice_pdf(contractor, month, filename, content)
         update_invoice_status(contractor.id, month, InvoiceStatus.SIGNED)
 
-    sides = []
-    for admin_id in admin_ids:
-        if admin_id != user_id:
-            sides.append(side_msg(admin_id, data={
-                "type": DT.DOCUMENT_RECEIVED,
-                "sender": sender_info,
-                "drive_link": drive_link,
-            }))
+    sides = [side_msg(admin_id, data={
+        "type": DT.DOCUMENT_RECEIVED,
+        "sender": sender_info,
+        "drive_link": drive_link,
+    }) for admin_id in admin_ids if admin_id != user_id]
 
     return respond(
         [msg("Спасибо! Документ получен.")],
@@ -710,7 +708,7 @@ def handle_document(payload: Payload, ctx: InteractContext) -> dict:
     )
 
 
-def handle_non_document(payload: Payload, ctx: InteractContext) -> dict:
+def handle_non_document(_payload: Payload, ctx: InteractContext) -> dict:
     fsm_state = ctx.get("fsm_state")
     if fsm_state is not None:
         return respond([msg("Пожалуйста, отправьте текстовое сообщение.")])

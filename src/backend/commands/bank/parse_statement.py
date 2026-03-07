@@ -35,7 +35,7 @@ class ParseBankStatement:
         self._airtable = airtable_gw or AirtableGateway()
 
     def execute(
-        self, filepath: str | Path, aed_to_rub: float, upload: bool = False,
+        self, filepath: str | Path, aed_to_rub: float, *, upload: bool = False,
     ) -> list[AirtableExpense]:
         """Parse a Wio Bank CSV and produce Airtable expense records.
 
@@ -134,9 +134,9 @@ def _handle_incoming_transfer(
     return True
 
 
-def _handle_fee(
+def _handle_fee(  # noqa: PLR0913
     description: str, amount: Decimal, date_str: str, aed_to_rub: float,
-    expenses: list[AirtableExpense],
+    expenses: list[AirtableExpense], *,
     swift_fees: list[dict], fx_fees: list[dict],
 ) -> bool:
     if "Swift" in description or "SWIFT" in description:
@@ -191,8 +191,8 @@ def _handle_card_known_service(
     if service.get("split"):
         half = abs(amount) / 2
         rub_half = _to_rub(half, aed_to_rub)
-        for unit_name in (UNIT_SECONDARY, UNIT_PRIMARY):
-            expenses.append(AirtableExpense(
+        expenses.extend(
+            AirtableExpense(
                 payed=date_str,
                 amount_rub=rub_half,
                 contractor=service["contractor"],
@@ -202,7 +202,9 @@ def _handle_card_known_service(
                 group=service["group"],
                 parent=service["parent"],
                 splited="checked",
-            ))
+            )
+            for unit_name in (UNIT_SECONDARY, UNIT_PRIMARY)
+        )
     else:
         rub = _to_rub(abs(amount), aed_to_rub)
         expenses.append(AirtableExpense(
@@ -223,8 +225,8 @@ def _handle_card_unknown_service(
 ) -> None:
     half = abs(amount) / 2
     rub_half = _to_rub(half, aed_to_rub)
-    for unit_name in (UNIT_SECONDARY, UNIT_PRIMARY):
-        expenses.append(AirtableExpense(
+    expenses.extend(
+        AirtableExpense(
             payed=date_str,
             amount_rub=rub_half,
             contractor=description,
@@ -235,7 +237,9 @@ def _handle_card_unknown_service(
             parent="goods and services",
             splited="checked",
             comment="NEEDS REVIEW",
-        ))
+        )
+        for unit_name in (UNIT_SECONDARY, UNIT_PRIMARY)
+    )
 
 
 def _handle_card_payment(
@@ -279,8 +283,8 @@ def _aggregate_fx_fees(
     half_fx = total_fx / 2
     rub_half = _to_rub(half_fx, aed_to_rub)
     last_date = max(f["date"] for f in fx_fees)
-    for unit_name in (UNIT_SECONDARY, UNIT_PRIMARY):
-        expenses.append(AirtableExpense(
+    expenses.extend(
+        AirtableExpense(
             payed=last_date,
             amount_rub=rub_half,
             contractor="Wio Bank",
@@ -290,7 +294,9 @@ def _aggregate_fx_fees(
             group="comissions",
             parent="expenses",
             splited="checked",
-        ))
+        )
+        for unit_name in (UNIT_SECONDARY, UNIT_PRIMARY)
+    )
 
 
 def _categorize_transactions(rows: list[dict[str, str]], aed_to_rub: float) -> list[AirtableExpense]:
@@ -314,7 +320,7 @@ def _categorize_transactions(rows: list[dict[str, str]], aed_to_rub: float) -> l
             continue
 
         if txn_type == "Fees":
-            _handle_fee(description, amount, date_str, aed_to_rub, expenses, swift_fees, fx_fees)
+            _handle_fee(description, amount, date_str, aed_to_rub, expenses, swift_fees=swift_fees, fx_fees=fx_fees)
             continue
 
         if txn_type == "Transfers" and amount < 0:

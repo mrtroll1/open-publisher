@@ -19,7 +19,7 @@ class MemoryService:
         self._retriever = retriever or KnowledgeRetriever(self._db, self._embed)
 
     # ── REMEMBER ────────────────────────────────────────────────
-    def remember(self, text: str, domain: str, source: str = "api",
+    def remember(self, text: str, domain: str, *, source: str = "api",  # noqa: PLR0913
                  tier: str = "specific", user_id: str | None = None,
                  source_url: str | None = None,
                  expires_at: datetime | None = None) -> str:
@@ -52,17 +52,17 @@ class MemoryService:
             entries = self._db.search_knowledge_multi_domain(embedding, domains=domains, limit=limit)
         else:
             entries = self._db.search_knowledge(embedding, domain=domain, limit=limit)
-        results = []
-        for e in entries:
-            results.append({
+        return [
+            {
                 "id": e["id"],
                 "title": e.get("title", ""),
                 "content": e["content"],
                 "similarity": e.get("similarity", 0),
                 "domain": e.get("domain", ""),
                 "tier": e.get("tier", ""),
-            })
-        return results
+            }
+            for e in entries
+        ]
 
     # ── TEACH ──────────────────────────────────────────────────
     def teach(self, text: str, domain: str, tier: str, title: str = "") -> str:

@@ -11,10 +11,10 @@ class ExtractKnowledge(BaseGenAI):
         super().__init__(gemini)
         self._retriever = retriever
 
-    def _pick_template(self, input: str, context: dict) -> str:
+    def _pick_template(self, _input: str, _context: dict) -> str:
         return "knowledge/extract-facts.md"
 
-    def _build_context(self, input: str, context: dict) -> dict:
+    def _build_context(self, input: str, _context: dict) -> dict:
         core = self._retriever.get_core()
         existing = self._retriever.retrieve(input, limit=10)
         return {

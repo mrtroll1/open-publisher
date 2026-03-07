@@ -18,30 +18,31 @@ from telegram_bot.handler_utils import (
     parse_month_arg,
     send_typing,
 )
+from telegram_bot.handlers.conversation_handlers import _handle_nl_reply, handle_kedit_reply
 from telegram_bot.renderer import render
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "cmd_generate",
+    "_handle_draft_reply",
+    "cmd_articles",
     "cmd_budget",
+    "cmd_chatid",
+    "cmd_extract_knowledge",
+    "cmd_generate",
     "cmd_generate_invoices",
+    "cmd_ingest_articles",
+    "cmd_lookup",
+    "cmd_orphan_contractors",
     "cmd_send_global_invoices",
     "cmd_send_legium_links",
-    "cmd_orphan_contractors",
     "cmd_upload_to_airtable",
-    "cmd_ingest_articles",
-    "cmd_extract_knowledge",
-    "cmd_chatid",
-    "cmd_articles",
-    "cmd_lookup",
     "handle_admin_reply",
-    "_handle_draft_reply",
 ]
 
 
 async def _interact_cmd(message: types.Message, state: FSMContext,
-                        action: str, extra_payload: dict = None) -> None:
+                        action: str, extra_payload: dict | None = None) -> None:
     """Send a command to backend /interact/stream and render the result."""
     args = message.text.split(maxsplit=1)
     text = args[1].strip() if len(args) > 1 else ""
@@ -132,7 +133,7 @@ async def cmd_upload_to_airtable(message: types.Message, state: FSMContext) -> N
 
 # ── Already-clean commands (use backend_client directly) ─────────────
 
-async def cmd_budget(message: types.Message, state: FSMContext) -> None:
+async def cmd_budget(message: types.Message, _state: FSMContext) -> None:
     """Generate the budget payments sheet."""
     args = message.text.split(maxsplit=1)
     month = parse_month_arg(args)
@@ -153,7 +154,7 @@ async def cmd_budget(message: types.Message, state: FSMContext) -> None:
         await message.answer(replies.admin.budget_error.format(error=e))
 
 
-async def cmd_ingest_articles(message: types.Message, state: FSMContext) -> None:
+async def cmd_ingest_articles(message: types.Message, _state: FSMContext) -> None:
     """Fetch published articles for a date range and store in knowledge base."""
     args = message.text.split()
     date_from, date_to = parse_date_range_arg(args)
@@ -177,7 +178,7 @@ async def cmd_ingest_articles(message: types.Message, state: FSMContext) -> None
         await message.answer(replies.admin.ingest_articles_error.format(error=e))
 
 
-async def cmd_extract_knowledge(message: types.Message, state: FSMContext) -> None:
+async def cmd_extract_knowledge(message: types.Message, _state: FSMContext) -> None:
     """Extract memorable facts from unprocessed conversations in this chat."""
     await message.answer(replies.admin.extract_knowledge_start)
     await send_typing(message.chat.id)
@@ -197,7 +198,7 @@ async def cmd_extract_knowledge(message: types.Message, state: FSMContext) -> No
 
 # ── Utility ──────────────────────────────────────────────────────────
 
-async def cmd_chatid(message: types.Message, state: FSMContext) -> None:
+async def cmd_chatid(message: types.Message, _state: FSMContext) -> None:
     await message.answer(f"Chat ID: `{message.chat.id}`", parse_mode="Markdown")
 
 
@@ -238,12 +239,10 @@ async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
         return
 
     # 3. Knowledge edit reply
-    from telegram_bot.handlers.conversation_handlers import handle_kedit_reply
     if await handle_kedit_reply(message):
         return
 
     # 4. NL conversation fallback (Brain handles classification + routing)
-    from telegram_bot.handlers.conversation_handlers import _handle_nl_reply
     await _handle_nl_reply(message, state)
 
 

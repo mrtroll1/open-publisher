@@ -55,6 +55,7 @@ class GeminiGateway:
                 logger.warning("Gemini error (%s), retrying in %ds (attempt %d/%d)",
                                e, wait, attempt + 1, _MAX_RETRIES)
                 time.sleep(wait)
+        return None
 
     @staticmethod
     def _build_tool(declarations: list[dict]) -> types.Tool:
@@ -102,7 +103,7 @@ class GeminiGateway:
         if extra_instruction:
             tool_parts.append(types.Part.from_text(text=extra_instruction))
         tool_response_content = types.Content(parts=tool_parts)
-        contents = history + [tool_response_content]
+        contents = [*history, tool_response_content]
         response = self._generate(model_used, contents, config)
         return self._parse_tool_response(response)
 

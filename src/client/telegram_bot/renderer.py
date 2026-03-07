@@ -209,7 +209,7 @@ async def _apply_fsm(state, result: dict) -> None:
         if result["fsm_state"] is None:
             await state.clear()
         else:
-            from telegram_bot.router import ContractorStates
+            from telegram_bot.router import ContractorStates  # noqa: PLC0415 (circular import)
             target = getattr(ContractorStates, result["fsm_state"], None)
             if target:
                 await state.set_state(target)

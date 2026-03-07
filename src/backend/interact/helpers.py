@@ -80,17 +80,16 @@ def file_msg(pdf_bytes: bytes, filename: str, caption: str = "", *,
     return m
 
 
-def side_msg(chat_id: int, text: str = "", *, pdf_bytes: bytes | None = None,
-             filename: str | None = None, track: dict | None = None,
-             data: dict | None = None) -> dict:
+def side_msg(chat_id: int, *, text: str = "", file: tuple[bytes, str] | None = None,
+             track: dict | None = None, data: dict | None = None) -> dict:
     sm = {"chat_id": chat_id}
     if text:
         sm["text"] = text
     if data:
         sm["data"] = data
-    if pdf_bytes:
-        sm["file_b64"] = base64.b64encode(pdf_bytes).decode()
-        sm["filename"] = filename
+    if file:
+        sm["file_b64"] = base64.b64encode(file[0]).decode()
+        sm["filename"] = file[1]
     if track:
         sm["track"] = track
     return sm

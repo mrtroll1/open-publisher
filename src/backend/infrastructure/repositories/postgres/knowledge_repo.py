@@ -7,7 +7,8 @@ from backend.infrastructure.repositories.postgres.base import BasePostgresRepo
 
 class KnowledgeRepo(BasePostgresRepo):
 
-    def save_knowledge_entry(self, tier: str, domain: str, title: str, content: str, source: str,
+    def save_knowledge_entry(self, tier: str, domain: str, title: str, content: str, source: str,  # noqa: PLR0913
+                             *,
                              embedding: list[float] | None = None,
                              user_id: str | None = None,
                              source_url: str | None = None,
@@ -64,7 +65,7 @@ class KnowledgeRepo(BasePostgresRepo):
             cols = ["id", "tier", "domain", "title", "content", "source", "similarity"]
             rows = []
             for row in cur.fetchall():
-                d = dict(zip(cols, row))
+                d = dict(zip(cols, row, strict=False))
                 d["id"] = str(d["id"])
                 rows.append(d)
             return rows
@@ -101,7 +102,7 @@ class KnowledgeRepo(BasePostgresRepo):
             cols = ["id", "tier", "domain", "title", "content", "source", "similarity"]
             rows = []
             for row in cur.fetchall():
-                d = dict(zip(cols, row))
+                d = dict(zip(cols, row, strict=False))
                 d["id"] = str(d["id"])
                 rows.append(d)
             return rows
@@ -118,7 +119,7 @@ class KnowledgeRepo(BasePostgresRepo):
             cols = ["id", "tier", "domain", "title", "content", "source"]
             rows = []
             for row in cur.fetchall():
-                d = dict(zip(cols, row))
+                d = dict(zip(cols, row, strict=False))
                 d["id"] = str(d["id"])
                 rows.append(d)
             return rows
@@ -137,7 +138,7 @@ class KnowledgeRepo(BasePostgresRepo):
             cols = ["id", "tier", "domain", "title", "content", "source"]
             rows = []
             for row in cur.fetchall():
-                d = dict(zip(cols, row))
+                d = dict(zip(cols, row, strict=False))
                 d["id"] = str(d["id"])
                 rows.append(d)
             return rows
@@ -156,7 +157,7 @@ class KnowledgeRepo(BasePostgresRepo):
             cols = ["id", "tier", "domain", "title", "content", "source"]
             rows = []
             for row in cur.fetchall():
-                d = dict(zip(cols, row))
+                d = dict(zip(cols, row, strict=False))
                 d["id"] = str(d["id"])
                 rows.append(d)
             return rows
@@ -173,7 +174,7 @@ class KnowledgeRepo(BasePostgresRepo):
             cols = ["id", "tier", "domain", "title", "content", "source"]
             rows = []
             for row in cur.fetchall():
-                d = dict(zip(cols, row))
+                d = dict(zip(cols, row, strict=False))
                 d["id"] = str(d["id"])
                 rows.append(d)
             return rows
@@ -195,7 +196,7 @@ class KnowledgeRepo(BasePostgresRepo):
             cols = ["id", "tier", "domain", "title", "content", "source", "created_at"]
             rows = []
             for row in cur.fetchall():
-                d = dict(zip(cols, row))
+                d = dict(zip(cols, row, strict=False))
                 d["id"] = str(d["id"])
                 rows.append(d)
             return rows
@@ -212,7 +213,7 @@ class KnowledgeRepo(BasePostgresRepo):
             if not row:
                 return None
             cols = ["id", "tier", "domain", "title", "content", "source", "created_at"]
-            d = dict(zip(cols, row))
+            d = dict(zip(cols, row, strict=False))
             d["id"] = str(d["id"])
             return d
 
@@ -247,7 +248,7 @@ class KnowledgeRepo(BasePostgresRepo):
             if not row:
                 return None
             cols = ["id", "tier", "domain", "title", "content", "source", "source_url"]
-            d = dict(zip(cols, row))
+            d = dict(zip(cols, row, strict=False))
             d["id"] = str(d["id"])
             return d
 

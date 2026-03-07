@@ -18,7 +18,7 @@ class DraftSupport(BaseGenAI):
     def _pick_template(self, input: str, context: dict) -> str:
         return self._tech_support._pick_template(input, context)
 
-    def _build_context(self, input: str, context: dict) -> dict:
+    def _build_context(self, _input: str, _context: dict) -> dict:
         return {}
 
     def _parse_response(self, raw: dict) -> dict:

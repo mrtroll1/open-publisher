@@ -61,10 +61,10 @@ class TechSupport(BaseGenAI):
             "lookup_email": lookup_email,
         }
 
-    def _pick_template(self, input: str, context: dict) -> str:
+    def _pick_template(self, _input: str, _context: dict) -> str:
         return "email/support-email.md"
 
-    def _build_context(self, input: str, context: dict) -> dict:
+    def _build_context(self, _input: str, _context: dict) -> dict:
         return {}
 
     def _parse_response(self, raw: dict) -> dict:

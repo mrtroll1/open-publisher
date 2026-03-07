@@ -44,7 +44,7 @@ class RepoGateway:
                 shutil.rmtree(path)
             subprocess.run(
                 ["git", "clone", "--depth", "1", url, str(path)],
-                capture_output=True, timeout=60,
+                capture_output=True, timeout=60, check=False,
             )
 
     def search_code(
@@ -60,7 +60,7 @@ class RepoGateway:
                 continue
             proc = subprocess.run(
                 ["grep", "-rn", *_GREP_EXTENSIONS, "--", query, str(path)],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True, text=True, timeout=30, check=False,
             )
             for line in proc.stdout.splitlines()[:20]:
                 parts = line.split(":", 2)

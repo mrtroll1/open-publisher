@@ -19,10 +19,9 @@ class Router(BaseGenAI):
         tool_name = result.get("command", "")
         if tool_name == "conversation":
             return None
-        matched = next((t for t in routable if t.name == tool_name), None)
-        return matched  # None = conversation mode
+        return next((t for t in routable if t.name == tool_name), None)
 
-    def _pick_template(self, input: str, context: dict) -> str:
+    def _pick_template(self, _input: str, _context: dict) -> str:
         return "chat/classify-command.md"
 
     def _build_context(self, input: str, context: dict) -> dict:

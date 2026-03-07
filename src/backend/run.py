@@ -7,14 +7,15 @@ from datetime import datetime, timedelta, timezone
 
 import uvicorn
 
+from backend.api import app
 from backend.config import KNOWLEDGE_PIPELINE_INTERVAL
+from backend.wiring import create_brain
 
 logger = logging.getLogger(__name__)
 
 
 async def _daily_article_ingest():
     """Ingest today's articles every day at 6:30 AM CET."""
-    from backend.wiring import create_brain
     components = create_brain()
     cet = timezone(timedelta(hours=1))
     while True:
@@ -36,7 +37,6 @@ async def _daily_article_ingest():
 
 async def _knowledge_pipeline():
     """Run knowledge pipelines periodically."""
-    from backend.wiring import create_brain
     components = create_brain()
     while True:
         await asyncio.sleep(KNOWLEDGE_PIPELINE_INTERVAL)
@@ -47,7 +47,7 @@ async def _knowledge_pipeline():
 
 
 @asynccontextmanager
-async def lifespan(app):
+async def lifespan(_app):
     """Start background tasks on API startup."""
     tasks = [
         asyncio.create_task(_daily_article_ingest()),
@@ -64,7 +64,6 @@ def main():
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
     )
     # Patch the app lifespan before running
-    from backend.api import app
     app.router.lifespan_context = lifespan
     uvicorn.run(app, host="0.0.0.0", port=8100)
 

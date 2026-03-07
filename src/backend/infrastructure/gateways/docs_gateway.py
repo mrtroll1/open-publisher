@@ -115,9 +115,10 @@ class DocsGateway:
             logger.error("Inserted table not found in document")
             return None
 
-        cell_idx: list[list[int]] = []
-        for row in table_element["table"]["tableRows"]:
-            cell_idx.append([cell["content"][0]["startIndex"] for cell in row["tableCells"]])
+        cell_idx: list[list[int]] = [
+            [cell["content"][0]["startIndex"] for cell in row["tableCells"]]
+            for row in table_element["table"]["tableRows"]
+        ]
         return cell_idx
 
     @staticmethod
@@ -128,7 +129,7 @@ class DocsGateway:
         data: list[list[str]] = [column_headers]
         if isinstance(third_col_values, str):
             third_col_values = [third_col_values] * len(articles)
-        for i, (article, third_val) in enumerate(zip(articles, third_col_values), 1):
+        for i, (article, third_val) in enumerate(zip(articles, third_col_values, strict=False), 1):
             article_code = f"{article.article_id} - {article.role_code.value}"
             data.append([str(i), article_code, third_val])
         return data
@@ -136,16 +137,16 @@ class DocsGateway:
     @staticmethod
     def _build_fill_requests(data: list[list[str]], cell_idx: list[list[int]]) -> list[dict]:
         # Bottom-right to top-left so indices stay valid
-        requests = []
-        for row in range(len(data) - 1, -1, -1):
-            for col in range(2, -1, -1):
-                requests.append({
-                    "insertText": {
-                        "text": data[row][col],
-                        "location": {"index": cell_idx[row][col]},
-                    }
-                })
-        return requests
+        return [
+            {
+                "insertText": {
+                    "text": data[row][col],
+                    "location": {"index": cell_idx[row][col]},
+                }
+            }
+            for row in range(len(data) - 1, -1, -1)
+            for col in range(2, -1, -1)
+        ]
 
     def export_pdf(self, doc_id: str) -> bytes:
         """Export a Google Doc as PDF bytes."""

@@ -16,7 +16,7 @@ class IngestUseCase(BaseUseCase):
         self._summarizer = summarizer
         self._memory = memory
 
-    def execute(self, prepared: Any, env: dict, user: dict) -> list[str]:
+    def execute(self, prepared: Any, _env: dict, _user: dict) -> list[str]:
         entry_ids = []
         for article in prepared:
             if article.get("content"):

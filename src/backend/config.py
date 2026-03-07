@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+from google.oauth2.credentials import Credentials as OAuthCredentials
 from google.oauth2.service_account import Credentials
 
 _ROOT = Path(__file__).resolve().parent.parent
@@ -94,8 +95,6 @@ CHIEF_EDITOR_EMAIL = os.getenv("CHIEF_EDITOR_EMAIL", "")
 
 def get_gmail_creds():
     """Build Gmail OAuth2 credentials from refresh token."""
-    from google.oauth2.credentials import Credentials as OAuthCredentials
-
     return OAuthCredentials(
         token=None,
         refresh_token=GMAIL_REFRESH_TOKEN,
@@ -190,16 +189,16 @@ EDITORIAL_CHAT_ID = int(os.getenv("EDITORIAL_CHAT_ID", "0"))
 BOT_USERNAME = os.getenv("BOT_USERNAME", "")
 
 # --- Scheduling intervals (seconds) ---
-KNOWLEDGE_PIPELINE_INTERVAL = int(os.getenv("KNOWLEDGE_PIPELINE_INTERVAL", 6 * 3600))
-EMAIL_POLL_INTERVAL = int(os.getenv("EMAIL_POLL_INTERVAL", 60))
-EMAIL_RECENT_WINDOW = int(os.getenv("EMAIL_RECENT_WINDOW", 120))
-EMAIL_IDLE_TIMEOUT = int(os.getenv("EMAIL_IDLE_TIMEOUT", 300))
-EMAIL_ERROR_RETRY_DELAY = int(os.getenv("EMAIL_ERROR_RETRY_DELAY", 30))
+KNOWLEDGE_PIPELINE_INTERVAL = int(os.getenv("KNOWLEDGE_PIPELINE_INTERVAL", "21600"))
+EMAIL_POLL_INTERVAL = int(os.getenv("EMAIL_POLL_INTERVAL", "60"))
+EMAIL_RECENT_WINDOW = int(os.getenv("EMAIL_RECENT_WINDOW", "120"))
+EMAIL_IDLE_TIMEOUT = int(os.getenv("EMAIL_IDLE_TIMEOUT", "300"))
+EMAIL_ERROR_RETRY_DELAY = int(os.getenv("EMAIL_ERROR_RETRY_DELAY", "30"))
 
 # --- Knowledge expiry (days) ---
-EXPIRY_CONVERSATION_FACTS_DAYS = int(os.getenv("EXPIRY_CONVERSATION_FACTS_DAYS", 30))
-EXPIRY_ARTICLE_SUMMARY_DAYS = int(os.getenv("EXPIRY_ARTICLE_SUMMARY_DAYS", 90))
-EXPIRY_COMPETITOR_SUMMARY_DAYS = int(os.getenv("EXPIRY_COMPETITOR_SUMMARY_DAYS", 90))
+EXPIRY_CONVERSATION_FACTS_DAYS = int(os.getenv("EXPIRY_CONVERSATION_FACTS_DAYS", "30"))
+EXPIRY_ARTICLE_SUMMARY_DAYS = int(os.getenv("EXPIRY_ARTICLE_SUMMARY_DAYS", "90"))
+EXPIRY_COMPETITOR_SUMMARY_DAYS = int(os.getenv("EXPIRY_COMPETITOR_SUMMARY_DAYS", "90"))
 
 # --- External DBs (read-only, via SSH tunnel) ---
 REPUBLIC_SSH_HOST = os.getenv("REPUBLIC_SSH_HOST", "")

@@ -188,7 +188,7 @@ class InboxProcessUseCase(BaseUseCase):
         self._classifier = classifier
         self._workflow = workflow
 
-    def execute(self, prepared: Any, env: dict, user: dict) -> Any:
+    def execute(self, prepared: Any, _env: dict, _user: dict) -> Any:
         # Rule-based first
         rule_category = self._workflow.classify_by_address(prepared) if hasattr(prepared, "to_addr") else "unknown"
         if rule_category != "unknown":

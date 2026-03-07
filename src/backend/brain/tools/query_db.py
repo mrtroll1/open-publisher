@@ -13,7 +13,7 @@ def make_query_db_tools(query_db_map: dict) -> list[Tool]:
     tools = []
     for db_name, query_db in query_db_map.items():
         def _make_fn(qdb):
-            def fn(args: dict, ctx: ToolContext) -> dict:
+            def fn(args: dict, _ctx: ToolContext) -> dict:
                 result = qdb.run(args["question"], {})
                 rows = result.get("rows", [])
                 if rows:

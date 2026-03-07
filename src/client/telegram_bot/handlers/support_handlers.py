@@ -24,18 +24,18 @@ from telegram_bot.handler_utils import (
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "cmd_support",
+    "_send_editorial",
+    "_send_support_draft",
     "cmd_code",
     "cmd_health",
+    "cmd_support",
     "handle_code_rate_callback",
-    "handle_support_callback",
     "handle_editorial_callback",
-    "_send_support_draft",
-    "_send_editorial",
+    "handle_support_callback",
 ]
 
 
-async def cmd_support(message: types.Message, state: FSMContext) -> None:
+async def cmd_support(message: types.Message, _state: FSMContext) -> None:
     args = message.text.split(maxsplit=1)
     if len(args) < 2 or not args[1].strip():
         await message.answer(replies.admin.support_usage)
@@ -68,7 +68,35 @@ async def cmd_support(message: types.Message, state: FSMContext) -> None:
         await message.answer(replies.admin.support_error)
 
 
-async def cmd_code(message: types.Message, state: FSMContext) -> None:
+async def _resolve_resume_session(message: types.Message) -> str | None:
+    """Check if replying to a previous Claude Code message and return session ID."""
+    reply = message.reply_to_message
+    if not (reply and reply.from_user and reply.from_user.is_bot):
+        return None
+    try:
+        msg = await backend_client.get_message_by_telegram_id(
+            message.chat.id, reply.message_id,
+        )
+        if msg and (msg.get("metadata") or {}).get("claude_session_id"):
+            return msg["metadata"]["claude_session_id"]
+    except Exception:
+        logger.debug("Could not look up session_id for reply", exc_info=True)
+    return None
+
+
+def _build_code_input(*, verbose: bool, expert: bool, resume_session_id: str | None, text: str) -> str:
+    """Build the input string with flags for the code command."""
+    flags = ""
+    if verbose:
+        flags += "-v "
+    if expert:
+        flags += "-e "
+    if resume_session_id:
+        flags += f"--resume={resume_session_id} "
+    return flags + text
+
+
+async def cmd_code(message: types.Message, _state: FSMContext) -> None:
     args = message.text.split(maxsplit=1)
     if len(args) < 2 or not args[1].strip():
         await message.answer(replies.admin.code_usage)
@@ -79,29 +107,10 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
         await message.answer(replies.admin.code_no_query)
         return
 
-    # Check if replying to a previous Claude Code message — resume session
-    resume_session_id = None
-    reply = message.reply_to_message
-    if reply and reply.from_user and reply.from_user.is_bot:
-        try:
-            msg = await backend_client.get_message_by_telegram_id(
-                message.chat.id, reply.message_id,
-            )
-            if msg and (msg.get("metadata") or {}).get("claude_session_id"):
-                resume_session_id = msg["metadata"]["claude_session_id"]
-        except Exception:
-            logger.debug("Could not look up session_id for reply", exc_info=True)
+    resume_session_id = await _resolve_resume_session(message)
+    input_text = _build_code_input(verbose=verbose, expert=expert, resume_session_id=resume_session_id, text=text)
 
     try:
-        flags = ""
-        if verbose:
-            flags += "-v "
-        if expert:
-            flags += "-e "
-        if resume_session_id:
-            flags += f"--resume={resume_session_id} "
-        input_text = flags + text
-
         async with ThinkingMessage(message, "Запускаю Claude Code...") as thinking:
             result = await backend_client.command(
                 "code", input_text,
@@ -135,7 +144,7 @@ async def cmd_code(message: types.Message, state: FSMContext) -> None:
         await message.answer(replies.admin.code_error)
 
 
-async def cmd_health(message: types.Message, state: FSMContext) -> None:
+async def cmd_health(message: types.Message, _state: FSMContext) -> None:
     await send_typing(message.chat.id)
     result = await backend_client.command(
         "health", "",

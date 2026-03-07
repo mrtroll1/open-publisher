@@ -1,5 +1,6 @@
 """Admin interaction handlers — invoice generation, batch operations, lookups."""
 
+import base64
 import logging
 import os
 import tempfile
@@ -59,7 +60,7 @@ def _find_or_suggest(raw_name: str, contractors: list) -> tuple[Contractor | Non
     return None, msg("Контрагент не найден.")
 
 
-def handle_generate(payload: Payload, ctx: InteractContext) -> dict:
+def handle_generate(payload: Payload, ctx: InteractContext) -> dict:  # noqa: PLR0911 — guard clauses
     progress = ctx.get("progress")
     text = payload.get("text", "").strip()
     if not text:
@@ -119,7 +120,7 @@ def handle_generate(payload: Payload, ctx: InteractContext) -> dict:
     }])
 
 
-def handle_articles(payload: Payload, ctx: InteractContext) -> dict:
+def handle_articles(payload: Payload, _ctx: InteractContext) -> dict:
     text = payload.get("text", "").strip()
     if not text:
         return respond([msg("Использование: /articles <имя> [YYYY-MM]")])
@@ -149,7 +150,7 @@ def handle_articles(payload: Payload, ctx: InteractContext) -> dict:
     })])
 
 
-def handle_lookup(payload: Payload, ctx: InteractContext) -> dict:
+def handle_lookup(payload: Payload, _ctx: InteractContext) -> dict:
     text = payload.get("text", "").strip()
     if not text:
         return respond([msg("Использование: /lookup <имя>")])
@@ -226,7 +227,7 @@ def handle_batch_generate(payload: Payload, ctx: InteractContext) -> dict:
     return respond(messages)
 
 
-def handle_send_global(payload: Payload, ctx: InteractContext) -> dict:
+def handle_send_global(payload: Payload, _ctx: InteractContext) -> dict:
     debug = "debug" in payload.get("text", "").lower().split()
     month = prev_month()
     invoices = load_invoices(month)
@@ -266,7 +267,7 @@ def handle_send_global(payload: Payload, ctx: InteractContext) -> dict:
                 errors.append(f"{contractor.display_name}: не привязан к Telegram")
                 continue
             sides.append(side_msg(
-                int(contractor.telegram), pdf_bytes=pdf_bytes, filename=filename,
+                int(contractor.telegram), file=(pdf_bytes, filename),
                 text="Ваша проформа. Пожалуйста, подпишите и отправьте обратно в этот чат.",
             ))
 
@@ -282,7 +283,7 @@ def handle_send_global(payload: Payload, ctx: InteractContext) -> dict:
     return respond(messages, side_messages=sides)
 
 
-def handle_send_legium(payload: Payload, ctx: InteractContext) -> dict:
+def handle_send_legium(payload: Payload, _ctx: InteractContext) -> dict:
     debug = "debug" in payload.get("text", "").lower().split()
     month = prev_month()
     invoices = load_invoices(month)
@@ -318,7 +319,7 @@ def handle_send_legium(payload: Payload, ctx: InteractContext) -> dict:
                 filename = f"{contractor.display_name}+Unsigned.pdf"
                 sides.append(side_msg(
                     int(contractor.telegram), text=caption,
-                    pdf_bytes=prepared.pdf_bytes, filename=filename,
+                    file=(prepared.pdf_bytes, filename),
                 ))
             else:
                 sides.append(side_msg(int(contractor.telegram), text=caption))
@@ -335,7 +336,7 @@ def handle_send_legium(payload: Payload, ctx: InteractContext) -> dict:
     return respond(messages, side_messages=sides)
 
 
-def handle_orphans(payload: Payload, ctx: InteractContext) -> dict:
+def handle_orphans(_payload: Payload, _ctx: InteractContext) -> dict:
     month = prev_month()
     contractors = load_all_contractors()
     budget_amounts = load_budget_amounts(month)
@@ -352,7 +353,6 @@ def handle_orphans(payload: Payload, ctx: InteractContext) -> dict:
 
 def handle_upload_statement(payload: Payload, ctx: InteractContext) -> dict:
     progress = ctx.get("progress")
-    import base64
     file_b64 = payload.get("file_b64")
     rate_str = payload.get("rate", "")
     if not file_b64 or not rate_str:
@@ -373,7 +373,7 @@ def handle_upload_statement(payload: Payload, ctx: InteractContext) -> dict:
         if progress:
             progress.emit("parse_statement", "Обрабатываю выписку")
         uc = create_parse_bank_statement()
-        expenses = uc.execute(tmp_path, rate, True)
+        expenses = uc.execute(tmp_path, rate, upload=True)
         review_count = sum(1 for e in expenses if e.comment == "NEEDS REVIEW")
         return respond([msg(data={
             "type": DT.UPLOAD_RESULT,
@@ -388,7 +388,7 @@ def handle_upload_statement(payload: Payload, ctx: InteractContext) -> dict:
             os.unlink(tmp_path)
 
 
-def handle_legium_reply(payload: Payload, ctx: InteractContext) -> dict:
+def handle_legium_reply(payload: Payload, _ctx: InteractContext) -> dict:
     """Admin replied to an invoice message with a legium URL."""
     url = payload.get("text", "").strip()
     contractor_id = payload.get("contractor_id", "")
@@ -408,13 +408,12 @@ def handle_legium_reply(payload: Payload, ctx: InteractContext) -> dict:
         if prepared:
             filename = f"{contractor.display_name}+Unsigned.pdf"
             sides.append(side_msg(int(contractor_telegram), text=caption,
-                                  pdf_bytes=prepared.pdf_bytes, filename=filename))
+                                  file=(prepared.pdf_bytes, filename)))
         else:
             sides.append(side_msg(int(contractor_telegram), text=caption))
         return respond([msg("Ссылка отправлена контрагенту.")], side_messages=sides)
-    else:
-        update_legium_link(contractor_id, month, url, mark_sent=False)
-        return respond([msg(
-            "Контрагент не привязан к Telegram. "
-            "Ссылка сохранена — отправится через /send_legium_links."
-        )])
+    update_legium_link(contractor_id, month, url, mark_sent=False)
+    return respond([msg(
+        "Контрагент не привязан к Telegram. "
+        "Ссылка сохранена — отправится через /send_legium_links."
+    )])

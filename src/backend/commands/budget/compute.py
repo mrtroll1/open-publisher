@@ -141,7 +141,7 @@ class ComputeBudget:
         self,
         published_authors: list[dict[str, str | int]],
         contractors: list[Contractor],
-        month: str,
+        _month: str,
     ) -> list[PaymentEntry]:
         lookups = self._load_rule_lookups()
         flat_rate_rules, flat_by_id, label_by_id, rate_by_id = (
@@ -161,8 +161,8 @@ class ComputeBudget:
 
         groups = self._classify_entries(
             matched, flat_rate_rules, contractors,
-            flat_by_id, label_by_id, rate_by_id,
-            author_counts, redirect_bonuses,
+            flat_by_id=flat_by_id, label_by_id=label_by_id, rate_by_id=rate_by_id,
+            author_counts=author_counts, redirect_bonuses=redirect_bonuses,
         )
 
         unmatched_entries = [
@@ -264,11 +264,12 @@ class ComputeBudget:
 
         return matched, unmatched, redirect_bonuses
 
-    def _classify_entries(
+    def _classify_entries(  # noqa: PLR0913
         self,
         matched: dict[str, tuple[Contractor, int]],
         flat_rate_rules: list,
         contractors: list[Contractor],
+        *,
         flat_by_id: dict[str, tuple[int, int]],
         label_by_id: dict[str, str],
         rate_by_id: dict[str, tuple[int, int]],
@@ -281,18 +282,21 @@ class ComputeBudget:
         seen_ids: set[str] = set()
 
         self._process_matched_entries(
-            matched, flat_by_id, rate_by_id, label_by_id,
-            redirect_bonuses, groups, seen_ids,
+            matched,
+            flat_by_id=flat_by_id, rate_by_id=rate_by_id, label_by_id=label_by_id,
+            redirect_bonuses=redirect_bonuses, groups=groups, seen_ids=seen_ids,
         )
         self._process_flat_entries(
-            flat_rate_rules, contractors, flat_by_id, rate_by_id,
-            author_counts, redirect_bonuses, label_by_id, groups, seen_ids,
+            flat_rate_rules, contractors,
+            flat_by_id=flat_by_id, rate_by_id=rate_by_id,
+            author_counts=author_counts, redirect_bonuses=redirect_bonuses,
+            label_by_id=label_by_id, groups=groups, seen_ids=seen_ids,
         )
         return groups
 
-    def _process_matched_entries(
+    def _process_matched_entries(  # noqa: PLR0913
         self,
-        matched: dict[str, tuple[Contractor, int]],
+        matched: dict[str, tuple[Contractor, int]], *,
         flat_by_id: dict[str, tuple[int, int]],
         rate_by_id: dict[str, tuple[int, int]],
         label_by_id: dict[str, str],
@@ -310,18 +314,19 @@ class ComputeBudget:
             entry_label = label_by_id.get(cid, "") or _role_label(c)
             entry = self._make_noted_entry(c, amount, entry_label, redirect_bonuses)
             self._route_entry(c, entry_label, entry, flat_by_id,
-                              groups["authors"], groups["staff"], groups["editors"],
-                              groups["services"], groups["chief"])
+                              authors=groups["authors"], staff=groups["staff"],
+                              editors=groups["editors"], services=groups["services"],
+                              chief=groups["chief"])
 
-    def _process_flat_entries(
+    def _process_flat_entries(  # noqa: PLR0913
         self,
         flat_rate_rules: list,
-        contractors: list[Contractor],
+        contractors: list[Contractor], *,
         flat_by_id: dict[str, tuple[int, int]],
         rate_by_id: dict[str, tuple[int, int]],
         author_counts: dict[str, int],
         redirect_bonuses: dict[str, list[tuple[str, int, bool]]],
-        label_by_id: dict[str, str],
+        _label_by_id: dict[str, str],
         groups: dict[str, list[PaymentEntry]],
         seen_ids: set[str],
     ) -> None:
@@ -349,8 +354,9 @@ class ComputeBudget:
             entry_label = fr.label or _role_label(c)
             entry = self._make_noted_entry(c, amount, entry_label, redirect_bonuses)
             self._route_entry(c, entry_label, entry, flat_by_id,
-                              groups["authors"], groups["staff"], groups["editors"],
-                              groups["services"], groups["chief"])
+                              authors=groups["authors"], staff=groups["staff"],
+                              editors=groups["editors"], services=groups["services"],
+                              chief=groups["chief"])
 
     @staticmethod
     def _make_noted_entry(
@@ -401,11 +407,11 @@ class ComputeBudget:
         return result
 
     @staticmethod
-    def _route_entry(
+    def _route_entry(  # noqa: PLR0913
         contractor: Contractor,
         label: str,
         entry: PaymentEntry,
-        flat_ids: dict[str, tuple[int, int]],
+        flat_ids: dict[str, tuple[int, int]], *,
         authors: list[PaymentEntry],
         staff: list[PaymentEntry],
         editors: list[PaymentEntry],

@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any
+
+from google.genai import types
 
 from backend.brain.authorizer import AuthContext
 from backend.brain.tool import Tool
-from backend.config import GEMINI_MODEL_SMART
+from backend.config import GEMINI_MODEL_SMART, REPUBLIC_SITE_URL
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.memory.retriever import KnowledgeRetriever
 from backend.infrastructure.repositories.postgres import DbGateway
@@ -23,7 +27,6 @@ def _format_reply_chain(chain: list[dict]) -> str:
     for entry in chain:
         meta = entry.get("metadata") or {}
         if isinstance(meta, str):
-            import json
             try:
                 meta = json.loads(meta)
             except (json.JSONDecodeError, TypeError):
@@ -55,9 +58,6 @@ def _build_conversation_context(
 
 def _build_system_prompt(env: dict, user_context: str, knowledge: str,
                          conversation_history: str) -> str:
-    from datetime import datetime, timedelta, timezone
-
-    from backend.config import REPUBLIC_SITE_URL
     now = datetime.now(timezone(timedelta(hours=1)))
     parts = [
         f"Текущая дата и время: {now.strftime('%Y-%m-%d %H:%M')} (CET)",
@@ -244,7 +244,6 @@ class _ConversationContext:
         return self._reply(text or "Превышен лимит шагов.")
 
     def _init_turn_history(self, resp_content):
-        from google.genai import types
         history = [types.Content(role="user", parts=[types.Part.from_text(text=self.input)])]
         if resp_content:
             history.append(resp_content)
@@ -265,7 +264,6 @@ class _ConversationContext:
 
     def _append_turn(self, turn_history, results, resp_content):
         if resp_content:
-            from google.genai import types
             turn_history.append(types.Content(parts=[
                 types.Part.from_function_response(name=r["name"], response=r["result"])
                 for r in results

@@ -11,7 +11,7 @@ class SummarizeArticle(BaseGenAI):
         super().__init__(gemini)
         self._retriever = retriever
 
-    def _pick_template(self, input: str, context: dict) -> str:
+    def _pick_template(self, _input: str, _context: dict) -> str:
         return "knowledge/summarize-article.md"
 
     def _build_context(self, input: str, context: dict) -> dict:

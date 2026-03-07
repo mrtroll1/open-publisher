@@ -54,8 +54,8 @@ def _format_budget_explanation(total: int, note: str, sym: str) -> str:
         return f"Сумма: {_fmt(total)}{sym}"
 
     bonuses: list[tuple[str, int]] = []
-    for part in note.split(","):
-        part = part.strip()
+    for raw_part in note.split(","):
+        part = raw_part.strip()
         if "(" not in part or ")" not in part:
             continue
         idx_open = part.rfind("(")

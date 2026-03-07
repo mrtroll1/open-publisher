@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import ClassVar
 from urllib.parse import quote
 
 import requests
@@ -20,7 +21,7 @@ _BASE = f"{REDEFINE_API_URL}/s2s/support"
 class RedefineGateway:
     """Read-only access to Redefine support endpoints."""
 
-    _headers = {"X-Api-Key": REDEFINE_SUPPORT_API_KEY}
+    _headers: ClassVar[dict[str, str]] = {"X-Api-Key": REDEFINE_SUPPORT_API_KEY}
 
     def get_customer_by_email(self, email: str) -> dict | None:
         """Look up a Redefine customer by email."""

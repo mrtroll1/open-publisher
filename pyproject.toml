@@ -11,18 +11,39 @@ select = [
     "SIM",    # flake8-simplify — simplifiable patterns (if/else, returns)
     "I",      # isort — tidy imports
     "C901",   # McCabe complexity — keep functions simple
+    "B",      # flake8-bugbear — real bugs & design smells
+    "RET",    # flake8-return — guard clauses over nested else-after-return
+    "PIE",    # flake8-pie — unnecessary pass, dict.setdefault, etc.
+    "T20",    # flake8-print — stray print() in production code
+    "ARG",    # flake8-unused-arguments — dead parameters
+    "PLC",    # pylint convention — misused dunder names, bad string format
+    "PLE",    # pylint error — actual bugs
+    "PLW",    # pylint warning — unreachable code, dangerous defaults
+    "PLR0911",# too many return statements
+    "PLR0913",# too many arguments
+    "PLR0915",# too many statements
+    "RUF",    # ruff-specific — mutable class defaults, ambiguous chars
+    "PERF",   # perflint — unnecessary list() in iteration, dict copies
+    "FBT",    # flake8-boolean-trap — boolean positional args
 ]
 ignore = [
     "E501",   # line length — ruff format handles this better than hard errors
     "SIM105", # contextlib.suppress — less clear than try/except for async code
     "SIM108", # ternary — not always clearer
+    "RUF001", # ambiguous unicode — we have Russian text everywhere
+    "RUF002", # ambiguous unicode in docstrings — same reason
+    "RUF003", # ambiguous unicode in comments — same reason
 ]
 
 [tool.ruff.lint.mccabe]
-max-complexity = 12
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 5
 
 [tool.ruff.lint.per-file-ignores]
 "src/backend/__init__.py" = ["E402", "F401"]
+"tests/**" = ["ARG", "PLC0415"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["backend", "client"]

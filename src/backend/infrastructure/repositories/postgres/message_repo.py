@@ -21,7 +21,7 @@ def normalize_email_subject(subject: str) -> str:
 
 
 def _row_to_dict(row, cols=_MSG_COLS) -> dict:
-    d = dict(zip(cols, row))
+    d = dict(zip(cols, row, strict=False))
     d["id"] = str(d["id"])
     if d.get("parent_id"):
         d["parent_id"] = str(d["parent_id"])
@@ -32,7 +32,7 @@ def _row_to_dict(row, cols=_MSG_COLS) -> dict:
 
 class MessageRepo(BasePostgresRepo):
 
-    def save_message(self, text: str, environment: str | None = None,
+    def save_message(self, text: str, *, environment: str | None = None,  # noqa: PLR0913
                      chat_id: int | None = None, type: str = "user",
                      user_id: str | None = None, parent_id: str | None = None,
                      metadata: dict | None = None, embedding: list[float] | None = None) -> str:

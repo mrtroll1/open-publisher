@@ -29,6 +29,7 @@ async def _request_with_retry(method: str, url: str, **kwargs) -> httpx.Response
                 raise
             logger.warning("API unavailable, retrying in %ds (%d/%d)", _RETRY_DELAY, attempt + 1, _MAX_RETRIES)
             await asyncio.sleep(_RETRY_DELAY)
+    return None
 
 
 async def _read_sse(resp, on_progress: Callable | None = None) -> dict | None:
@@ -63,6 +64,7 @@ async def _stream_with_retry(method: str, url: str, on_progress: Callable | None
                 raise
             logger.warning("API unavailable (stream), retrying in %ds (%d/%d)", _RETRY_DELAY, attempt + 1, _MAX_RETRIES)
             await asyncio.sleep(_RETRY_DELAY)
+    return None
 
 
 class BackendError(Exception):
@@ -79,7 +81,7 @@ def _unwrap(resp: httpx.Response) -> dict | str | list | None:
 
 # --- Interact ---
 
-async def interact(action: str, payload: dict = None, context: dict = None) -> dict:
+async def interact(action: str, payload: dict | None = None, context: dict | None = None) -> dict:
     resp = await _request_with_retry("POST","/interact", json={
         "action": action, "payload": payload or {}, "context": context or {},
     })
@@ -88,8 +90,8 @@ async def interact(action: str, payload: dict = None, context: dict = None) -> d
 
 async def interact_stream(
     action: str,
-    payload: dict = None,
-    context: dict = None,
+    payload: dict | None = None,
+    context: dict | None = None,
     on_progress: Callable[[str, str], None] | None = None,
 ) -> dict:
     """Call /interact/stream SSE endpoint. on_progress can be sync or async."""
@@ -99,7 +101,7 @@ async def interact_stream(
 
 # --- Brain ---
 
-async def process(input: str, environment_id: str, user_id: str,
+async def process(input: str, environment_id: str, user_id: str, *,  # noqa: PLR0913
                   chat_id: int | None = None,
                   reply_to_message_id: int | None = None,
                   reply_to_text: str = "") -> dict:
@@ -115,8 +117,8 @@ async def process(input: str, environment_id: str, user_id: str,
     return _unwrap(resp)
 
 
-async def process_stream(
-    input: str, environment_id: str, user_id: str,
+async def process_stream(  # noqa: PLR0913
+    input: str, environment_id: str, user_id: str, *,
     chat_id: int | None = None,
     reply_to_message_id: int | None = None,
     reply_to_text: str = "",
@@ -304,7 +306,7 @@ async def add_user_note(user_id: str, text: str, domain: str = "general"):
 
 # --- Messages ---
 
-async def save_message(text: str, environment: str | None = None,
+async def save_message(text: str, *, environment: str | None = None,  # noqa: PLR0913
                        chat_id: int | None = None, type: str = "user",
                        user_id: str | None = None, parent_id: str | None = None,
                        metadata: dict | None = None) -> str:

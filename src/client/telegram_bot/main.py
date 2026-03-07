@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 dp = Dispatcher()
 register_all(dp)
 
+_background_tasks: set[asyncio.Task] = set()
+
 
 async def main():
     logging.basicConfig(
@@ -24,7 +26,9 @@ async def main():
     logger.info("Starting bot...")
     await load_admin_ids()
     await set_bot_commands(bot)
-    asyncio.create_task(email_listener_task())
+    task = asyncio.create_task(email_listener_task())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
     await dp.start_polling(bot)
 
 

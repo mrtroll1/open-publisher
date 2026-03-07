@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import date as _date
 
 from aiogram import types
 from aiogram.enums import ChatAction
@@ -26,21 +27,21 @@ _support_draft_map: dict[tuple[int, int], str] = {}
 _kedit_pending: dict[tuple[int, int], str] = {}
 
 __all__ = [
-    "send_typing",
     "ThinkingMessage",
-    "parse_month_arg",
-    "parse_date_range_arg",
-    "resolve_environment_record",
-    "resolve_environment",
-    "resolve_user_context",
+    "_admin_reply_map",
+    "_kedit_pending",
+    "_parse_flags",
     "_safe_edit_text",
+    "_save_turn",
     "_send",
     "_send_html",
-    "_save_turn",
-    "_parse_flags",
-    "_admin_reply_map",
     "_support_draft_map",
-    "_kedit_pending",
+    "parse_date_range_arg",
+    "parse_month_arg",
+    "resolve_environment",
+    "resolve_environment_record",
+    "resolve_user_context",
+    "send_typing",
 ]
 
 
@@ -126,7 +127,6 @@ def parse_date_range_arg(args: list[str]) -> tuple[str, str]:
     /cmd YYYY-MM-DD             → single day
     /cmd                        → today
     """
-    from datetime import date as _date
     if len(args) >= 3:
         return args[1].strip(), args[2].strip()
     if len(args) == 2:
@@ -186,9 +186,9 @@ async def _send_html(message: types.Message, text: str, **kwargs) -> types.Messa
     return last
 
 
-async def _save_turn(
+async def _save_turn(  # noqa: PLR0913
     message: types.Message, sent: types.Message,
-    user_text: str, bot_text: str, metadata: dict,
+    user_text: str, bot_text: str, metadata: dict, *,
     parent_id: str | None = None,
 ) -> None:
     """Save user+assistant message pair to DB. Never raises.
@@ -220,11 +220,11 @@ def _parse_flags(text: str) -> tuple[bool, bool, str]:
     verbose = False
     expert = False
     while text:
-        if text.startswith("-v ") or text.startswith("verbose "):
+        if text.startswith(("-v ", "verbose ")):
             verbose = True
             parts = text.split(None, 1)
             text = parts[1] if len(parts) > 1 else ""
-        elif text.startswith("-e ") or text.startswith("expert "):
+        elif text.startswith(("-e ", "expert ")):
             expert = True
             parts = text.split(None, 1)
             text = parts[1] if len(parts) > 1 else ""

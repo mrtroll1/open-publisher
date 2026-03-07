@@ -99,15 +99,17 @@ class SupportUserLookup:
         lines = ["## Платежи"]
         if methods:
             lines.append("Способы оплаты:")
-            for m in methods:
-                lines.append(f"- {m.get('kind', '?')} {m.get('masked_number', '?')} | статус: {m.get('status', '?')}")
+            lines.extend(
+                f"- {m.get('kind', '?')} {m.get('masked_number', '?')} | статус: {m.get('status', '?')}"
+                for m in methods
+            )
         if transactions:
             lines.append("Транзакции:")
-            for t in transactions:
-                lines.append(
-                    f"- {t.get('created_at', '?')} | {t.get('currency_amount', '?')} {t.get('currency', '')} "
-                    f"| статус: {t.get('status', '?')} | тип: {t.get('type', '?')}"
-                )
+            lines.extend(
+                f"- {t.get('created_at', '?')} | {t.get('currency_amount', '?')} {t.get('currency', '')} "
+                f"| статус: {t.get('status', '?')} | тип: {t.get('type', '?')}"
+                for t in transactions
+            )
         if not methods and not transactions:
             lines.append("Данных о платежах не найдено.")
         return "\n".join(lines)
@@ -118,11 +120,11 @@ class SupportUserLookup:
         if not log:
             lines.append("Записей не найдено.")
             return "\n".join(lines)
-        for entry in log[:20]:  # cap for prompt size
-            lines.append(
-                f"- {entry.get('created_at', '?')} | {entry.get('action', '?')} "
-                f"| статус: {entry.get('status', '?')}"
-            )
+        lines.extend(
+            f"- {entry.get('created_at', '?')} | {entry.get('action', '?')} "
+            f"| статус: {entry.get('status', '?')}"
+            for entry in log[:20]  # cap for prompt size
+        )
         if len(log) > 20:
             lines.append(f"... и ещё {len(log) - 20} записей")
         return "\n".join(lines)

@@ -60,7 +60,7 @@ _retriever = None
 
 
 def _set_retriever(r) -> None:
-    global _retriever
+    global _retriever  # noqa: PLW0603 — simple module-level setter
     _retriever = r
 
 
@@ -97,7 +97,7 @@ def _format_tool_status(name: str, tool_input: dict) -> str | None:
     return label
 
 
-def _build_prompt(prompt: str, verbose: bool, expert: bool, mode: str) -> str:
+def _build_prompt(prompt: str, *, verbose: bool, expert: bool, mode: str) -> str:
     if verbose:
         return prompt
     if mode == "changes":
@@ -107,11 +107,12 @@ def _build_prompt(prompt: str, verbose: bool, expert: bool, mode: str) -> str:
     return _EXPLORE_USER_PREFIX + prompt
 
 
-def run_claude_code(prompt: str, verbose: bool = False, expert: bool = False,
+def run_claude_code(prompt: str, *,  # noqa: PLR0913
+                    verbose: bool = False, expert: bool = False,
                     mode: str = "explore",
                     on_event: Callable[[str], None] | None = None,
                     resume_session_id: str | None = None) -> CodeResult:
-    full_prompt = _build_prompt(prompt, verbose, expert, mode)
+    full_prompt = _build_prompt(prompt, verbose=verbose, expert=expert, mode=mode)
     _write_claude_md()
 
     if on_event:
@@ -139,6 +140,7 @@ def _run_simple(full_prompt: str, resume_session_id: str | None) -> CodeResult:
             text=True,
             cwd=REPOS_DIR,
             timeout=300,
+            check=False,
         )
         if result.returncode != 0:
             logger.error("Claude Code exit=%d stdout=%s stderr=%s",
@@ -254,5 +256,5 @@ class _StreamParser:
 
 
 class RunClaudeCodeUseCase(BaseUseCase):
-    def execute(self, prepared: Any, env: dict, user: dict) -> Any:
+    def execute(self, prepared: Any, _env: dict, _user: dict) -> Any:
         return run_claude_code(**prepared)

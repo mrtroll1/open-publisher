@@ -28,7 +28,7 @@ async def email_listener_task() -> None:
         logger.warning("No admin IDs configured, email listener disabled")
         return
     admin_id = next(iter(admin_ids))
-    poll_interval = int(os.getenv("EMAIL_POLL_INTERVAL", 300))
+    poll_interval = int(os.getenv("EMAIL_POLL_INTERVAL", "300"))
     logger.info("Email listener started (poll every %ds)", poll_interval)
     while True:
         try:

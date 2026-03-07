@@ -6,11 +6,11 @@ def parse_flags(text: str) -> tuple[bool, bool, str]:
     verbose = False
     expert = False
     while text:
-        if text.startswith("-v ") or text.startswith("verbose "):
+        if text.startswith(("-v ", "verbose ")):
             verbose = True
             parts = text.split(None, 1)
             text = parts[1] if len(parts) > 1 else ""
-        elif text.startswith("-e ") or text.startswith("expert "):
+        elif text.startswith(("-e ", "expert ")):
             expert = True
             parts = text.split(None, 1)
             text = parts[1] if len(parts) > 1 else ""

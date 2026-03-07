@@ -10,14 +10,14 @@ from backend.brain.dynamic.summarize_article import SummarizeArticle
 from backend.brain.dynamic.tech_support import TechSupport
 
 __all__ = [
-    "ClassifyTeaching",
-    "TechSupport",
-    "QueryDB",
-    "ClassifyInbox",
-    "DraftSupport",
     "AssessEditorial",
-    "SummarizeArticle",
+    "ClassifyInbox",
+    "ClassifyTeaching",
+    "DraftSupport",
     "ExtractKnowledge",
-    "ScrapeCompetitors",
     "ParseContractor",
+    "QueryDB",
+    "ScrapeCompetitors",
+    "SummarizeArticle",
+    "TechSupport",
 ]

@@ -8,7 +8,7 @@ import time
 
 import psycopg2
 
-from backend.config import DATABASE_URL
+from backend.config import ADMIN_TELEGRAM_IDS, DATABASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -216,8 +216,6 @@ class BasePostgresRepo:
         self._seed_bindings()
 
     def _seed_bindings(self):
-        from backend.config import ADMIN_TELEGRAM_IDS
-
         conn = self._get_conn()
         with conn.cursor() as cur:
             for admin_id in ADMIN_TELEGRAM_IDS:

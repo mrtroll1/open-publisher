@@ -8,6 +8,7 @@ import time
 import uuid
 
 from backend.brain.prompt_loader import load_template
+from backend.config import GEMINI_MODEL_FAST, GEMINI_MODEL_SMART
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.gateways.repo_gateway import RepoGateway
 from backend.infrastructure.memory.retriever import KnowledgeRetriever
@@ -69,7 +70,6 @@ class TechSupportHandler:
             "USER_DATA": context,
             "EMAIL": email_text,
         })
-        from backend.config import GEMINI_MODEL_SMART
         result = self._gemini.call(prompt, GEMINI_MODEL_SMART)
         can_answer = result.get("can_answer", False)
         logger.info("Drafted support response for %s (uid=%s, can_answer=%s)", email.from_addr, email.uid, can_answer)
@@ -77,7 +77,7 @@ class TechSupportHandler:
         draft._inbound_msg_id = msg_id
         return draft
 
-    def save_outbound(self, uid: str, draft: SupportDraft) -> None:
+    def save_outbound(self, _uid: str, draft: SupportDraft) -> None:
         inbound_id = getattr(draft, "_inbound_msg_id", None)
         if not inbound_id:
             return
@@ -94,7 +94,7 @@ class TechSupportHandler:
             },
         )
 
-    def discard(self, uid: str, draft: SupportDraft | None = None) -> None:
+    def discard(self, _uid: str, draft: SupportDraft | None = None) -> None:
         if not draft:
             return
         inbound_id = getattr(draft, "_inbound_msg_id", None)
@@ -116,7 +116,6 @@ class TechSupportHandler:
             "EMAIL": email_text,
         })
         t0 = time.time()
-        from backend.config import GEMINI_MODEL_FAST
         result = self._gemini.call(prompt, GEMINI_MODEL_FAST)
         latency_ms = int((time.time() - t0) * 1000)
         self._db.save_message(

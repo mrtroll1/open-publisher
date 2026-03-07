@@ -39,7 +39,7 @@ class LocalQueryGateway:
             with self._conn.cursor() as cur:
                 cur.execute(sql, params or None)
                 cols = [desc[0] for desc in cur.description]
-                return [dict(zip(cols, row)) for row in cur.fetchall()]
+                return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
         except Exception:
             self._conn = None
             raise
@@ -53,11 +53,12 @@ class LocalQueryGateway:
 class QueryGateway:
     """Execute read-only SQL against an external postgres via SSH tunnel."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         ssh_host: str,
         ssh_user: str,
         ssh_key_path: str,
+        *,
         db_host: str,
         db_port: int,
         db_name: str,
@@ -120,7 +121,7 @@ class QueryGateway:
             with self._conn.cursor() as cur:
                 cur.execute(sql, params or None)
                 cols = [desc[0] for desc in cur.description]
-                return [dict(zip(cols, row)) for row in cur.fetchall()]
+                return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
         except Exception:
             # Connection may be stale — reset and re-raise
             self._conn = None

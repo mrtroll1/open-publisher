@@ -7,6 +7,7 @@ from datetime import date
 
 from aiogram import Bot
 
+from telegram_bot import backend_client
 from telegram_bot.config import TELEGRAM_BOT_TOKEN
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
@@ -34,10 +35,9 @@ _admin_ids: set[int] = set()
 
 async def load_admin_ids() -> None:
     """Load admin telegram IDs from DB. Call once at bot startup."""
-    from telegram_bot import backend_client
-    global _admin_ids
     ids = await backend_client.get_admin_telegram_ids()
-    _admin_ids = set(ids)
+    _admin_ids.clear()
+    _admin_ids.update(ids)
 
 
 def is_admin(user_id: int) -> bool:
@@ -55,5 +55,4 @@ def md_to_tg_html(text: str) -> str:
     text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     text = re.sub(r"```(?:\w*)\n?(.*?)```", r"<pre>\1</pre>", text, flags=re.DOTALL)
     text = re.sub(r"`([^`\n]+)`", r"<code>\1</code>", text)
-    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text, flags=re.DOTALL)
-    return text
+    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text, flags=re.DOTALL)

@@ -11,5 +11,5 @@ class ParseBankStatementUseCase(BaseUseCase):
     def __init__(self, parser):
         self._parser = parser
 
-    def execute(self, prepared: Any, env: dict, user: dict) -> Any:
+    def execute(self, prepared: Any, _env: dict, _user: dict) -> Any:
         return self._parser.execute(prepared["filepath"], aed_to_rub=prepared.get("aed_to_rub", 1.0))

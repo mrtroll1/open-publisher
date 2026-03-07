@@ -8,7 +8,7 @@ _USER_COLS = ["id", "name", "role", "telegram_id", "email", "created_at", "updat
 
 
 def _user_row(row) -> dict:
-    d = dict(zip(_USER_COLS, row))
+    d = dict(zip(_USER_COLS, row, strict=False))
     d["id"] = str(d["id"])
     return d
 
@@ -49,7 +49,7 @@ class UserRepo(BasePostgresRepo):
         existing = self.get_user_by_email(email)
         if existing:
             return existing
-        user_id = self.save_user(name=email.split("@")[0], email=email)
+        user_id = self.save_user(name=email.split("@", maxsplit=1)[0], email=email)
         return self.get_user(user_id)
 
     def get_or_create_by_telegram_id(self, telegram_id: int) -> dict:
@@ -66,7 +66,7 @@ class UserRepo(BasePostgresRepo):
             return False
         set_parts = [f"{col} = %s" for col in to_update]
         set_parts.append("updated_at = NOW()")
-        params = list(to_update.values()) + [user_id]
+        params = [*list(to_update.values()), user_id]
         sql = f"UPDATE users SET {', '.join(set_parts)} WHERE id = %s"
         with self._cursor() as cur:
             cur.execute(sql, tuple(params))
@@ -92,7 +92,7 @@ class UserRepo(BasePostgresRepo):
             cols = ["id", "tier", "domain", "title", "content", "source", "created_at"]
             rows = []
             for row in cur.fetchall():
-                d = dict(zip(cols, row))
+                d = dict(zip(cols, row, strict=False))
                 d["id"] = str(d["id"])
                 rows.append(d)
             return rows

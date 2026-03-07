@@ -47,7 +47,7 @@ def _format_summary(data: dict | None) -> str:
 
 
 def make_yandex_metrica_tool(gw: YandexMetricaGateway) -> Tool:
-    def fn(args: dict, ctx: ToolContext) -> dict:
+    def fn(args: dict, _ctx: ToolContext) -> dict:
         method = args["method"]
         date_from = args["date_from"]
         date_to = args["date_to"]
@@ -97,7 +97,7 @@ def make_yandex_metrica_tool(gw: YandexMetricaGateway) -> Tool:
 
 
 def make_cloudflare_tool(gw: CloudflareGateway) -> Tool:
-    def fn(args: dict, ctx: ToolContext) -> dict:
+    def fn(args: dict, _ctx: ToolContext) -> dict:
         method = args["method"]
         date_from = args["date_from"]
         date_to = args["date_to"]

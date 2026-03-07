@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
+from backend.commands.invoice.service import get_invoice_folder_path
 from backend.config import (
     TEMPLATE_GLOBAL_ID,
     TEMPLATE_GLOBAL_PHOTO_ID,
@@ -46,12 +47,13 @@ class GenerateInvoice:
         self._docs = docs_gw or DocsGateway()
         self._drive = drive_gw or DriveGateway()
 
-    def create_and_save(
+    def create_and_save(  # noqa: PLR0913
         self,
         contractor: Contractor,
         month: str,
         amount: Decimal,
         articles: list[ArticleEntry],
+        *,
         invoice_date: date | None = None,
         debug: bool = False,
     ) -> InvoiceResult:
@@ -105,18 +107,16 @@ class GenerateInvoice:
         invoice_date: date,
     ) -> tuple[bytes, str]:
         """Generate the actual PDF via Google Docs templates."""
-        from backend.commands.invoice.service import get_invoice_folder_path
         parent, month_folder, name_folder = get_invoice_folder_path(contractor, invoice.month)
         folder_id = self._drive.get_contractor_folder(parent, month_folder, name_folder)
 
         if isinstance(contractor, IPContractor):
             return self._generate_ip(contractor, invoice, articles, invoice_date, folder_id)
-        elif isinstance(contractor, SamozanyatyContractor):
+        if isinstance(contractor, SamozanyatyContractor):
             return self._generate_samozanyaty(contractor, invoice, articles, invoice_date, folder_id)
-        elif isinstance(contractor, GlobalContractor):
+        if isinstance(contractor, GlobalContractor):
             return self._generate_global(contractor, invoice, articles, invoice_date, folder_id)
-        else:
-            raise ValueError(f"Unknown contractor type: {type(contractor)}")
+        raise ValueError(f"Unknown contractor type: {type(contractor)}")
 
     def _generate_global(
         self, contractor: GlobalContractor, invoice: Invoice,
@@ -143,10 +143,10 @@ class GenerateInvoice:
         logger.info("Generated Global invoice for %s: %d bytes", contractor.display_name, len(pdf))
         return pdf, doc_id
 
-    def _generate_rub_invoice(
+    def _generate_rub_invoice(  # noqa: PLR0913
         self, contractor: IPContractor | SamozanyatyContractor, invoice: Invoice,
         articles: list[ArticleEntry], invoice_date: date, folder_id: str,
-        title: str, template_id: str, extra_replacements: dict[str, str],
+        *, title: str, template_id: str, extra_replacements: dict[str, str],
     ) -> tuple[bytes, str]:
         doc_id = self._docs.copy_template(template_id, title, folder_id)
 
@@ -180,12 +180,15 @@ class GenerateInvoice:
     ) -> tuple[bytes, str]:
         title = f"СчетОферта_ИП_{contractor.name_ru}_{invoice.month}"
         template = TEMPLATE_IP_PHOTO_ID if contractor.is_photographer else TEMPLATE_IP_ID
-        return self._generate_rub_invoice(contractor, invoice, articles, invoice_date, folder_id, title, template, {
-            "{{OGRNIP}}": contractor.ogrnip,
-            "{{PASSPORT_ISSUED_BY}}": contractor.passport_issued_by,
-            "{{PASSPORT_ISSUED_DATE}}": contractor.passport_issued_date,
-            "{{PASSPORT_CODE}}": contractor.passport_code,
-        })
+        return self._generate_rub_invoice(
+            contractor, invoice, articles, invoice_date, folder_id,
+            title=title, template_id=template, extra_replacements={
+                "{{OGRNIP}}": contractor.ogrnip,
+                "{{PASSPORT_ISSUED_BY}}": contractor.passport_issued_by,
+                "{{PASSPORT_ISSUED_DATE}}": contractor.passport_issued_date,
+                "{{PASSPORT_CODE}}": contractor.passport_code,
+            },
+        )
 
     def _generate_samozanyaty(
         self, contractor: SamozanyatyContractor, invoice: Invoice,
@@ -193,7 +196,10 @@ class GenerateInvoice:
     ) -> tuple[bytes, str]:
         title = f"СчетОферта_СЗ_{contractor.name_ru}_{invoice.month}"
         template = TEMPLATE_SAMOZANYATY_PHOTO_ID if contractor.is_photographer else TEMPLATE_SAMOZANYATY_ID
-        return self._generate_rub_invoice(contractor, invoice, articles, invoice_date, folder_id, title, template, {
-            "{{INN}}": contractor.inn,
-            "{{ADDRESS}}": contractor.address,
-        })
+        return self._generate_rub_invoice(
+            contractor, invoice, articles, invoice_date, folder_id,
+            title=title, template_id=template, extra_replacements={
+                "{{INN}}": contractor.inn,
+                "{{ADDRESS}}": contractor.address,
+            },
+        )

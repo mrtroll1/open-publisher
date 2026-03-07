@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from backend.brain.tool import Tool, ToolContext
+from backend.commands.ingest_articles import IngestUseCase
 
 
 def make_ingest_tool(summarizer, memory) -> Tool:
     def fn(args: dict, ctx: ToolContext) -> dict:
-        from backend.commands.ingest_articles import IngestUseCase
         use_case = IngestUseCase(summarizer, memory)
         return use_case.execute(args.get("input", ""), ctx.env, ctx.user)
 

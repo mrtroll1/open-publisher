@@ -20,7 +20,7 @@ class EnvironmentRepo(BasePostgresRepo):
                 return None
             cols = ["name", "description", "system_context", "allowed_domains",
                     "created_at", "updated_at"]
-            return dict(zip(cols, row))
+            return dict(zip(cols, row, strict=False))
 
     def get_environment_by_chat_id(self, chat_id: int) -> dict | None:
         with self._cursor() as cur:
@@ -37,7 +37,7 @@ class EnvironmentRepo(BasePostgresRepo):
                 return None
             cols = ["name", "description", "system_context", "allowed_domains",
                     "created_at", "updated_at"]
-            return dict(zip(cols, row))
+            return dict(zip(cols, row, strict=False))
 
     def list_environments(self) -> list[dict]:
         with self._cursor() as cur:
@@ -48,7 +48,7 @@ class EnvironmentRepo(BasePostgresRepo):
             )
             cols = ["name", "description", "system_context", "allowed_domains",
                     "created_at", "updated_at"]
-            return [dict(zip(cols, row)) for row in cur.fetchall()]
+            return [dict(zip(cols, row, strict=False)) for row in cur.fetchall()]
 
     def save_environment(self, name: str, description: str, system_context: str,
                          allowed_domains: list[str] | None = None) -> str:
@@ -73,7 +73,7 @@ class EnvironmentRepo(BasePostgresRepo):
         set_parts = [f"{col} = %s" for col in to_update]
         set_parts.append("updated_at = NOW()")
         sql = f"UPDATE environments SET {', '.join(set_parts)} WHERE name = %s"
-        params = list(to_update.values()) + [name]
+        params = [*list(to_update.values()), name]
         with self._cursor() as cur:
             cur.execute(sql, tuple(params))
             return cur.rowcount > 0

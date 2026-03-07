@@ -28,19 +28,19 @@ _ADMIN_NL_DESCRIPTIONS: dict[str, str] = {
 }
 
 __all__ = [
-    "cmd_nl",
-    "cmd_teach",
-    "cmd_knowledge",
-    "cmd_ksearch",
-    "cmd_forget",
-    "cmd_kedit",
-    "handle_kedit_reply",
+    "_handle_nl_reply",
     "cmd_env",
-    "cmd_env_edit",
     "cmd_env_bind",
     "cmd_env_create",
+    "cmd_env_edit",
     "cmd_env_unbind",
-    "_handle_nl_reply",
+    "cmd_forget",
+    "cmd_kedit",
+    "cmd_knowledge",
+    "cmd_ksearch",
+    "cmd_nl",
+    "cmd_teach",
+    "handle_kedit_reply",
 ]
 
 
@@ -99,7 +99,26 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
         return False
 
 
-async def cmd_nl(message: types.Message, state: FSMContext) -> None:
+async def _send_nl_reply(
+    message: types.Message, text: str, result: dict,
+    thinking: ThinkingMessage | None,
+) -> None:
+    """Send a conversational NL reply and save the turn."""
+    try:
+        if thinking:
+            sent = await thinking.finish_long(result["reply"])
+        else:
+            sent = await _send_html(message, result["reply"])
+        meta = {"command": "nl_rag"}
+        if result.get("run_id"):
+            meta["run_id"] = result["run_id"]
+        await _save_turn(message, sent, text, result["reply"], meta)
+    except Exception:
+        logger.exception("Failed to send NL reply")
+        await message.answer("Не удалось ответить.")
+
+
+async def cmd_nl(message: types.Message, _state: FSMContext) -> None:
     """Natural language command classification for admin DM."""
     args = message.text.split(maxsplit=1)
     if len(args) < 2 or not args[1].strip():
@@ -136,18 +155,7 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
 
     # Brain returns a dict with "reply" for conversation, or command-specific result
     if isinstance(result, dict) and "reply" in result:
-        try:
-            if thinking:
-                sent = await thinking.finish_long(result["reply"])
-            else:
-                sent = await _send_html(message, result["reply"])
-            meta = {"command": "nl_rag"}
-            if result.get("run_id"):
-                meta["run_id"] = result["run_id"]
-            await _save_turn(message, sent, text, result["reply"], meta)
-        except Exception:
-            logger.exception("Failed to send NL reply")
-            await message.answer("Не удалось ответить.")
+        await _send_nl_reply(message, text, result, thinking)
         return
 
     if thinking:
@@ -161,7 +169,7 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
     await _send_html(message, text_result)
 
 
-async def cmd_teach(message: types.Message, state: FSMContext) -> None:
+async def cmd_teach(message: types.Message, _state: FSMContext) -> None:
     args = message.text.split(maxsplit=1)
     if len(args) < 2 or not args[1].strip():
         await message.answer(replies.teach.usage)
@@ -180,7 +188,7 @@ async def cmd_teach(message: types.Message, state: FSMContext) -> None:
     await message.answer(f"{confirmation}\n\n<code>[{tier}] {domain}</code>", parse_mode="HTML")
 
 
-async def cmd_knowledge(message: types.Message, state: FSMContext) -> None:
+async def cmd_knowledge(message: types.Message, _state: FSMContext) -> None:
     parts = message.text.split()[1:]
     verbose = "-v" in parts
     if verbose:
@@ -231,7 +239,7 @@ async def cmd_knowledge(message: types.Message, state: FSMContext) -> None:
     await _send(message, "\n".join(lines).rstrip(), parse_mode="HTML")
 
 
-async def cmd_forget(message: types.Message, state: FSMContext) -> None:
+async def cmd_forget(message: types.Message, _state: FSMContext) -> None:
     args = message.text.split(maxsplit=1)
     if len(args) < 2 or not args[1].strip():
         await message.answer(replies.knowledge.forget_usage)
@@ -250,7 +258,7 @@ async def cmd_forget(message: types.Message, state: FSMContext) -> None:
     await message.answer(replies.knowledge.forget_done)
 
 
-async def cmd_kedit(message: types.Message, state: FSMContext) -> None:
+async def cmd_kedit(message: types.Message, _state: FSMContext) -> None:
     args = message.text.split(maxsplit=1)
     if len(args) < 2 or not args[1].strip():
         await message.answer(replies.knowledge.edit_usage)
@@ -303,7 +311,7 @@ async def handle_kedit_reply(message: types.Message) -> bool:
     return True
 
 
-async def cmd_ksearch(message: types.Message, state: FSMContext) -> None:
+async def cmd_ksearch(message: types.Message, _state: FSMContext) -> None:
     """Semantic search over knowledge entries."""
     args = message.text.split(maxsplit=1)
     if len(args) < 2 or not args[1].strip():
@@ -333,7 +341,7 @@ async def cmd_ksearch(message: types.Message, state: FSMContext) -> None:
     await _send(message, "\n".join(lines), parse_mode="HTML")
 
 
-async def cmd_env(message: types.Message, state: FSMContext) -> None:
+async def cmd_env(message: types.Message, _state: FSMContext) -> None:
     """List environments or show details: /env [name]"""
     args = message.text.split(maxsplit=1)
     name = args[1].strip() if len(args) > 1 and args[1].strip() else None
@@ -374,7 +382,7 @@ async def cmd_env(message: types.Message, state: FSMContext) -> None:
     await _send(message, "\n\n".join(lines), parse_mode="HTML")
 
 
-async def cmd_env_edit(message: types.Message, state: FSMContext) -> None:
+async def cmd_env_edit(message: types.Message, _state: FSMContext) -> None:
     """Edit environment field: /env_edit <name> <field> <value>"""
     args = message.text.split(maxsplit=3)
     if len(args) < 4:
@@ -402,7 +410,7 @@ async def cmd_env_edit(message: types.Message, state: FSMContext) -> None:
     await message.answer(replies.env.updated.format(name=name, field=field))
 
 
-async def cmd_env_bind(message: types.Message, state: FSMContext) -> None:
+async def cmd_env_bind(message: types.Message, _state: FSMContext) -> None:
     """Bind current chat to environment: /env_bind <name>"""
     args = message.text.split(maxsplit=1)
     if len(args) < 2 or not args[1].strip():
@@ -419,7 +427,7 @@ async def cmd_env_bind(message: types.Message, state: FSMContext) -> None:
     await message.answer(replies.env.bound.format(name=name))
 
 
-async def cmd_env_create(message: types.Message, state: FSMContext) -> None:
+async def cmd_env_create(message: types.Message, _state: FSMContext) -> None:
     """Create environment: /env_create <name> <description>"""
     args = message.text.split(maxsplit=2)
     if len(args) < 3:
@@ -431,7 +439,7 @@ async def cmd_env_create(message: types.Message, state: FSMContext) -> None:
     await message.answer(replies.env.created.format(name=name))
 
 
-async def cmd_env_unbind(message: types.Message, state: FSMContext) -> None:
+async def cmd_env_unbind(message: types.Message, _state: FSMContext) -> None:
     """Unbind current chat from its environment: /env_unbind"""
     await backend_client.unbind_environment(message.chat.id)
     await message.answer(replies.env.unbound)

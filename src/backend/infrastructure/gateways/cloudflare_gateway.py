@@ -107,16 +107,16 @@ class CloudflareGateway:
         zones = data.get("viewer", {}).get("zones", [])
         if not zones:
             return []
-        rows = []
-        for g in zones[0].get("httpRequests1dGroups", []):
-            rows.append({
+        return [
+            {
                 "date": g["dimensions"]["date"],
                 "requests": g["sum"]["requests"],
                 "pageviews": g["sum"]["pageViews"],
                 "unique_visitors": g["uniq"]["uniques"],
                 "bandwidth_mb": round(g["sum"]["bytes"] / (1024 * 1024), 1),
-            })
-        return rows
+            }
+            for g in zones[0].get("httpRequests1dGroups", [])
+        ]
 
     def get_top_paths(self, date_from: str, date_to: str, limit: int = 20) -> list[dict]:
         """Top requested URL paths using adaptive groups."""

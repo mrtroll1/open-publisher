@@ -15,6 +15,12 @@ services:
     env_file: config/backend.env
     depends_on:
       - db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
     volumes:
       - ./config/service_account.json:/app/config/service_account.json:ro
       - ./config/business_config.json:/app/config/business_config.json:ro
@@ -28,6 +34,9 @@ services:
     build: src/client/telegram_bot
     restart: unless-stopped
     env_file: config/bot.env
+    depends_on:
+      api:
+        condition: service_healthy
 
 volumes:
   pgdata:

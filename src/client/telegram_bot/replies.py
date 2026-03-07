@@ -12,7 +12,6 @@ Usage in handlers:
 
 from telegram_bot.config import ADMIN_TELEGRAM_TAG, PRODUCT_NAME
 
-
 # ── /start ───────────────────────────────────────────────────────────
 
 class start:

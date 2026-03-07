@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-
 from urllib.parse import quote
 
 import requests

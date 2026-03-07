@@ -6,7 +6,7 @@ import logging
 from aiogram.types import BufferedInputFile, InlineKeyboardButton, InlineKeyboardMarkup
 
 from telegram_bot.bot_helpers import bot
-from telegram_bot.handler_utils import _admin_reply_map, _send, _send_html
+from telegram_bot.handler_utils import _admin_reply_map, _send
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ import uuid
 from typing import Any
 
 from backend.brain.authorizer import AuthContext
-from backend.brain.tool import Tool, ToolContext
+from backend.brain.tool import Tool
 from backend.config import GEMINI_MODEL_SMART
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.memory.retriever import KnowledgeRetriever
@@ -55,7 +55,7 @@ def _build_conversation_context(
 
 def _build_system_prompt(env: dict, user_context: str, knowledge: str,
                          conversation_history: str) -> str:
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta, timezone
     now = datetime.now(timezone(timedelta(hours=1)))
     parts = [
         f"Текущая дата и время: {now.strftime('%Y-%m-%d %H:%M')} (CET)",

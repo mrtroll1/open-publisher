@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.gateways.embedding_gateway import EmbeddingGateway
 from backend.infrastructure.memory.retriever import KnowledgeRetriever
+from backend.infrastructure.repositories.postgres import DbGateway
 
 
 class MemoryService:

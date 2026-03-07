@@ -1,6 +1,7 @@
 """Thin async HTTP client wrapping all backend API endpoints."""
 
 import httpx
+
 from telegram_bot.config import BACKEND_URL
 
 _client = httpx.AsyncClient(base_url=BACKEND_URL, timeout=300.0)

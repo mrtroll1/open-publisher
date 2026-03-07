@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+
 from telegram_bot import backend_client
 from telegram_bot.bot_helpers import get_admin_ids
-from telegram_bot.handlers.support_handlers import _send_support_draft, _send_editorial
+from telegram_bot.handlers.support_handlers import _send_editorial, _send_support_draft
 
 logger = logging.getLogger(__name__)
 

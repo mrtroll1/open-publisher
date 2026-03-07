@@ -1,0 +1,33 @@
+[tool.ruff]
+target-version = "py312"
+src = ["src"]
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "F",      # pyflakes — unused imports, undefined names, dead code
+    "E", "W", # pycodestyle — obvious style mistakes
+    "UP",     # pyupgrade — modern Python idioms (match target-version)
+    "SIM",    # flake8-simplify — simplifiable patterns (if/else, returns)
+    "I",      # isort — tidy imports
+    "C901",   # McCabe complexity — keep functions simple
+]
+ignore = [
+    "E501",   # line length — ruff format handles this better than hard errors
+    "SIM105", # contextlib.suppress — less clear than try/except for async code
+    "SIM108", # ternary — not always clearer
+    "UP042",  # StrEnum — defer migration, changes serialization behavior
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 12
+
+[tool.ruff.lint.per-file-ignores]
+"src/backend/__init__.py" = ["E402", "F401"]
+"src/backend/infrastructure/repositories/sheets/budget_repo.py" = ["E402"]
+"src/backend/brain/controllers/conversation.py" = ["C901"]  # ReAct loop — inherent complexity
+"src/backend/commands/run_code.py" = ["C901"]               # streaming parser — inherent complexity
+"src/client/telegram_bot/renderer.py" = ["C901"]            # dispatch logic — inherent complexity
+
+[tool.ruff.lint.isort]
+known-first-party = ["backend", "client"]

@@ -12,9 +12,9 @@ from backend.brain.base_controller import BaseUseCase
 from backend.brain.dynamic.assess_editorial import AssessEditorial
 from backend.brain.dynamic.classify_inbox import ClassifyInbox
 from backend.commands.draft_support import TechSupportHandler
-from backend.infrastructure.repositories.postgres import DbGateway
-from backend.infrastructure.gateways.email_gateway import EmailGateway
 from backend.config import CHIEF_EDITOR_EMAIL, SUPPORT_ADDRESSES
+from backend.infrastructure.gateways.email_gateway import EmailGateway
+from backend.infrastructure.repositories.postgres import DbGateway
 from backend.models import EditorialItem, IncomingEmail, PendingItem, SupportDraft
 
 logger = logging.getLogger(__name__)

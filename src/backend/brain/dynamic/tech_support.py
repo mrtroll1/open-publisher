@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import logging
 
-from backend.brain.prompt_loader import load_template
 from backend.brain.base_genai import BaseGenAI
+from backend.brain.prompt_loader import load_template
 from backend.config import GEMINI_MODEL_FAST, GEMINI_MODEL_SMART
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.memory.retriever import KnowledgeRetriever
-from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.memory.user_lookup import SupportUserLookup
+from backend.infrastructure.repositories.postgres import DbGateway
 
 logger = logging.getLogger(__name__)
 

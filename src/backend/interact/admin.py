@@ -6,22 +6,38 @@ import tempfile
 from decimal import Decimal
 
 from backend import (
-    create_and_save_invoice, export_pdf, fetch_articles,
-    find_contractor, find_contractor_by_id, find_contractor_by_telegram_id,
-    fuzzy_find, load_all_contractors, load_invoices,
-    prepare_existing_invoice, load_budget_amounts,
-    update_invoice_status, update_legium_link,
+    create_and_save_invoice,
+    export_pdf,
+    fetch_articles,
+    find_contractor,
+    find_contractor_by_id,
+    fuzzy_find,
+    load_all_contractors,
+    load_budget_amounts,
+    load_invoices,
+    prepare_existing_invoice,
+    update_invoice_status,
+    update_legium_link,
 )
 from backend.config import ADMIN_TELEGRAM_TAG
+from backend.interact.helpers import (
+    ROLE_LABELS,
+    InteractContext,
+    Payload,
+    file_msg,
+    invoice_admin_data,
+    msg,
+    prev_month,
+    respond,
+    side_msg,
+)
 from backend.models import (
-    Contractor, Currency, GlobalContractor, InvoiceStatus,
+    Contractor,
+    Currency,
+    GlobalContractor,
+    InvoiceStatus,
 )
 from backend.wiring import create_generate_batch_invoices, create_parse_bank_statement
-from backend.interact.helpers import (
-    Payload, InteractContext,
-    msg, file_msg, side_msg, respond,
-    prev_month, invoice_admin_data, ROLE_LABELS,
-)
 
 logger = logging.getLogger(__name__)
 

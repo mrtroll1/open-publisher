@@ -15,20 +15,20 @@ from backend.config import (
     TEMPLATE_SAMOZANYATY_ID,
     TEMPLATE_SAMOZANYATY_PHOTO_ID,
 )
+from backend.infrastructure.gateways.docs_gateway import DocsGateway
+from backend.infrastructure.gateways.drive_gateway import DriveGateway
+from backend.infrastructure.repositories.sheets.contractor_repo import increment_invoice_number
+from backend.infrastructure.repositories.sheets.invoice_repo import save_invoice
 from backend.models import (
     ArticleEntry,
     Contractor,
     Currency,
     GlobalContractor,
-    IPContractor,
     Invoice,
     InvoiceStatus,
+    IPContractor,
     SamozanyatyContractor,
 )
-from backend.infrastructure.gateways.docs_gateway import DocsGateway
-from backend.infrastructure.gateways.drive_gateway import DriveGateway
-from backend.infrastructure.repositories.sheets.contractor_repo import increment_invoice_number
-from backend.infrastructure.repositories.sheets.invoice_repo import save_invoice
 
 logger = logging.getLogger(__name__)
 

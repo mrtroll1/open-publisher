@@ -18,8 +18,8 @@ from backend.config import (
     UNIT_PRIMARY,
     UNIT_SECONDARY,
 )
-from backend.models import AirtableExpense
 from backend.infrastructure.gateways.airtable_gateway import AirtableGateway
+from backend.models import AirtableExpense
 
 logger = logging.getLogger(__name__)
 

@@ -6,8 +6,9 @@ Slash commands and Gemini tool calls both invoke Tool.execute().
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, TypedDict
+from typing import TypedDict
 
 
 class EnvContext(TypedDict, total=False):

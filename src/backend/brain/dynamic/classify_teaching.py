@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from backend.brain.base_genai import BaseGenAI
+from backend.infrastructure.gateways.embedding_gateway import EmbeddingGateway
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.repositories.postgres import DbGateway
-from backend.infrastructure.gateways.embedding_gateway import EmbeddingGateway
 
 
 class ClassifyTeaching(BaseGenAI):

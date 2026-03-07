@@ -7,7 +7,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from backend.config import REPOS_DIR, REPO_URLS
+from backend.config import REPO_URLS, REPOS_DIR
 
 logger = logging.getLogger(__name__)
 

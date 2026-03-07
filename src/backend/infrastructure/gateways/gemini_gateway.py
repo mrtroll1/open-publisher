@@ -5,10 +5,10 @@ from __future__ import annotations
 import json
 import logging
 import time
-from google.genai import types
-from google import genai
-from google.genai.errors import ClientError, ServerError
 
+from google import genai
+from google.genai import types
+from google.genai.errors import ClientError, ServerError
 
 from backend.config import GEMINI_API_KEY, GEMINI_MODEL_FAST
 

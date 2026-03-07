@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from backend.brain.tool import Tool, ToolContext
 
-
 _DB_DESCRIPTIONS = {
     "republic_db": "SQL-запрос к основной базе Republic (посты, подписки, пользователи, платежи, теги)",
     "redefine_db": "SQL-запрос к базе Redefine (курсы, уроки, студенты, платежи)",

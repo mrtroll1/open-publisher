@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Pre-commit hook: compile check + ruff lint on staged Python files.
+set -e
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM -- '*.py')
+[ -z "$STAGED" ] && exit 0
+
+echo "pre-commit: checking $(echo "$STAGED" | wc -l | tr -d ' ') Python file(s)..."
+
+# 1. Syntax check — catches broken imports, typos, indentation errors
+COMPILE_FAILED=0
+for f in $STAGED; do
+    if ! python -m py_compile "$f" 2>&1; then
+        COMPILE_FAILED=1
+    fi
+done
+[ $COMPILE_FAILED -ne 0 ] && echo "py_compile failed." && exit 1
+
+# 2. Ruff lint — fast, catches real problems
+if command -v ruff &>/dev/null; then
+    echo "$STAGED" | xargs ruff check --no-fix
+else
+    echo "pre-commit: ruff not installed, skipping lint (pip install ruff)"
+fi

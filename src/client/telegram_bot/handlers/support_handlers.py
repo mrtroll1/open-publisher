@@ -2,25 +2,23 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from aiogram import types
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 from telegram_bot import backend_client, replies
 from telegram_bot.bot_helpers import bot
 from telegram_bot.handler_utils import (
+    ThinkingMessage,
     _parse_flags,
     _safe_edit_text,
     _save_turn,
     _send,
-    _send_html,
     _support_draft_map,
     send_typing,
-    ThinkingMessage,
 )
 
 logger = logging.getLogger(__name__)

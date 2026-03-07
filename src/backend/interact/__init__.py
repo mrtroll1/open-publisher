@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
-from backend.interact import contractor as _contractor
+
 from backend.interact import admin as _admin
-from backend.interact.helpers import Payload, InteractContext
+from backend.interact import contractor as _contractor
+from backend.interact.helpers import InteractContext, Payload
 
 logger = logging.getLogger(__name__)
 

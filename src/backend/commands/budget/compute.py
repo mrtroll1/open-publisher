@@ -6,7 +6,6 @@ import logging
 from dataclasses import dataclass
 
 from backend.config import EUR_RUB_CELL
-from backend.models import Contractor, Currency, RoleCode
 from backend.infrastructure.gateways.exchange_rate_gateway import fetch_eur_rub_rate
 from backend.infrastructure.gateways.redefine_gateway import RedefineGateway
 from backend.infrastructure.gateways.republic_gateway import RepublicGateway
@@ -22,10 +21,11 @@ from backend.infrastructure.repositories.sheets.contractor_repo import (
     load_all_contractors,
 )
 from backend.infrastructure.repositories.sheets.rules_repo import (
-    load_redirect_rules,
-    load_flat_rate_rules,
     load_article_rate_rules,
+    load_flat_rate_rules,
+    load_redirect_rules,
 )
+from backend.models import Contractor, Currency, RoleCode
 
 logger = logging.getLogger(__name__)
 

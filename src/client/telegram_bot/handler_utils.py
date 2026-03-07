@@ -8,8 +8,8 @@ from aiogram import types
 from aiogram.enums import ChatAction
 from aiogram.exceptions import TelegramBadRequest
 
+from telegram_bot import backend_client
 from telegram_bot.bot_helpers import bot, md_to_tg_html, prev_month
-from telegram_bot import backend_client, replies
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ class ThinkingMessage:
         self._initial_text = initial_text
         self._status_msg: types.Message | None = None
 
-    async def __aenter__(self) -> "ThinkingMessage":
+    async def __aenter__(self) -> ThinkingMessage:
         self._status_msg = await self._message.answer(self._initial_text)
         return self
 

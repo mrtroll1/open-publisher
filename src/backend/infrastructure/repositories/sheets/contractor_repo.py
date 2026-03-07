@@ -9,18 +9,15 @@ from difflib import SequenceMatcher
 from pydantic import ValidationError
 
 from backend.config import CONTRACTORS_SHEET_ID
+from backend.infrastructure.gateways.sheets_gateway import SheetsGateway
+from backend.infrastructure.repositories.sheets.sheets_utils import index_to_column_letter
 from backend.models import (
     CONTRACTOR_CLASS_BY_TYPE,
     Contractor,
     ContractorType,
     Currency,
-    GlobalContractor,
-    IPContractor,
     RoleCode,
-    SamozanyatyContractor,
 )
-from backend.infrastructure.gateways.sheets_gateway import SheetsGateway
-from backend.infrastructure.repositories.sheets.sheets_utils import index_to_column_letter
 
 logger = logging.getLogger(__name__)
 

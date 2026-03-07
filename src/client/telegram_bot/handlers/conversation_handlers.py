@@ -8,7 +8,7 @@ from aiogram import types
 from aiogram.fsm.context import FSMContext
 
 from telegram_bot import backend_client, replies
-from telegram_bot.handler_utils import _kedit_pending, _save_turn, _send, _send_html, send_typing, ThinkingMessage
+from telegram_bot.handler_utils import ThinkingMessage, _kedit_pending, _save_turn, _send, _send_html
 
 logger = logging.getLogger(__name__)
 

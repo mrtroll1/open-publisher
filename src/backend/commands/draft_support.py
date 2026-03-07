@@ -8,12 +8,12 @@ import time
 import uuid
 
 from backend.brain.prompt_loader import load_template
+from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
+from backend.infrastructure.gateways.repo_gateway import RepoGateway
 from backend.infrastructure.memory.retriever import KnowledgeRetriever
 from backend.infrastructure.memory.user_lookup import SupportUserLookup
 from backend.infrastructure.repositories.postgres import DbGateway
 from backend.infrastructure.repositories.postgres.message_repo import normalize_email_subject
-from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
-from backend.infrastructure.gateways.repo_gateway import RepoGateway
 from backend.models import IncomingEmail, SupportDraft
 
 logger = logging.getLogger(__name__)

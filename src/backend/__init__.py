@@ -1,6 +1,10 @@
 """Backend facade — re-exports everything the telegram bot needs."""
 
 # --- Contractor repository (module-level functions) ---
+# --- Gateways (exposed as module-level convenience functions) ---
+from backend.infrastructure.gateways.drive_gateway import DriveGateway as _DriveGateway
+from backend.infrastructure.gateways.gemini_gateway import GeminiGateway as _GeminiGateway
+from backend.infrastructure.gateways.republic_gateway import RepublicGateway as _RepublicGateway
 from backend.infrastructure.repositories.sheets.contractor_repo import (  # noqa: F401
     bind_telegram_id,
     find_contractor,
@@ -16,13 +20,6 @@ from backend.infrastructure.repositories.sheets.contractor_repo import (  # noqa
     update_contractor_fields,
 )
 
-# --- Rules repository ---
-from backend.infrastructure.repositories.sheets.rules_repo import (  # noqa: F401
-    add_redirect_rule,
-    find_redirect_rules_by_target,
-    remove_redirect_rule,
-)
-
 # --- Invoice repository ---
 from backend.infrastructure.repositories.sheets.invoice_repo import (  # noqa: F401
     delete_invoice,
@@ -32,10 +29,12 @@ from backend.infrastructure.repositories.sheets.invoice_repo import (  # noqa: F
     update_legium_link,
 )
 
-# --- Gateways (exposed as module-level convenience functions) ---
-from backend.infrastructure.gateways.drive_gateway import DriveGateway as _DriveGateway
-from backend.infrastructure.gateways.gemini_gateway import GeminiGateway as _GeminiGateway
-from backend.infrastructure.gateways.republic_gateway import RepublicGateway as _RepublicGateway
+# --- Rules repository ---
+from backend.infrastructure.repositories.sheets.rules_repo import (  # noqa: F401
+    add_redirect_rule,
+    find_redirect_rules_by_target,
+    remove_redirect_rule,
+)
 
 _drive = _DriveGateway()
 _gemini = _GeminiGateway()
@@ -80,6 +79,7 @@ def translate_name_to_russian(name_en: str) -> str:
     """Translate a name to Russian."""
     import json
     import time
+
     from backend.brain.prompt_loader import load_template
     from backend.config import GEMINI_MODEL_FAST
     prompt = load_template("contractor/translate-name.md", {"NAME": name_en})
@@ -120,7 +120,6 @@ def unredirect_in_budget(source_name: str, target, month: str) -> None:
 
 
 def create_and_save_invoice(contractor, month, amount, articles, invoice_date=None, debug=False):
-    from backend.commands.invoice.generate import GenerateInvoice
     return GenerateInvoice().create_and_save(
         contractor, month, amount, articles, invoice_date, debug,
     )
@@ -132,6 +131,9 @@ def export_pdf(doc_id: str) -> bytes:
 
 
 # --- Contractor service ---
+from backend.commands.bank.parse_statement import ParseBankStatement  # noqa: F401
+from backend.commands.budget.compute import ComputeBudget  # noqa: F401
+from backend.commands.check_health import format_healthcheck_results  # noqa: F401
 from backend.commands.contractor.create import (  # noqa: F401
     check_registration_complete,
     create_contractor,
@@ -140,6 +142,16 @@ from backend.commands.contractor.registration import (  # noqa: F401
     parse_registration_data,
     translate_contractor_name,
 )
+
+# --- Domain helpers ---
+from backend.commands.contractor.validate import validate_fields as validate_contractor_fields  # noqa: F401
+from backend.commands.draft_support import TechSupportHandler  # noqa: F401
+from backend.commands.invoice.batch import BatchResult, GenerateBatchInvoices  # noqa: F401
+
+# --- Use cases ---
+from backend.commands.invoice.generate import GenerateInvoice, InvoiceResult  # noqa: F401
+from backend.commands.invoice.prepare import prepare_existing_invoice  # noqa: F401
+from backend.commands.invoice.resolve_amount import plural_ru, resolve_amount  # noqa: F401
 
 # --- Invoice service ---
 from backend.commands.invoice.service import (  # noqa: F401
@@ -150,17 +162,4 @@ from backend.commands.invoice.service import (  # noqa: F401
     prepare_new_invoice_data,
     resolve_existing_invoice,
 )
-
-# --- Domain helpers ---
-from backend.commands.contractor.validate import validate_fields as validate_contractor_fields  # noqa: F401
-from backend.commands.invoice.resolve_amount import resolve_amount, plural_ru  # noqa: F401
-from backend.commands.invoice.prepare import prepare_existing_invoice  # noqa: F401
-
-# --- Use cases ---
-from backend.commands.invoice.generate import GenerateInvoice, InvoiceResult  # noqa: F401
-from backend.commands.invoice.batch import GenerateBatchInvoices, BatchResult  # noqa: F401
-from backend.commands.bank.parse_statement import ParseBankStatement  # noqa: F401
-from backend.commands.budget.compute import ComputeBudget  # noqa: F401
-from backend.commands.draft_support import TechSupportHandler  # noqa: F401
 from backend.commands.run_code import run_claude_code  # noqa: F401
-from backend.commands.check_health import format_healthcheck_results  # noqa: F401

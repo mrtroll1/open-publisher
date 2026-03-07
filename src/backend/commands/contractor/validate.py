@@ -93,9 +93,9 @@ def _validate_global_fields(collected: dict, warnings: list[str]) -> None:
         warnings.append(f"SWIFT/BIC должен содержать 8 или 11 буквенно-цифровых символов (сейчас: {swift})")
 
     # IBAN validation only if it looks like IBAN (starts with 2 letters)
-    if account and re.match(r"^[A-Z]{2}", account.strip().upper()):
-        if not re.match(r"^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$", account.strip().upper().replace(" ", "")):
-            warnings.append(f"Формат IBAN выглядит некорректно (сейчас: {account})")
+    upper_account = account.strip().upper() if account else ""
+    if upper_account and re.match(r"^[A-Z]{2}", upper_account) and not re.match(r"^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$", upper_account.replace(" ", "")):
+        warnings.append(f"Формат IBAN выглядит некорректно (сейчас: {account})")
 
     _check_email(collected.get("email", ""), warnings)
 

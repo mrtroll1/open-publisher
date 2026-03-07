@@ -16,39 +16,66 @@ Other message types (registered explicitly in register_all):
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 from aiogram import Dispatcher, F, types
 from aiogram.enums import ChatAction
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import BotCommand
 
-from telegram_bot.config import BOT_USERNAME
-from telegram_bot import backend_client, replies
+from telegram_bot import backend_client
 from telegram_bot.bot_helpers import is_admin
-from telegram_bot.handler_utils import _save_turn, _send_html, resolve_environment_record, send_typing, ThinkingMessage
-from telegram_bot.handlers.support_handlers import cmd_health, cmd_support, cmd_code
+from telegram_bot.config import BOT_USERNAME
+from telegram_bot.handler_utils import ThinkingMessage, _save_turn, resolve_environment_record
 from telegram_bot.handlers.admin_handlers import (
-    cmd_generate, cmd_chatid, cmd_articles, cmd_lookup, cmd_budget,
-    cmd_generate_invoices, cmd_send_global_invoices, cmd_send_legium_links,
-    cmd_orphan_contractors, cmd_upload_to_airtable,
-    cmd_ingest_articles, cmd_extract_knowledge,
+    cmd_articles,
+    cmd_budget,
+    cmd_chatid,
+    cmd_extract_knowledge,
+    cmd_generate,
+    cmd_generate_invoices,
+    cmd_ingest_articles,
+    cmd_lookup,
+    cmd_orphan_contractors,
+    cmd_send_global_invoices,
+    cmd_send_legium_links,
+    cmd_upload_to_airtable,
     handle_admin_reply,
 )
 from telegram_bot.handlers.contractor_handlers import (
-    handle_start, handle_menu, handle_sign_doc,
-    handle_update_payment_data, handle_manage_redirects,
-    handle_contractor_text, handle_verification_code, handle_type_selection,
-    handle_data_input, handle_amount_input, handle_update_data,
+    handle_amount_input,
+    handle_contractor_text,
+    handle_data_input,
+    handle_document,
+    handle_duplicate_callback,
+    handle_editor_source_callback,
     handle_editor_source_name,
-    handle_duplicate_callback, handle_editor_source_callback,
-    handle_linked_menu_callback, handle_non_document, handle_document,
+    handle_linked_menu_callback,
+    handle_manage_redirects,
+    handle_menu,
+    handle_non_document,
+    handle_sign_doc,
+    handle_start,
+    handle_type_selection,
+    handle_update_data,
+    handle_update_payment_data,
+    handle_verification_code,
 )
 from telegram_bot.handlers.conversation_handlers import (
-    cmd_nl, cmd_teach, cmd_knowledge, cmd_ksearch, cmd_forget, cmd_kedit,
-    cmd_env, cmd_env_edit, cmd_env_bind, cmd_env_create, cmd_env_unbind,
+    cmd_env,
+    cmd_env_bind,
+    cmd_env_create,
+    cmd_env_edit,
+    cmd_env_unbind,
+    cmd_forget,
+    cmd_kedit,
+    cmd_knowledge,
+    cmd_ksearch,
+    cmd_nl,
+    cmd_teach,
 )
+from telegram_bot.handlers.support_handlers import cmd_code, cmd_health, cmd_support
 
 logger = logging.getLogger(__name__)
 
@@ -332,7 +359,9 @@ async def set_bot_commands(bot) -> None:
 def register_all(dp: Dispatcher) -> None:
     """Wire everything onto the dispatcher — one place to see all handlers."""
     from telegram_bot.handlers.support_handlers import (
-        handle_support_callback, handle_editorial_callback, handle_code_rate_callback,
+        handle_code_rate_callback,
+        handle_editorial_callback,
+        handle_support_callback,
     )
 
     # Callback queries

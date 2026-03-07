@@ -8,8 +8,8 @@ import logging
 from aiogram import Dispatcher
 
 from telegram_bot.bot_helpers import bot, load_admin_ids
-from telegram_bot.router import register_all, set_bot_commands
 from telegram_bot.handlers.email_listener import email_listener_task
+from telegram_bot.router import register_all, set_bot_commands
 
 logger = logging.getLogger(__name__)
 dp = Dispatcher()

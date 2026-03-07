@@ -1,6 +1,7 @@
+from typing import Any
+
 from fastapi import FastAPI
 from pydantic import BaseModel
-from typing import Any
 
 from backend.wiring import create_brain
 

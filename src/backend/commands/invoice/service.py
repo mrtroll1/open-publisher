@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 from backend import fetch_articles, load_budget_amounts
-from backend.commands.invoice.resolve_amount import plural_ru, resolve_amount
 from backend.commands.invoice.prepare import PreparedInvoice, prepare_existing_invoice
+from backend.commands.invoice.resolve_amount import plural_ru, resolve_amount
 from backend.config import DRIVE_FOLDER_GLOBAL, DRIVE_FOLDER_RU
 from backend.models import Contractor, Currency, GlobalContractor, InvoiceStatus
 

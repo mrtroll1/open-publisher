@@ -6,25 +6,46 @@ import re
 from decimal import Decimal
 
 from backend import (
-    add_redirect_rule, bind_telegram_id, create_and_save_invoice,
-    delete_invoice, fetch_articles, find_contractor_by_id,
-    find_contractor_by_telegram_id, find_redirect_rules_by_target,
-    fuzzy_find, load_all_contractors, redirect_in_budget,
-    remove_redirect_rule, unredirect_in_budget, update_contractor_fields,
-    update_invoice_status, upload_invoice_pdf, validate_contractor_fields,
+    add_redirect_rule,
+    bind_telegram_id,
+    create_and_save_invoice,
+    delete_invoice,
+    fetch_articles,
+    find_contractor_by_id,
+    find_contractor_by_telegram_id,
+    find_redirect_rules_by_target,
+    fuzzy_find,
+    load_all_contractors,
+    redirect_in_budget,
+    remove_redirect_rule,
+    unredirect_in_budget,
+    update_contractor_fields,
+    update_invoice_status,
+    upload_invoice_pdf,
+    validate_contractor_fields,
 )
 from backend.commands.contractor.create import check_registration_complete, create_contractor
 from backend.commands.contractor.registration import parse_registration_data, translate_contractor_name
 from backend.commands.invoice.service import DeliveryAction, prepare_new_invoice_data, resolve_existing_invoice
 from backend.config import ADMIN_TELEGRAM_TAG, PRODUCT_NAME
-from backend.models import (
-    CONTRACTOR_CLASS_BY_TYPE, Contractor, ContractorType, Currency,
-    GlobalContractor, InvoiceStatus, RoleCode,
-)
 from backend.interact.helpers import (
-    Payload, InteractContext,
-    msg, file_msg, side_msg, respond,
-    prev_month, invoice_admin_data, ROLE_LABELS,
+    InteractContext,
+    Payload,
+    file_msg,
+    invoice_admin_data,
+    msg,
+    prev_month,
+    respond,
+    side_msg,
+)
+from backend.models import (
+    CONTRACTOR_CLASS_BY_TYPE,
+    Contractor,
+    ContractorType,
+    Currency,
+    GlobalContractor,
+    InvoiceStatus,
+    RoleCode,
 )
 
 logger = logging.getLogger(__name__)

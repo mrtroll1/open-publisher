@@ -11,6 +11,11 @@ from backend.infrastructure.repositories.postgres import DbGateway
 if TYPE_CHECKING:
     from backend.brain import Brain
     from backend.commands.process_inbox import InboxWorkflow
+from backend.commands.bank.parse_statement import ParseBankStatement
+from backend.commands.budget.compute import ComputeBudget
+from backend.commands.draft_support import TechSupportHandler
+from backend.commands.invoice.batch import GenerateBatchInvoices
+from backend.commands.invoice.generate import GenerateInvoice
 from backend.infrastructure.gateways.docs_gateway import DocsGateway
 from backend.infrastructure.gateways.drive_gateway import DriveGateway
 from backend.infrastructure.gateways.email_gateway import EmailGateway
@@ -19,14 +24,9 @@ from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.gateways.query_gateway import QueryGateway
 from backend.infrastructure.gateways.redefine_gateway import RedefineGateway
 from backend.infrastructure.gateways.republic_gateway import RepublicGateway
-from backend.infrastructure.memory.retriever import KnowledgeRetriever
 from backend.infrastructure.memory.memory_service import MemoryService
+from backend.infrastructure.memory.retriever import KnowledgeRetriever
 from backend.infrastructure.memory.user_lookup import SupportUserLookup
-from backend.commands.draft_support import TechSupportHandler
-from backend.commands.budget.compute import ComputeBudget
-from backend.commands.invoice.batch import GenerateBatchInvoices
-from backend.commands.invoice.generate import GenerateInvoice
-from backend.commands.bank.parse_statement import ParseBankStatement
 
 
 def create_db() -> DbGateway:
@@ -65,12 +65,22 @@ def create_parse_bank_statement() -> ParseBankStatement:
 def create_query_gateways() -> dict[str, QueryGateway]:
     """Create query gateways for available external DBs."""
     from backend.config import (
-        REPUBLIC_SSH_HOST, REPUBLIC_SSH_USER, REPUBLIC_SSH_KEY_PATH,
-        REPUBLIC_RO_DB_HOST, REPUBLIC_RO_DB_PORT, REPUBLIC_RO_DB_NAME,
-        REPUBLIC_RO_DB_USER, REPUBLIC_RO_DB_PASS,
-        REDEFINE_SSH_HOST, REDEFINE_SSH_USER, REDEFINE_SSH_KEY_PATH,
-        REDEFINE_RO_DB_HOST, REDEFINE_RO_DB_PORT, REDEFINE_RO_DB_NAME,
-        REDEFINE_RO_DB_USER, REDEFINE_RO_DB_PASS,
+        REDEFINE_RO_DB_HOST,
+        REDEFINE_RO_DB_NAME,
+        REDEFINE_RO_DB_PASS,
+        REDEFINE_RO_DB_PORT,
+        REDEFINE_RO_DB_USER,
+        REDEFINE_SSH_HOST,
+        REDEFINE_SSH_KEY_PATH,
+        REDEFINE_SSH_USER,
+        REPUBLIC_RO_DB_HOST,
+        REPUBLIC_RO_DB_NAME,
+        REPUBLIC_RO_DB_PASS,
+        REPUBLIC_RO_DB_PORT,
+        REPUBLIC_RO_DB_USER,
+        REPUBLIC_SSH_HOST,
+        REPUBLIC_SSH_KEY_PATH,
+        REPUBLIC_SSH_USER,
     )
     gateways = {}
 
@@ -110,19 +120,28 @@ def create_brain() -> BrainComponents:
     """Wire up Brain with all tools. Returns shared components."""
     from backend.brain import Brain
     from backend.brain.authorizer import Authorizer
+    from backend.brain.controllers.conversation import conversation_handler
     from backend.brain.dynamic import (
-        ClassifyTeaching, AssessEditorial,
-        ClassifyInbox, SummarizeArticle, TechSupport,
+        AssessEditorial,
+        ClassifyInbox,
+        ClassifyTeaching,
+        SummarizeArticle,
+        TechSupport,
     )
     from backend.brain.dynamic.query_db import QueryDB
     from backend.brain.router import Router
     from backend.brain.tool import register_tool
     from backend.brain.tools import (
-        make_teach_tool, make_search_tool, make_support_tool,
-        make_code_tool, make_health_tool, make_invoice_tool,
-        make_budget_tool, make_ingest_tool, make_query_db_tools,
+        make_budget_tool,
+        make_code_tool,
+        make_health_tool,
+        make_ingest_tool,
+        make_invoice_tool,
+        make_query_db_tools,
+        make_search_tool,
+        make_support_tool,
+        make_teach_tool,
     )
-    from backend.brain.controllers.conversation import conversation_handler
     from backend.commands.process_inbox import InboxWorkflow
 
     # Infrastructure
@@ -144,8 +163,8 @@ def create_brain() -> BrainComponents:
 
     # QueryDB instances for external DBs + our own DB
     # Each uses its own schema_domain so Gemini sees only relevant schema
-    from backend.infrastructure.gateways.query_gateway import LocalQueryGateway
     from backend.config import DATABASE_URL
+    from backend.infrastructure.gateways.query_gateway import LocalQueryGateway
     query_db_map: dict = {}
     for name, gw in query_gateways.items():
         # republic_db → republic, redefine_db → redefine

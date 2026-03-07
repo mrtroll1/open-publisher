@@ -1,6 +1,6 @@
-from backend.infrastructure.repositories.postgres import DbGateway
-from backend.infrastructure.gateways.embedding_gateway import EmbeddingGateway
 from backend.config import SUBSCRIPTION_SERVICE_URL
+from backend.infrastructure.gateways.embedding_gateway import EmbeddingGateway
+from backend.infrastructure.repositories.postgres import DbGateway
 
 
 def _format_entries(entries: list[dict]) -> str:

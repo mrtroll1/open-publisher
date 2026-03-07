@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from backend.brain.tool import Tool, ToolContext, TOOLS
+from backend.brain.tool import TOOLS, Tool, ToolContext
 from backend.infrastructure.repositories.postgres import DbGateway
 
 

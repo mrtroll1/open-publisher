@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from backend.models import Contractor, RoleCode
 
-
 _ROLE_LABELS = {
     RoleCode.AUTHOR: "автор",
     RoleCode.REDAKTOR: "редактор",

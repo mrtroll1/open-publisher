@@ -87,6 +87,44 @@ async def process(input: str, environment_id: str, user_id: str,
     return _unwrap(resp)
 
 
+async def process_stream(
+    input: str, environment_id: str, user_id: str,
+    chat_id: int | None = None,
+    reply_to_message_id: int | None = None,
+    reply_to_text: str = "",
+    on_progress: Callable[[str, str], None] | None = None,
+) -> dict:
+    """Call /brain/process/stream SSE endpoint. on_progress can be sync or async."""
+    import asyncio
+
+    payload = {
+        "input": input, "environment_id": environment_id, "user_id": user_id,
+    }
+    if chat_id is not None:
+        payload["chat_id"] = chat_id
+    if reply_to_message_id is not None:
+        payload["reply_to_message_id"] = reply_to_message_id
+        payload["reply_to_text"] = reply_to_text
+    async with _client.stream("POST", "/brain/process/stream", json=payload) as resp:
+        resp.raise_for_status()
+        result = None
+        event_type = None
+        async for line in resp.aiter_lines():
+            if line.startswith("event: "):
+                event_type = line[7:]
+            elif line.startswith("data: "):
+                data = json.loads(line[6:])
+                if event_type == "progress" and on_progress:
+                    ret = on_progress(data["stage"], data["detail"])
+                    if asyncio.iscoroutine(ret):
+                        await ret
+                elif event_type == "done":
+                    if data.get("error"):
+                        raise BackendError(data["error"])
+                    result = data["result"]
+    return result
+
+
 async def command(cmd: str, args: str, environment_id: str, user_id: str) -> dict:
     resp = await _client.post("/brain/command", json={
         "command": cmd, "args": args,

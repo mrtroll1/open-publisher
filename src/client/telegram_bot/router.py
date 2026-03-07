@@ -27,7 +27,7 @@ from aiogram.types import BotCommand
 from telegram_bot import backend_client
 from telegram_bot.bot_helpers import is_admin
 from telegram_bot.config import BOT_USERNAME
-from telegram_bot.handler_utils import ThinkingMessage, _save_turn, resolve_environment_record
+from telegram_bot.handler_utils import ThinkingMessage, _save_turn, _send_html, resolve_environment_record
 from telegram_bot.handlers.admin_handlers import (
     cmd_articles,
     cmd_budget,
@@ -242,29 +242,46 @@ async def handle_group_message(
         clean_text = text
 
     # Let Brain handle everything: classification + routing + reply
-    try:
-        async with ThinkingMessage(message) as thinking:
-            kwargs = {
-                "input": clean_text,
-                "environment_id": str(message.chat.id),
-                "user_id": str(message.from_user.id),
-            }
-            if is_reply_to_bot and message.reply_to_message:
-                kwargs["chat_id"] = message.chat.id
-                kwargs["reply_to_message_id"] = message.reply_to_message.message_id
-                kwargs["reply_to_text"] = message.reply_to_message.text or ""
+    thinking: ThinkingMessage | None = None
 
-            result = await backend_client.process(**kwargs)
-            answer = result.get("reply", str(result)) if isinstance(result, dict) else str(result)
-            parent_id = result.get("parent_id") if isinstance(result, dict) else None
-            run_id = result.get("run_id") if isinstance(result, dict) else None
+    async def _on_progress(stage: str, detail: str) -> None:
+        nonlocal thinking
+        txt = detail or stage
+        if thinking is None:
+            thinking = ThinkingMessage(message, txt)
+            await thinking.__aenter__()
+        else:
+            await thinking.update(txt)
+
+    try:
+        kwargs = {
+            "input": clean_text,
+            "environment_id": str(message.chat.id),
+            "user_id": str(message.from_user.id),
+            "on_progress": _on_progress,
+        }
+        if is_reply_to_bot and message.reply_to_message:
+            kwargs["chat_id"] = message.chat.id
+            kwargs["reply_to_message_id"] = message.reply_to_message.message_id
+            kwargs["reply_to_text"] = message.reply_to_message.text or ""
+
+        result = await backend_client.process_stream(**kwargs)
+        answer = result.get("reply", str(result)) if isinstance(result, dict) else str(result)
+        parent_id = result.get("parent_id") if isinstance(result, dict) else None
+        run_id = result.get("run_id") if isinstance(result, dict) else None
+
+        if thinking:
             sent = await thinking.finish_long(answer, reply_to_message_id=message.message_id)
+        else:
+            sent = await _send_html(message, answer, reply_to_message_id=message.message_id)
         meta = {"command": "nl_group"}
         if run_id:
             meta["run_id"] = run_id
         await _save_turn(message, sent, clean_text, answer, meta,
                          parent_id=parent_id)
     except Exception:
+        if thinking:
+            await thinking.__aexit__(None, None, None)
         logger.exception("Group NL processing failed")
 
 

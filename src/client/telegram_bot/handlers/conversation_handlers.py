@@ -57,20 +57,34 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
         return False
 
     try:
-        async with ThinkingMessage(message) as thinking:
-            result = await backend_client.process(
-                input=message.text,
-                environment_id=str(message.chat.id),
-                user_id=str(message.from_user.id),
-                chat_id=message.chat.id,
-                reply_to_message_id=reply.message_id,
-                reply_to_text=reply.text or "",
-            )
-            answer = result.get("reply", str(result)) if isinstance(result, dict) else str(result)
-            parent_id = result.get("parent_id") if isinstance(result, dict) else None
-            run_id = result.get("run_id") if isinstance(result, dict) else None
+        thinking: ThinkingMessage | None = None
 
+        async def _on_progress(stage: str, detail: str) -> None:
+            nonlocal thinking
+            text = detail or stage
+            if thinking is None:
+                thinking = ThinkingMessage(message, text)
+                await thinking.__aenter__()
+            else:
+                await thinking.update(text)
+
+        result = await backend_client.process_stream(
+            input=message.text,
+            environment_id=str(message.chat.id),
+            user_id=str(message.from_user.id),
+            chat_id=message.chat.id,
+            reply_to_message_id=reply.message_id,
+            reply_to_text=reply.text or "",
+            on_progress=_on_progress,
+        )
+        answer = result.get("reply", str(result)) if isinstance(result, dict) else str(result)
+        parent_id = result.get("parent_id") if isinstance(result, dict) else None
+        run_id = result.get("run_id") if isinstance(result, dict) else None
+
+        if thinking:
             sent = await thinking.finish_long(answer, reply_to_message_id=message.message_id)
+        else:
+            sent = await _send_html(message, answer, reply_to_message_id=message.message_id)
         meta = {"command": "nl_reply"}
         if run_id:
             meta["run_id"] = run_id
@@ -78,6 +92,8 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
                          parent_id=parent_id)
         return True
     except Exception:
+        if thinking:
+            await thinking.__aexit__(None, None, None)
         logger.exception("NL reply failed")
         return False
 
@@ -92,13 +108,27 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
     text = args[1].strip()
 
     # Let Brain handle classification + routing
+    thinking: ThinkingMessage | None = None
+
+    async def _on_progress(stage: str, detail: str) -> None:
+        nonlocal thinking
+        txt = detail or stage
+        if thinking is None:
+            thinking = ThinkingMessage(message, txt)
+            await thinking.__aenter__()
+        else:
+            await thinking.update(txt)
+
     try:
-        result = await backend_client.process(
+        result = await backend_client.process_stream(
             input=text,
             environment_id=str(message.chat.id),
             user_id=str(message.from_user.id),
+            on_progress=_on_progress,
         )
     except Exception:
+        if thinking:
+            await thinking.__aexit__(None, None, None)
         logger.exception("NL processing failed")
         await message.answer("Не удалось обработать команду.")
         return
@@ -106,8 +136,10 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
     # Brain returns a dict with "reply" for conversation, or command-specific result
     if isinstance(result, dict) and "reply" in result:
         try:
-            async with ThinkingMessage(message) as thinking:
+            if thinking:
                 sent = await thinking.finish_long(result["reply"])
+            else:
+                sent = await _send_html(message, result["reply"])
             meta = {"command": "nl_rag"}
             if result.get("run_id"):
                 meta["run_id"] = result["run_id"]
@@ -117,8 +149,10 @@ async def cmd_nl(message: types.Message, state: FSMContext) -> None:
             await message.answer("Не удалось ответить.")
         return
 
+    if thinking:
+        await thinking.__aexit__(None, None, None)
+
     # If Brain routed to a command, the result is already the command output
-    # Display it as text
     if isinstance(result, dict):
         text_result = result.get("text", result.get("reply", str(result)))
     else:

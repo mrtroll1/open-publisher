@@ -108,6 +108,62 @@ def process(req: ProcessRequest) -> BrainResponse:
     except Exception as e:
         return BrainResponse(result=None, error=str(e))
 
+
+@app.post("/brain/process/stream")
+def process_stream(req: ProcessRequest):
+    """SSE endpoint: yields progress events from Brain, then the final result."""
+    import json
+    import queue
+    import threading
+
+    from starlette.responses import StreamingResponse
+
+    from backend.models import ProgressEmitter, ProgressEvent
+
+    event_queue: queue.Queue[ProgressEvent | None] = queue.Queue()
+
+    def _on_event(event: ProgressEvent) -> None:
+        event_queue.put(event)
+
+    emitter = ProgressEmitter(_on_event=_on_event)
+    result_holder: list[dict] = []
+    error_holder: list[str] = []
+
+    def _run() -> None:
+        try:
+            kwargs = {"progress": emitter}
+            if req.chat_id is not None:
+                kwargs["chat_id"] = req.chat_id
+            if req.reply_to_message_id is not None:
+                kwargs["reply_to_message_id"] = req.reply_to_message_id
+                kwargs["reply_to_text"] = req.reply_to_text
+            result_holder.append(
+                brain.process(req.input, req.environment_id, req.user_id, **kwargs)
+            )
+        except Exception as e:
+            error_holder.append(str(e))
+        finally:
+            event_queue.put(None)
+
+    thread = threading.Thread(target=_run)
+    thread.start()
+
+    def _generate():
+        while True:
+            event = event_queue.get()
+            if event is None:
+                break
+            data = json.dumps({"stage": event.stage, "detail": event.detail}, ensure_ascii=False)
+            yield f"event: progress\ndata: {data}\n\n"
+        thread.join()
+        if error_holder:
+            data = json.dumps({"result": None, "error": error_holder[0]}, ensure_ascii=False)
+        else:
+            data = json.dumps({"result": result_holder[0]}, ensure_ascii=False)
+        yield f"event: done\ndata: {data}\n\n"
+
+    return StreamingResponse(_generate(), media_type="text/event-stream")
+
 @app.post("/brain/command")
 def command(req: CommandRequest) -> BrainResponse:
     try:

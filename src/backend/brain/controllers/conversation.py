@@ -130,6 +130,7 @@ def conversation_handler(
     """Create the conversation handler function used by Brain."""
 
     def handle(input: str, auth: AuthContext, **kwargs) -> dict:
+        progress = kwargs.get("progress")
         run_id = str(uuid.uuid4())
         step = 0
 
@@ -146,6 +147,8 @@ def conversation_handler(
             return {"reply": text, "parent_id": parent_id, "run_id": run_id}
 
         # Build conversation history
+        if progress:
+            progress.emit("context", "Загружаю контекст")
         history = ""
         parent_id = None
         chat_id = kwargs.get("chat_id")
@@ -188,12 +191,16 @@ def conversation_handler(
         })
 
         if not declarations:
+            if progress:
+                progress.emit("llm", "Генерирую ответ")
             prompt = system_prompt + f"\n\n## Сообщение\n{input}\n\nВерни JSON: {{\"reply\": \"<ответ>\"}}"
             result = gemini.call(prompt, GEMINI_MODEL_SMART)
             reply = result.get("reply") or result.get("response") or result.get("answer") or "Не удалось сформировать ответ."
             return _reply(reply)
 
         # ReAct loop
+        if progress:
+            progress.emit("llm", "Думаю...")
         text, tool_calls, resp_content = gemini.call_with_tools(
             system_prompt, input, declarations, model=GEMINI_MODEL_SMART,
         )
@@ -205,12 +212,15 @@ def conversation_handler(
             turn_history.append(resp_content)
 
         failed_tools: dict[str, int] = {}
-        for _ in range(MAX_TOOL_STEPS):
+        for iteration in range(MAX_TOOL_STEPS):
             if text:
                 return _reply(text)
             if not tool_calls:
                 return _reply("Не удалось сформировать ответ.")
 
+            tool_names = ", ".join(tc["name"] for tc in tool_calls)
+            if progress:
+                progress.emit("tool", f"Вызываю {tool_names}")
             results = _execute_tool_calls(tool_calls, tools_by_name, auth.ctx, failed_tools, _log)
 
             if _has_repeated_failures(failed_tools):
@@ -219,6 +229,8 @@ def conversation_handler(
                 _log("loop_break", {"reason": "repeated failures", "details": errors})
                 break
 
+            if progress:
+                progress.emit("llm", f"Думаю... (шаг {iteration + 2})")
             text, tool_calls, resp_content = gemini.continue_with_tool_results(
                 turn_history, results, declarations, model=GEMINI_MODEL_SMART,
             )

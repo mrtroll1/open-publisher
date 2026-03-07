@@ -17,10 +17,10 @@ services:
       - db
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8100/health')"]
-      interval: 30s
+      interval: 5s
       timeout: 3s
       retries: 3
-      start_period: 10s
+      start_period: 5s
     volumes:
       - ./config/service_account.json:/app/config/service_account.json:ro
       - ./config/business_config.json:/app/config/business_config.json:ro

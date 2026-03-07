@@ -1,7 +1,8 @@
-"""Healthcheck: HTTP domain checks + optional kubectl pod status."""
+"""Healthcheck: HTTP domain checks + optional kubectl pod status + Cloudflare."""
 
 import subprocess
 from dataclasses import dataclass
+from datetime import date, timedelta
 from typing import Any
 
 import requests
@@ -51,6 +52,53 @@ def _kubectl_checks() -> list[HealthResult]:
         return [HealthResult("kubectl", "error", str(e))]
 
 
+def _cloudflare_checks() -> list[HealthResult]:
+    from backend.infrastructure.gateways.cloudflare_gateway import CloudflareGateway
+    gw = CloudflareGateway()
+    if not gw.available:
+        return []
+
+    today = date.today().isoformat()
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+
+    summary = gw.get_traffic_summary(yesterday, today)
+    if not summary:
+        return [HealthResult("Cloudflare", "error", "API не отвечает")]
+
+    results = []
+
+    # Error rate from status codes
+    status_codes = gw.get_status_codes(yesterday, today)
+    total = sum(s["requests"] for s in status_codes)
+    errors_5xx = sum(s["requests"] for s in status_codes if 500 <= s["status"] < 600)
+    error_pct = round(errors_5xx / total * 100, 2) if total else 0
+    status = "error" if error_pct > 5 else "ok"
+    results.append(HealthResult(
+        "Cloudflare 5xx",
+        status,
+        f"{error_pct}% ({errors_5xx}/{total} запросов за 24ч)",
+    ))
+
+    # Threats
+    threats = summary.get("threats_blocked", 0)
+    results.append(HealthResult(
+        "Cloudflare угрозы",
+        "ok",
+        f"{threats} заблокировано за 24ч",
+    ))
+
+    # Cache ratio
+    cache_pct = summary.get("cache_ratio_pct", 0)
+    status = "error" if cache_pct < 30 else "ok"
+    results.append(HealthResult(
+        "Cloudflare кеш",
+        status,
+        f"{cache_pct}% запросов из кеша",
+    ))
+
+    return results
+
+
 class CheckHealthUseCase(BaseUseCase):
     def execute(self, prepared: Any, env: dict, user: dict) -> list[HealthResult]:
         results = []
@@ -66,5 +114,7 @@ class CheckHealthUseCase(BaseUseCase):
 
         if KUBECTL_ENABLED:
             results.extend(_kubectl_checks())
+
+        results.extend(_cloudflare_checks())
 
         return results

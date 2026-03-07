@@ -16,6 +16,7 @@ from backend.commands.budget.compute import ComputeBudget
 from backend.commands.draft_support import TechSupportHandler
 from backend.commands.invoice.batch import GenerateBatchInvoices
 from backend.commands.invoice.generate import GenerateInvoice
+from backend.infrastructure.gateways.cloudflare_gateway import CloudflareGateway
 from backend.infrastructure.gateways.docs_gateway import DocsGateway
 from backend.infrastructure.gateways.drive_gateway import DriveGateway
 from backend.infrastructure.gateways.email_gateway import EmailGateway
@@ -197,7 +198,6 @@ def create_brain() -> BrainComponents:
     for tool in make_query_db_tools(query_db_map):
         register_tool(tool)
 
-    from backend.infrastructure.gateways.cloudflare_gateway import CloudflareGateway
     ym_gw = YandexMetricaGateway()
     if ym_gw.available:
         register_tool(make_yandex_metrica_tool(ym_gw))

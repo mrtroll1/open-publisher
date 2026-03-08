@@ -22,7 +22,6 @@ from backend.brain.tools import (
     make_cloudflare_tool,
     make_code_tool,
     make_health_tool,
-    make_ingest_tool,
     make_invoice_tool,
     make_query_db_tools,
     make_search_tool,
@@ -179,7 +178,7 @@ def _create_query_db_map(gemini, query_gateways, db) -> dict:
 
 def _register_tools(genai, memory, retriever, query_db_map, gemini) -> None:
     _register_core_tools(genai, memory, retriever, gemini)
-    _register_domain_tools(genai, memory, query_db_map)
+    _register_domain_tools(query_db_map)
     _register_optional_analytics()
 
 
@@ -192,12 +191,11 @@ def _register_core_tools(genai, memory, retriever, gemini) -> None:
     register_tool(make_health_tool())
 
 
-def _register_domain_tools(genai, memory, query_db_map) -> None:
+def _register_domain_tools(query_db_map) -> None:
     gen_invoice = GenerateInvoice(docs_gw=DocsGateway(), drive_gw=DriveGateway())
     register_tool(make_invoice_tool(gen_invoice))
     compute_budget = ComputeBudget(republic_gw=RepublicGateway(), redefine_gw=RedefineGateway())
     register_tool(make_budget_tool(compute_budget))
-    register_tool(make_ingest_tool(genai["summarize_article"], memory))
     for tool in make_query_db_tools(query_db_map):
         register_tool(tool)
 

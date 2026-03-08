@@ -14,7 +14,6 @@ from telegram_bot.handler_utils import (
     ThinkingMessage,
     _admin_reply_map,
     _support_draft_map,
-    parse_date_range_arg,
     parse_month_arg,
     send_typing,
 )
@@ -31,7 +30,6 @@ __all__ = [
     "cmd_extract_knowledge",
     "cmd_generate",
     "cmd_generate_invoices",
-    "cmd_ingest_articles",
     "cmd_lookup",
     "cmd_orphan_contractors",
     "cmd_send_global_invoices",
@@ -146,30 +144,6 @@ async def cmd_budget(message: types.Message, _state: FSMContext) -> None:
     except Exception as e:
         logger.exception("Budget generation failed")
         await message.answer(replies.admin.budget_error.format(error=e))
-
-
-async def cmd_ingest_articles(message: types.Message, _state: FSMContext) -> None:
-    """Fetch published articles for a date range and store in knowledge base."""
-    args = message.text.split()
-    date_from, date_to = parse_date_range_arg(args)
-
-    await message.answer(replies.admin.ingest_articles_start.format(date_from=date_from, date_to=date_to))
-    await send_typing(message.chat.id)
-
-    try:
-        result = await backend_client.command(
-            "ingest", f"{date_from} {date_to}",
-            environment_id=str(message.chat.id),
-            user_id=str(message.from_user.id),
-        )
-        count = result.get("count", 0) if isinstance(result, dict) else 0
-        authors = result.get("authors", 0) if isinstance(result, dict) else 0
-        await message.answer(replies.admin.ingest_articles_done.format(
-            count=count, date_from=date_from, date_to=date_to, authors=authors,
-        ))
-    except Exception as e:
-        logger.exception("Article ingestion failed")
-        await message.answer(replies.admin.ingest_articles_error.format(error=e))
 
 
 async def cmd_extract_knowledge(message: types.Message, _state: FSMContext) -> None:

@@ -79,7 +79,7 @@ def test_process_command_passes_args_as_input():
         received.update(args)
         return {"ok": True}
 
-    tool = make_tool("ingest", fn=capture)
+    tool = make_tool("teach", fn=capture)
     register_tool(tool)
     auth = _make_auth(tools=[tool])
 
@@ -89,6 +89,6 @@ def test_process_command_passes_args_as_input():
 
     brain = Brain(FakeAuthorizer(), None)
 
-    brain.process_command("ingest", "https://example.com/article", "env1", "user1")
+    brain.process_command("teach", "https://example.com/article", "env1", "user1")
 
     assert received["input"] == "https://example.com/article"

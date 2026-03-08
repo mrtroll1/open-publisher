@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from backend.commands.invoice.service import get_invoice_folder_path
+from backend.commands.invoice.service import InvoiceService
 from backend.config import (
     TEMPLATE_GLOBAL_ID,
     TEMPLATE_GLOBAL_PHOTO_ID,
@@ -107,7 +107,7 @@ class GenerateInvoice:
         invoice_date: date,
     ) -> tuple[bytes, str]:
         """Generate the actual PDF via Google Docs templates."""
-        parent, month_folder, name_folder = get_invoice_folder_path(contractor, invoice.month)
+        parent, month_folder, name_folder = InvoiceService().folder_path(contractor, invoice.month)
         folder_id = self._drive.get_contractor_folder(parent, month_folder, name_folder)
 
         if isinstance(contractor, IPContractor):

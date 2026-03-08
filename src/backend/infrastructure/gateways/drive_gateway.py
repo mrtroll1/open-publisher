@@ -6,7 +6,7 @@ import logging
 
 from googleapiclient.http import MediaInMemoryUpload
 
-from backend.commands.invoice.service import get_invoice_folder_path
+from backend.commands.invoice.service import InvoiceService
 from backend.infrastructure.gateways.google_auth import build_google_service
 
 logger = logging.getLogger(__name__)
@@ -130,7 +130,7 @@ class DriveGateway:
 
     def upload_invoice_pdf(self, contractor, month: str, filename: str, pdf_bytes: bytes) -> str:
         """Upload an invoice PDF to the appropriate folder structure. Returns a shareable link."""
-        parent, month_folder, name_folder = get_invoice_folder_path(contractor, month)
+        parent, month_folder, name_folder = InvoiceService().folder_path(contractor, month)
         folder_id = self.get_contractor_folder(parent, month_folder, name_folder)
         file_id = self.upload_file(folder_id, filename, pdf_bytes)
         return self.make_shareable(file_id)

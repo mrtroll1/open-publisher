@@ -10,7 +10,7 @@ from backend.commands.invoice.resolve_amount import plural_ru, resolve_amount
 from backend.config import DRIVE_FOLDER_GLOBAL, DRIVE_FOLDER_RU
 from backend.infrastructure.gateways.republic_gateway import RepublicGateway
 from backend.infrastructure.repositories.sheets.budget_repo import load_all_amounts
-from backend.models import Contractor, Currency, GlobalContractor, InvoiceStatus
+from backend.models import Currency, GlobalContractor, InvoiceStatus
 
 
 class DeliveryAction(Enum):
@@ -36,62 +36,44 @@ class NewInvoiceData:
     pub_word: str
 
 
-def resolve_existing_invoice(contractor: Contractor, month: str) -> ExistingInvoiceResult | None:
-    prepared = prepare_existing_invoice(contractor, month)
-    if not prepared:
-        return None
+class InvoiceService:
+    def resolve_existing(self, contractor, month):
+        prepared = prepare_existing_invoice(contractor, month)
+        if not prepared:
+            return None
+        action = self._determine_action(contractor, prepared.invoice)
+        return ExistingInvoiceResult(prepared=prepared, action=action)
 
-    inv = prepared.invoice
-
-    if contractor.currency == Currency.EUR:
-        if inv.status == InvoiceStatus.DRAFT:
-            action = DeliveryAction.SEND_PROFORMA
-        else:
-            action = DeliveryAction.PROFORMA_ALREADY_SENT
-    else:
+    def _determine_action(self, contractor, inv):
+        if contractor.currency == Currency.EUR:
+            return (DeliveryAction.SEND_PROFORMA if inv.status == InvoiceStatus.DRAFT
+                    else DeliveryAction.PROFORMA_ALREADY_SENT)
         if inv.legium_link:
-            action = DeliveryAction.SEND_RUB_WITH_LEGIUM
-        elif inv.status == InvoiceStatus.DRAFT:
-            action = DeliveryAction.SEND_RUB_DRAFT
-        else:
-            action = DeliveryAction.RUB_ALREADY_SENT
+            return DeliveryAction.SEND_RUB_WITH_LEGIUM
+        if inv.status == InvoiceStatus.DRAFT:
+            return DeliveryAction.SEND_RUB_DRAFT
+        return DeliveryAction.RUB_ALREADY_SENT
 
-    return ExistingInvoiceResult(prepared=prepared, action=action)
+    def prepare_new_data(self, contractor, month):
+        budget_amounts = load_all_amounts(month)
+        articles = RepublicGateway().fetch_articles(contractor, month)
+        default_amount, explanation = resolve_amount(budget_amounts, contractor, len(articles))
+        if not default_amount:
+            return None
+        return self._build_new_data(articles, default_amount, explanation)
 
+    def _build_new_data(self, articles, default_amount, explanation):
+        num = len(articles)
+        pub_word = plural_ru(num, "публикация", "публикации", "публикаций") if num else "0 публикаций"
+        return NewInvoiceData(
+            default_amount=default_amount, explanation=explanation,
+            article_ids=[a.article_id for a in articles],
+            num_articles=num, pub_word=pub_word,
+        )
 
-def prepare_new_invoice_data(contractor: Contractor, month: str) -> NewInvoiceData | None:
-    budget_amounts = load_all_amounts(month)
-    articles = RepublicGateway().fetch_articles(contractor, month)
-    num_articles = len(articles)
-
-    default_amount, explanation = resolve_amount(budget_amounts, contractor, num_articles)
-    if not default_amount:
-        return None
-
-    article_ids = [a.article_id for a in articles]
-    pub_word = (
-        plural_ru(num_articles, "публикация", "публикации", "публикаций")
-        if num_articles
-        else "0 публикаций"
-    )
-
-    return NewInvoiceData(
-        default_amount=default_amount,
-        explanation=explanation,
-        article_ids=article_ids,
-        num_articles=num_articles,
-        pub_word=pub_word,
-    )
-
-
-def get_invoice_folder_path(contractor: Contractor, month: str) -> tuple[str, str, str]:
-    if isinstance(contractor, GlobalContractor):
-        parent = DRIVE_FOLDER_GLOBAL
-        month_folder = month
-        name_folder = contractor.name_en.replace(" ", "")
-    else:
-        parent = DRIVE_FOLDER_RU
+    def folder_path(self, contractor, month):
+        if isinstance(contractor, GlobalContractor):
+            return DRIVE_FOLDER_GLOBAL, month, contractor.name_en.replace(" ", "")
         parts = month.split("-")
         month_folder = f"{parts[1]}-{parts[0]}" if len(parts) == 2 else month
-        name_folder = contractor.display_name.replace(" ", "")
-    return parent, month_folder, name_folder
+        return DRIVE_FOLDER_RU, month_folder, contractor.display_name.replace(" ", "")

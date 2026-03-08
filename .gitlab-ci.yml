@@ -12,7 +12,11 @@ deploy-api:
   tags:
     - self-hosted
   only:
-    - main
+    changes:
+      - src/backend/**/*
+      - docker-compose.yml
+    refs:
+      - main
   script:
     - cd /opt/open-publisher && git pull
     - docker compose up -d --build api

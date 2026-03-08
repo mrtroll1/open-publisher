@@ -50,7 +50,7 @@ def _search_by_embedding(cur, emb_str: str, *, where_extra: str = "",
     cur.execute(
         f"""SELECT id, tier, domain, title, content, source,
                   1 - (embedding <=> %s::vector) AS similarity
-           FROM unit_of_knowledge
+           FROM units_of_knowledge
            WHERE is_active = TRUE
                  AND (expires_at IS NULL OR expires_at > NOW())
                  {where_extra}
@@ -64,7 +64,7 @@ def _search_by_embedding(cur, emb_str: str, *, where_extra: str = "",
 def _fetch_entries(cur, where: str, params: tuple, order: str = "created_at") -> list[dict]:
     cur.execute(
         f"""SELECT id, tier, domain, title, content, source
-           FROM unit_of_knowledge
+           FROM units_of_knowledge
            WHERE is_active = TRUE AND {where}
            ORDER BY {order}""",
         params,
@@ -86,7 +86,7 @@ class KnowledgeRepo(BasePostgresRepo):
                              source_type: str = "") -> str:
         with self._cursor() as cur:
             cur.execute(
-                """INSERT INTO unit_of_knowledge
+                """INSERT INTO units_of_knowledge
                           (tier, domain, title, content, source, embedding,
                            user_id, source_url, expires_at, parent_id,
                            visibility, environment_id, source_type)
@@ -102,7 +102,7 @@ class KnowledgeRepo(BasePostgresRepo):
     def update_knowledge_entry(self, entry_id: str, content: str, embedding: list[float] | None = None) -> bool:
         with self._cursor() as cur:
             cur.execute(
-                """UPDATE unit_of_knowledge
+                """UPDATE units_of_knowledge
                    SET content = %s, embedding = %s, updated_at = NOW()
                    WHERE id = %s""",
                 (content, str(embedding) if embedding is not None else None, entry_id),
@@ -147,7 +147,7 @@ class KnowledgeRepo(BasePostgresRepo):
             return _fetch_entries(cur, "domain = %s", (domain,))
 
     def list_knowledge(self, domain: str | None = None, tier: str | None = None) -> list[dict]:
-        sql = "SELECT id, tier, domain, title, content, source, created_at FROM unit_of_knowledge WHERE is_active = TRUE"
+        sql = "SELECT id, tier, domain, title, content, source, created_at FROM units_of_knowledge WHERE is_active = TRUE"
         params: list = []
         if domain is not None:
             sql += " AND domain = %s"
@@ -164,7 +164,7 @@ class KnowledgeRepo(BasePostgresRepo):
         with self._cursor() as cur:
             cur.execute(
                 """SELECT id, tier, domain, title, content, source, created_at
-                   FROM unit_of_knowledge
+                   FROM units_of_knowledge
                    WHERE id = %s AND is_active = TRUE""",
                 (entry_id,),
             )
@@ -174,7 +174,7 @@ class KnowledgeRepo(BasePostgresRepo):
     def deactivate_knowledge(self, entry_id: str) -> bool:
         with self._cursor() as cur:
             cur.execute(
-                "UPDATE unit_of_knowledge SET is_active = FALSE, updated_at = NOW() WHERE id = %s",
+                "UPDATE units_of_knowledge SET is_active = FALSE, updated_at = NOW() WHERE id = %s",
                 (entry_id,),
             )
             return cur.rowcount > 0
@@ -191,7 +191,7 @@ class KnowledgeRepo(BasePostgresRepo):
         with self._cursor() as cur:
             cur.execute(
                 """SELECT id, tier, domain, title, content, source, source_url
-                   FROM unit_of_knowledge
+                   FROM units_of_knowledge
                    WHERE source_url = %s AND is_active = TRUE
                    ORDER BY created_at DESC LIMIT 1""",
                 (source_url,),

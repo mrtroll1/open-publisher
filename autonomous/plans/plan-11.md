@@ -39,7 +39,7 @@ For both external to work, three rpoblems needs to be solved:
     how to get the knowledge? how to store it? how to retrieve it? 
 
 Scraping insta / telegram / mails? 
-Some more structured way of storing knowledge is required, eg unit_of_content (title, text, embedding, source (media name), type (mail, insta, ...), source_url, created_at, metadata (can be smm statistics or whatever useful)) and media table (i dont want to use the word competitor because this table and units of content include our own data too). in that spirit, knowledge entires should be renamed to unit_of_knowledge. what I do not like about this is that we will have multiple knowledge tables. it would make sense to have a single knowledge table with typing and categorizing. i guess that is indeed more optimal. the structure can be partially stored in metadata and partially refetched by source_url. so yeah, using unit of knowledge for everything. what do you think? 
+Some more structured way of storing knowledge is required, eg unit_of_content (title, text, embedding, source (media name), type (mail, insta, ...), source_url, created_at, metadata (can be smm statistics or whatever useful)) and media table (i dont want to use the word competitor because this table and units of content include our own data too). in that spirit, knowledge entires should be renamed to units_of_knowledge. what I do not like about this is that we will have multiple knowledge tables. it would make sense to have a single knowledge table with typing and categorizing. i guess that is indeed more optimal. the structure can be partially stored in metadata and partially refetched by source_url. so yeah, using unit of knowledge for everything. what do you think? 
 
 //
 

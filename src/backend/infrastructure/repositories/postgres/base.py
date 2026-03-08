@@ -1,10 +1,11 @@
-"""Base Postgres repository — connection handling and schema init."""
+"""Base Postgres repository — connection handling and migration runner."""
 
 from __future__ import annotations
 
 import logging
 import re
 import time
+from pathlib import Path
 
 import psycopg2
 
@@ -17,186 +18,7 @@ _TABLE_RE = re.compile(
     r"(?:FROM|INTO|UPDATE|JOIN)\s+(\w+)", re.IGNORECASE,
 )
 
-_SCHEMA_SQL = """
-CREATE EXTENSION IF NOT EXISTS vector;
-
--- Drop legacy tables no longer used
-DROP TABLE IF EXISTS code_tasks CASCADE;
-DROP TABLE IF EXISTS conversations CASCADE;
-DROP TABLE IF EXISTS email_decisions CASCADE;
-DROP TABLE IF EXISTS email_messages CASCADE;
-DROP TABLE IF EXISTS email_threads CASCADE;
-DROP TABLE IF EXISTS entities CASCADE;
-DROP TABLE IF EXISTS llm_classifications CASCADE;
-DROP TABLE IF EXISTS payment_validations CASCADE;
-
-CREATE TABLE IF NOT EXISTS knowledge_domains (
-    name TEXT PRIMARY KEY,
-    description TEXT NOT NULL DEFAULT ''
-);
-
-CREATE TABLE IF NOT EXISTS knowledge_entries (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tier TEXT NOT NULL DEFAULT 'specific',
-    domain TEXT NOT NULL,
-    title TEXT NOT NULL DEFAULT '',
-    content TEXT NOT NULL,
-    source TEXT NOT NULL DEFAULT 'seed',
-    embedding vector(256),
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-
--- Rename knowledge_entries → unit_of_knowledge
-DO $$ BEGIN
-    ALTER TABLE knowledge_entries RENAME TO unit_of_knowledge;
-EXCEPTION WHEN undefined_table OR duplicate_table THEN NULL;
-END $$;
-
-CREATE INDEX IF NOT EXISTS idx_knowledge_embedding
-    ON unit_of_knowledge USING ivfflat (embedding vector_cosine_ops) WITH (lists = 10);
-CREATE INDEX IF NOT EXISTS idx_knowledge_domain
-    ON unit_of_knowledge(domain, is_active);
-CREATE INDEX IF NOT EXISTS idx_knowledge_tier
-    ON unit_of_knowledge(tier, is_active);
-
--- Migrate: core entries in non-identity domains → meta
-UPDATE unit_of_knowledge SET tier = 'meta'
-WHERE tier = 'core' AND domain != 'identity';
-
-CREATE TABLE IF NOT EXISTS environments (
-    name         TEXT PRIMARY KEY,
-    description  TEXT NOT NULL DEFAULT '',
-    system_context TEXT NOT NULL DEFAULT '',
-    allowed_domains TEXT[],
-    created_at   TIMESTAMP DEFAULT NOW(),
-    updated_at   TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS environment_bindings (
-    chat_id      BIGINT PRIMARY KEY,
-    environment  TEXT NOT NULL REFERENCES environments(name),
-    created_at   TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS users (
-    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name          TEXT NOT NULL DEFAULT '',
-    role          TEXT NOT NULL DEFAULT 'user',
-    telegram_id   BIGINT UNIQUE,
-    email         TEXT UNIQUE,
-    created_at    TIMESTAMP DEFAULT NOW(),
-    updated_at    TIMESTAMP DEFAULT NOW()
-);
-
-DO $$ BEGIN
-    ALTER TABLE users ADD COLUMN email TEXT UNIQUE;
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
-CREATE INDEX IF NOT EXISTS idx_users_telegram_id ON users(telegram_id) WHERE telegram_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
-
-CREATE TABLE IF NOT EXISTS messages (
-    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    text          TEXT NOT NULL DEFAULT '',
-    embedding     vector(256),
-    environment   TEXT REFERENCES environments(name),
-    chat_id       BIGINT,
-    type          TEXT NOT NULL DEFAULT 'user',
-    user_id       UUID REFERENCES users(id),
-    parent_id     UUID REFERENCES messages(id),
-    created_at    TIMESTAMP DEFAULT NOW(),
-    metadata      JSONB DEFAULT '{}'
-);
-
-CREATE INDEX IF NOT EXISTS idx_msg_chat ON messages(chat_id, created_at) WHERE chat_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_msg_parent ON messages(parent_id) WHERE parent_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_msg_environment ON messages(environment, created_at) WHERE environment IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_msg_user ON messages(user_id) WHERE user_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_msg_telegram_mid ON messages((metadata->>'telegram_message_id')) WHERE metadata->>'telegram_message_id' IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_msg_email_mid ON messages((metadata->>'email_message_id')) WHERE metadata->>'email_message_id' IS NOT NULL;
-
--- user FK on unit_of_knowledge
-DO $$ BEGIN
-    ALTER TABLE unit_of_knowledge ADD COLUMN user_id UUID REFERENCES users(id);
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
-CREATE INDEX IF NOT EXISTS idx_knowledge_user
-    ON unit_of_knowledge(user_id) WHERE user_id IS NOT NULL;
-
-DO $$ BEGIN
-    ALTER TABLE unit_of_knowledge ADD COLUMN source_url TEXT;
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
-CREATE INDEX IF NOT EXISTS idx_knowledge_source_url
-    ON unit_of_knowledge(source_url) WHERE source_url IS NOT NULL;
-
-DO $$ BEGIN
-    ALTER TABLE unit_of_knowledge ADD COLUMN expires_at TIMESTAMP;
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE unit_of_knowledge ADD COLUMN parent_id UUID REFERENCES unit_of_knowledge(id);
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
--- Visibility-based access control on knowledge entries
-DO $$ BEGIN
-    ALTER TABLE unit_of_knowledge ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public';
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE unit_of_knowledge ADD COLUMN environment_id TEXT REFERENCES environments(name);
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
-DO $$ BEGIN
-    ALTER TABLE unit_of_knowledge ADD COLUMN source_type TEXT NOT NULL DEFAULT '';
-EXCEPTION WHEN duplicate_column THEN NULL;
-END $$;
-
--- Migrate: entries with user_id → visibility 'user'
-UPDATE unit_of_knowledge SET visibility = 'user'
-WHERE user_id IS NOT NULL AND visibility = 'public';
-
-CREATE INDEX IF NOT EXISTS idx_knowledge_visibility
-    ON unit_of_knowledge(visibility);
-CREATE INDEX IF NOT EXISTS idx_knowledge_env_id
-    ON unit_of_knowledge(environment_id) WHERE environment_id IS NOT NULL;
-
-CREATE TABLE IF NOT EXISTS run_logs (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    run_id      UUID NOT NULL,
-    step        INTEGER NOT NULL DEFAULT 0,
-    type        TEXT NOT NULL,
-    content     JSONB NOT NULL DEFAULT '{}',
-    created_at  TIMESTAMP DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_run_logs_run ON run_logs(run_id, step);
-
-INSERT INTO environments (name, description, system_context, allowed_domains) VALUES
-  ('admin_dm', 'Приватный чат с администратором Republic',
-   'Это приватный чат с администратором. Полный доступ ко всем функциям. Можно обсуждать внутренние вопросы, контрагентов, бюджет. Давай развёрнутые ответы.',
-   NULL),
-  ('editorial_group', 'Групповой чат редакции Republic',
-   'Это групповой чат редакции. Видят все сотрудники. Отвечай кратко и по делу. Не раскрывай персональные данные контрагентов.',
-   ARRAY['tech_support', 'editorial', 'identity']),
-  ('contractor_dm', 'Личный чат с контрагентом Republic',
-   'Это личный чат с контрагентом Republic. Будь вежлив и формален. Помогай с документами, оплатой, регистрацией.',
-   ARRAY['contractor', 'payments']),
-  ('email', 'Обработка входящей почты',
-   'Ты составляешь ответ на email. Пиши формально и грамотно.',
-   ARRAY['tech_support'])
-ON CONFLICT (name) DO NOTHING;
-"""
+_MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 
 
 class _LoggingCursor:
@@ -242,9 +64,50 @@ class BasePostgresRepo:
         return _LoggingCursor(self._get_conn().cursor())
 
     def init_schema(self):
-        with self._get_conn().cursor() as cur:
-            cur.execute(_SCHEMA_SQL)
+        self._run_migrations()
         self._seed_bindings()
+
+    def _run_migrations(self):
+        conn = self._get_conn()
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS schema_migrations (
+                    version TEXT PRIMARY KEY,
+                    applied_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            cur.execute("SELECT version FROM schema_migrations")
+            applied = {row[0] for row in cur.fetchall()}
+
+        # Bootstrap: existing DB already has all tables from the old monolithic SQL.
+        # Mark 001_initial as applied without running it.
+        if not applied:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM information_schema.tables "
+                    "WHERE table_name = 'units_of_knowledge'"
+                )
+                if cur.fetchone():
+                    cur.execute(
+                        "INSERT INTO schema_migrations (version) VALUES ('001_initial')"
+                    )
+                    applied.add("001_initial")
+                    logger.info("Bootstrapped: marked 001_initial as applied")
+
+        migration_files = sorted(_MIGRATIONS_DIR.glob("*.sql"))
+        for f in migration_files:
+            version = f.stem  # e.g. "001_initial"
+            if version in applied:
+                continue
+            logger.info("Applying migration %s", version)
+            sql = f.read_text()
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                cur.execute(
+                    "INSERT INTO schema_migrations (version) VALUES (%s)",
+                    (version,),
+                )
+            logger.info("Migration %s applied", version)
 
     def _seed_bindings(self):
         conn = self._get_conn()

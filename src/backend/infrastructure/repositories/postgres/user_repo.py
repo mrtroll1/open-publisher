@@ -83,7 +83,7 @@ class UserRepo(BasePostgresRepo):
         with self._cursor() as cur:
             cur.execute(
                 """SELECT id, tier, domain, title, content, source, created_at
-                   FROM unit_of_knowledge
+                   FROM units_of_knowledge
                    WHERE user_id = %s AND is_active = TRUE
                    ORDER BY created_at DESC
                    LIMIT %s""",

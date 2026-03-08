@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS knowledge_entries (
 -- Rename knowledge_entries → unit_of_knowledge
 DO $$ BEGIN
     ALTER TABLE knowledge_entries RENAME TO unit_of_knowledge;
-EXCEPTION WHEN undefined_table THEN NULL;
+EXCEPTION WHEN undefined_table OR duplicate_table THEN NULL;
 END $$;
 
 CREATE INDEX IF NOT EXISTS idx_knowledge_embedding

@@ -19,17 +19,16 @@ def make_teach_tool(classify_teaching, memory, gemini) -> Tool:
     def fn(args: dict, _ctx: ToolContext) -> dict:
         text = args.get("text") or args.get("input", "")
         extracted = _extract_knowledge(gemini, text, args.get("context", ""))
-        title = extracted.get("title", "")
         content = extracted.get("content", text)
         classified = _classify(content, args)
         domain = classified["domain"]
         tier = classified.get("tier", "specific")
         visibility = classified.get("visibility", "public")
-        entry_id = memory.teach(content, domain, tier, title=title, visibility=visibility)
+        entry_id = memory.teach(content, domain, tier, visibility=visibility)
         return {
-            "confirmation": f"Запомнил: {title}" if title else "Запомнил!",
+            "confirmation": "Запомнил!",
             "entry_id": entry_id, "domain": domain, "tier": tier,
-            "visibility": visibility, "title": title,
+            "visibility": visibility,
         }
 
     def _extract_knowledge(gemini_gw, message: str, context: str) -> dict:

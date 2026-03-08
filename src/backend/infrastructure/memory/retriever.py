@@ -38,7 +38,7 @@ class KnowledgeRetriever:
         entries = self._db.get_domain_context(domain)
         return _format_entries(entries)
 
-    def retrieve(self, query: str, *, role: str = "admin", user_id: str | None = None,
+    def retrieve(self, query: str, *, role: str = "admin", user_id: str | None = None,  # noqa: PLR0913
                  environment: str | None = None, domain: str | None = None,
                  limit: int = 5, min_similarity: float = 0.6) -> str:
         embedding = self._embed.embed_one(query)
@@ -54,7 +54,7 @@ class KnowledgeRetriever:
         return _format_entries(entries)
 
     def _dedup_or_create(self, text: str, domain: str, source: str, *,  # noqa: PLR0913
-                         tier: str = "specific", title: str = "",
+                         tier: str = "specific",
                          user_id: str | None = None,
                          skip_dedup: bool = False,
                          visibility: str = "public",
@@ -68,7 +68,7 @@ class KnowledgeRetriever:
                 self._db.update_knowledge_entry(existing[0]["id"], text, embedding)
                 return existing[0]["id"]
         return self._db.save_knowledge_entry(
-            tier=tier, domain=domain, title=title or text[:60].strip(),
+            tier=tier, domain=domain, title=text[:60].strip(),
             content=text, source=source, embedding=embedding, user_id=user_id,
             visibility=visibility, environment_id=environment_id, source_type=source_type,
         )
@@ -81,9 +81,9 @@ class KnowledgeRetriever:
                                      user_id=user_id, visibility="user")
 
     def store_teaching(self, text: str, domain: str = "general", tier: str = "specific",
-                       title: str = "", visibility: str = "public") -> str:
+                       visibility: str = "public") -> str:
         skip_dedup = tier != "specific"
-        return self._dedup_or_create(text, domain, "admin_teach", tier=tier, title=title,
+        return self._dedup_or_create(text, domain, "admin_teach", tier=tier,
                                      skip_dedup=skip_dedup, visibility=visibility)
 
     def get_user_context(self, user_id: str) -> str:

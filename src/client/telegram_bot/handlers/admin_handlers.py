@@ -10,6 +10,8 @@ from aiogram.fsm.context import FSMContext
 
 from telegram_bot import backend_client, replies
 from telegram_bot.bot_helpers import bot
+from telegram_bot.chat_history import fetch_chat_messages
+from telegram_bot.config import TELEGRAM_API_ID
 from telegram_bot.handler_utils import (
     ThinkingMessage,
     _admin_reply_map,
@@ -168,9 +170,6 @@ async def cmd_extract_knowledge(message: types.Message, _state: FSMContext) -> N
 
 async def cmd_env_summarize(message: types.Message, _state: FSMContext) -> None:
     """Pull chat history from Telegram and extract knowledge for the environment."""
-    from telegram_bot.chat_history import fetch_chat_messages
-    from telegram_bot.config import TELEGRAM_API_ID
-
     # Check env binding
     env = await resolve_environment_record(message.chat.id)
     if not env:

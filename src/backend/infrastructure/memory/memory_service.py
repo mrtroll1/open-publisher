@@ -20,7 +20,8 @@ class MemoryService:
 
     # ── REMEMBER ────────────────────────────────────────────────
     def remember(self, text: str, domain: str, *, source: str = "api",  # noqa: PLR0913
-                 tier: str = "specific", user_id: str | None = None,
+                 tier: str = "specific",
+                 user_id: str | None = None,
                  source_url: str | None = None,
                  expires_at: datetime | None = None,
                  visibility: str = "public",
@@ -50,7 +51,7 @@ class MemoryService:
         return None
 
     # ── RECALL ─────────────────────────────────────────────────
-    def recall(self, query: str, *, role: str = "admin", user_id: str | None = None,
+    def recall(self, query: str, *, role: str = "admin", user_id: str | None = None,  # noqa: PLR0913
                environment: str | None = None, domain: str | None = None,
                limit: int = 5) -> list[dict]:
         embedding = self._embed.embed_one(query)
@@ -71,9 +72,9 @@ class MemoryService:
         ]
 
     # ── TEACH ──────────────────────────────────────────────────
-    def teach(self, text: str, domain: str, tier: str, title: str = "",
+    def teach(self, text: str, domain: str, tier: str,
               visibility: str = "public") -> str:
-        return self._retriever.store_teaching(text, domain=domain, tier=tier, title=title,
+        return self._retriever.store_teaching(text, domain=domain, tier=tier,
                                               visibility=visibility)
 
     # ── CONTEXT ────────────────────────────────────────────────

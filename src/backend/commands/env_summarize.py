@@ -116,7 +116,6 @@ class EnvSummarize:
             domain = entry.get("domain", "general")
             tier = entry.get("tier", "specific")
             visibility = entry.get("visibility", "environment")
-            title = entry.get("title", "")
             content = entry.get("content", "")
             if not content:
                 continue

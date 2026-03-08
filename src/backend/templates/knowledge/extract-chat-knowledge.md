@@ -25,8 +25,7 @@
 - **domain** — тематика (из существующих или предложи новый в snake_case)
 - **tier** — core (глобальное правило), meta (правило домена), specific (факт)
 - **visibility** — public (все), environment (только этот чат + админы), role:editor (редакторы + админы), role:admin (только админы)
-- **title** — короткий заголовок (5-10 слов)
 - **content** — извлечённое знание
 
-Верни JSON: {"entries": [{"domain": "...", "tier": "...", "visibility": "...", "title": "...", "content": "..."}, ...]}
+Верни JSON: {"entries": [{"domain": "...", "tier": "...", "visibility": "...", "content": "..."}, ...]}
 Если ничего полезного нет: {"entries": []}

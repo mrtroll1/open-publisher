@@ -1,6 +1,5 @@
 """Backend API entry point with scheduled tasks."""
 
-import asyncio
 import logging
 from contextlib import asynccontextmanager
 

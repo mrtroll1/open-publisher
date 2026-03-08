@@ -189,7 +189,6 @@ EDITORIAL_CHAT_ID = int(os.getenv("EDITORIAL_CHAT_ID", "0"))
 BOT_USERNAME = os.getenv("BOT_USERNAME", "")
 
 # --- Scheduling intervals (seconds) ---
-KNOWLEDGE_PIPELINE_INTERVAL = int(os.getenv("KNOWLEDGE_PIPELINE_INTERVAL", "21600"))
 EMAIL_POLL_INTERVAL = int(os.getenv("EMAIL_POLL_INTERVAL", "60"))
 EMAIL_RECENT_WINDOW = int(os.getenv("EMAIL_RECENT_WINDOW", "120"))
 EMAIL_IDLE_TIMEOUT = int(os.getenv("EMAIL_IDLE_TIMEOUT", "300"))

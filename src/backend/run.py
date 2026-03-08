@@ -7,27 +7,14 @@ from contextlib import asynccontextmanager
 import uvicorn
 
 from backend.api import app
-from backend.config import KNOWLEDGE_PIPELINE_INTERVAL
-from backend.wiring import create_brain
 
 logger = logging.getLogger(__name__)
-
-async def _knowledge_pipeline():
-    """Run knowledge pipelines periodically."""
-    components = create_brain()
-    while True:
-        await asyncio.sleep(KNOWLEDGE_PIPELINE_INTERVAL)
-        try:
-            components.brain.process_command("knowledge_pipeline", "", "default", "")
-        except Exception:
-            logger.exception("Knowledge pipeline failed")
 
 
 @asynccontextmanager
 async def lifespan(_app):
     """Start background tasks on API startup."""
     tasks = [
-        asyncio.create_task(_knowledge_pipeline()),
     ]
     yield
     for t in tasks:

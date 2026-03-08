@@ -15,9 +15,10 @@ ADMIN_TELEGRAM_TAG = os.environ["ADMIN_TELEGRAM_TAG"]
 BOT_USERNAME = os.getenv("BOT_USERNAME", "")
 PRODUCT_NAME = os.getenv("PRODUCT_NAME", "")
 
-# --- Telethon (for chat history) ---
+# --- Telethon (for chat history, user session) ---
 TELEGRAM_API_ID = int(os.getenv("TELEGRAM_API_ID", "0"))
 TELEGRAM_API_HASH = os.getenv("TELEGRAM_API_HASH", "")
+TELEGRAM_SESSION = os.getenv("TELEGRAM_SESSION", "")
 
 # --- Backend API ---
 BACKEND_URL = os.getenv("BACKEND_URL", "http://api:8100")

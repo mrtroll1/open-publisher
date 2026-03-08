@@ -1,4 +1,4 @@
-"""Fetch chat history via Telethon (MTProto) using the bot token."""
+"""Fetch chat history via Telethon (MTProto) using a user session."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ import logging
 from datetime import datetime
 
 from telethon import TelegramClient
-from telethon.sessions import MemorySession
+from telethon.sessions import StringSession
 
-from telegram_bot.config import TELEGRAM_API_HASH, TELEGRAM_API_ID, TELEGRAM_BOT_TOKEN
+from telegram_bot.config import TELEGRAM_API_HASH, TELEGRAM_API_ID, TELEGRAM_SESSION
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ async def fetch_chat_messages(
     month: str | None = None,
     limit: int = 5000,
 ) -> list[dict]:
-    """Fetch message history from a chat using Telethon bot client.
+    """Fetch message history from a chat using Telethon user session.
 
     Args:
         chat_id: Telegram chat ID
@@ -30,14 +30,19 @@ async def fetch_chat_messages(
     """
     if not TELEGRAM_API_ID or not TELEGRAM_API_HASH:
         raise RuntimeError(
-            "TELEGRAM_API_ID and TELEGRAM_API_HASH required for chat history. "
+            "TELEGRAM_API_ID and TELEGRAM_API_HASH required. "
             "Get them from https://my.telegram.org"
+        )
+    if not TELEGRAM_SESSION:
+        raise RuntimeError(
+            "TELEGRAM_SESSION required. Generate it with: "
+            "python -m telegram_bot.gen_session"
         )
 
     offset_date, min_date = _parse_month_range(month)
 
-    client = TelegramClient(MemorySession(), TELEGRAM_API_ID, TELEGRAM_API_HASH)
-    await client.start(bot_token=TELEGRAM_BOT_TOKEN)
+    client = TelegramClient(StringSession(TELEGRAM_SESSION), TELEGRAM_API_ID, TELEGRAM_API_HASH)
+    await client.connect()
 
     try:
         messages = []
@@ -70,7 +75,7 @@ def _parse_month_range(month: str | None):
             end = start.replace(year=start.year + 1, month=1)
         else:
             end = start.replace(month=start.month + 1)
-        return end, start  # offset_date = end (fetch backwards from end), min_date = start
+        return end, start
     except ValueError:
         return None, None
 

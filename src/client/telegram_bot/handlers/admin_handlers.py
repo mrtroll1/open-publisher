@@ -11,7 +11,7 @@ from aiogram.fsm.context import FSMContext
 from telegram_bot import backend_client, replies
 from telegram_bot.bot_helpers import bot
 from telegram_bot.chat_history import fetch_chat_messages
-from telegram_bot.config import TELEGRAM_API_ID
+from telegram_bot.config import TELEGRAM_API_ID, TELEGRAM_SESSION
 from telegram_bot.handler_utils import (
     ThinkingMessage,
     _admin_reply_map,
@@ -176,7 +176,7 @@ async def cmd_env_summarize(message: types.Message, _state: FSMContext) -> None:
         await message.answer(replies.admin.env_summarize_no_env)
         return
 
-    if not TELEGRAM_API_ID:
+    if not TELEGRAM_API_ID or not TELEGRAM_SESSION:
         await message.answer(replies.admin.env_summarize_no_telethon)
         return
 

@@ -20,10 +20,12 @@ def _format_messages(messages: list[dict]) -> str:
     lines = []
     for m in messages:
         sender = m.get("sender", "?")
+        sender_id = m.get("sender_id", "")
         date = m.get("date", "")
         text = m.get("text", "").strip()
         if text:
-            lines.append(f"[{date}] {sender}: {text}")
+            tag = f"{sender} (tg_id={sender_id})" if sender_id else sender
+            lines.append(f"[{date}] {tag}: {text}")
     return "\n".join(lines)
 
 
@@ -55,6 +57,8 @@ class EnvSummarize:
         env_context = env.get("system_context", "") if env else ""
         domains = self._db.list_domains()
         domain_names = ", ".join(d["name"] for d in domains) if domains else "(пусто)"
+        users = self._db.list_users()
+        users_info = self._format_users(users)
 
         filtered = self._filter_by_month(messages, month)
         if not filtered:
@@ -67,7 +71,7 @@ class EnvSummarize:
             if progress:
                 progress.emit("summarize", f"Обрабатываю блок {i + 1}/{len(chunks)}")
 
-            entries = self._extract_from_chunk(chunk, env_context, domain_names)
+            entries = self._extract_from_chunk(chunk, env_context, domain_names, users_info)
             stored = self._store_entries(entries, environment)
             total_stored += stored
 
@@ -95,12 +99,27 @@ class EnvSummarize:
     def _chunk_messages(self, messages: list[dict]) -> list[list[dict]]:
         return [messages[i:i + CHUNK_SIZE] for i in range(0, len(messages), CHUNK_SIZE)]
 
+    @staticmethod
+    def _format_users(users: list[dict]) -> str:
+        if not users:
+            return "(нет зарегистрированных пользователей)"
+        lines = []
+        for u in users:
+            parts = [u.get("name") or "?", f"role={u.get('role', '?')}"]
+            if u.get("telegram_id"):
+                parts.append(f"tg_id={u['telegram_id']}")
+            if u.get("email"):
+                parts.append(u["email"])
+            lines.append(" | ".join(parts))
+        return "\n".join(lines)
+
     def _extract_from_chunk(self, chunk: list[dict], env_context: str,
-                            domain_names: str) -> list[dict]:
+                            domain_names: str, users_info: str) -> list[dict]:
         formatted = _format_messages(chunk)
         prompt = load_template("knowledge/extract-chat-knowledge.md", {
             "ENVIRONMENT": env_context or "(не указан)",
             "DOMAINS": domain_names,
+            "USERS": users_info,
             "MESSAGES": formatted,
         })
         try:

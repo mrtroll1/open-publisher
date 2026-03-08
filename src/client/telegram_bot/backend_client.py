@@ -197,11 +197,34 @@ async def teach(text: str, context: str = "") -> dict:
     return _unwrap(resp)
 
 
+async def manage_user(text: str = "", telegram_id: int | None = None,
+                      name: str = "", role: str = "user",
+                      email: str | None = None) -> dict:
+    payload: dict = {}
+    if text:
+        payload["text"] = text
+    if name:
+        payload["name"] = name
+    if role and role != "user":
+        payload["role"] = role
+    if telegram_id:
+        payload["telegram_id"] = telegram_id
+    if email:
+        payload["email"] = email
+    resp = await _request_with_retry("POST", "/memory/user", json=payload)
+    return _unwrap(resp)
+
+
 async def memory_search(query: str, domain: str | None = None):
     params = {"query": query}
     if domain:
         params["domain"] = domain
     resp = await _request_with_retry("GET","/memory/search", params=params)
+    return _unwrap(resp)
+
+
+async def list_users() -> list[dict]:
+    resp = await _request_with_retry("GET", "/memory/users")
     return _unwrap(resp)
 
 

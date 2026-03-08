@@ -27,6 +27,7 @@ from backend.brain.tools import (
     make_search_tool,
     make_support_tool,
     make_teach_tool,
+    make_user_tool,
     make_yandex_metrica_tool,
 )
 from backend.commands.bank.parse_statement import ParseBankStatement
@@ -177,16 +178,17 @@ def _create_query_db_map(gemini, query_gateways, db) -> dict:
     return query_db_map
 
 
-def _register_tools(genai, memory, retriever, query_db_map, gemini) -> None:
-    _register_core_tools(genai, memory, retriever, gemini)
+def _register_tools(genai, memory, retriever, query_db_map, gemini, db) -> None:  # noqa: PLR0913
+    _register_core_tools(genai, memory, retriever, gemini, db)
     _register_domain_tools(query_db_map)
     _register_optional_analytics()
 
 
-def _register_core_tools(genai, memory, retriever, gemini) -> None:
+def _register_core_tools(genai, memory, retriever, gemini, db) -> None:
     register_tool(make_teach_tool(genai["classify_teaching"], memory, gemini))
     register_tool(make_search_tool(retriever))
     register_tool(make_support_tool(genai["tech_support"]))
+    register_tool(make_user_tool(db, gemini))
     _set_retriever(retriever)
     register_tool(make_code_tool())
     register_tool(make_health_tool())
@@ -230,7 +232,7 @@ def create_brain() -> BrainComponents:
     query_gateways = create_query_gateways()
     genai = _create_genai_instances(gemini, db, embed, retriever)
     query_db_map = _create_query_db_map(gemini, query_gateways, db)
-    _register_tools(genai, memory, retriever, query_db_map, gemini)
+    _register_tools(genai, memory, retriever, query_db_map, gemini, db)
     conv_handler = conversation_handler(gemini, db, retriever)
     inbox_workflow = _create_inbox_workflow(gemini, db, retriever, genai)
     authorizer = Authorizer(db)

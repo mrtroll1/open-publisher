@@ -9,6 +9,7 @@ from backend.brain.tools.query_db import make_query_db_tools
 from backend.brain.tools.search import make_search_tool
 from backend.brain.tools.support import make_support_tool
 from backend.brain.tools.teach import make_teach_tool
+from backend.brain.tools.users import make_user_tool
 
 __all__ = [
     "make_budget_tool",
@@ -20,5 +21,6 @@ __all__ = [
     "make_search_tool",
     "make_support_tool",
     "make_teach_tool",
+    "make_user_tool",
     "make_yandex_metrica_tool",
 ]

@@ -40,6 +40,8 @@ __all__ = [
     "cmd_ksearch",
     "cmd_nl",
     "cmd_teach",
+    "cmd_user",
+    "cmd_users",
     "handle_kedit_reply",
 ]
 
@@ -148,6 +150,59 @@ async def _dispatch_nl_result(message, text, result, thinking):
         await thinking.__aexit__(None, None, None)
     text_result = result.get("text", result.get("reply", str(result))) if isinstance(result, dict) else str(result)
     await _send_html(message, text_result)
+
+
+async def cmd_users(message: types.Message, _state: FSMContext) -> None:
+    try:
+        users = await backend_client.list_users()
+    except Exception:
+        logger.exception("Failed to list users")
+        await message.answer("Не удалось загрузить список.")
+        return
+    if not users:
+        await message.answer("Пользователей нет.")
+        return
+    lines = []
+    for u in users:
+        parts = [f"<b>{u.get('name') or '?'}</b>", u.get("role", "?")]
+        if u.get("telegram_id"):
+            parts.append(f"tg={u['telegram_id']}")
+        if u.get("email"):
+            parts.append(u["email"])
+        lines.append(" | ".join(parts))
+    await message.answer("\n".join(lines), parse_mode="HTML")
+
+
+async def cmd_user(message: types.Message, _state: FSMContext) -> None:
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2 or not args[1].strip():
+        await message.answer(
+            "Использование: /user &lt;описание&gt;\n"
+            "Примеры:\n"
+            "<code>/user Маша Иванова, telegram 123456789, редактор</code>\n"
+            "<code>/user 123456789 Петя editor</code>",
+            parse_mode="HTML",
+        )
+        return
+
+    text = args[1].strip()
+    try:
+        result = await backend_client.manage_user(text=text)
+    except Exception:
+        logger.exception("Failed to manage user")
+        await message.answer("Не удалось обработать.")
+        return
+
+    if result.get("error"):
+        await message.answer(result["error"])
+        return
+    action = result.get("action", "?")
+    user = result.get("user", {})
+    await message.answer(
+        f"{'Создан' if action == 'created' else 'Обновлён'}: "
+        f"<b>{user.get('name', '?')}</b> ({user.get('role', '?')})",
+        parse_mode="HTML",
+    )
 
 
 async def cmd_teach(message: types.Message, _state: FSMContext) -> None:

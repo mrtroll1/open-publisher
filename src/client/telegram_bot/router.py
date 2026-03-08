@@ -74,6 +74,8 @@ from telegram_bot.handlers.conversation_handlers import (
     cmd_ksearch,
     cmd_nl,
     cmd_teach,
+    cmd_user,
+    cmd_users,
 )
 from telegram_bot.handlers.support_handlers import (
     cmd_code,
@@ -154,6 +156,8 @@ _ADMIN_COMMANDS: dict[str, Callable] = {
     "env_bind": cmd_env_bind,
     "env_create": cmd_env_create,
     "env_unbind": cmd_env_unbind,
+    "user": cmd_user,
+    "users": cmd_users,
 }
 
 

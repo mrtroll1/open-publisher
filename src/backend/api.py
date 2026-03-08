@@ -152,6 +152,13 @@ class UserNoteRequest(BaseModel):
     text: str
     domain: str = "general"
 
+class UserManageRequest(BaseModel):
+    text: str = ""
+    telegram_id: int | None = None
+    name: str = ""
+    role: str = "user"
+    email: str | None = None
+
 class EntryUpdateRequest(BaseModel):
     content: str
 
@@ -281,6 +288,27 @@ def teach(req: TeachRequest) -> BrainResponse:
     if req.tier:
         args["tier"] = req.tier
     return BrainResponse(result=teach_tool.execute(args, ctx))
+
+@app.get("/memory/users")
+def list_users() -> BrainResponse:
+    return BrainResponse(result=db.list_users())
+
+@app.post("/memory/user")
+def manage_user(req: UserManageRequest) -> BrainResponse:
+    user_tool = TOOLS["user"]
+    ctx = ToolContext(env={}, user={})
+    args = {}
+    if req.text:
+        args["text"] = req.text
+    if req.name:
+        args["name"] = req.name
+    if req.role and req.role != "user":
+        args["role"] = req.role
+    if req.telegram_id:
+        args["telegram_id"] = req.telegram_id
+    if req.email:
+        args["email"] = req.email
+    return BrainResponse(result=user_tool.execute(args, ctx))
 
 @app.get("/memory/search")
 def memory_search(query: str, domain: str | None = None) -> BrainResponse:

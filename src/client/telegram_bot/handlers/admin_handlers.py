@@ -184,6 +184,9 @@ async def cmd_env_summarize(message: types.Message, _state: FSMContext) -> None:
     args = message.text.split(maxsplit=1)
     month = args[1].strip() if len(args) > 1 else None
 
+    # Detect forum topic
+    topic_id = getattr(message, "message_thread_id", None)
+
     thinking: ThinkingMessage | None = None
 
     async def _on_progress(stage: str, detail: str) -> None:
@@ -198,7 +201,7 @@ async def cmd_env_summarize(message: types.Message, _state: FSMContext) -> None:
     try:
         # Fetch history from Telegram via Telethon
         await _on_progress("fetch", "Загружаю историю чата...")
-        messages = await fetch_chat_messages(message.chat.id, month=month)
+        messages = await fetch_chat_messages(message.chat.id, month=month, topic_id=topic_id)
         if not messages:
             if thinking:
                 await thinking.__aexit__(None, None, None)

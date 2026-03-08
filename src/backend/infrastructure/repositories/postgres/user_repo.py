@@ -72,6 +72,11 @@ class UserRepo(BasePostgresRepo):
             cur.execute(sql, tuple(params))
             return cur.rowcount > 0
 
+    def list_users(self) -> list[dict]:
+        with self._cursor() as cur:
+            cur.execute(f"SELECT {', '.join(_USER_COLS)} FROM users ORDER BY created_at")
+            return [_user_row(row) for row in cur.fetchall()]
+
     def get_admin_telegram_ids(self) -> list[int]:
         with self._cursor() as cur:
             cur.execute(

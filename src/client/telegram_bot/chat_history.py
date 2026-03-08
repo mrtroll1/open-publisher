@@ -17,6 +17,7 @@ async def fetch_chat_messages(
     chat_id: int,
     month: str | None = None,
     limit: int = 5000,
+    topic_id: int | None = None,
 ) -> list[dict]:
     """Fetch message history from a chat using Telethon user session.
 
@@ -24,9 +25,10 @@ async def fetch_chat_messages(
         chat_id: Telegram chat ID
         month: optional 'YYYY-MM' to filter by month
         limit: max messages to fetch
+        topic_id: optional forum topic (message_thread_id) to filter by
 
     Returns:
-        List of {sender, text, date} dicts, oldest first.
+        List of {sender, sender_id, text, date} dicts, oldest first.
     """
     if not TELEGRAM_API_ID or not TELEGRAM_API_HASH:
         raise RuntimeError(
@@ -46,9 +48,10 @@ async def fetch_chat_messages(
 
     try:
         messages = []
-        async for msg in client.iter_messages(
-            chat_id, limit=limit, offset_date=offset_date,
-        ):
+        iter_kwargs = {"entity": chat_id, "limit": limit, "offset_date": offset_date}
+        if topic_id:
+            iter_kwargs["reply_to"] = topic_id
+        async for msg in client.iter_messages(**iter_kwargs):
             if not msg.text:
                 continue
             if min_date and msg.date.replace(tzinfo=None) < min_date:
@@ -56,6 +59,7 @@ async def fetch_chat_messages(
             sender_name = _get_sender_name(msg)
             messages.append({
                 "sender": sender_name,
+                "sender_id": msg.sender_id,
                 "text": msg.text,
                 "date": msg.date.isoformat(),
             })

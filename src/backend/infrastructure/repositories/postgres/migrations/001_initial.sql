@@ -20,7 +20,6 @@ CREATE TABLE IF NOT EXISTS units_of_knowledge (
     user_id UUID,
     source_url TEXT,
     expires_at TIMESTAMP,
-    parent_id UUID REFERENCES units_of_knowledge(id),
     visibility TEXT NOT NULL DEFAULT 'public',
     environment_id TEXT,
     source_type TEXT NOT NULL DEFAULT '',

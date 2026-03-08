@@ -80,7 +80,6 @@ class KnowledgeRepo(BasePostgresRepo):
                              user_id: str | None = None,
                              source_url: str | None = None,
                              expires_at=None,
-                             parent_id: str | None = None,
                              visibility: str = "public",
                              environment_id: str | None = None,
                              source_type: str = "") -> str:
@@ -88,13 +87,13 @@ class KnowledgeRepo(BasePostgresRepo):
             cur.execute(
                 """INSERT INTO units_of_knowledge
                           (tier, domain, title, content, source, embedding,
-                           user_id, source_url, expires_at, parent_id,
+                           user_id, source_url, expires_at,
                            visibility, environment_id, source_type)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                    RETURNING id""",
                 (tier, domain, title, content, source,
                  str(embedding) if embedding is not None else None,
-                 user_id, source_url, expires_at, parent_id,
+                 user_id, source_url, expires_at,
                  visibility, environment_id, source_type),
             )
             return str(cur.fetchone()[0])

@@ -85,7 +85,181 @@ class ContractorHandlers:
         ),
     }
 
-    # ── Shared helpers ──
+    # ── Public handlers: entry & menu ──
+
+    def start(self, _payload: Payload, ctx: InteractContext) -> dict:
+        if ctx.get("is_admin"):
+            return respond([msg("Привет! Я бот для работы с контрагентами.\n\n"
+                               "Список доступных комманд: /menu")], fsm_state=None)
+        return self._greeting()
+
+    def menu(self, _payload: Payload, ctx: InteractContext) -> dict:
+        contractor, _ = self._get_contractor(ctx["user_id"])
+        if contractor:
+            return self._menu_response(contractor)
+        return self._greeting()
+
+    def free_text(self, payload: Payload, ctx: InteractContext) -> dict:
+        contractor, contractors = self._get_contractor(ctx["user_id"])
+        if contractor:
+            return self._menu_response(contractor)
+        query = payload.get("text", "").strip()
+        matches = fuzzy_find(query, contractors, threshold=0.8)
+        if matches:
+            return self._suggest_duplicates(matches, query)
+        return self._start_registration(query)
+
+    def type_selection(self, payload: Payload, ctx: InteractContext) -> dict:
+        text = payload.get("text", "").strip().rstrip(".")
+        ctype = self._TYPE_MAP.get(text.lower())
+        if not ctype:
+            return respond([msg("Пожалуйста, выберите 1, 2 или 3.")])
+        alias = ctx.get("fsm_data", {}).get("alias", "")
+        return respond(
+            [msg(self._DATA_PROMPTS[ctype])], fsm_state="waiting_data",
+            fsm_data={"contractor_type": ctype.value,
+                      "collected_data": {"aliases": [alias]} if alias else {}},
+        )
+
+    def data_input(self, payload: Payload, ctx: InteractContext) -> dict:
+        fsm_data = ctx.get("fsm_data", {})
+        ctype = ContractorType(fsm_data["contractor_type"])
+        raw_text = payload.get("text", "").strip()
+        collected = fsm_data.get("collected_data", {})
+        if ctx.get("progress"):
+            ctx["progress"].emit("parse_data", "Обрабатываю данные")
+        parsed = self._parse_input(raw_text, ctype, collected)
+        if "parse_error" in parsed:
+            return respond([msg("Не удалось обработать сообщение. Попробуйте отправить данные ещё раз.")])
+        return self._process_parsed(parsed, collected, ctype, fsm_data, raw_text, ctx)
+
+    def verification_code(self, payload: Payload, ctx: InteractContext) -> dict:
+        fsm_data = ctx.get("fsm_data", {})
+        contractor = find_contractor_by_id(fsm_data.get("pending_contractor_id"), load_all_contractors())
+        if not contractor:
+            return respond([msg("Контрагент не найден.")], fsm_state=None)
+        code = payload.get("text", "").strip()
+        if code.casefold() == contractor.secret_code.casefold():
+            return self._bind_contractor(contractor, ctx)
+        return self._verification_failed(fsm_data)
+
+    def sign_doc(self, _payload: Payload, ctx: InteractContext) -> dict:
+        contractor, _ = self._get_contractor(ctx["user_id"])
+        if not contractor:
+            return self._greeting()
+        month = prev_month()
+        admin_ids = ctx.get("admin_ids", [])
+        return (self._deliver_existing_invoice(contractor, month, admin_ids)
+                or self._start_invoice_flow(contractor, month, {})
+                or self._no_publications(month))
+
+    def amount_input(self, payload: Payload, ctx: InteractContext) -> dict:
+        fsm_data = ctx.get("fsm_data", {})
+        contractor = find_contractor_by_id(fsm_data.get("invoice_contractor_id"), load_all_contractors())
+        if not contractor:
+            return respond([msg("Контрагент не найден.")], fsm_state=None)
+        amount = self._parse_amount(payload.get("text", "").strip(),
+                                    fsm_data.get("invoice_default_amount", 0))
+        if isinstance(amount, dict):
+            return amount
+        return self._generate_contractor_invoice(contractor, fsm_data.get("invoice_month"), amount, ctx)
+
+    def update_payment_data(self, _payload: Payload, ctx: InteractContext) -> dict:
+        contractor, _ = self._get_contractor(ctx["user_id"])
+        if not contractor:
+            return self._greeting()
+        return respond(
+            [msg("Какие данные вы хотите обновить? Отправьте новые значения в свободной форме.\n\n"
+                 "Отправьте «отмена» для отмены.")],
+            fsm_state="waiting_update_data")
+
+    def update_data(self, payload: Payload, ctx: InteractContext) -> dict:
+        text = payload.get("text", "").strip()
+        if text.lower() == "отмена":
+            return respond([msg("Обновление отменено.")], fsm_state=None)
+        contractor, _ = self._get_contractor(ctx["user_id"])
+        if not contractor:
+            return respond([msg("Контрагент не найден.")], fsm_state=None)
+        return self._apply_data_update(text, contractor)
+
+    def manage_redirects(self, _payload: Payload, ctx: InteractContext) -> dict:
+        contractor, _ = self._get_contractor(ctx["user_id"])
+        if not contractor or contractor.role_code != RoleCode.REDAKTOR:
+            return self._greeting()
+        return self._show_editor_sources(contractor)
+
+    def editor_source_name(self, payload: Payload, ctx: InteractContext) -> dict:
+        text = payload.get("text", "").strip()
+        if text.lower() == "отмена":
+            return respond([msg("Добавление отменено.")], fsm_state=None)
+        contractor, _ = self._get_contractor(ctx["user_id"])
+        if not contractor:
+            return respond([msg("Контрагент не найден.")], fsm_state=None)
+        return self._add_editor_source(text, contractor)
+
+    def dup_callback(self, payload: Payload, ctx: InteractContext) -> dict:
+        callback_data = payload.get("callback_data", "")
+        if callback_data == "dup:new":
+            return respond([self._type_selection_prompt()], fsm_state="waiting_type")
+        contractor_id = callback_data.removeprefix("dup:")
+        contractor = find_contractor_by_id(contractor_id, load_all_contractors())
+        if not contractor:
+            return respond([msg("Контрагент не найден.")])
+        return self._verify_or_reject(contractor, ctx["user_id"])
+
+    def esrc_callback(self, payload: Payload, ctx: InteractContext) -> dict:
+        data = payload.get("callback_data", "").removeprefix("esrc:")
+        contractor, _ = self._get_contractor(ctx["user_id"])
+        if not contractor:
+            return respond([msg("Контрагент не найден.")])
+        if data.startswith("rm:"):
+            return self._remove_editor_source(data.removeprefix("rm:"), contractor)
+        if data == "add":
+            return respond([msg("Введите имя автора.\nОтправьте «отмена» для отмены.")],
+                          fsm_state="waiting_editor_source_name")
+        if data == "back":
+            return respond([msg("Что хотите сделать?", keyboard=self._menu_keyboard(contractor))])
+        return respond([msg("Неизвестное действие.")])
+
+    def menu_callback(self, payload: Payload, ctx: InteractContext) -> dict:
+        action = payload.get("callback_data", "").removeprefix("menu:")
+        contractor, _ = self._get_contractor(ctx["user_id"])
+        if not contractor:
+            return respond([msg("Контрагент не найден.")])
+        if action == "contract":
+            return self.sign_doc(payload, ctx)
+        if action == "update":
+            return respond([msg("Какие данные вы хотите обновить? Отправьте новые значения в свободной форме.\n\n"
+                               "Отправьте «отмена» для отмены.")], fsm_state="waiting_update_data")
+        if action == "editor":
+            return self._show_editor_sources(contractor)
+        return respond([msg("Неизвестное действие.")])
+
+    def document(self, payload: Payload, ctx: InteractContext) -> dict:
+        user_id = ctx["user_id"]
+        contractor, _ = self._get_contractor(user_id)
+        sender_info = contractor.display_name if contractor else f"TG#{user_id}"
+        drive_link = self._handle_pdf_upload(contractor, payload, ctx.get("progress"))
+        if isinstance(drive_link, dict):
+            return drive_link
+        admin_ids = ctx.get("admin_ids", [])
+        sides = [side_msg(aid, data={"type": DT.DOCUMENT_RECEIVED, "sender": sender_info,
+                                     "drive_link": drive_link})
+                 for aid in admin_ids if aid != user_id]
+        return respond([msg("Спасибо! Документ получен.")], side_messages=sides)
+
+    def non_document(self, _payload: Payload, ctx: InteractContext) -> dict:
+        if ctx.get("fsm_state") is not None:
+            return respond([msg("Пожалуйста, отправьте текстовое сообщение.")])
+        contractor, _ = self._get_contractor(ctx["user_id"])
+        if isinstance(contractor, GlobalContractor):
+            return respond([msg(
+                "Мы ожидаем от вас подписанный PDF-документ. "
+                "Пожалуйста, отправьте его в этот чат.\n\n"
+                f"Если возникли вопросы — напишите {ADMIN_TELEGRAM_TAG}.")])
+        return respond([])
+
+    # ── Private helpers ──
 
     def _get_contractor(self, user_id):
         contractors = load_all_contractors()
@@ -143,8 +317,6 @@ class ContractorHandlers:
     def _no_publications(self, month):
         return respond([msg(f"Публикаций за {month} не найдено.\n"
                            f"Если это ошибка — напишите {ADMIN_TELEGRAM_TAG}.")])
-
-    # ── Invoice flow ──
 
     def _start_invoice_flow(self, contractor, month, fsm_data):
         data = InvoiceService().prepare_new_data(contractor, month)
@@ -204,30 +376,6 @@ class ContractorHandlers:
         ) for admin_id in admin_ids]
         return respond([file_msg(pdf, filename, caption)], side_messages=sides)
 
-    # ── Handlers: entry & menu ──
-
-    def start(self, _payload: Payload, ctx: InteractContext) -> dict:
-        if ctx.get("is_admin"):
-            return respond([msg("Привет! Я бот для работы с контрагентами.\n\n"
-                               "Список доступных комманд: /menu")], fsm_state=None)
-        return self._greeting()
-
-    def menu(self, _payload: Payload, ctx: InteractContext) -> dict:
-        contractor, _ = self._get_contractor(ctx["user_id"])
-        if contractor:
-            return self._menu_response(contractor)
-        return self._greeting()
-
-    def free_text(self, payload: Payload, ctx: InteractContext) -> dict:
-        contractor, contractors = self._get_contractor(ctx["user_id"])
-        if contractor:
-            return self._menu_response(contractor)
-        query = payload.get("text", "").strip()
-        matches = fuzzy_find(query, contractors, threshold=0.8)
-        if matches:
-            return self._suggest_duplicates(matches, query)
-        return self._start_registration(query)
-
     def _suggest_duplicates(self, matches, query):
         buttons = [[{"text": self._dup_label(c), "data": f"dup:{c.id}"}] for c, _ in matches[:5]]
         buttons.append([{"text": "Я новый контрагент", "data": "dup:new"}])
@@ -244,32 +392,6 @@ class ContractorHandlers:
             fsm_state="waiting_type",
             fsm_data={"alias": query},
         )
-
-    # ── Handlers: registration flow ──
-
-    def type_selection(self, payload: Payload, ctx: InteractContext) -> dict:
-        text = payload.get("text", "").strip().rstrip(".")
-        ctype = self._TYPE_MAP.get(text.lower())
-        if not ctype:
-            return respond([msg("Пожалуйста, выберите 1, 2 или 3.")])
-        alias = ctx.get("fsm_data", {}).get("alias", "")
-        return respond(
-            [msg(self._DATA_PROMPTS[ctype])], fsm_state="waiting_data",
-            fsm_data={"contractor_type": ctype.value,
-                      "collected_data": {"aliases": [alias]} if alias else {}},
-        )
-
-    def data_input(self, payload: Payload, ctx: InteractContext) -> dict:
-        fsm_data = ctx.get("fsm_data", {})
-        ctype = ContractorType(fsm_data["contractor_type"])
-        raw_text = payload.get("text", "").strip()
-        collected = fsm_data.get("collected_data", {})
-        if ctx.get("progress"):
-            ctx["progress"].emit("parse_data", "Обрабатываю данные")
-        parsed = self._parse_input(raw_text, ctype, collected)
-        if "parse_error" in parsed:
-            return respond([msg("Не удалось обработать сообщение. Попробуйте отправить данные ещё раз.")])
-        return self._process_parsed(parsed, collected, ctype, fsm_data, raw_text, ctx)
 
     def _parse_input(self, raw_text, ctype, collected):
         prev_warnings = validate_contractor_fields(collected, ctype) if collected else []
@@ -360,18 +482,6 @@ class ContractorHandlers:
         messages.append(self._no_publications(month)["messages"][0])
         return respond(messages, side_messages=sides, fsm_state=None)
 
-    # ── Handlers: verification ──
-
-    def verification_code(self, payload: Payload, ctx: InteractContext) -> dict:
-        fsm_data = ctx.get("fsm_data", {})
-        contractor = find_contractor_by_id(fsm_data.get("pending_contractor_id"), load_all_contractors())
-        if not contractor:
-            return respond([msg("Контрагент не найден.")], fsm_state=None)
-        code = payload.get("text", "").strip()
-        if code.casefold() == contractor.secret_code.casefold():
-            return self._bind_contractor(contractor, ctx)
-        return self._verification_failed(fsm_data)
-
     def _bind_contractor(self, contractor, ctx):
         bind_telegram_id(contractor.id, ctx["user_id"])
         sides = [side_msg(admin_id,
@@ -391,29 +501,6 @@ class ContractorHandlers:
         return respond(
             [msg(f"Неверный код. Осталось попыток: {3 - attempts}.")],
             fsm_data={**fsm_data, "verification_attempts": attempts})
-
-    # ── Handlers: invoice & contract ──
-
-    def sign_doc(self, _payload: Payload, ctx: InteractContext) -> dict:
-        contractor, _ = self._get_contractor(ctx["user_id"])
-        if not contractor:
-            return self._greeting()
-        month = prev_month()
-        admin_ids = ctx.get("admin_ids", [])
-        return (self._deliver_existing_invoice(contractor, month, admin_ids)
-                or self._start_invoice_flow(contractor, month, {})
-                or self._no_publications(month))
-
-    def amount_input(self, payload: Payload, ctx: InteractContext) -> dict:
-        fsm_data = ctx.get("fsm_data", {})
-        contractor = find_contractor_by_id(fsm_data.get("invoice_contractor_id"), load_all_contractors())
-        if not contractor:
-            return respond([msg("Контрагент не найден.")], fsm_state=None)
-        amount = self._parse_amount(payload.get("text", "").strip(),
-                                    fsm_data.get("invoice_default_amount", 0))
-        if isinstance(amount, dict):
-            return amount
-        return self._generate_contractor_invoice(contractor, fsm_data.get("invoice_month"), amount, ctx)
 
     def _parse_amount(self, text, default):
         if text.lower() in ("ок", "ok"):
@@ -460,26 +547,6 @@ class ContractorHandlers:
         ) for admin_id in admin_ids]
         return respond(messages, side_messages=sides, fsm_state=None)
 
-    # ── Handlers: data updates ──
-
-    def update_payment_data(self, _payload: Payload, ctx: InteractContext) -> dict:
-        contractor, _ = self._get_contractor(ctx["user_id"])
-        if not contractor:
-            return self._greeting()
-        return respond(
-            [msg("Какие данные вы хотите обновить? Отправьте новые значения в свободной форме.\n\n"
-                 "Отправьте «отмена» для отмены.")],
-            fsm_state="waiting_update_data")
-
-    def update_data(self, payload: Payload, ctx: InteractContext) -> dict:
-        text = payload.get("text", "").strip()
-        if text.lower() == "отмена":
-            return respond([msg("Обновление отменено.")], fsm_state=None)
-        contractor, _ = self._get_contractor(ctx["user_id"])
-        if not contractor:
-            return respond([msg("Контрагент не найден.")], fsm_state=None)
-        return self._apply_data_update(text, contractor)
-
     def _apply_data_update(self, text, contractor):
         parsed = RegistrationParser().parse(text, contractor.type)
         if "parse_error" in parsed:
@@ -490,23 +557,6 @@ class ContractorHandlers:
             return respond([msg("Не удалось распознать изменения. Попробуйте ещё раз или отправьте «отмена».")])
         update_contractor_fields(contractor.id, updates)
         return respond([msg("Данные обновлены.")], fsm_state=None)
-
-    # ── Handlers: editor sources ──
-
-    def manage_redirects(self, _payload: Payload, ctx: InteractContext) -> dict:
-        contractor, _ = self._get_contractor(ctx["user_id"])
-        if not contractor or contractor.role_code != RoleCode.REDAKTOR:
-            return self._greeting()
-        return self._show_editor_sources(contractor)
-
-    def editor_source_name(self, payload: Payload, ctx: InteractContext) -> dict:
-        text = payload.get("text", "").strip()
-        if text.lower() == "отмена":
-            return respond([msg("Добавление отменено.")], fsm_state=None)
-        contractor, _ = self._get_contractor(ctx["user_id"])
-        if not contractor:
-            return respond([msg("Контрагент не найден.")], fsm_state=None)
-        return self._add_editor_source(text, contractor)
 
     def _add_editor_source(self, source_name, contractor):
         month = prev_month()
@@ -526,18 +576,6 @@ class ContractorHandlers:
         text, keyboard = self._editor_keyboard(rules)
         return respond([msg(text, keyboard=keyboard)])
 
-    # ── Handlers: callbacks ──
-
-    def dup_callback(self, payload: Payload, ctx: InteractContext) -> dict:
-        callback_data = payload.get("callback_data", "")
-        if callback_data == "dup:new":
-            return respond([self._type_selection_prompt()], fsm_state="waiting_type")
-        contractor_id = callback_data.removeprefix("dup:")
-        contractor = find_contractor_by_id(contractor_id, load_all_contractors())
-        if not contractor:
-            return respond([msg("Контрагент не найден.")])
-        return self._verify_or_reject(contractor, ctx["user_id"])
-
     def _verify_or_reject(self, contractor, user_id):
         if contractor.telegram and contractor.telegram != str(user_id):
             return respond([msg(
@@ -549,49 +587,6 @@ class ContractorHandlers:
                  f"Если не знаете, обратитесь к {ADMIN_TELEGRAM_TAG}.")],
             fsm_state="waiting_verification",
             fsm_data={"pending_contractor_id": contractor.id, "verification_attempts": 0})
-
-    def esrc_callback(self, payload: Payload, ctx: InteractContext) -> dict:
-        data = payload.get("callback_data", "").removeprefix("esrc:")
-        contractor, _ = self._get_contractor(ctx["user_id"])
-        if not contractor:
-            return respond([msg("Контрагент не найден.")])
-        if data.startswith("rm:"):
-            return self._remove_editor_source(data.removeprefix("rm:"), contractor)
-        if data == "add":
-            return respond([msg("Введите имя автора.\nОтправьте «отмена» для отмены.")],
-                          fsm_state="waiting_editor_source_name")
-        if data == "back":
-            return respond([msg("Что хотите сделать?", keyboard=self._menu_keyboard(contractor))])
-        return respond([msg("Неизвестное действие.")])
-
-    def menu_callback(self, payload: Payload, ctx: InteractContext) -> dict:
-        action = payload.get("callback_data", "").removeprefix("menu:")
-        contractor, _ = self._get_contractor(ctx["user_id"])
-        if not contractor:
-            return respond([msg("Контрагент не найден.")])
-        if action == "contract":
-            return self.sign_doc(payload, ctx)
-        if action == "update":
-            return respond([msg("Какие данные вы хотите обновить? Отправьте новые значения в свободной форме.\n\n"
-                               "Отправьте «отмена» для отмены.")], fsm_state="waiting_update_data")
-        if action == "editor":
-            return self._show_editor_sources(contractor)
-        return respond([msg("Неизвестное действие.")])
-
-    # ── Handlers: documents ──
-
-    def document(self, payload: Payload, ctx: InteractContext) -> dict:
-        user_id = ctx["user_id"]
-        contractor, _ = self._get_contractor(user_id)
-        sender_info = contractor.display_name if contractor else f"TG#{user_id}"
-        drive_link = self._handle_pdf_upload(contractor, payload, ctx.get("progress"))
-        if isinstance(drive_link, dict):
-            return drive_link
-        admin_ids = ctx.get("admin_ids", [])
-        sides = [side_msg(aid, data={"type": DT.DOCUMENT_RECEIVED, "sender": sender_info,
-                                     "drive_link": drive_link})
-                 for aid in admin_ids if aid != user_id]
-        return respond([msg("Спасибо! Документ получен.")], side_messages=sides)
 
     def _handle_pdf_upload(self, contractor, payload, progress):
         if not isinstance(contractor, GlobalContractor) or not payload.get("file_b64"):
@@ -609,14 +604,3 @@ class ContractorHandlers:
         link = DriveGateway().upload_invoice_pdf(contractor, month, payload.get("filename", "document"), content)
         update_invoice_status(contractor.id, month, InvoiceStatus.SIGNED)
         return link
-
-    def non_document(self, _payload: Payload, ctx: InteractContext) -> dict:
-        if ctx.get("fsm_state") is not None:
-            return respond([msg("Пожалуйста, отправьте текстовое сообщение.")])
-        contractor, _ = self._get_contractor(ctx["user_id"])
-        if isinstance(contractor, GlobalContractor):
-            return respond([msg(
-                "Мы ожидаем от вас подписанный PDF-документ. "
-                "Пожалуйста, отправьте его в этот чат.\n\n"
-                f"Если возникли вопросы — напишите {ADMIN_TELEGRAM_TAG}.")])
-        return respond([])

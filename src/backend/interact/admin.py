@@ -48,7 +48,101 @@ logger = logging.getLogger(__name__)
 
 class AdminHandlers:
 
-    # ── Shared helpers ──
+    # ── Public handlers ──
+
+    def generate(self, payload: Payload, ctx: InteractContext) -> dict:
+        text = payload.get("text", "").strip()
+        if not text:
+            return respond([msg("Использование: /generate <имя контрагента>")])
+        debug = text.lower().startswith("debug ")
+        query = text[6:].strip() if debug else text
+        contractor, err = self._find_or_suggest(query)
+        if not contractor:
+            return respond([err])
+        return self._run_generate(contractor, debug, ctx.get("progress"))
+
+    def articles(self, payload: Payload, _ctx: InteractContext) -> dict:
+        text = payload.get("text", "").strip()
+        if not text:
+            return respond([msg("Использование: /articles <имя> [YYYY-MM]")])
+        raw_name, month = self._parse_name_month(text)
+        contractor, err = self._find_or_suggest(raw_name)
+        if not contractor:
+            return respond([err])
+        return self._format_articles(contractor, month)
+
+    def lookup(self, payload: Payload, _ctx: InteractContext) -> dict:
+        text = payload.get("text", "").strip()
+        if not text:
+            return respond([msg("Использование: /lookup <имя>")])
+        contractor, err = self._find_or_suggest(text)
+        if not contractor:
+            return respond([err])
+        return respond([msg(data=self._contractor_info(contractor))])
+
+    def batch_generate(self, payload: Payload, ctx: InteractContext) -> dict:
+        progress = ctx.get("progress")
+        debug = "debug" in payload.get("text", "").lower().split()
+        month = prev_month()
+        if progress:
+            progress.emit("batch_start", f"Запускаю генерацию за {month}")
+        batch_result = self._run_batch(month, debug, progress)
+        if isinstance(batch_result, dict):
+            return batch_result
+        return self._format_batch(batch_result, month, debug)
+
+    def send_global(self, payload: Payload, _ctx: InteractContext) -> dict:
+        debug = "debug" in payload.get("text", "").lower().split()
+        month = prev_month()
+        invoices = load_invoices(month)
+        drafts = [inv for inv in invoices if inv.status == InvoiceStatus.DRAFT and inv.currency == Currency.EUR]
+        if not drafts:
+            return respond([msg(f"Нет неотправленных глобальных счетов за {month}.")])
+        return self._send_global_batch(drafts, month, debug)
+
+    def send_legium(self, payload: Payload, _ctx: InteractContext) -> dict:
+        debug = "debug" in payload.get("text", "").lower().split()
+        month = prev_month()
+        invoices = load_invoices(month)
+        pending = [inv for inv in invoices if inv.legium_link and inv.status == InvoiceStatus.DRAFT]
+        if not pending:
+            return respond([msg(f"Нет неотправленных ссылок на Легиум за {month}.")])
+        return self._send_legium_batch(pending, month, debug)
+
+    def orphans(self, _payload: Payload, _ctx: InteractContext) -> dict:
+        month = prev_month()
+        contractors = load_all_contractors()
+        budget = load_all_amounts(month)
+        names = {c.display_name.lower().strip() for c in contractors}
+        orphan_list = sorted(n for n in budget if n not in names)
+        if not orphan_list:
+            return respond([msg(f"Все записи в бюджете за {month} совпадают с контрагентами.")])
+        return respond([msg(data={"type": DT.ORPHAN_LIST, "month": month, "orphans": orphan_list})])
+
+    def upload_statement(self, payload: Payload, ctx: InteractContext) -> dict:
+        file_b64 = payload.get("file_b64")
+        rate_str = payload.get("rate", "")
+        if not file_b64 or not rate_str:
+            return self._upload_usage()
+        try:
+            rate = float(rate_str)
+        except ValueError:
+            return self._upload_usage()
+        return self._process_statement(base64.b64decode(file_b64), rate, ctx.get("progress"))
+
+    def legium_reply(self, payload: Payload, _ctx: InteractContext) -> dict:
+        url = payload.get("text", "").strip()
+        contractor_id = payload.get("contractor_id", "")
+        contractor_telegram = payload.get("contractor_telegram", "")
+        month = prev_month()
+        contractor = find_contractor_by_id(contractor_id, load_all_contractors())
+        if not contractor_telegram:
+            update_legium_link(contractor_id, month, url, mark_sent=False)
+            return respond([msg("Контрагент не привязан к Telegram. "
+                               "Ссылка сохранена — отправится через /send_legium_links.")])
+        return self._send_legium_reply(contractor, contractor_id, contractor_telegram, month, url)
+
+    # ── Private helpers ──
 
     def _find_or_suggest(self, raw_name):
         contractors = load_all_contractors()
@@ -102,19 +196,6 @@ class AdminHandlers:
         }))
         return respond(messages, side_messages=sides)
 
-    # ── /generate ──
-
-    def generate(self, payload: Payload, ctx: InteractContext) -> dict:
-        text = payload.get("text", "").strip()
-        if not text:
-            return respond([msg("Использование: /generate <имя контрагента>")])
-        debug = text.lower().startswith("debug ")
-        query = text[6:].strip() if debug else text
-        contractor, err = self._find_or_suggest(query)
-        if not contractor:
-            return respond([err])
-        return self._run_generate(contractor, debug, ctx.get("progress"))
-
     def _run_generate(self, contractor, debug, progress):
         month = prev_month()
         amount, err = self._budget_amount(contractor, month)
@@ -147,18 +228,6 @@ class AdminHandlers:
                             msg("Проформа готова. Отправьте контрагенту на подпись.")])
         return respond([self._rub_invoice_msg(contractor, month, amount, pdf_bytes, filename)])
 
-    # ── /articles ──
-
-    def articles(self, payload: Payload, _ctx: InteractContext) -> dict:
-        text = payload.get("text", "").strip()
-        if not text:
-            return respond([msg("Использование: /articles <имя> [YYYY-MM]")])
-        raw_name, month = self._parse_name_month(text)
-        contractor, err = self._find_or_suggest(raw_name)
-        if not contractor:
-            return respond([err])
-        return self._format_articles(contractor, month)
-
     def _format_articles(self, contractor, month):
         articles = RepublicGateway().fetch_articles(contractor, month)
         if not articles:
@@ -170,17 +239,6 @@ class AdminHandlers:
             "article_ids": [a.article_id for a in articles],
         })])
 
-    # ── /lookup ──
-
-    def lookup(self, payload: Payload, _ctx: InteractContext) -> dict:
-        text = payload.get("text", "").strip()
-        if not text:
-            return respond([msg("Использование: /lookup <имя>")])
-        contractor, err = self._find_or_suggest(text)
-        if not contractor:
-            return respond([err])
-        return respond([msg(data=self._contractor_info(contractor))])
-
     def _contractor_info(self, c):
         return {
             "type": DT.CONTRACTOR_INFO, "name": c.display_name,
@@ -191,19 +249,6 @@ class AdminHandlers:
             "invoice_number": c.invoice_number,
             "has_bank_data": bool(c.bank_name and c.bank_account),
         }
-
-    # ── /batch_generate ──
-
-    def batch_generate(self, payload: Payload, ctx: InteractContext) -> dict:
-        progress = ctx.get("progress")
-        debug = "debug" in payload.get("text", "").lower().split()
-        month = prev_month()
-        if progress:
-            progress.emit("batch_start", f"Запускаю генерацию за {month}")
-        batch_result = self._run_batch(month, debug, progress)
-        if isinstance(batch_result, dict):
-            return batch_result
-        return self._format_batch(batch_result, month, debug)
 
     def _run_batch(self, month, debug, progress):
         contractors = load_all_contractors()
@@ -246,17 +291,6 @@ class AdminHandlers:
             return self._rub_invoice_msg(contractor, month, invoice.amount, pdf_bytes, fname)
         return None
 
-    # ── /send_global ──
-
-    def send_global(self, payload: Payload, _ctx: InteractContext) -> dict:
-        debug = "debug" in payload.get("text", "").lower().split()
-        month = prev_month()
-        invoices = load_invoices(month)
-        drafts = [inv for inv in invoices if inv.status == InvoiceStatus.DRAFT and inv.currency == Currency.EUR]
-        if not drafts:
-            return respond([msg(f"Нет неотправленных глобальных счетов за {month}.")])
-        return self._send_global_batch(drafts, month, debug)
-
     def _send_global_batch(self, drafts, month, debug):
         contractors = load_all_contractors()
         messages, sides, errors, sent = [], [], [], 0
@@ -293,17 +327,6 @@ class AdminHandlers:
         update_invoice_status(contractor.id, month, InvoiceStatus.SENT)
         return None
 
-    # ── /send_legium ──
-
-    def send_legium(self, payload: Payload, _ctx: InteractContext) -> dict:
-        debug = "debug" in payload.get("text", "").lower().split()
-        month = prev_month()
-        invoices = load_invoices(month)
-        pending = [inv for inv in invoices if inv.legium_link and inv.status == InvoiceStatus.DRAFT]
-        if not pending:
-            return respond([msg(f"Нет неотправленных ссылок на Легиум за {month}.")])
-        return self._send_legium_batch(pending, month, debug)
-
     def _send_legium_batch(self, pending, month, debug):
         contractors = load_all_contractors()
         messages, sides, errors, sent = [], [], [], 0
@@ -339,31 +362,6 @@ class AdminHandlers:
         else:
             sides.append(side_msg(int(contractor.telegram), text=caption))
 
-    # ── /orphans ──
-
-    def orphans(self, _payload: Payload, _ctx: InteractContext) -> dict:
-        month = prev_month()
-        contractors = load_all_contractors()
-        budget = load_all_amounts(month)
-        names = {c.display_name.lower().strip() for c in contractors}
-        orphan_list = sorted(n for n in budget if n not in names)
-        if not orphan_list:
-            return respond([msg(f"Все записи в бюджете за {month} совпадают с контрагентами.")])
-        return respond([msg(data={"type": DT.ORPHAN_LIST, "month": month, "orphans": orphan_list})])
-
-    # ── /upload_to_airtable ──
-
-    def upload_statement(self, payload: Payload, ctx: InteractContext) -> dict:
-        file_b64 = payload.get("file_b64")
-        rate_str = payload.get("rate", "")
-        if not file_b64 or not rate_str:
-            return self._upload_usage()
-        try:
-            rate = float(rate_str)
-        except ValueError:
-            return self._upload_usage()
-        return self._process_statement(base64.b64decode(file_b64), rate, ctx.get("progress"))
-
     def _upload_usage(self):
         return respond([msg("Прикрепите CSV-файл банковской выписки с подписью:\n"
                            "/upload_to_airtable <курс AED→RUB>")])
@@ -391,20 +389,6 @@ class AdminHandlers:
         review_count = sum(1 for e in expenses if e.comment == "NEEDS REVIEW")
         return respond([msg(data={"type": DT.UPLOAD_RESULT, "count": len(expenses),
                                   "review_count": review_count})])
-
-    # ── legium reply ──
-
-    def legium_reply(self, payload: Payload, _ctx: InteractContext) -> dict:
-        url = payload.get("text", "").strip()
-        contractor_id = payload.get("contractor_id", "")
-        contractor_telegram = payload.get("contractor_telegram", "")
-        month = prev_month()
-        contractor = find_contractor_by_id(contractor_id, load_all_contractors())
-        if not contractor_telegram:
-            update_legium_link(contractor_id, month, url, mark_sent=False)
-            return respond([msg("Контрагент не привязан к Telegram. "
-                               "Ссылка сохранена — отправится через /send_legium_links.")])
-        return self._send_legium_reply(contractor, contractor_id, contractor_telegram, month, url)
 
     def _send_legium_reply(self, contractor, contractor_id, contractor_telegram, month, url):
         caption = self._legium_caption(url)

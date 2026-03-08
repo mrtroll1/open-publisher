@@ -25,6 +25,14 @@ class ContractorFactory:
         logger.info("Auto-saved new contractor %s (%s)", cid, contractor.display_name)
         return contractor, code
 
+    def check_complete(self, collected, required_fields):
+        missing = {
+            field: label
+            for field, label in required_fields.items()
+            if not collected.get(field, "").strip()
+        }
+        return (not missing, missing)
+
     def _build_kwargs(self, collected, cls, telegram_id, cid, code):
         kwargs = dict(
             id=cid, aliases=collected.get("aliases", []), email=collected.get("email", ""),
@@ -35,11 +43,3 @@ class ContractorFactory:
             if field not in kwargs:
                 kwargs[field] = collected.get(field, "")
         return kwargs
-
-    def check_complete(self, collected, required_fields):
-        missing = {
-            field: label
-            for field, label in required_fields.items()
-            if not collected.get(field, "").strip()
-        }
-        return (not missing, missing)

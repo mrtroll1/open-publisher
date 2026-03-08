@@ -1,9 +1,10 @@
 """Interact dispatch — does the contract with the bot hold?"""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from backend.interact import handle
 from backend.interact.helpers import InteractContext
+from backend.models import ContractorType, Currency, RoleCode
 
 # ── Dispatch ─────────────────────────────────────────────────────────
 
@@ -25,7 +26,6 @@ def test_start_admin_response_shape():
     assert isinstance(result["messages"], list)
     assert len(result["messages"]) >= 1
     assert "text" in result["messages"][0]
-    # start clears FSM
     assert result.get("fsm_state") is None
 
 
@@ -53,7 +53,6 @@ def test_free_text_unknown_user_starts_registration(*_):
 @patch("backend.interact.contractor.find_contractor_by_telegram_id", return_value=None)
 @patch("backend.interact.contractor.fuzzy_find")
 def test_free_text_fuzzy_match_shows_suggestions(mock_fuzzy, *_):
-    from unittest.mock import MagicMock
     fake_contractor = MagicMock()
     fake_contractor.id = "c1"
     fake_contractor.display_name = "John Doe"
@@ -62,7 +61,6 @@ def test_free_text_fuzzy_match_shows_suggestions(mock_fuzzy, *_):
 
     result = handle("free_text", {"text": "Jon Doe"}, {"user_id": 999})
 
-    # Should show suggestion buttons, not start registration
     assert result.get("fsm_state") is None or "waiting_type" not in str(result.get("fsm_state"))
     assert any("keyboard" in m for m in result["messages"])
 
@@ -70,14 +68,12 @@ def test_free_text_fuzzy_match_shows_suggestions(mock_fuzzy, *_):
 @patch("backend.interact.contractor.load_all_contractors", return_value=[])
 @patch("backend.interact.contractor.find_contractor_by_telegram_id")
 def test_free_text_known_user_gets_menu(mock_find, *_):
-    from unittest.mock import MagicMock
     fake_contractor = MagicMock()
     fake_contractor.role_code = "author"
     mock_find.return_value = fake_contractor
 
     result = handle("free_text", {"text": "anything"}, {"user_id": 42})
 
-    # Known user → menu, FSM cleared
     assert result.get("fsm_state") is None
     assert any("keyboard" in m for m in result["messages"])
 
@@ -92,8 +88,7 @@ def test_type_selection_valid():
 def test_type_selection_invalid():
     result = handle("type_selection", {"text": "banana"}, {"user_id": 1, "fsm_data": {}})
 
-    # Should stay in same state, ask again
-    assert "fsm_state" not in result  # no state change
+    assert "fsm_state" not in result
     assert "1, 2 или 3" in result["messages"][0]["text"]
 
 
@@ -103,7 +98,6 @@ def test_type_selection_invalid():
 @patch("backend.interact.contractor.load_all_contractors", return_value=[])
 @patch("backend.interact.contractor.find_contractor_by_id")
 def test_verification_wrong_code_tracks_attempts(mock_find, *_):
-    from unittest.mock import MagicMock
     c = MagicMock()
     c.secret_code = "ABC123"
     mock_find.return_value = c
@@ -121,7 +115,6 @@ def test_verification_wrong_code_tracks_attempts(mock_find, *_):
 @patch("backend.interact.contractor.load_all_contractors", return_value=[])
 @patch("backend.interact.contractor.find_contractor_by_id")
 def test_verification_max_attempts_locks_out(mock_find, *_):
-    from unittest.mock import MagicMock
     c = MagicMock()
     c.secret_code = "ABC123"
     mock_find.return_value = c
@@ -132,9 +125,30 @@ def test_verification_max_attempts_locks_out(mock_find, *_):
     }
     result = handle("verification_code", {"text": "WRONG"}, ctx)
 
-    # Should lock out — clear FSM
     assert result.get("fsm_state") is None
     assert "Превышено" in result["messages"][0]["text"]
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_id")
+@patch("backend.interact.contractor.bind_telegram_id")
+def test_verification_correct_code_binds(mock_bind, mock_find, *_):
+    c = MagicMock()
+    c.id = "c1"
+    c.secret_code = "ABC123"
+    c.display_name = "Test"
+    c.role_code = RoleCode.AUTHOR
+    mock_find.return_value = c
+
+    ctx: InteractContext = {
+        "user_id": 42,
+        "fsm_data": {"pending_contractor_id": "c1", "verification_attempts": 0},
+    }
+    result = handle("verification_code", {"text": "abc123"}, ctx)
+
+    assert result.get("fsm_state") is None
+    mock_bind.assert_called_once_with("c1", 42)
+    assert "привязаны" in result["messages"][0]["text"]
 
 
 # ── Handler errors don't crash ───────────────────────────────────────
@@ -145,3 +159,592 @@ def test_handler_exception_returns_error_message(*_):
     result = handle("free_text", {"text": "hello"}, {"user_id": 1})
 
     assert "Ошибка" in result["messages"][0]["text"]
+
+
+# ── Menu ─────────────────────────────────────────────────────────────
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_menu_known_user_shows_keyboard(mock_find, *_):
+    c = MagicMock()
+    c.role_code = RoleCode.AUTHOR
+    mock_find.return_value = c
+
+    result = handle("menu", {}, {"user_id": 42})
+
+    assert result.get("fsm_state") is None
+    assert any("keyboard" in m for m in result["messages"])
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id", return_value=None)
+def test_menu_unknown_user_shows_greeting(*_):
+    result = handle("menu", {}, {"user_id": 999})
+
+    assert result.get("fsm_state") is None
+    assert "бот" in result["messages"][0]["text"].lower()
+
+
+# ── Data input ───────────────────────────────────────────────────────
+
+
+@patch("backend.interact.contractor.RegistrationParser")
+def test_data_input_parse_error_shows_retry(mock_parser_cls):
+    mock_parser_cls.return_value.parse.return_value = {"parse_error": "bad"}
+
+    ctx = {"user_id": 1, "fsm_data": {"contractor_type": "самозанятый", "collected_data": {}}}
+    result = handle("data_input", {"text": "garbage"}, ctx)
+
+    assert "Не удалось обработать" in result["messages"][0]["text"]
+
+
+@patch("backend.interact.contractor.validate_contractor_fields", return_value=[])
+@patch("backend.interact.contractor.RegistrationParser")
+@patch("backend.interact.contractor.ContractorFactory")
+@patch("backend.interact.contractor.CONTRACTOR_CLASS_BY_TYPE")
+def test_data_input_missing_fields_shows_progress(mock_types, mock_factory_cls, mock_parser_cls, _validate):
+    mock_parser_cls.return_value.parse.return_value = {"name": "Тест"}
+    mock_cls = MagicMock()
+    mock_cls.required_fields.return_value = {"name": "ФИО", "inn": "ИНН"}
+    mock_cls.all_field_labels.return_value = {"name": "ФИО", "inn": "ИНН"}
+    mock_types.__getitem__ = lambda _self, _key: mock_cls
+    mock_factory_cls.return_value.check_complete.return_value = (False, {"inn": "ИНН"})
+
+    ctx = {"user_id": 1, "fsm_data": {"contractor_type": "самозанятый", "collected_data": {}}}
+    result = handle("data_input", {"text": "Тест"}, ctx)
+
+    assert result["messages"][0]["data"]["type"].value == "registration_progress"
+
+
+# ── Sign doc ─────────────────────────────────────────────────────────
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id", return_value=None)
+def test_sign_doc_unknown_user_greeting(*_):
+    result = handle("sign_doc", {}, {"user_id": 999})
+
+    assert result.get("fsm_state") is None
+    assert "бот" in result["messages"][0]["text"].lower()
+
+
+@patch("backend.interact.contractor.InvoiceService")
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_sign_doc_no_invoice_no_publications(mock_find, _, mock_svc_cls):
+    c = MagicMock()
+    c.id = "c1"
+    mock_find.return_value = c
+    svc = mock_svc_cls.return_value
+    svc.resolve_existing.return_value = None
+    svc.prepare_new_data.return_value = None
+
+    result = handle("sign_doc", {}, {"user_id": 42})
+
+    assert "Публикаций" in result["messages"][0]["text"]
+
+
+# ── Amount input ─────────────────────────────────────────────────────
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_id", return_value=None)
+def test_amount_input_no_contractor(*_):
+    ctx = {"user_id": 1, "fsm_data": {"invoice_contractor_id": "c1"}}
+    result = handle("amount_input", {"text": "1000"}, ctx)
+
+    assert result.get("fsm_state") is None
+    assert "не найден" in result["messages"][0]["text"]
+
+
+@patch("backend.interact.contractor.update_invoice_status")
+@patch("backend.interact.contractor.GenerateInvoice")
+@patch("backend.interact.contractor.RepublicGateway")
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_id")
+def test_amount_input_ok_generates_invoice(mock_find, _, mock_gw, mock_gen, mock_status):
+    c = MagicMock()
+    c.id = "c1"
+    c.display_name = "Test"
+    c.currency = Currency.EUR
+    mock_find.return_value = c
+    mock_gw.return_value.fetch_articles.return_value = []
+    mock_result = MagicMock()
+    mock_result.pdf_bytes = b"pdf"
+    mock_result.invoice.contractor_id = "c1"
+    mock_gen.return_value.create_and_save.return_value = mock_result
+
+    ctx = {"user_id": 1, "fsm_data": {
+        "invoice_contractor_id": "c1", "invoice_month": "2025-02",
+        "invoice_default_amount": 1000}}
+    result = handle("amount_input", {"text": "ок"}, ctx)
+
+    assert result.get("fsm_state") is None
+    mock_gen.return_value.create_and_save.assert_called_once()
+
+
+def test_amount_input_invalid_text():
+    ctx = {"user_id": 1, "fsm_data": {
+        "invoice_contractor_id": "c1", "invoice_default_amount": 1000}}
+
+    @patch("backend.interact.contractor.load_all_contractors", return_value=[])
+    @patch("backend.interact.contractor.find_contractor_by_id")
+    def inner(mock_find, *_):
+        c = MagicMock()
+        c.id = "c1"
+        mock_find.return_value = c
+        return handle("amount_input", {"text": "abc"}, ctx)
+
+    result = inner()
+    assert "сумму" in result["messages"][0]["text"].lower()
+
+
+# ── Update payment data ─────────────────────────────────────────────
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_update_payment_data_starts_flow(mock_find, *_):
+    mock_find.return_value = MagicMock()
+
+    result = handle("update_payment_data", {}, {"user_id": 42})
+
+    assert result.get("fsm_state") == "waiting_update_data"
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id", return_value=None)
+def test_update_payment_data_unknown_user(*_):
+    result = handle("update_payment_data", {}, {"user_id": 999})
+
+    assert result.get("fsm_state") is None
+
+
+# ── Update data ──────────────────────────────────────────────────────
+
+
+def test_update_data_cancel():
+    result = handle("update_data", {"text": "отмена"}, {"user_id": 1})
+
+    assert result.get("fsm_state") is None
+    assert "отменено" in result["messages"][0]["text"].lower()
+
+
+@patch("backend.interact.contractor.update_contractor_fields")
+@patch("backend.interact.contractor.RegistrationParser")
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_update_data_applies_changes(mock_find, _, mock_parser_cls, mock_update):
+    c = MagicMock()
+    c.id = "c1"
+    c.type = ContractorType.SAMOZANYATY
+    mock_find.return_value = c
+    mock_parser_cls.return_value.parse.return_value = {"email": "new@x.com"}
+
+    result = handle("update_data", {"text": "email new@x.com"}, {"user_id": 42})
+
+    assert result.get("fsm_state") is None
+    assert "обновлены" in result["messages"][0]["text"].lower()
+    mock_update.assert_called_once()
+
+
+# ── Manage redirects ─────────────────────────────────────────────────
+
+
+@patch("backend.interact.contractor.find_redirect_rules_by_target", return_value=[])
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_manage_redirects_shows_editor_sources(mock_find, *_):
+    c = MagicMock()
+    c.role_code = RoleCode.REDAKTOR
+    mock_find.return_value = c
+
+    result = handle("manage_redirects", {}, {"user_id": 42})
+
+    assert any("keyboard" in m for m in result["messages"])
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_manage_redirects_non_editor_gets_greeting(mock_find, *_):
+    c = MagicMock()
+    c.role_code = RoleCode.AUTHOR
+    mock_find.return_value = c
+
+    result = handle("manage_redirects", {}, {"user_id": 42})
+
+    assert result.get("fsm_state") is None
+
+
+# ── Editor source name ───────────────────────────────────────────────
+
+
+def test_editor_source_name_cancel():
+    result = handle("editor_source_name", {"text": "отмена"}, {"user_id": 1})
+
+    assert result.get("fsm_state") is None
+    assert "отменено" in result["messages"][0]["text"].lower()
+
+
+@patch("backend.interact.contractor.redirect_in_budget")
+@patch("backend.interact.contractor.delete_invoice")
+@patch("backend.interact.contractor.add_redirect_rule")
+@patch("backend.interact.contractor.find_redirect_rules_by_target", return_value=[])
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_editor_source_name_adds_source(mock_find, *_):
+    c = MagicMock()
+    c.id = "c1"
+    mock_find.return_value = c
+
+    result = handle("editor_source_name", {"text": "Автор Тест"}, {"user_id": 42})
+
+    assert result.get("fsm_state") is None
+    assert "добавлен" in result["messages"][0]["text"].lower()
+
+
+# ── Dup callback ─────────────────────────────────────────────────────
+
+
+def test_dup_callback_new_starts_type_selection():
+    result = handle("dup_callback", {"callback_data": "dup:new"}, {"user_id": 1})
+
+    assert result.get("fsm_state") == "waiting_type"
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_id")
+def test_dup_callback_existing_asks_code(mock_find, *_):
+    c = MagicMock()
+    c.id = "c1"
+    c.display_name = "Test"
+    c.telegram = None
+    mock_find.return_value = c
+
+    result = handle("dup_callback", {"callback_data": "dup:c1"}, {"user_id": 42})
+
+    assert result.get("fsm_state") == "waiting_verification"
+    assert result["fsm_data"]["pending_contractor_id"] == "c1"
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_id")
+def test_dup_callback_already_linked_rejects(mock_find, *_):
+    c = MagicMock()
+    c.id = "c1"
+    c.display_name = "Test"
+    c.telegram = "999"
+    mock_find.return_value = c
+
+    result = handle("dup_callback", {"callback_data": "dup:c1"}, {"user_id": 42})
+
+    assert "привязан к другому" in result["messages"][0]["text"]
+
+
+# ── Esrc callback ────────────────────────────────────────────────────
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_esrc_callback_add_prompts_name(mock_find, *_):
+    mock_find.return_value = MagicMock()
+
+    result = handle("esrc_callback", {"callback_data": "esrc:add"}, {"user_id": 42})
+
+    assert result.get("fsm_state") == "waiting_editor_source_name"
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_esrc_callback_back_shows_menu(mock_find, *_):
+    c = MagicMock()
+    c.role_code = RoleCode.AUTHOR
+    mock_find.return_value = c
+
+    result = handle("esrc_callback", {"callback_data": "esrc:back"}, {"user_id": 42})
+
+    assert any("keyboard" in m for m in result["messages"])
+
+
+@patch("backend.interact.contractor.unredirect_in_budget")
+@patch("backend.interact.contractor.delete_invoice")
+@patch("backend.interact.contractor.remove_redirect_rule", return_value=True)
+@patch("backend.interact.contractor.find_redirect_rules_by_target", return_value=[])
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_esrc_callback_remove_source(mock_find, *_):
+    c = MagicMock()
+    c.id = "c1"
+    mock_find.return_value = c
+
+    result = handle("esrc_callback", {"callback_data": "esrc:rm:SomeName"}, {"user_id": 42})
+
+    assert any("keyboard" in m for m in result["messages"])
+
+
+# ── Menu callback ────────────────────────────────────────────────────
+
+
+@patch("backend.interact.contractor.InvoiceService")
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_menu_callback_contract(mock_find, _, mock_svc_cls):
+    c = MagicMock()
+    c.id = "c1"
+    mock_find.return_value = c
+    svc = mock_svc_cls.return_value
+    svc.resolve_existing.return_value = None
+    svc.prepare_new_data.return_value = None
+
+    result = handle("menu_callback", {"callback_data": "menu:contract"}, {"user_id": 42})
+
+    assert len(result["messages"]) >= 1
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_menu_callback_update(mock_find, *_):
+    mock_find.return_value = MagicMock()
+
+    result = handle("menu_callback", {"callback_data": "menu:update"}, {"user_id": 42})
+
+    assert result.get("fsm_state") == "waiting_update_data"
+
+
+@patch("backend.interact.contractor.find_redirect_rules_by_target", return_value=[])
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_menu_callback_editor(mock_find, *_):
+    mock_find.return_value = MagicMock()
+
+    result = handle("menu_callback", {"callback_data": "menu:editor"}, {"user_id": 42})
+
+    assert any("keyboard" in m for m in result["messages"])
+
+
+# ── Document handling ────────────────────────────────────────────────
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_document_non_global_just_acknowledges(mock_find, *_):
+    c = MagicMock(spec=["display_name"])
+    c.display_name = "Test"
+    mock_find.return_value = c
+
+    result = handle("document", {"file_b64": "dGVzdA==", "mime": "application/pdf"}, {"user_id": 42})
+
+    assert "получен" in result["messages"][0]["text"]
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id", return_value=None)
+def test_document_unknown_user_acknowledges(*_):
+    result = handle("document", {"file_b64": "dGVzdA=="}, {"user_id": 999})
+
+    assert "получен" in result["messages"][0]["text"]
+
+
+# ── Non-document handling ────────────────────────────────────────────
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id", return_value=None)
+def test_non_document_no_fsm_no_contractor_returns_empty(*_):
+    result = handle("non_document", {}, {"user_id": 999})
+
+    assert result["messages"] == []
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_non_document_in_fsm_asks_for_text(mock_find, *_):
+    mock_find.return_value = MagicMock()
+
+    result = handle("non_document", {}, {"user_id": 42, "fsm_state": "waiting_data"})
+
+    assert "текстовое" in result["messages"][0]["text"]
+
+
+# ── Admin: generate ──────────────────────────────────────────────────
+
+
+def test_admin_generate_no_text():
+    result = handle("admin_generate", {"text": ""}, {"user_id": 1})
+
+    assert "Использование" in result["messages"][0]["text"]
+
+
+@patch("backend.interact.admin.load_all_contractors", return_value=[])
+@patch("backend.interact.admin.find_contractor", return_value=None)
+@patch("backend.interact.admin.fuzzy_find", return_value=[])
+def test_admin_generate_unknown_contractor(*_):
+    result = handle("admin_generate", {"text": "Unknown"}, {"user_id": 1})
+
+    assert "не найден" in result["messages"][0]["text"]
+
+
+# ── Admin: articles ──────────────────────────────────────────────────
+
+
+def test_admin_articles_no_text():
+    result = handle("admin_articles", {"text": ""}, {"user_id": 1})
+
+    assert "Использование" in result["messages"][0]["text"]
+
+
+@patch("backend.interact.admin.RepublicGateway")
+@patch("backend.interact.admin.load_all_contractors", return_value=[])
+@patch("backend.interact.admin.find_contractor")
+@patch("backend.interact.admin.fuzzy_find", return_value=[])
+def test_admin_articles_no_publications(mock_fuzzy, mock_find, _, mock_gw):
+    c = MagicMock()
+    c.display_name = "Test"
+    c.role_code = RoleCode.AUTHOR
+    mock_find.return_value = c
+    mock_gw.return_value.fetch_articles.return_value = []
+
+    result = handle("admin_articles", {"text": "Test"}, {"user_id": 1})
+
+    assert "нет публикаций" in result["messages"][0]["text"].lower()
+
+
+@patch("backend.interact.admin.RepublicGateway")
+@patch("backend.interact.admin.load_all_contractors", return_value=[])
+@patch("backend.interact.admin.find_contractor")
+def test_admin_articles_returns_list(mock_find, _, mock_gw):
+    c = MagicMock()
+    c.display_name = "Test"
+    c.role_code = RoleCode.AUTHOR
+    mock_find.return_value = c
+    mock_gw.return_value.fetch_articles.return_value = [MagicMock(article_id="a1")]
+
+    result = handle("admin_articles", {"text": "Test"}, {"user_id": 1})
+
+    data = result["messages"][0]["data"]
+    assert data["type"].value == "articles_list"
+    assert data["count"] == 1
+
+
+# ── Admin: lookup ────────────────────────────────────────────────────
+
+
+def test_admin_lookup_no_text():
+    result = handle("admin_lookup", {"text": ""}, {"user_id": 1})
+
+    assert "Использование" in result["messages"][0]["text"]
+
+
+@patch("backend.interact.admin.load_all_contractors", return_value=[])
+@patch("backend.interact.admin.find_contractor")
+def test_admin_lookup_returns_contractor_info(mock_find, *_):
+    c = MagicMock()
+    c.display_name = "Test"
+    c.type = ContractorType.SAMOZANYATY
+    c.role_code = RoleCode.AUTHOR
+    c.mags = ""
+    c.email = "t@x.com"
+    c.telegram = "123"
+    c.invoice_number = 1
+    c.bank_name = "Bank"
+    c.bank_account = "1234"
+    mock_find.return_value = c
+
+    result = handle("admin_lookup", {"text": "Test"}, {"user_id": 1})
+
+    data = result["messages"][0]["data"]
+    assert data["type"].value == "contractor_info"
+    assert data["telegram_linked"] is True
+
+
+# ── Admin: orphans ───────────────────────────────────────────────────
+
+
+@patch("backend.interact.admin.load_all_amounts", return_value={})
+@patch("backend.interact.admin.load_all_contractors", return_value=[])
+def test_admin_orphans_none_found(*_):
+    result = handle("admin_orphans", {}, {"user_id": 1})
+
+    assert "совпадают" in result["messages"][0]["text"]
+
+
+@patch("backend.interact.admin.load_all_amounts", return_value={"orphan name": (100, 0, "")})
+@patch("backend.interact.admin.load_all_contractors", return_value=[])
+def test_admin_orphans_returns_list(*_):
+    result = handle("admin_orphans", {}, {"user_id": 1})
+
+    data = result["messages"][0]["data"]
+    assert data["type"].value == "orphan_list"
+    assert "orphan name" in data["orphans"]
+
+
+# ── Admin: upload statement ──────────────────────────────────────────
+
+
+def test_admin_upload_statement_no_file():
+    result = handle("admin_upload_statement", {"rate": "3.5"}, {"user_id": 1})
+
+    assert "Прикрепите" in result["messages"][0]["text"]
+
+
+def test_admin_upload_statement_invalid_rate():
+    result = handle("admin_upload_statement", {"file_b64": "dGVzdA==", "rate": "abc"}, {"user_id": 1})
+
+    assert "Прикрепите" in result["messages"][0]["text"]
+
+
+# ── Admin: legium reply ──────────────────────────────────────────────
+
+
+@patch("backend.interact.admin.update_legium_link")
+@patch("backend.interact.admin.load_all_contractors", return_value=[])
+@patch("backend.interact.admin.find_contractor_by_id", return_value=None)
+def test_admin_legium_reply_no_telegram_saves_link(mock_find, _, mock_update):
+    result = handle("admin_legium_reply", {
+        "text": "https://legium.test/doc",
+        "contractor_id": "c1",
+        "contractor_telegram": "",
+    }, {"user_id": 1})
+
+    assert "сохранена" in result["messages"][0]["text"].lower()
+    mock_update.assert_called_once()
+
+
+@patch("backend.interact.admin.prepare_existing_invoice", return_value=None)
+@patch("backend.interact.admin.update_legium_link")
+@patch("backend.interact.admin.load_all_contractors", return_value=[])
+@patch("backend.interact.admin.find_contractor_by_id")
+def test_admin_legium_reply_with_telegram_sends(mock_find, _, mock_update, mock_prepare):
+    c = MagicMock()
+    c.display_name = "Test"
+    mock_find.return_value = c
+
+    result = handle("admin_legium_reply", {
+        "text": "https://legium.test/doc",
+        "contractor_id": "c1",
+        "contractor_telegram": "123",
+    }, {"user_id": 1})
+
+    assert "отправлена" in result["messages"][0]["text"].lower()
+    assert len(result.get("side_messages", [])) == 1
+
+
+# ── Admin: send global ──────────────────────────────────────────────
+
+
+@patch("backend.interact.admin.load_invoices", return_value=[])
+def test_admin_send_global_no_drafts(*_):
+    result = handle("admin_send_global", {"text": ""}, {"user_id": 1})
+
+    assert "Нет неотправленных" in result["messages"][0]["text"]
+
+
+# ── Admin: send legium ──────────────────────────────────────────────
+
+
+@patch("backend.interact.admin.load_invoices", return_value=[])
+def test_admin_send_legium_no_pending(*_):
+    result = handle("admin_send_legium", {"text": ""}, {"user_id": 1})
+
+    assert "Нет неотправленных" in result["messages"][0]["text"]

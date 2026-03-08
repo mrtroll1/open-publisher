@@ -82,17 +82,19 @@ class QueryGateway:
     def available(self) -> bool:
         return bool(self._ssh_host and self._db_name)
 
-    def _ensure_tunnel(self):
-        if self._tunnel and self._tunnel.is_active:
-            return
+    def _close_stale_tunnel(self):
         if self._tunnel:
             try:
                 self._tunnel.close()
             except Exception:
                 pass
+
+    def _ensure_tunnel(self):
+        if self._tunnel and self._tunnel.is_active:
+            return
+        self._close_stale_tunnel()
         self._tunnel = SSHTunnelForwarder(
-            self._ssh_host,
-            ssh_username=self._ssh_user,
+            self._ssh_host, ssh_username=self._ssh_user,
             ssh_pkey=self._ssh_key_path,
             remote_bind_address=(self._db_host, self._db_port),
         )

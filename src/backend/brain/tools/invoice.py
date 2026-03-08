@@ -4,20 +4,22 @@ from backend.brain.tool import Tool, ToolContext
 from backend.commands.invoice import GenerateInvoiceUseCase
 
 
+def _parse_invoice_input(args: dict) -> dict:
+    inp = args.get("input", "")
+    if not inp:
+        contractor = args.get("contractor", "")
+        month = args.get("month", "")
+        inp = f"{contractor} {month}".strip() if month else contractor
+    parts = inp.strip().rsplit(maxsplit=1)
+    if len(parts) == 2 and "-" in parts[1]:
+        return {"contractor": parts[0], "month": parts[1]}
+    return {"contractor": inp.strip(), "month": None}
+
+
 def make_invoice_tool(gen_invoice) -> Tool:
     def fn(args: dict, ctx: ToolContext) -> dict:
-        use_case = GenerateInvoiceUseCase(gen_invoice)
-        inp = args.get("input", "")
-        if not inp:
-            contractor = args.get("contractor", "")
-            month = args.get("month", "")
-            inp = f"{contractor} {month}".strip() if month else contractor
-        parts = inp.strip().rsplit(maxsplit=1)
-        if len(parts) == 2 and "-" in parts[1]:
-            prepared = {"contractor": parts[0], "month": parts[1]}
-        else:
-            prepared = {"contractor": inp.strip(), "month": None}
-        return use_case.execute(prepared, ctx.env, ctx.user)
+        prepared = _parse_invoice_input(args)
+        return GenerateInvoiceUseCase(gen_invoice).execute(prepared, ctx.env, ctx.user)
 
     return Tool(
         name="invoice",

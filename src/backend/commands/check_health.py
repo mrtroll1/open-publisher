@@ -31,6 +31,15 @@ def format_healthcheck_results(results: list[HealthResult]) -> str:
     return "\n".join(lines) if lines else "No checks configured."
 
 
+def _parse_pod_line(line: str) -> HealthResult | None:
+    parts = line.split()
+    if len(parts) < 3:
+        return None
+    pod_name, ready, pod_status = parts[0], parts[1], parts[2]
+    is_ok = pod_status == "Running" and ready.split("/")[0] == ready.split("/")[1]
+    return HealthResult(pod_name, "ok" if is_ok else "error", f"{pod_status} ({ready})")
+
+
 def _kubectl_checks() -> list[HealthResult]:
     try:
         proc = subprocess.run(
@@ -39,86 +48,67 @@ def _kubectl_checks() -> list[HealthResult]:
         )
         if proc.returncode != 0:
             return [HealthResult("kubectl", "error", proc.stderr.strip())]
-
-        results = []
-        for line in proc.stdout.strip().splitlines():
-            parts = line.split()
-            if len(parts) < 3:
-                continue
-            pod_name, ready, pod_status = parts[0], parts[1], parts[2]
-            is_ok = pod_status == "Running" and ready.split("/")[0] == ready.split("/")[1]
-            results.append(HealthResult(
-                pod_name,
-                "ok" if is_ok else "error",
-                f"{pod_status} ({ready})",
-            ))
-        return results
+        results = [_parse_pod_line(line) for line in proc.stdout.strip().splitlines()]
+        return [r for r in results if r]
     except Exception as e:
         return [HealthResult("kubectl", "error", str(e))]
+
+
+def _error_rate_check(gw: CloudflareGateway, yesterday: str, today: str) -> HealthResult:
+    status_codes = gw.get_status_codes(yesterday, today)
+    total = sum(s["requests"] for s in status_codes)
+    errors_5xx = sum(s["requests"] for s in status_codes if 500 <= s["status"] < 600)
+    error_pct = round(errors_5xx / total * 100, 2) if total else 0
+    return HealthResult(
+        "Cloudflare 5xx",
+        "error" if error_pct > 5 else "ok",
+        f"{error_pct}% ({errors_5xx}/{total} запросов за 24ч)",
+    )
+
+
+def _threat_check(summary: dict) -> HealthResult:
+    threats = summary.get("threats_blocked", 0)
+    return HealthResult("Cloudflare угрозы", "ok", f"{threats} заблокировано за 24ч")
+
+
+def _cache_check(summary: dict) -> HealthResult:
+    cache_pct = summary.get("cache_ratio_pct", 0)
+    return HealthResult(
+        "Cloudflare кеш",
+        "error" if cache_pct < 30 else "ok",
+        f"{cache_pct}% запросов из кеша",
+    )
 
 
 def _cloudflare_checks() -> list[HealthResult]:
     gw = CloudflareGateway()
     if not gw.available:
         return []
-
-    today = date.today().isoformat()
     yesterday = (date.today() - timedelta(days=1)).isoformat()
-
+    today = date.today().isoformat()
     summary = gw.get_traffic_summary(yesterday, today)
     if not summary:
         return [HealthResult("Cloudflare", "error", "API не отвечает")]
+    return [
+        _error_rate_check(gw, yesterday, today),
+        _threat_check(summary),
+        _cache_check(summary),
+    ]
 
-    results = []
 
-    # Error rate from status codes
-    status_codes = gw.get_status_codes(yesterday, today)
-    total = sum(s["requests"] for s in status_codes)
-    errors_5xx = sum(s["requests"] for s in status_codes if 500 <= s["status"] < 600)
-    error_pct = round(errors_5xx / total * 100, 2) if total else 0
-    status = "error" if error_pct > 5 else "ok"
-    results.append(HealthResult(
-        "Cloudflare 5xx",
-        status,
-        f"{error_pct}% ({errors_5xx}/{total} запросов за 24ч)",
-    ))
-
-    # Threats
-    threats = summary.get("threats_blocked", 0)
-    results.append(HealthResult(
-        "Cloudflare угрозы",
-        "ok",
-        f"{threats} заблокировано за 24ч",
-    ))
-
-    # Cache ratio
-    cache_pct = summary.get("cache_ratio_pct", 0)
-    status = "error" if cache_pct < 30 else "ok"
-    results.append(HealthResult(
-        "Cloudflare кеш",
-        status,
-        f"{cache_pct}% запросов из кеша",
-    ))
-
-    return results
+def _check_domain(domain: str) -> HealthResult:
+    try:
+        resp = requests.get(f"https://{domain}", timeout=5)
+        status = "ok" if resp.status_code < 400 else "error"
+        return HealthResult(domain, status, f"HTTP {resp.status_code}")
+    except Exception as e:
+        return HealthResult(domain, "error", str(e))
 
 
 class CheckHealthUseCase(BaseUseCase):
     def execute(self, _prepared: Any, _env: dict, _user: dict) -> list[HealthResult]:
-        results = []
-        for domain in HEALTHCHECK_DOMAINS:
-            try:
-                resp = requests.get(f"https://{domain}", timeout=5)
-                if resp.status_code < 400:
-                    results.append(HealthResult(domain, "ok", f"HTTP {resp.status_code}"))
-                else:
-                    results.append(HealthResult(domain, "error", f"HTTP {resp.status_code}"))
-            except Exception as e:
-                results.append(HealthResult(domain, "error", str(e)))
-
+        results = [_check_domain(d) for d in HEALTHCHECK_DOMAINS]
         if KUBECTL_ENABLED:
             results.extend(_kubectl_checks())
-
         results.extend(_cloudflare_checks())
-
         return results

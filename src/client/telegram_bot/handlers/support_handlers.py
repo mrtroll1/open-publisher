@@ -96,20 +96,33 @@ def _build_code_input(*, verbose: bool, expert: bool, resume_session_id: str | N
     return flags + text
 
 
+async def _build_rating_keyboard(answer: str, text: str, user_id: int, *, verbose: bool):
+    try:
+        task_id = await backend_client.save_message(
+            text=answer, type="system",
+            metadata={"task": "CODE", "requested_by": str(user_id),
+                      "input_text": text, "verbose": verbose},
+        )
+        return InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text=str(i), callback_data=f"code_rate:{task_id}:{i}")
+            for i in range(1, 6)
+        ]])
+    except Exception:
+        logger.exception("Failed to save code task to DB")
+        return None
+
+
 async def cmd_code(message: types.Message, _state: FSMContext) -> None:
     args = message.text.split(maxsplit=1)
     if len(args) < 2 or not args[1].strip():
         await message.answer(replies.admin.code_usage)
         return
-
     verbose, expert, text = _parse_flags(args[1].strip())
     if not text:
         await message.answer(replies.admin.code_no_query)
         return
-
     resume_session_id = await _resolve_resume_session(message)
     input_text = _build_code_input(verbose=verbose, expert=expert, resume_session_id=resume_session_id, text=text)
-
     try:
         async with ThinkingMessage(message, "Запускаю Claude Code...") as thinking:
             result = await backend_client.command(
@@ -119,21 +132,7 @@ async def cmd_code(message: types.Message, _state: FSMContext) -> None:
             )
             answer = result.get("text", str(result)) if isinstance(result, dict) else str(result)
             session_id = result.get("session_id") if isinstance(result, dict) else None
-
-            # Save to DB and build rating keyboard
-            reply_markup = None
-            try:
-                task_id = await backend_client.save_message(
-                    text=answer, type="system",
-                    metadata={"task": "CODE", "requested_by": str(message.from_user.id),
-                              "input_text": text, "verbose": verbose},
-                )
-                reply_markup = InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text=str(i), callback_data=f"code_rate:{task_id}:{i}")
-                    for i in range(1, 6)
-                ]])
-            except Exception:
-                logger.exception("Failed to save code task to DB")
+            reply_markup = await _build_rating_keyboard(answer, text, message.from_user.id, verbose=verbose)
             sent = await thinking.finish_long(answer, reply_markup=reply_markup)
         meta = {"command": "code"}
         if session_id:
@@ -217,25 +216,25 @@ async def handle_editorial_callback(callback: CallbackQuery) -> None:
             from_addr=item.get("from_addr", "")))
 
 
-async def _send_support_draft(admin_id: int, draft: dict) -> None:
-    body_preview = draft["body"]
+def _format_draft_text(draft: dict) -> str:
     header = f"From: {draft['from_addr']}\n"
     reply_to = draft.get("reply_to", "")
     if reply_to and reply_to != draft["from_addr"]:
         header += f"Reply-To: {reply_to}\n"
     draft_header = replies.tech_support.draft_header if draft.get("can_answer") else replies.tech_support.draft_header_uncertain
-    text = (
-        f"{header}"
-        f"Subject: {draft['subject']}\n\n"
-        f"{body_preview}\n\n"
-        f"{draft_header}\n"
-        f"{draft['draft_reply']}"
-    )
-    buttons = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text=replies.tech_support.btn_send, callback_data=f"support:send:{draft['uid']}"),
-        InlineKeyboardButton(text=replies.tech_support.btn_skip, callback_data=f"support:skip:{draft['uid']}"),
+    return f"{header}Subject: {draft['subject']}\n\n{draft['body']}\n\n{draft_header}\n{draft['draft_reply']}"
+
+
+def _support_buttons(uid: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=replies.tech_support.btn_send, callback_data=f"support:send:{uid}"),
+        InlineKeyboardButton(text=replies.tech_support.btn_skip, callback_data=f"support:skip:{uid}"),
     ]])
-    sent = await bot.send_message(admin_id, text, reply_markup=buttons)
+
+
+async def _send_support_draft(admin_id: int, draft: dict) -> None:
+    text = _format_draft_text(draft)
+    sent = await bot.send_message(admin_id, text, reply_markup=_support_buttons(draft["uid"]))
     _support_draft_map[(admin_id, sent.message_id)] = draft["uid"]
 
 

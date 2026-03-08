@@ -24,24 +24,25 @@ class MemoryService:
                  source_url: str | None = None,
                  expires_at: datetime | None = None) -> str:
         embedding = self._embed.embed_one(text)
-        # URL-based dedup: same source_url → update existing entry
-        if source_url:
-            by_url = self._db.find_by_source_url(source_url)
-            if by_url:
-                self._db.update_knowledge_entry(by_url["id"], text, embedding)
-                return by_url["id"]
-        # Embedding-based dedup: very similar content → update
-        existing = self._db.search_knowledge(embedding, domain=domain, limit=1)
-        if existing and existing[0].get("similarity", 0) > 0.90:
-            entry_id = existing[0]["id"]
-            self._db.update_knowledge_entry(entry_id, text, embedding)
-            return entry_id
-        title = text[:60].strip()
+        existing_id = self._find_duplicate(embedding, domain, source_url)
+        if existing_id:
+            self._db.update_knowledge_entry(existing_id, text, embedding)
+            return existing_id
         return self._db.save_knowledge_entry(
-            tier=tier, domain=domain, title=title, content=text,
+            tier=tier, domain=domain, title=text[:60].strip(), content=text,
             source=source, embedding=embedding, user_id=user_id,
             source_url=source_url, expires_at=expires_at,
         )
+
+    def _find_duplicate(self, embedding, domain: str, source_url: str | None) -> str | None:
+        if source_url:
+            by_url = self._db.find_by_source_url(source_url)
+            if by_url:
+                return by_url["id"]
+        existing = self._db.search_knowledge(embedding, domain=domain, limit=1)
+        if existing and existing[0].get("similarity", 0) > 0.90:
+            return existing[0]["id"]
+        return None
 
     # ── RECALL ─────────────────────────────────────────────────
     def recall(self, query: str, domain: str | None = None,
@@ -73,47 +74,38 @@ class MemoryService:
                     chat_id: int | None = None,
                     user_id: int | None = None,
                     query: str = "") -> dict:
-        # Resolve environment
-        env_ctx = ""
-        env_domains: list[str] | None = None
-        if environment:
-            env = self._db.get_environment(environment)
-            if env:
-                env_ctx = env.get("system_context", "")
-                env_domains = env.get("allowed_domains")
-        elif chat_id:
-            env = self._db.get_environment_by_chat_id(chat_id)
-            if env:
-                env_ctx = env.get("system_context", "")
-                env_domains = env.get("allowed_domains")
-
-        # Gather knowledge
-        if query:
-            if env_domains is not None:
-                knowledge = self._retriever.get_multi_domain_context(env_domains)
-                knowledge += "\n\n" + self._retriever.retrieve(query, domains=env_domains)
-            else:
-                knowledge = self._retriever.get_core()
-                knowledge += "\n\n" + self._retriever.retrieve(query)
-        else:
-            if env_domains is not None:
-                knowledge = self._retriever.get_multi_domain_context(env_domains)
-            else:
-                knowledge = self._retriever.get_core()
-
-        # Resolve user context
-        user_context = ""
-        if user_id:
-            user = self._db.get_user_by_telegram_id(user_id)
-            if user:
-                user_context = self._retriever.get_user_context(user["id"])
-
+        env_ctx, env_domains = self._resolve_env(environment, chat_id)
+        knowledge = self._gather_knowledge(env_domains, query)
+        user_context = self._resolve_user_context(user_id)
         return {
             "environment": env_ctx,
             "knowledge": knowledge,
             "user_context": user_context,
             "domains": env_domains or [],
         }
+
+    def _resolve_env(self, environment: str | None, chat_id: int | None) -> tuple[str, list[str] | None]:
+        env = None
+        if environment:
+            env = self._db.get_environment(environment)
+        elif chat_id:
+            env = self._db.get_environment_by_chat_id(chat_id)
+        if not env:
+            return "", None
+        return env.get("system_context", ""), env.get("allowed_domains")
+
+    def _gather_knowledge(self, env_domains: list[str] | None, query: str) -> str:
+        if env_domains is not None:
+            base = self._retriever.get_multi_domain_context(env_domains)
+            return base + "\n\n" + self._retriever.retrieve(query, domains=env_domains) if query else base
+        base = self._retriever.get_core()
+        return base + "\n\n" + self._retriever.retrieve(query) if query else base
+
+    def _resolve_user_context(self, user_id: int | None) -> str:
+        if not user_id:
+            return ""
+        user = self._db.get_user_by_telegram_id(user_id)
+        return self._retriever.get_user_context(user["id"]) if user else ""
 
     # ── USER OPS ───────────────────────────────────────────────
     def get_user(self, user_id: str) -> dict | None:

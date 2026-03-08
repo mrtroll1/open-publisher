@@ -18,41 +18,38 @@ class AirtableGateway:
     """Wraps the Airtable API for expense record uploads."""
 
     def upload_expenses(self, expenses: list[AirtableExpense]) -> int:
-        """Upload expense records to Airtable. Returns number of records uploaded."""
         if not AIRTABLE_TOKEN or not AIRTABLE_BASE_ID:
             logger.error("Airtable credentials not configured")
             return 0
-
-        api = Api(AIRTABLE_TOKEN)
-        table = api.table(AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME)
-
-        today = datetime.now().strftime("%Y-%m-%d")
-
-        records = []
-        for exp in expenses:
-            fields = {
-                "payed": exp.payed,
-                "amount rub": float(exp.amount_rub),
-                "contractor": exp.contractor,
-                "unit": exp.unit,
-                "entity": exp.entity,
-                "description": exp.description,
-                "group": exp.group,
-                "parent": exp.parent,
-                "crated": today,
-            }
-            if exp.splited:
-                fields["splited"] = exp.splited
-            if exp.comment:
-                fields["comment"] = exp.comment
-            records.append({"fields": fields})
-
-        created = 0
-        for i in range(0, len(records), 10):
-            batch = records[i : i + 10]
-            table.batch_create([r["fields"] for r in batch], typecast=True)
-            created += len(batch)
-            time.sleep(0.2)
-
+        table = Api(AIRTABLE_TOKEN).table(AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME)
+        records = [_expense_to_fields(exp) for exp in expenses]
+        created = _batch_upload(table, records)
         logger.info("Uploaded %d/%d records to Airtable", created, len(records))
         return created
+
+
+def _expense_to_fields(exp: AirtableExpense) -> dict:
+    fields = {
+        "payed": exp.payed,
+        "amount rub": float(exp.amount_rub),
+        "contractor": exp.contractor,
+        "unit": exp.unit, "entity": exp.entity,
+        "description": exp.description,
+        "group": exp.group, "parent": exp.parent,
+        "crated": datetime.now().strftime("%Y-%m-%d"),
+    }
+    if exp.splited:
+        fields["splited"] = exp.splited
+    if exp.comment:
+        fields["comment"] = exp.comment
+    return fields
+
+
+def _batch_upload(table, records: list[dict]) -> int:
+    created = 0
+    for i in range(0, len(records), 10):
+        batch = records[i : i + 10]
+        table.batch_create(batch, typecast=True)
+        created += len(batch)
+        time.sleep(0.2)
+    return created

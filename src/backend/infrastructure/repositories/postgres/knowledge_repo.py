@@ -4,6 +4,45 @@ from __future__ import annotations
 
 from backend.infrastructure.repositories.postgres.base import BasePostgresRepo
 
+_ENTRY_COLS = ("id", "tier", "domain", "title", "content", "source")
+_ENTRY_COLS_WITH_TIME = (*_ENTRY_COLS, "created_at")
+_SEARCH_COLS = (*_ENTRY_COLS, "similarity")
+
+
+def _rows_to_dicts(rows, cols: tuple[str, ...]) -> list[dict]:
+    return [_row_to_dict(row, cols) for row in rows]
+
+
+def _row_to_dict(row, cols: tuple[str, ...]) -> dict:
+    d = dict(zip(cols, row, strict=False))
+    d["id"] = str(d["id"])
+    return d
+
+
+def _search_by_embedding(cur, emb_str: str, domain_filter: str, params: tuple, limit: int) -> list[dict]:
+    cur.execute(
+        f"""SELECT id, tier, domain, title, content, source,
+                  1 - (embedding <=> %s::vector) AS similarity
+           FROM knowledge_entries
+           WHERE is_active = TRUE {domain_filter}
+                 AND (expires_at IS NULL OR expires_at > NOW())
+           ORDER BY embedding <=> %s::vector ASC
+           LIMIT %s""",
+        (*params, emb_str, limit),
+    )
+    return _rows_to_dicts(cur.fetchall(), _SEARCH_COLS)
+
+
+def _fetch_entries(cur, where: str, params: tuple, order: str = "created_at") -> list[dict]:
+    cur.execute(
+        f"""SELECT id, tier, domain, title, content, source
+           FROM knowledge_entries
+           WHERE is_active = TRUE AND {where}
+           ORDER BY {order}""",
+        params,
+    )
+    return _rows_to_dicts(cur.fetchall(), _ENTRY_COLS)
+
 
 class KnowledgeRepo(BasePostgresRepo):
 
@@ -27,7 +66,6 @@ class KnowledgeRepo(BasePostgresRepo):
             return str(cur.fetchone()[0])
 
     def update_knowledge_entry(self, entry_id: str, content: str, embedding: list[float] | None = None) -> bool:
-        """Update a knowledge entry. Returns True if an entry was actually updated."""
         with self._cursor() as cur:
             cur.execute(
                 """UPDATE knowledge_entries
@@ -41,34 +79,8 @@ class KnowledgeRepo(BasePostgresRepo):
         emb_str = str(query_embedding)
         with self._cursor() as cur:
             if domain is not None:
-                cur.execute(
-                    """SELECT id, tier, domain, title, content, source,
-                              1 - (embedding <=> %s::vector) AS similarity
-                       FROM knowledge_entries
-                       WHERE is_active = TRUE AND domain = %s
-                             AND (expires_at IS NULL OR expires_at > NOW())
-                       ORDER BY embedding <=> %s::vector ASC
-                       LIMIT %s""",
-                    (emb_str, domain, emb_str, limit),
-                )
-            else:
-                cur.execute(
-                    """SELECT id, tier, domain, title, content, source,
-                              1 - (embedding <=> %s::vector) AS similarity
-                       FROM knowledge_entries
-                       WHERE is_active = TRUE
-                             AND (expires_at IS NULL OR expires_at > NOW())
-                       ORDER BY embedding <=> %s::vector ASC
-                       LIMIT %s""",
-                    (emb_str, emb_str, limit),
-                )
-            cols = ["id", "tier", "domain", "title", "content", "source", "similarity"]
-            rows = []
-            for row in cur.fetchall():
-                d = dict(zip(cols, row, strict=False))
-                d["id"] = str(d["id"])
-                rows.append(d)
-            return rows
+                return _search_by_embedding(cur, emb_str, "AND domain = %s", (emb_str, domain), limit)
+            return _search_by_embedding(cur, emb_str, "", (emb_str,), limit)
 
     def search_knowledge_multi_domain(
         self, query_embedding: list[float],
@@ -78,128 +90,44 @@ class KnowledgeRepo(BasePostgresRepo):
         emb_str = str(query_embedding)
         with self._cursor() as cur:
             if domains is not None:
-                cur.execute(
-                    """SELECT id, tier, domain, title, content, source,
-                              1 - (embedding <=> %s::vector) AS similarity
-                       FROM knowledge_entries
-                       WHERE is_active = TRUE AND domain = ANY(%s)
-                             AND (expires_at IS NULL OR expires_at > NOW())
-                       ORDER BY embedding <=> %s::vector ASC
-                       LIMIT %s""",
-                    (emb_str, domains, emb_str, limit),
-                )
-            else:
-                cur.execute(
-                    """SELECT id, tier, domain, title, content, source,
-                              1 - (embedding <=> %s::vector) AS similarity
-                       FROM knowledge_entries
-                       WHERE is_active = TRUE
-                             AND (expires_at IS NULL OR expires_at > NOW())
-                       ORDER BY embedding <=> %s::vector ASC
-                       LIMIT %s""",
-                    (emb_str, emb_str, limit),
-                )
-            cols = ["id", "tier", "domain", "title", "content", "source", "similarity"]
-            rows = []
-            for row in cur.fetchall():
-                d = dict(zip(cols, row, strict=False))
-                d["id"] = str(d["id"])
-                rows.append(d)
-            return rows
+                return _search_by_embedding(cur, emb_str, "AND domain = ANY(%s)", (emb_str, domains), limit)
+            return _search_by_embedding(cur, emb_str, "", (emb_str,), limit)
 
     def get_knowledge_by_tier(self, tier: str) -> list[dict]:
         with self._cursor() as cur:
-            cur.execute(
-                """SELECT id, tier, domain, title, content, source
-                   FROM knowledge_entries
-                   WHERE tier = %s AND is_active = TRUE
-                   ORDER BY domain, created_at""",
-                (tier,),
-            )
-            cols = ["id", "tier", "domain", "title", "content", "source"]
-            rows = []
-            for row in cur.fetchall():
-                d = dict(zip(cols, row, strict=False))
-                d["id"] = str(d["id"])
-                rows.append(d)
-            return rows
+            return _fetch_entries(cur, "tier = %s", (tier,), order="domain, created_at")
 
     def get_domain_context(self, domain: str) -> list[dict]:
         """Fetch core (global) + meta (domain-wide) entries for a domain."""
         with self._cursor() as cur:
-            cur.execute(
-                """SELECT id, tier, domain, title, content, source
-                   FROM knowledge_entries
-                   WHERE is_active = TRUE
-                     AND (tier = 'core' OR (tier = 'meta' AND domain = %s))
-                   ORDER BY tier, created_at""",
-                (domain,),
+            return _fetch_entries(
+                cur, "tier = 'core' OR (tier = 'meta' AND domain = %s)", (domain,), order="tier, created_at",
             )
-            cols = ["id", "tier", "domain", "title", "content", "source"]
-            rows = []
-            for row in cur.fetchall():
-                d = dict(zip(cols, row, strict=False))
-                d["id"] = str(d["id"])
-                rows.append(d)
-            return rows
 
     def get_multi_domain_context(self, domains: list[str]) -> list[dict]:
         """Fetch core (global) + meta entries for multiple domains."""
         with self._cursor() as cur:
-            cur.execute(
-                """SELECT id, tier, domain, title, content, source
-                   FROM knowledge_entries
-                   WHERE is_active = TRUE
-                     AND (tier = 'core' OR (tier = 'meta' AND domain = ANY(%s)))
-                   ORDER BY tier, created_at""",
-                (domains,),
+            return _fetch_entries(
+                cur, "tier = 'core' OR (tier = 'meta' AND domain = ANY(%s))", (domains,), order="tier, created_at",
             )
-            cols = ["id", "tier", "domain", "title", "content", "source"]
-            rows = []
-            for row in cur.fetchall():
-                d = dict(zip(cols, row, strict=False))
-                d["id"] = str(d["id"])
-                rows.append(d)
-            return rows
 
     def get_knowledge_by_domain(self, domain: str) -> list[dict]:
         with self._cursor() as cur:
-            cur.execute(
-                """SELECT id, tier, domain, title, content, source
-                   FROM knowledge_entries
-                   WHERE domain = %s AND is_active = TRUE
-                   ORDER BY created_at""",
-                (domain,),
-            )
-            cols = ["id", "tier", "domain", "title", "content", "source"]
-            rows = []
-            for row in cur.fetchall():
-                d = dict(zip(cols, row, strict=False))
-                d["id"] = str(d["id"])
-                rows.append(d)
-            return rows
+            return _fetch_entries(cur, "domain = %s", (domain,))
 
     def list_knowledge(self, domain: str | None = None, tier: str | None = None) -> list[dict]:
+        sql = "SELECT id, tier, domain, title, content, source, created_at FROM knowledge_entries WHERE is_active = TRUE"
+        params: list = []
+        if domain is not None:
+            sql += " AND domain = %s"
+            params.append(domain)
+        if tier is not None:
+            sql += " AND tier = %s"
+            params.append(tier)
+        sql += " ORDER BY tier, domain, created_at"
         with self._cursor() as cur:
-            sql = """SELECT id, tier, domain, title, content, source, created_at
-                     FROM knowledge_entries
-                     WHERE is_active = TRUE"""
-            params: list = []
-            if domain is not None:
-                sql += " AND domain = %s"
-                params.append(domain)
-            if tier is not None:
-                sql += " AND tier = %s"
-                params.append(tier)
-            sql += " ORDER BY tier, domain, created_at"
             cur.execute(sql, tuple(params))
-            cols = ["id", "tier", "domain", "title", "content", "source", "created_at"]
-            rows = []
-            for row in cur.fetchall():
-                d = dict(zip(cols, row, strict=False))
-                d["id"] = str(d["id"])
-                rows.append(d)
-            return rows
+            return _rows_to_dicts(cur.fetchall(), _ENTRY_COLS_WITH_TIME)
 
     def get_knowledge_entry(self, entry_id: str) -> dict | None:
         with self._cursor() as cur:
@@ -210,15 +138,9 @@ class KnowledgeRepo(BasePostgresRepo):
                 (entry_id,),
             )
             row = cur.fetchone()
-            if not row:
-                return None
-            cols = ["id", "tier", "domain", "title", "content", "source", "created_at"]
-            d = dict(zip(cols, row, strict=False))
-            d["id"] = str(d["id"])
-            return d
+            return _row_to_dict(row, _ENTRY_COLS_WITH_TIME) if row else None
 
     def deactivate_knowledge(self, entry_id: str) -> bool:
-        """Soft-delete a knowledge entry. Returns True if an entry was actually deactivated."""
         with self._cursor() as cur:
             cur.execute(
                 "UPDATE knowledge_entries SET is_active = FALSE, updated_at = NOW() WHERE id = %s",
@@ -234,23 +156,18 @@ class KnowledgeRepo(BasePostgresRepo):
             return [{"name": row[0], "description": row[1]} for row in cur.fetchall()]
 
     def find_by_source_url(self, source_url: str) -> dict | None:
-        """Find active knowledge entry by source_url. Returns most recent if multiple."""
+        """Find active knowledge entry by source_url."""
         with self._cursor() as cur:
             cur.execute(
                 """SELECT id, tier, domain, title, content, source, source_url
                    FROM knowledge_entries
                    WHERE source_url = %s AND is_active = TRUE
-                   ORDER BY created_at DESC
-                   LIMIT 1""",
+                   ORDER BY created_at DESC LIMIT 1""",
                 (source_url,),
             )
             row = cur.fetchone()
-            if not row:
-                return None
-            cols = ["id", "tier", "domain", "title", "content", "source", "source_url"]
-            d = dict(zip(cols, row, strict=False))
-            d["id"] = str(d["id"])
-            return d
+            cols = (*_ENTRY_COLS, "source_url")
+            return _row_to_dict(row, cols) if row else None
 
     def get_or_create_domain(self, name: str, description: str = "") -> str:
         with self._cursor() as cur:

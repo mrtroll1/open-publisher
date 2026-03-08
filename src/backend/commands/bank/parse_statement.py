@@ -112,25 +112,16 @@ def _handle_incoming_transfer(
 ) -> bool:
     from_match = _FROM_PATTERN.match(description)
     if not from_match:
-        return True  # positive transfer with no "From" pattern — skip
-
+        return True
     sender = from_match.group(1).strip()
     if "NETWORK INTERNATIONAL" in sender.upper():
-        return True  # Stripe payout — skip
-
+        return True
     if _is_owner(sender):
-        rub = _to_rub(abs(amount), aed_to_rub)
         expenses.append(AirtableExpense(
-            payed=date_str,
-            amount_rub=rub,
-            contractor=OWNER_NAME,
-            unit=_bo(UNIT_PRIMARY),
-            entity=DEFAULT_ENTITY,
-            description="Зп + амазон + авторы",
-            group="managers",
-            parent="staff",
+            payed=date_str, amount_rub=_to_rub(abs(amount), aed_to_rub),
+            contractor=OWNER_NAME, unit=_bo(UNIT_PRIMARY), entity=DEFAULT_ENTITY,
+            description="Зп + амазон + авторы", group="managers", parent="staff",
         ))
-    # Non-owner, non-Stripe positive transfers — skip
     return True
 
 
@@ -184,38 +175,31 @@ def _handle_outgoing_transfer(
     return True
 
 
+def _split_expense(date_str, rub_half, service) -> list[AirtableExpense]:
+    return [
+        AirtableExpense(
+            payed=date_str, amount_rub=rub_half,
+            contractor=service["contractor"], unit=_bo(unit_name),
+            entity=DEFAULT_ENTITY, description=service["description"],
+            group=service["group"], parent=service["parent"], splited="checked",
+        )
+        for unit_name in (UNIT_SECONDARY, UNIT_PRIMARY)
+    ]
+
+
 def _handle_card_known_service(
     service: dict, amount: Decimal, date_str: str, aed_to_rub: float,
     expenses: list[AirtableExpense],
 ) -> None:
     if service.get("split"):
-        half = abs(amount) / 2
-        rub_half = _to_rub(half, aed_to_rub)
-        expenses.extend(
-            AirtableExpense(
-                payed=date_str,
-                amount_rub=rub_half,
-                contractor=service["contractor"],
-                unit=_bo(unit_name),
-                entity=DEFAULT_ENTITY,
-                description=service["description"],
-                group=service["group"],
-                parent=service["parent"],
-                splited="checked",
-            )
-            for unit_name in (UNIT_SECONDARY, UNIT_PRIMARY)
-        )
+        expenses.extend(_split_expense(date_str, _to_rub(abs(amount) / 2, aed_to_rub), service))
     else:
         rub = _to_rub(abs(amount), aed_to_rub)
         expenses.append(AirtableExpense(
-            payed=date_str,
-            amount_rub=rub,
-            contractor=service["contractor"],
-            unit=service["unit"],
-            entity=DEFAULT_ENTITY,
+            payed=date_str, amount_rub=rub, contractor=service["contractor"],
+            unit=service["unit"], entity=DEFAULT_ENTITY,
             description=service["description"],
-            group=service["group"],
-            parent=service["parent"],
+            group=service["group"], parent=service["parent"],
         ))
 
 
@@ -279,59 +263,50 @@ def _aggregate_fx_fees(
 ) -> None:
     if not fx_fees:
         return
-    total_fx = sum(abs(f["amount"]) for f in fx_fees)
-    half_fx = total_fx / 2
-    rub_half = _to_rub(half_fx, aed_to_rub)
     last_date = max(f["date"] for f in fx_fees)
+    rub_half = _to_rub(sum(abs(f["amount"]) for f in fx_fees) / 2, aed_to_rub)
     expenses.extend(
         AirtableExpense(
-            payed=last_date,
-            amount_rub=rub_half,
-            contractor="Wio Bank",
-            unit=_bo(unit_name),
-            entity=DEFAULT_ENTITY,
+            payed=last_date, amount_rub=rub_half, contractor="Wio Bank",
+            unit=_bo(unit_name), entity=DEFAULT_ENTITY,
             description=f"Foreign exchange transaction fees {_month_label(last_date)}",
-            group="comissions",
-            parent="expenses",
-            splited="checked",
+            group="comissions", parent="expenses", splited="checked",
         )
         for unit_name in (UNIT_SECONDARY, UNIT_PRIMARY)
     )
 
 
+def _parse_row(row: dict[str, str]) -> tuple[str, str, Decimal, str] | None:
+    try:
+        return (row.get("Transaction type", "").strip(),
+                row.get("Description", "").strip(),
+                Decimal(row.get("Amount", "0").strip()),
+                row.get("Date", "").strip())
+    except (InvalidOperation, ValueError):
+        return None
+
+
 def _categorize_transactions(rows: list[dict[str, str]], aed_to_rub: float) -> list[AirtableExpense]:
-    expenses: list[AirtableExpense] = []
-    swift_fees: list[dict] = []
-    fx_fees: list[dict] = []
-
+    expenses, swift_fees, fx_fees = [], [], []
     for row in rows:
-        txn_type = row.get("Transaction type", "").strip()
-        description = row.get("Description", "").strip()
-        amount_str = row.get("Amount", "0").strip()
-        date_str = row.get("Date", "").strip()
-
-        try:
-            amount = Decimal(amount_str)
-        except (InvalidOperation, ValueError):
-            continue
-
-        if txn_type == "Transfers" and amount > 0:
-            _handle_incoming_transfer(description, amount, date_str, aed_to_rub, expenses)
-            continue
-
-        if txn_type == "Fees":
-            _handle_fee(description, amount, date_str, aed_to_rub, expenses, swift_fees=swift_fees, fx_fees=fx_fees)
-            continue
-
-        if txn_type == "Transfers" and amount < 0:
-            _handle_outgoing_transfer(description, amount, date_str, aed_to_rub, expenses)
-            continue
-
-        if txn_type == "Card" and amount < 0:
-            _handle_card_payment(description, amount, date_str, aed_to_rub, expenses)
-            continue
-
+        parsed = _parse_row(row)
+        if parsed:
+            _route_transaction(*parsed, aed_to_rub,
+                               expenses=expenses, swift_fees=swift_fees, fx_fees=fx_fees)
     _aggregate_swift_fees(swift_fees, aed_to_rub, expenses)
     _aggregate_fx_fees(fx_fees, aed_to_rub, expenses)
-
     return expenses
+
+
+def _route_transaction(  # noqa: PLR0913
+    txn_type, description, amount, date_str, aed_to_rub, *,
+    expenses, swift_fees, fx_fees,
+):
+    if txn_type == "Transfers" and amount > 0:
+        _handle_incoming_transfer(description, amount, date_str, aed_to_rub, expenses)
+    elif txn_type == "Fees":
+        _handle_fee(description, amount, date_str, aed_to_rub, expenses, swift_fees=swift_fees, fx_fees=fx_fees)
+    elif txn_type == "Transfers" and amount < 0:
+        _handle_outgoing_transfer(description, amount, date_str, aed_to_rub, expenses)
+    elif txn_type == "Card" and amount < 0:
+        _handle_card_payment(description, amount, date_str, aed_to_rub, expenses)

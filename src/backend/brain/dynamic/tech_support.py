@@ -23,43 +23,37 @@ class TechSupport(BaseGenAI):
         self._user_lookup = user_lookup or SupportUserLookup()
 
     def run(self, input: str, context: dict, *, _depth: int = 0) -> dict:
-        fallback_email = context.get("from_addr", "")
-        thread_context = context.get("thread_context", "")
+        triage = self._triage(input)
+        user_data = self._fetch_user_data(triage, context.get("from_addr", ""))
+        draft = self._draft_reply(input, user_data, context.get("thread_context", ""))
+        return {
+            "reply": draft.get("reply", ""),
+            "can_answer": draft.get("can_answer", False),
+            "needs": triage.get("needs", []),
+            "lookup_email": triage.get("lookup_email", ""),
+        }
 
-        # Step 1: triage — determine what user data is needed
-        triage_knowledge = self._retriever.retrieve_full_domain("support_triage")
-        triage_prompt = load_template("email/support-triage.md", {
-            "KNOWLEDGE": triage_knowledge,
-            "EMAIL": input,
-        })
-        triage_result = self._gemini.call(triage_prompt, GEMINI_MODEL_FAST)
+    def _triage(self, input: str) -> dict:
+        knowledge = self._retriever.retrieve_full_domain("support_triage")
+        prompt = load_template("email/support-triage.md", {"KNOWLEDGE": knowledge, "EMAIL": input})
+        return self._gemini.call(prompt, GEMINI_MODEL_FAST)
 
-        needs = triage_result.get("needs", [])
-        lookup_email = triage_result.get("lookup_email") or fallback_email
+    def _fetch_user_data(self, triage: dict, fallback_email: str) -> str:
+        needs = triage.get("needs", [])
+        lookup_email = triage.get("lookup_email") or fallback_email
+        if not needs or not lookup_email:
+            return ""
+        return self._user_lookup.fetch_and_format(lookup_email, needs)
 
-        # Fetch user data if triage determined it's needed
-        user_data = ""
-        if needs and lookup_email:
-            user_data = self._user_lookup.fetch_and_format(lookup_email, needs)
-
-        # Step 2: draft reply
+    def _draft_reply(self, input: str, user_data: str, thread_context: str) -> dict:
         combined_context = "\n\n".join(filter(None, [user_data, thread_context]))
         knowledge = (self._retriever.get_domain_context("tech_support")
                      + "\n\n"
                      + self._retriever.retrieve(input, domain="tech_support", limit=5))
-        draft_prompt = load_template("email/support-email.md", {
-            "KNOWLEDGE": knowledge,
-            "USER_DATA": combined_context,
-            "EMAIL": input,
+        prompt = load_template("email/support-email.md", {
+            "KNOWLEDGE": knowledge, "USER_DATA": combined_context, "EMAIL": input,
         })
-        draft_result = self._gemini.call(draft_prompt, GEMINI_MODEL_SMART)
-
-        return {
-            "reply": draft_result.get("reply", ""),
-            "can_answer": draft_result.get("can_answer", False),
-            "needs": needs,
-            "lookup_email": lookup_email,
-        }
+        return self._gemini.call(prompt, GEMINI_MODEL_SMART)
 
     def _pick_template(self, _input: str, _context: dict) -> str:
         return "email/support-email.md"

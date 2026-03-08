@@ -32,35 +32,31 @@ def validate_fields(collected: dict, ctype: ContractorType) -> list[str]:
     return warnings
 
 
+_DIGIT_CHECKS = [
+    ("passport_series", 4, "Серия паспорта должна содержать 4 цифры"),
+    ("passport_number", 6, "Номер паспорта должен содержать 6 цифр"),
+    ("inn", (10, 12), "ИНН должен содержать 10 или 12 цифр"),
+    ("bank_account", 20, "Номер счёта должен содержать 20 цифр"),
+    ("bik", 9, "БИК должен содержать 9 цифр"),
+    ("corr_account", 20, "Корр. счёт должен содержать 20 цифр"),
+]
+
+
+def _check_digit_field(val: str, expected, label: str, warnings: list[str]) -> None:
+    if not val:
+        return
+    length = len(_digits_only(val))
+    valid = length in expected if isinstance(expected, tuple) else length == expected
+    if not valid:
+        warnings.append(f"{label} (сейчас: {val})")
+
+
 def _validate_person_fields(collected: dict, warnings: list[str]) -> None:
-    ps = collected.get("passport_series", "")
-    if ps and len(_digits_only(ps)) != 4:
-        warnings.append(f"Серия паспорта должна содержать 4 цифры (сейчас: {ps})")
-
-    pn = collected.get("passport_number", "")
-    if pn and len(_digits_only(pn)) != 6:
-        warnings.append(f"Номер паспорта должен содержать 6 цифр (сейчас: {pn})")
-
-    inn = collected.get("inn", "")
-    if inn and len(_digits_only(inn)) not in (10, 12):
-        warnings.append(f"ИНН должен содержать 10 или 12 цифр (сейчас: {len(_digits_only(inn))})")
-
-    ba = collected.get("bank_account", "")
-    if ba and len(_digits_only(ba)) != 20:
-        warnings.append(f"Номер счёта должен содержать 20 цифр (сейчас: {len(_digits_only(ba))})")
-
-    bik = collected.get("bik", "")
-    if bik and len(_digits_only(bik)) != 9:
-        warnings.append(f"БИК должен содержать 9 цифр (сейчас: {len(_digits_only(bik))})")
-
-    ca = collected.get("corr_account", "")
-    if ca and len(_digits_only(ca)) != 20:
-        warnings.append(f"Корр. счёт должен содержать 20 цифр (сейчас: {len(_digits_only(ca))})")
-
+    for field, expected, label in _DIGIT_CHECKS:
+        _check_digit_field(collected.get(field, ""), expected, label, warnings)
     pc = collected.get("passport_code", "")
     if pc and not re.match(r"^\d{3}-?\d{3}$", pc.strip()):
         warnings.append(f"Код подразделения: формат NNN-NNN (сейчас: {pc})")
-
     _validate_address_ru(collected.get("address", ""), warnings)
     _check_email(collected.get("email", ""), warnings)
 

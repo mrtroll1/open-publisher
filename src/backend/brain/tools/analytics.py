@@ -49,21 +49,15 @@ def _format_summary(data: dict | None) -> str:
 def make_yandex_metrica_tool(gw: YandexMetricaGateway) -> Tool:
     def fn(args: dict, _ctx: ToolContext) -> dict:
         method = args["method"]
-        date_from = args["date_from"]
-        date_to = args["date_to"]
+        date_from, date_to = args["date_from"], args["date_to"]
         limit = args.get("limit", 20)
-
-        if method == "popular_pages":
-            result = _format_rows(gw.get_popular_pages(date_from, date_to, limit))
-        elif method == "traffic_summary":
-            result = _format_summary(gw.get_traffic_summary(date_from, date_to))
-        elif method == "traffic_sources":
-            result = _format_rows(gw.get_traffic_sources(date_from, date_to, limit))
-        elif method == "daily_traffic":
-            result = _format_rows(gw.get_daily_traffic(date_from, date_to))
-        else:
-            result = f"Неизвестный метод: {method}"
-
+        dispatch = {
+            "popular_pages": lambda: _format_rows(gw.get_popular_pages(date_from, date_to, limit)),
+            "traffic_summary": lambda: _format_summary(gw.get_traffic_summary(date_from, date_to)),
+            "traffic_sources": lambda: _format_rows(gw.get_traffic_sources(date_from, date_to, limit)),
+            "daily_traffic": lambda: _format_rows(gw.get_daily_traffic(date_from, date_to)),
+        }
+        result = dispatch.get(method, lambda: f"Неизвестный метод: {method}")()
         return {"result": result}
 
     methods_desc = "\n".join(f"- {k}: {v}" for k, v in _METRICA_METHODS.items())
@@ -99,28 +93,18 @@ def make_yandex_metrica_tool(gw: YandexMetricaGateway) -> Tool:
 def make_cloudflare_tool(gw: CloudflareGateway) -> Tool:
     def fn(args: dict, _ctx: ToolContext) -> dict:
         method = args["method"]
-        date_from = args["date_from"]
-        date_to = args["date_to"]
-
+        date_from, date_to = args["date_from"], args["date_to"]
         limit = args.get("limit", 20)
-
-        if method == "traffic_summary":
-            result = _format_summary(gw.get_traffic_summary(date_from, date_to))
-        elif method == "daily_traffic":
-            result = _format_rows(gw.get_daily_traffic(date_from, date_to))
-        elif method == "status_codes":
-            result = _format_rows(gw.get_status_codes(date_from, date_to))
-        elif method == "top_countries":
-            result = _format_rows(gw.get_top_countries(date_from, date_to, limit))
-        elif method == "top_paths":
-            result = _format_rows(gw.get_top_paths(date_from, date_to, limit))
-        elif method == "threat_summary":
-            result = _format_summary(gw.get_threat_summary(date_from, date_to))
-        elif method == "content_types":
-            result = _format_rows(gw.get_content_types(date_from, date_to))
-        else:
-            result = f"Неизвестный метод: {method}"
-
+        dispatch = {
+            "traffic_summary": lambda: _format_summary(gw.get_traffic_summary(date_from, date_to)),
+            "daily_traffic": lambda: _format_rows(gw.get_daily_traffic(date_from, date_to)),
+            "status_codes": lambda: _format_rows(gw.get_status_codes(date_from, date_to)),
+            "top_countries": lambda: _format_rows(gw.get_top_countries(date_from, date_to, limit)),
+            "top_paths": lambda: _format_rows(gw.get_top_paths(date_from, date_to, limit)),
+            "threat_summary": lambda: _format_summary(gw.get_threat_summary(date_from, date_to)),
+            "content_types": lambda: _format_rows(gw.get_content_types(date_from, date_to)),
+        }
+        result = dispatch.get(method, lambda: f"Неизвестный метод: {method}")()
         return {"result": result}
 
     methods_desc = "\n".join(f"- {k}: {v}" for k, v in _CLOUDFLARE_METHODS.items())

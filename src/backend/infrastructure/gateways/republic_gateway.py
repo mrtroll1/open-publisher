@@ -16,6 +16,28 @@ MAX_RETRIES = 3
 RETRY_DELAY = 2  # seconds
 
 
+def _try_api_get(url: str, params: dict, label: str, attempt: int) -> list[int] | None:
+    """Single attempt. Returns post IDs, empty list on 5xx, or None to retry."""
+    resp = requests.get(url, params=params, timeout=15, headers={"Accept": "application/json"})
+    logger.info("Content API %s params=%s → HTTP %s (%d bytes)", url, params, resp.status_code, len(resp.content))
+    if resp.status_code >= 500:
+        logger.warning("Content API %s for %s (attempt %d/%d)", resp.status_code, label, attempt, MAX_RETRIES)
+        if attempt < MAX_RETRIES:
+            time.sleep(RETRY_DELAY)
+            return None
+        logger.error("Content API HTTP %s for %s after %d attempts", resp.status_code, label, MAX_RETRIES)
+        return []
+    resp.raise_for_status()
+    return _extract_post_ids(resp.json(), label)
+
+
+def _extract_post_ids(body: dict, label: str) -> list[int]:
+    post_ids = body.get("$data") or body.get("data") or []
+    if not post_ids:
+        logger.warning("Content API returned empty data for %s: %s", label, body)
+    return post_ids
+
+
 class RepublicGateway:
     """Wraps Republic API: content endpoints and support endpoints."""
 
@@ -25,33 +47,11 @@ class RepublicGateway:
 
     @staticmethod
     def _api_get(url: str, params: dict, label: str) -> list[int]:
-        """Make a GET request to the content API and return post IDs.
-
-        Retries up to MAX_RETRIES times on transient errors (5xx, timeouts).
-        """
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                resp = requests.get(
-                    url, params=params, timeout=15,
-                    headers={"Accept": "application/json"},
-                )
-                logger.info("Content API %s params=%s → HTTP %s (%d bytes)",
-                             url, params, resp.status_code, len(resp.content))
-                if resp.status_code >= 500:
-                    logger.warning("Content API %s for %s (attempt %d/%d)",
-                                   resp.status_code, label, attempt, MAX_RETRIES)
-                    if attempt < MAX_RETRIES:
-                        time.sleep(RETRY_DELAY)
-                        continue
-                    logger.error("Content API HTTP %s for %s after %d attempts (body=%s)",
-                                 resp.status_code, label, MAX_RETRIES, resp.text[:500])
-                    return []
-                resp.raise_for_status()
-                body = resp.json()
-                post_ids = body.get("$data") or body.get("data") or []
-                if not post_ids:
-                    logger.warning("Content API returned empty data for %s: %s", label, body)
-                return post_ids
+                result = _try_api_get(url, params, label, attempt)
+                if result is not None:
+                    return result
             except (requests.ConnectionError, requests.Timeout) as e:
                 if attempt < MAX_RETRIES:
                     logger.warning("Content API %s for %s (attempt %d/%d): %s",
@@ -62,37 +62,45 @@ class RepublicGateway:
         return []
 
     def fetch_articles(self, contractor: Contractor, month: str) -> list[ArticleEntry]:
-        """Fetch article IDs for a contractor from the content API."""
+        post_ids = self._fetch_post_ids(contractor, month)
+        return [ArticleEntry(article_id=str(pid), role_code=contractor.role_code) for pid in post_ids]
+
+    def _fetch_post_ids(self, contractor: Contractor, month: str) -> list[int]:
         mag_aliases = [a.strip() for a in contractor.mags.split(",") if a.strip()]
-
         if mag_aliases:
-            url = f"{REPUBLIC_API_URL}/posts/by-magazine"
-            params = {"magazines": ",".join(mag_aliases), "month": month}
-            label = f"{contractor.display_name} (mags: {mag_aliases})"
-            post_ids = self._api_get(url, params, label)
-        else:
-            names = list(contractor.aliases)
-            if contractor.display_name and contractor.display_name not in names:
-                names.append(contractor.display_name)
-            if not names:
-                logger.warning("Contractor %s has no aliases or mag aliases for API lookup", contractor.id)
-                return []
-            seen = set()
-            post_ids = []
-            url = f"{REPUBLIC_API_URL}/posts/by-author"
-            for name in names:
-                params = {"author": name, "month": month}
-                label = f"{contractor.display_name} (author: {name})"
-                ids = self._api_get(url, params, label)
-                for pid in ids:
-                    if pid not in seen:
-                        seen.add(pid)
-                        post_ids.append(pid)
+            return self._fetch_by_magazine(mag_aliases, month, contractor.display_name)
+        return self._fetch_by_author_names(contractor, month)
 
-        return [
-            ArticleEntry(article_id=str(pid), role_code=contractor.role_code)
-            for pid in post_ids
-        ]
+    def _fetch_by_magazine(self, mag_aliases: list[str], month: str, display_name: str) -> list[int]:
+        url = f"{REPUBLIC_API_URL}/posts/by-magazine"
+        return self._api_get(url, {"magazines": ",".join(mag_aliases), "month": month},
+                             f"{display_name} (mags: {mag_aliases})")
+
+    def _fetch_by_author_names(self, contractor: Contractor, month: str) -> list[int]:
+        names = self._author_names(contractor)
+        if not names:
+            logger.warning("Contractor %s has no aliases or mag aliases for API lookup", contractor.id)
+            return []
+        return self._dedup_author_ids(names, month, contractor.display_name)
+
+    @staticmethod
+    def _author_names(contractor: Contractor) -> list[str]:
+        names = list(contractor.aliases)
+        if contractor.display_name and contractor.display_name not in names:
+            names.append(contractor.display_name)
+        return names
+
+    def _dedup_author_ids(self, names: list[str], month: str, display_name: str) -> list[int]:
+        seen: set[int] = set()
+        result: list[int] = []
+        for name in names:
+            for pid in self._api_get(f"{REPUBLIC_API_URL}/posts/by-author",
+                                     {"author": name, "month": month},
+                                     f"{display_name} (author: {name})"):
+                if pid not in seen:
+                    seen.add(pid)
+                    result.append(pid)
+        return result
 
     def fetch_articles_by_name(self, author: str, month: str) -> list[int]:
         """Check if an author name has any articles for the given month."""

@@ -9,43 +9,43 @@ from email.utils import parseaddr
 from backend.models import IncomingEmail
 
 
-def parse_email_message(uid: str, msg: email.message.Message) -> IncomingEmail:
-    """Parse a raw email message into IncomingEmail."""
-    subject_raw = msg.get("Subject", "")
-    decoded_parts = decode_header(subject_raw)
-    subject = ""
-    for part, charset in decoded_parts:
-        if isinstance(part, bytes):
-            subject += part.decode(charset or "utf-8", errors="replace")
-        else:
-            subject += part
+def _decode_subject(msg: email.message.Message) -> str:
+    decoded_parts = decode_header(msg.get("Subject", ""))
+    return "".join(
+        part.decode(charset or "utf-8", errors="replace") if isinstance(part, bytes) else part
+        for part, charset in decoded_parts
+    )
 
-    _, from_addr = parseaddr(msg.get("From", ""))
-    _, to_addr = parseaddr(msg.get("To", ""))
-    _, reply_to = parseaddr(msg.get("Reply-To", ""))
 
-    body = ""
+def _addr(msg: email.message.Message, header: str) -> str:
+    return parseaddr(msg.get(header, ""))[1]
+
+
+def _decode_payload(part: email.message.Message) -> str:
+    payload = part.get_payload(decode=True)
+    if not payload:
+        return ""
+    charset = part.get_content_charset() or "utf-8"
+    return payload.decode(charset, errors="replace")
+
+
+def _extract_body(msg: email.message.Message) -> str:
     if msg.is_multipart():
         for part in msg.walk():
             if part.get_content_type() == "text/plain":
-                payload = part.get_payload(decode=True)
-                if payload:
-                    charset = part.get_content_charset() or "utf-8"
-                    body = payload.decode(charset, errors="replace")
-                    break
-    else:
-        payload = msg.get_payload(decode=True)
-        if payload:
-            charset = msg.get_content_charset() or "utf-8"
-            body = payload.decode(charset, errors="replace")
+                return _decode_payload(part)
+        return ""
+    return _decode_payload(msg)
 
+
+def parse_email_message(uid: str, msg: email.message.Message) -> IncomingEmail:
     return IncomingEmail(
         uid=uid,
-        from_addr=from_addr,
-        to_addr=to_addr,
-        reply_to=reply_to,
-        subject=subject,
-        body=body.strip(),
+        from_addr=_addr(msg, "From"),
+        to_addr=_addr(msg, "To"),
+        reply_to=_addr(msg, "Reply-To"),
+        subject=_decode_subject(msg),
+        body=_extract_body(msg).strip(),
         date=msg.get("Date", ""),
         message_id=msg.get("Message-ID", ""),
         in_reply_to=msg.get("In-Reply-To", "").strip(),

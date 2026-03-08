@@ -22,21 +22,32 @@ logger = logging.getLogger(__name__)
 MAX_TOOL_STEPS = 5
 
 
+def _parse_meta(raw) -> dict:
+    if isinstance(raw, dict):
+        return raw
+    try:
+        return json.loads(raw) if raw else {}
+    except (json.JSONDecodeError, TypeError):
+        return {}
+
+
+def _format_chain_entry(entry: dict) -> str:
+    meta = _parse_meta(entry.get("metadata"))
+    prefix = entry["type"]
+    if meta:
+        prefix += f" [{' '.join(f'{k}={v}' for k, v in meta.items())}]"
+    return f"{prefix}: {entry['text']}"
+
+
 def _format_reply_chain(chain: list[dict]) -> str:
-    parts = []
-    for entry in chain:
-        meta = entry.get("metadata") or {}
-        if isinstance(meta, str):
-            try:
-                meta = json.loads(meta)
-            except (json.JSONDecodeError, TypeError):
-                meta = {}
-        prefix = f"{entry['type']}"
-        if meta:
-            meta_str = " ".join(f"{k}={v}" for k, v in meta.items())
-            prefix += f" [{meta_str}]"
-        parts.append(f"{prefix}: {entry['text']}")
-    return "\n".join(parts)
+    return "\n".join(_format_chain_entry(e) for e in chain)
+
+
+def _truncate_chain(chain: list[dict], max_verbatim: int) -> str:
+    if len(chain) <= max_verbatim:
+        return _format_reply_chain(chain)
+    skipped = len(chain) - max_verbatim
+    return f"[{skipped} предыдущих сообщений опущено]\n" + _format_reply_chain(chain[-max_verbatim:])
 
 
 def _build_conversation_context(
@@ -44,41 +55,37 @@ def _build_conversation_context(
     db: DbGateway, max_verbatim: int = 8,
 ) -> tuple[str, str | None]:
     msg = db.get_by_telegram_message_id(chat_id, reply_message_id)
-    if msg:
-        chain = db.get_reply_chain(msg["id"], depth=20)
-        if len(chain) > max_verbatim:
-            skipped = len(chain) - max_verbatim
-            chain = chain[-max_verbatim:]
-            history = f"[{skipped} предыдущих сообщений опущено]\n" + _format_reply_chain(chain)
-        else:
-            history = _format_reply_chain(chain)
-        return history, msg["id"]
-    return f"assistant: {reply_text}", None
+    if not msg:
+        return f"assistant: {reply_text}", None
+    chain = db.get_reply_chain(msg["id"], depth=20)
+    return _truncate_chain(chain, max_verbatim), msg["id"]
+
+
+_BASE_INSTRUCTIONS = [
+    "Ты — Иван Добровольский, издатель Republic ({site}). Ведёшь диалог в Telegram.",
+    "Используй контекст и инструменты. Отвечай по-русски.",
+    "Если не знаешь ответа — скажи.",
+    "Отвечай кратко и по делу.",
+    "ФОРМАТ: Telegram. ЗАПРЕЩЕНО: markdown-таблицы (|---|), republic.ru. Для списков данных — нумерованный список. Ссылки на статьи: {site}/posts/<id>.",
+    "НИКОГДА не выдумывай данные. Если инструмент не вернул результат (ошибка, пустой ответ, 'LLM did not produce a query') — сообщи об этом пользователю, но НЕ придумывай заголовки, названия, цифры или другие данные.",
+    "Если спрашивают о твоих прошлых действиях — используй agent_db для поиска в run_logs по run_id из истории. НИКОГДА не выдумывай SQL-запросы или результаты.",
+]
+
+
+def _optional_section(title: str, content: str) -> str:
+    return f"\n## {title}\n{content}" if content else ""
 
 
 def _build_system_prompt(env: dict, user_context: str, knowledge: str,
                          conversation_history: str) -> str:
     now = datetime.now(timezone(timedelta(hours=1)))
-    parts = [
-        f"Текущая дата и время: {now.strftime('%Y-%m-%d %H:%M')} (CET)",
-        f"Ты — Иван Добровольский, издатель Republic ({REPUBLIC_SITE_URL}). Ведёшь диалог в Telegram.",
-        "Используй контекст и инструменты. Отвечай по-русски.",
-        "Если не знаешь ответа — скажи.",
-        "Отвечай кратко и по делу.",
-        f"ФОРМАТ: Telegram. ЗАПРЕЩЕНО: markdown-таблицы (|---|), republic.ru. Для списков данных — нумерованный список. Ссылки на статьи: {REPUBLIC_SITE_URL}/posts/<id>.",
-        "НИКОГДА не выдумывай данные. Если инструмент не вернул результат (ошибка, пустой ответ, 'LLM did not produce a query') — сообщи об этом пользователю, но НЕ придумывай заголовки, названия, цифры или другие данные. Используй ТОЛЬКО те данные, которые вернули инструменты.",
-        "Если спрашивают о твоих прошлых действиях, запросах или результатах — используй agent_db для поиска в run_logs по run_id из истории. НИКОГДА не выдумывай SQL-запросы или результаты — только цитируй из run_logs.",
-    ]
-    environment = env.get("system_context", "")
-    if environment:
-        parts.append(f"\n## Окружение\n{environment}")
-    if user_context:
-        parts.append(f"\n## О собеседнике\n{user_context}")
-    if knowledge:
-        parts.append(f"\n## Контекст\n{knowledge}")
-    if conversation_history:
-        parts.append(f"\n## История разговора\n{conversation_history}")
-    return "\n".join(parts)
+    parts = [f"Текущая дата и время: {now.strftime('%Y-%m-%d %H:%M')} (CET)"]
+    parts.extend(line.format(site=REPUBLIC_SITE_URL) for line in _BASE_INSTRUCTIONS)
+    parts.append(_optional_section("Окружение", env.get("system_context", "")))
+    parts.append(_optional_section("О собеседнике", user_context))
+    parts.append(_optional_section("Контекст", knowledge))
+    parts.append(_optional_section("История разговора", conversation_history))
+    return "\n".join(p for p in parts if p)
 
 
 def _tool_declarations(tools: list[Tool]) -> list[dict]:
@@ -100,8 +107,21 @@ def _truncate(obj, max_len=500) -> Any:
     return obj
 
 
+def _run_single_tool(tc, tool, auth_ctx, failed_tools, _log) -> dict:
+    try:
+        result = tool.execute(tc["args"], auth_ctx)
+        if isinstance(result, dict) and result.get("error"):
+            failed_tools[tc["name"]] = failed_tools.get(tc["name"], 0) + 1
+        _log("tool_result", {"tool": tc["name"], "result": _truncate(result)})
+        return {"name": tc["name"], "result": result}
+    except Exception as e:
+        logger.warning("Tool %s failed: %s", tc["name"], e, exc_info=True)
+        failed_tools[tc["name"]] = failed_tools.get(tc["name"], 0) + 1
+        _log("tool_error", {"tool": tc["name"], "error": str(e)})
+        return {"name": tc["name"], "result": {"error": str(e)}}
+
+
 def _execute_tool_calls(tool_calls, tools_by_name, auth_ctx, failed_tools, _log):
-    """Run each tool call, track failures, return results list."""
     results = []
     for tc in tool_calls:
         _log("tool_call", {"tool": tc["name"], "args": _truncate(tc["args"])})
@@ -110,17 +130,7 @@ def _execute_tool_calls(tool_calls, tools_by_name, auth_ctx, failed_tools, _log)
             results.append({"name": tc["name"], "result": {"error": f"Unknown tool: {tc['name']}"}})
             _log("tool_error", {"tool": tc["name"], "error": "unknown tool"})
             continue
-        try:
-            result = tool.execute(tc["args"], auth_ctx)
-            if isinstance(result, dict) and result.get("error"):
-                failed_tools[tc["name"]] = failed_tools.get(tc["name"], 0) + 1
-            results.append({"name": tc["name"], "result": result})
-            _log("tool_result", {"tool": tc["name"], "result": _truncate(result)})
-        except Exception as e:
-            logger.warning("Tool %s failed: %s", tc["name"], e, exc_info=True)
-            failed_tools[tc["name"]] = failed_tools.get(tc["name"], 0) + 1
-            results.append({"name": tc["name"], "result": {"error": str(e)}})
-            _log("tool_error", {"tool": tc["name"], "error": str(e)})
+        results.append(_run_single_tool(tc, tool, auth_ctx, failed_tools, _log))
     return results
 
 

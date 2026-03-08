@@ -240,21 +240,29 @@ async def _handle_group_command(
     await _dispatch_group_command(raw_cmd, args_text, message, state)
 
 
+def _is_group_reply_to_bot(message: types.Message) -> bool:
+    return bool(message.reply_to_message
+                and message.reply_to_message.from_user
+                and message.reply_to_message.from_user.is_bot)
+
+
+def _resolve_group_text(text: str, message: types.Message) -> str | None:
+    clean = _extract_bot_mention(text, BOT_USERNAME)
+    if clean is not None:
+        return clean
+    if _is_group_reply_to_bot(message):
+        return text
+    return None
+
+
 async def _handle_group_nl(
     text: str, message: types.Message, _state: FSMContext,
 ) -> None:
-    clean_text = _extract_bot_mention(text, BOT_USERNAME)
-    is_reply_to_bot = (
-        message.reply_to_message
-        and message.reply_to_message.from_user
-        and message.reply_to_message.from_user.is_bot
-    )
-    if clean_text is None and not is_reply_to_bot:
-        return
+    clean_text = _resolve_group_text(text, message)
     if clean_text is None:
-        clean_text = text
-
-    kwargs = _build_nl_kwargs(clean_text, message, is_reply_to_bot=is_reply_to_bot)
+        return
+    is_reply = _is_group_reply_to_bot(message)
+    kwargs = _build_nl_kwargs(clean_text, message, is_reply_to_bot=is_reply)
     thinking: ThinkingMessage | None = None
 
     async def _on_progress(stage: str, detail: str) -> None:
@@ -269,23 +277,26 @@ async def _handle_group_nl(
     kwargs["on_progress"] = _on_progress
     try:
         result = await backend_client.process_stream(**kwargs)
-        answer = result.get("reply", str(result)) if isinstance(result, dict) else str(result)
-        parent_id = result.get("parent_id") if isinstance(result, dict) else None
-        run_id = result.get("run_id") if isinstance(result, dict) else None
-
-        if thinking:
-            sent = await thinking.finish_long(answer, reply_to_message_id=message.message_id)
-        else:
-            sent = await _send_html(message, answer, reply_to_message_id=message.message_id)
-        meta = {"command": "nl_group"}
-        if run_id:
-            meta["run_id"] = run_id
-        await _save_turn(message, sent, clean_text, answer, meta, parent_id=parent_id)
+        await _send_group_result(message, clean_text, result, thinking)
     except Exception:
         if thinking:
             await thinking.__aexit__(None, None, None)
         logger.exception("Group NL processing failed")
         await message.answer("Не удалось обработать сообщение.")
+
+
+async def _send_group_result(message, clean_text, result, thinking):
+    answer = result.get("reply", str(result)) if isinstance(result, dict) else str(result)
+    parent_id = result.get("parent_id") if isinstance(result, dict) else None
+    run_id = result.get("run_id") if isinstance(result, dict) else None
+    if thinking:
+        sent = await thinking.finish_long(answer, reply_to_message_id=message.message_id)
+    else:
+        sent = await _send_html(message, answer, reply_to_message_id=message.message_id)
+    meta = {"command": "nl_group"}
+    if run_id:
+        meta["run_id"] = run_id
+    await _save_turn(message, sent, clean_text, answer, meta, parent_id=parent_id)
 
 
 def _build_nl_kwargs(clean_text: str, message: types.Message, *, is_reply_to_bot: bool) -> dict:
@@ -325,58 +336,49 @@ class _GroupConfig:
 _GROUP_ADMIN_COMMANDS = {"env_bind", "env_unbind"}
 
 
+def _parse_command(text: str) -> str:
+    raw_cmd = text.split(maxsplit=1)[0].lstrip("/")
+    return raw_cmd.split("@", 1)[0] if "@" in raw_cmd else raw_cmd
+
+
 async def _route_group(message: types.Message, state: FSMContext) -> None:
-    """Route group messages. Only responds if chat is bound to an environment."""
     text = message.text or ""
     if text.startswith("/"):
-        raw_cmd = text.split()[0].lstrip("/")
-        if "@" in raw_cmd:
-            raw_cmd = raw_cmd.split("@", 1)[0]
-        if raw_cmd in _GROUP_ADMIN_COMMANDS and is_admin(message.from_user.id):
-            handler = _ADMIN_COMMANDS.get(raw_cmd)
+        cmd = _parse_command(text)
+        if cmd in _GROUP_ADMIN_COMMANDS and is_admin(message.from_user.id):
+            handler = _ADMIN_COMMANDS.get(cmd)
             if handler:
                 await handler(message, state)
             return
-
     env = await resolve_environment_record(message.chat.id)
-    if not env:
-        return
+    if env:
+        await handle_group_message(message, state, _GroupConfig)
 
-    await handle_group_message(message, state, _GroupConfig)
+
+async def _route_dm_command(message: types.Message, state: FSMContext) -> None:
+    cmd = _parse_command(message.text)
+    if cmd in _DM_COMMANDS:
+        await _DM_COMMANDS[cmd](message, state)
+        return
+    if is_admin(message.from_user.id) and cmd in _ADMIN_COMMANDS:
+        await _ADMIN_COMMANDS[cmd](message, state)
 
 
 async def _route_text(message: types.Message, state: FSMContext) -> None:
     text = message.text or ""
-
-    # 1. Group messages
     if message.chat.type in ("group", "supergroup"):
         await _route_group(message, state)
         return
-
-    # 2. Commands
     if text.startswith("/"):
-        raw_cmd = text.split()[0].lstrip("/")
-        if "@" in raw_cmd:
-            raw_cmd = raw_cmd.split("@", 1)[0]
-        if raw_cmd in _DM_COMMANDS:
-            await _DM_COMMANDS[raw_cmd](message, state)
-            return
-        if is_admin(message.from_user.id) and raw_cmd in _ADMIN_COMMANDS:
-            await _ADMIN_COMMANDS[raw_cmd](message, state)
+        await _route_dm_command(message, state)
         return
-
-    # 3. Admin reply-to-message
     if is_admin(message.from_user.id) and message.reply_to_message:
         await handle_admin_reply(message, state)
         return
-
-    # 4. Active FSM state
     current_state = await state.get_state()
     if current_state is not None:
         await _route_fsm(message, state, current_state)
         return
-
-    # 5. Catch-all: contractor free text
     await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
     await handle_contractor_text(message, state)
 

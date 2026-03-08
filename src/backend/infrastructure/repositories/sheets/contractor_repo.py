@@ -41,57 +41,56 @@ def _sheet_range(sheet_name: str) -> str:
     return f"'{sheet_name}'!A:Z"
 
 
-def _parse_contractor(
-    row: dict[str, str],
-    contractor_type: ContractorType,
-) -> Contractor | None:
-    """Convert a sheet row dict into the appropriate Contractor subclass."""
-    aliases_raw = row.get("aliases", "")
-    aliases = [a.strip() for a in aliases_raw.split(",") if a.strip()]
+def _parse_aliases(raw: str) -> list[str]:
+    return [a.strip() for a in raw.split(",") if a.strip()]
 
-    role_raw = row.get("role_code", "A").strip().upper()
+
+def _parse_role(raw: str) -> tuple[RoleCode, bool]:
+    role_raw = raw.strip().upper()
     is_photographer = role_raw.endswith(":F")
     if is_photographer:
         role_raw = role_raw.removesuffix(":F")
     try:
-        role_code = RoleCode(role_raw)
+        return RoleCode(role_raw), is_photographer
     except ValueError:
-        role_code = RoleCode.AUTHOR
+        return RoleCode.AUTHOR, is_photographer
 
-    invoice_num_raw = row.get("invoice_number", "0")
+
+def _parse_int(raw: str, default: int = 0) -> int:
     try:
-        invoice_number = int(invoice_num_raw) if invoice_num_raw else 0
+        return int(raw) if raw else default
     except ValueError:
-        invoice_number = 0
+        return default
 
-    telegram = row.get("telegram", "")
 
-    common = dict(
+def _common_fields(row: dict[str, str]) -> dict:
+    role_code, is_photographer = _parse_role(row.get("role_code", "A"))
+    return dict(
         id=row.get("id", ""),
-        aliases=aliases,
+        aliases=_parse_aliases(row.get("aliases", "")),
         role_code=role_code,
         is_photographer=is_photographer,
         email=row.get("email", ""),
         bank_name=row.get("bank_name", ""),
         bank_account=row.get("bank_account", ""),
         mags=row.get("mags", ""),
-        invoice_number=invoice_number,
-        telegram=telegram,
+        invoice_number=_parse_int(row.get("invoice_number", "0")),
+        telegram=row.get("telegram", ""),
         secret_code=row.get("secret_code", ""),
     )
 
-    cls = CONTRACTOR_CLASS_BY_TYPE[contractor_type]
-    specific = {
-        field: row.get(field, "")
-        for field in cls.FIELD_META
-        if field not in common
-    }
 
+def _parse_contractor(
+    row: dict[str, str],
+    contractor_type: ContractorType,
+) -> Contractor | None:
+    common = _common_fields(row)
+    cls = CONTRACTOR_CLASS_BY_TYPE[contractor_type]
+    specific = {f: row.get(f, "") for f in cls.FIELD_META if f not in common}
     try:
         return cls(**common, **specific)
     except ValidationError as e:
-        cid = row.get("id", "???")
-        logger.warning("Skipping contractor %s — missing fields: %s", cid, e)
+        logger.warning("Skipping contractor %s — missing fields: %s", row.get("id", "???"), e)
         return None
 
 
@@ -209,23 +208,18 @@ def bind_telegram_id(contractor_id: str, telegram_id: int) -> None:
         logger.info("Bound telegram_id %s to contractor %s", telegram_id, contractor_id)
 
 
+def _field_to_cell(c: Contractor, col: str) -> str:
+    if col == "aliases":
+        return ", ".join(c.aliases)
+    if col == "role_code":
+        return c.role_code.value + (":F" if c.is_photographer else "")
+    if col == "invoice_number":
+        return str(c.invoice_number)
+    return getattr(c, col, "")
+
+
 def contractor_to_row(c: Contractor) -> list[str]:
-    """Convert a Contractor to a row for appending to its type-specific sheet."""
-    columns = type(c).SHEET_COLUMNS
-    row: list[str] = []
-    for col in columns:
-        if col == "aliases":
-            row.append(", ".join(c.aliases))
-        elif col == "role_code":
-            val = c.role_code.value
-            if c.is_photographer:
-                val += ":F"
-            row.append(val)
-        elif col == "invoice_number":
-            row.append(str(c.invoice_number))
-        else:
-            row.append(getattr(c, col, ""))
-    return row
+    return [_field_to_cell(c, col) for col in type(c).SHEET_COLUMNS]
 
 
 def save_contractor(c: Contractor) -> None:
@@ -244,25 +238,23 @@ def next_contractor_id(contractors: list[Contractor]) -> str:
     return f"c{max_num + 1:03d}"
 
 
+def _read_current_invoice_number(rows: list[list[str]], headers: list[str], row_idx: int) -> int:
+    try:
+        col_idx = headers.index("invoice_number")
+    except ValueError:
+        return 0
+    raw = rows[row_idx][col_idx] if col_idx < len(rows[row_idx]) else "0"
+    return _parse_int(raw)
+
+
 def increment_invoice_number(contractor_id: str) -> int:
-    """Increment invoice_number for a contractor and write to sheet. Returns the new number."""
     result = _find_contractor_in_sheets(contractor_id)
     if result is None:
         logger.error("Contractor %s not found in any sheet", contractor_id)
         return 1
     sheet_name, rows, row_idx = result
     headers = [h.strip().lower() for h in rows[0]]
-    try:
-        col_idx = headers.index("invoice_number")
-    except ValueError:
-        logger.error("invoice_number column not found in sheet %s", sheet_name)
-        return 1
-    current_val = rows[row_idx][col_idx] if col_idx < len(rows[row_idx]) else "0"
-    try:
-        current_num = int(current_val) if current_val else 0
-    except ValueError:
-        current_num = 0
-    new_num = current_num + 1
+    new_num = _read_current_invoice_number(rows, headers, row_idx) + 1
     _write_cell(sheet_name, headers, row_idx, "invoice_number", str(new_num))
     logger.info("Updated %s invoice_number to %d", contractor_id, new_num)
     return new_num

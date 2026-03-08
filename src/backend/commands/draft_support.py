@@ -35,47 +35,52 @@ class TechSupportHandler:
         self._retriever = retriever or KnowledgeRetriever()
 
     def draft_reply(self, email: IncomingEmail) -> SupportDraft:
-        # Save inbound email as message, linking to thread via parent_id
+        msg_id = self._save_inbound(email)
+        context = self._build_context(email, msg_id)
+        result = self._generate_draft(email.as_text(), context)
+        logger.info("Drafted support response for %s (uid=%s, can_answer=%s)",
+                     email.from_addr, email.uid, result.get("can_answer"))
+        draft = SupportDraft(email=email, can_answer=result.get("can_answer", False),
+                             draft_reply=result.get("reply", ""))
+        draft._inbound_msg_id = msg_id
+        return draft
+
+    def _save_inbound(self, email: IncomingEmail) -> str:
         parent_id = self._db.find_email_parent(
             in_reply_to=email.in_reply_to, subject=email.subject,
         )
         sender = self._db.get_or_create_by_email(email.from_addr)
-        msg_id = self._db.save_message(
+        return self._db.save_message(
             text=email.body, environment="email", type="user",
             user_id=sender["id"], parent_id=parent_id,
-            metadata={
-                "email_message_id": email.message_id,
-                "from": email.from_addr, "to": email.to_addr,
-                "subject": email.subject, "date": email.date,
-                "in_reply_to": email.in_reply_to or "",
-                "normalized_subject": normalize_email_subject(email.subject),
-                "direction": "inbound", "uid": email.uid,
-            },
+            metadata=self._inbound_metadata(email),
         )
 
-        # Get thread history for context
+    @staticmethod
+    def _inbound_metadata(email: IncomingEmail) -> dict:
+        return {
+            "email_message_id": email.message_id,
+            "from": email.from_addr, "to": email.to_addr,
+            "subject": email.subject, "date": email.date,
+            "in_reply_to": email.in_reply_to or "",
+            "normalized_subject": normalize_email_subject(email.subject),
+            "direction": "inbound", "uid": email.uid,
+        }
+
+    def _build_context(self, email: IncomingEmail, msg_id: str) -> str:
         history = self._db.get_thread_history(msg_id)
-
-        email_text = email.as_text()
-        user_data = self._fetch_user_data(email_text, email.reply_to or email.from_addr)
-
+        user_data = self._fetch_user_data(email.as_text(), email.reply_to or email.from_addr)
         thread_context = self._format_thread(history) if len(history) > 1 else ""
-        context = "\n\n".join(filter(None, [user_data, thread_context]))
+        return "\n\n".join(filter(None, [user_data, thread_context]))
 
+    def _generate_draft(self, email_text: str, context: str) -> dict:
         knowledge = (self._retriever.get_domain_context("tech_support")
                      + "\n\n"
                      + self._retriever.retrieve(email_text, domain="tech_support", limit=5))
         prompt = load_template("email/support-email.md", {
-            "KNOWLEDGE": knowledge,
-            "USER_DATA": context,
-            "EMAIL": email_text,
+            "KNOWLEDGE": knowledge, "USER_DATA": context, "EMAIL": email_text,
         })
-        result = self._gemini.call(prompt, GEMINI_MODEL_SMART)
-        can_answer = result.get("can_answer", False)
-        logger.info("Drafted support response for %s (uid=%s, can_answer=%s)", email.from_addr, email.uid, can_answer)
-        draft = SupportDraft(email=email, can_answer=can_answer, draft_reply=result.get("reply", ""))
-        draft._inbound_msg_id = msg_id
-        return draft
+        return self._gemini.call(prompt, GEMINI_MODEL_SMART)
 
     def save_outbound(self, _uid: str, draft: SupportDraft) -> None:
         inbound_id = getattr(draft, "_inbound_msg_id", None)
@@ -109,28 +114,28 @@ class TechSupportHandler:
                 },
             )
 
-    def _fetch_user_data(self, email_text: str, fallback_email: str) -> str:
+    def _run_triage(self, email_text: str) -> dict:
         triage_knowledge = self._retriever.retrieve_full_domain("support_triage")
         prompt = load_template("email/support-triage.md", {
-            "KNOWLEDGE": triage_knowledge,
-            "EMAIL": email_text,
+            "KNOWLEDGE": triage_knowledge, "EMAIL": email_text,
         })
         t0 = time.time()
         result = self._gemini.call(prompt, GEMINI_MODEL_FAST)
-        latency_ms = int((time.time() - t0) * 1000)
         self._db.save_message(
             text=prompt, environment="email", type="system",
             metadata={"task": "SUPPORT_TRIAGE", "model": GEMINI_MODEL_FAST,
-                      "result": json.dumps(result), "latency_ms": latency_ms},
+                      "result": json.dumps(result), "latency_ms": int((time.time() - t0) * 1000)},
         )
+        return result
+
+    def _fetch_user_data(self, email_text: str, fallback_email: str) -> str:
+        result = self._run_triage(email_text)
         needs = result.get("needs", [])
         lookup_email = result.get("lookup_email") or fallback_email
         logger.info("Support triage: needs=%s, lookup_email=%s", needs, lookup_email)
         if not needs or not lookup_email:
             return ""
-        user_data = self._user_lookup.fetch_and_format(lookup_email, needs)
-        logger.info("User data for %s:\n%s", lookup_email, user_data or "(empty)")
-        return user_data
+        return self._user_lookup.fetch_and_format(lookup_email, needs)
 
     @staticmethod
     def _format_thread(history: list[dict]) -> str:

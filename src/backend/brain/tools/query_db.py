@@ -9,25 +9,23 @@ _DB_DESCRIPTIONS = {
 }
 
 
-def make_query_db_tools(query_db_map: dict) -> list[Tool]:
-    tools = []
-    for db_name, query_db in query_db_map.items():
-        def _make_fn(qdb):
-            def fn(args: dict, _ctx: ToolContext) -> dict:
-                result = qdb.run(args["question"], {})
-                rows = result.get("rows", [])
-                if rows:
-                    lines = []
-                    for row in rows:
-                        parts = [f"{k}: {v}" for k, v in row.items()]
-                        lines.append(" | ".join(parts))
-                    formatted = "\n".join(lines)
-                else:
-                    formatted = result.get("error") or "Нет результатов"
-                return {"result": formatted, "sql": result.get("sql", "")}
-            return fn
+def _format_query_result(result: dict) -> str:
+    rows = result.get("rows", [])
+    if not rows:
+        return result.get("error") or "Нет результатов"
+    return "\n".join(" | ".join(f"{k}: {v}" for k, v in row.items()) for row in rows)
 
-        tools.append(Tool(
+
+def _make_query_fn(qdb):
+    def fn(args: dict, _ctx: ToolContext) -> dict:
+        result = qdb.run(args["question"], {})
+        return {"result": _format_query_result(result), "sql": result.get("sql", "")}
+    return fn
+
+
+def make_query_db_tools(query_db_map: dict) -> list[Tool]:
+    return [
+        Tool(
             name=db_name,
             description=_DB_DESCRIPTIONS.get(db_name, f"SQL-запрос к базе данных {db_name}"),
             parameters={
@@ -37,9 +35,10 @@ def make_query_db_tools(query_db_map: dict) -> list[Tool]:
                 },
                 "required": ["question"],
             },
-            fn=_make_fn(query_db),
+            fn=_make_query_fn(query_db),
             permissions={"*": {"admin"}, "editorial_group": {"*"}},
             nl_routable=False,
             conversational=True,
-        ))
-    return tools
+        )
+        for db_name, query_db in query_db_map.items()
+    ]

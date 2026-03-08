@@ -50,69 +50,42 @@ class KnowledgeRetriever:
         entries = self._db.get_knowledge_by_domain(domain)
         return _format_entries(entries)
 
+    def _dedup_or_create(self, text: str, domain: str, source: str, *,  # noqa: PLR0913
+                         tier: str = "specific", title: str = "",
+                         user_id: str | None = None,
+                         skip_dedup: bool = False) -> str:
+        embedding = self._embed.embed_one(text)
+        if not skip_dedup:
+            existing = self._db.search_knowledge(embedding, domain=domain, limit=1)
+            if existing and existing[0].get("similarity", 0) > 0.90:
+                self._db.update_knowledge_entry(existing[0]["id"], text, embedding)
+                return existing[0]["id"]
+        return self._db.save_knowledge_entry(
+            tier=tier, domain=domain, title=title or text[:60].strip(),
+            content=text, source=source, embedding=embedding, user_id=user_id,
+        )
+
     def store_feedback(self, text: str, domain: str) -> str:
-        embedding = self._embed.embed_one(text)
-        existing = self._db.search_knowledge(embedding, domain=domain, limit=1)
-        if existing and existing[0].get("similarity", 0) > 0.90:
-            entry_id = existing[0]["id"]
-            self._db.update_knowledge_entry(entry_id, text, embedding)
-            return entry_id
-        title = text[:60].strip()
-        return self._db.save_knowledge_entry(
-            tier="specific",
-            domain=domain,
-            title=title,
-            content=text,
-            source="admin_feedback",
-            embedding=embedding,
-        )
+        return self._dedup_or_create(text, domain, "admin_feedback")
 
-    def get_user_context(self, user_id: str) -> str:
-        """Fetch user-linked knowledge entries. Format as markdown."""
-        user = self._db.get_user(user_id)
-        if not user:
-            return ""
-        parts = []
-        entries = self._db.get_user_knowledge(user_id, limit=5)
-        if entries:
-            if user.get("name"):
-                parts.append(f"## {user['name']}")
-            parts.append(_format_entries(entries))
-        return "\n\n".join(parts)
-
-    def store_user_knowledge(self, user_id: str, text: str,
-                              domain: str = "general") -> str:
-        """Store a knowledge entry linked to a user. Dedup-aware."""
-        embedding = self._embed.embed_one(text)
-        existing = self._db.search_knowledge(embedding, domain=domain, limit=1)
-        if existing and existing[0].get("similarity", 0) > 0.90:
-            entry_id = existing[0]["id"]
-            self._db.update_knowledge_entry(entry_id, text, embedding)
-            return entry_id
-        title = text[:60].strip()
-        return self._db.save_knowledge_entry(
-            tier="specific", domain=domain, title=title,
-            content=text, source="admin_teach",
-            embedding=embedding, user_id=user_id,
-        )
+    def store_user_knowledge(self, user_id: str, text: str, domain: str = "general") -> str:
+        return self._dedup_or_create(text, domain, "admin_teach", user_id=user_id)
 
     def store_teaching(self, text: str, domain: str = "general", tier: str = "specific",
                        title: str = "") -> str:
-        embedding = self._embed.embed_one(text)
-        # Only dedup specific-tier entries; core/meta are intentionally distinct
-        if tier == "specific":
-            existing = self._db.search_knowledge(embedding, domain=domain, limit=1)
-            if existing and existing[0].get("similarity", 0) > 0.90:
-                entry_id = existing[0]["id"]
-                self._db.update_knowledge_entry(entry_id, text, embedding)
-                return entry_id
-        if not title:
-            title = text[:60].strip()
-        return self._db.save_knowledge_entry(
-            tier=tier,
-            domain=domain,
-            title=title,
-            content=text,
-            source="admin_teach",
-            embedding=embedding,
-        )
+        skip_dedup = tier != "specific"
+        return self._dedup_or_create(text, domain, "admin_teach", tier=tier, title=title,
+                                     skip_dedup=skip_dedup)
+
+    def get_user_context(self, user_id: str) -> str:
+        user = self._db.get_user(user_id)
+        if not user:
+            return ""
+        entries = self._db.get_user_knowledge(user_id, limit=5)
+        if not entries:
+            return ""
+        parts = []
+        if user.get("name"):
+            parts.append(f"## {user['name']}")
+        parts.append(_format_entries(entries))
+        return "\n\n".join(parts)

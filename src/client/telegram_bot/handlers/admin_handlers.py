@@ -41,37 +41,31 @@ __all__ = [
 ]
 
 
+def _interact_context(message: types.Message) -> dict:
+    return {"user_id": message.from_user.id, "chat_id": message.chat.id,
+            "is_admin": True, "admin_ids": []}
+
+
 async def _interact_cmd(message: types.Message, state: FSMContext,
                         action: str, extra_payload: dict | None = None) -> None:
-    """Send a command to backend /interact/stream and render the result."""
     args = message.text.split(maxsplit=1)
-    text = args[1].strip() if len(args) > 1 else ""
-
-    payload = {"text": text}
+    payload = {"text": args[1].strip() if len(args) > 1 else ""}
     if extra_payload:
         payload.update(extra_payload)
-
     thinking: ThinkingMessage | None = None
 
     async def _on_progress(stage: str, detail: str) -> None:
         nonlocal thinking
-        text = detail or stage
+        txt = detail or stage
         if thinking is None:
-            thinking = ThinkingMessage(message, text)
+            thinking = ThinkingMessage(message, txt)
             await thinking.__aenter__()
         else:
-            await thinking.update(text)
+            await thinking.update(txt)
 
     result = await backend_client.interact_stream(
-        action=action,
-        payload=payload,
-        context={
-            "user_id": message.from_user.id,
-            "chat_id": message.chat.id,
-            "is_admin": True,
-            "admin_ids": [],
-        },
-        on_progress=_on_progress,
+        action=action, payload=payload,
+        context=_interact_context(message), on_progress=_on_progress,
     )
     if thinking:
         await thinking.__aexit__(None, None, None)
@@ -204,45 +198,39 @@ async def cmd_chatid(message: types.Message, _state: FSMContext) -> None:
 
 # ── Admin reply routing ──────────────────────────────────────────────
 
+async def _try_legium_reply(message, state, key) -> bool:
+    entry = _admin_reply_map.get(key)
+    if not entry:
+        return False
+    contractor_tg, contractor_id = entry
+    try:
+        result = await backend_client.interact(
+            action="admin_legium_reply",
+            payload={"text": message.text.strip(), "contractor_id": contractor_id,
+                     "contractor_telegram": contractor_tg},
+            context={"user_id": message.from_user.id, "chat_id": message.chat.id, "is_admin": True},
+        )
+        await render(message, state, result)
+        del _admin_reply_map[key]
+    except Exception as e:
+        await message.answer(replies.invoice.legium_send_error.format(error=e))
+    return True
+
+
 async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
-    """Routing chain for admin replies: Legium forwarding -> support draft -> NL reply."""
     reply = message.reply_to_message
     if not reply:
         return
-
-    # 1. Legium forwarding — delegate to backend
     key = (message.chat.id, reply.message_id)
-    entry = _admin_reply_map.get(key)
-    if entry:
-        contractor_tg, contractor_id = entry
-        try:
-            result = await backend_client.interact(
-                action="admin_legium_reply",
-                payload={
-                    "text": message.text.strip(),
-                    "contractor_id": contractor_id,
-                    "contractor_telegram": contractor_tg,
-                },
-                context={"user_id": message.from_user.id, "chat_id": message.chat.id, "is_admin": True},
-            )
-            await render(message, state, result)
-            del _admin_reply_map[key]
-        except Exception as e:
-            await message.answer(replies.invoice.legium_send_error.format(error=e))
+    if await _try_legium_reply(message, state, key):
         return
-
-    # 2. Support draft reply
     uid = _support_draft_map.get(key)
     if uid:
         await _handle_draft_reply(message, uid)
         del _support_draft_map[key]
         return
-
-    # 3. Knowledge edit reply
     if await handle_kedit_reply(message):
         return
-
-    # 4. NL conversation fallback (Brain handles classification + routing)
     await _handle_nl_reply(message, state)
 
 

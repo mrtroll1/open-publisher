@@ -17,44 +17,45 @@ class SupportUserLookup:
 
     def fetch_and_format(self, email: str, needs: list[str]) -> str:
         """Fetch requested data categories and return formatted Russian text."""
-        sections: list[str] = []
+        republic_user, redefine_customer = self._lookup_users(email)
+        customer_id = redefine_customer.get("id") if redefine_customer else None
+        sections = self._build_sections(needs, email, republic_user, redefine_customer, customer_id)
+        return "\n\n".join(sections)
 
+    def _lookup_users(self, email: str) -> tuple[dict | None, dict | None]:
         republic_user = self._republic.get_user_by_email(email)
         logger.info("Republic lookup for %s: %s", email, "found" if republic_user else "not found")
-
         redefine_customer = self._redefine.get_customer_by_email(email)
         logger.info("Redefine lookup for %s: %s", email, "found" if redefine_customer else "not found")
-
-        # Fallback: use redefine_user_id from Republic if direct lookup failed
         if not redefine_customer and republic_user:
-            rid = republic_user.get("redefine_user_id")
-            if rid:
-                redefine_customer = {"id": rid, "_fallback": True}
+            redefine_customer = self._fallback_redefine(republic_user)
+        return republic_user, redefine_customer
 
-        customer_id = redefine_customer.get("id") if redefine_customer else None
+    @staticmethod
+    def _fallback_redefine(republic_user: dict) -> dict | None:
+        rid = republic_user.get("redefine_user_id")
+        return {"id": rid, "_fallback": True} if rid else None
 
+    def _build_sections(self, needs, email, republic_user, redefine_customer, customer_id):
+        sections: list[str] = []
         if "account_info" in needs:
             sections.append(self._fmt_account(republic_user, redefine_customer, email))
-
-        subscriptions = []
-        if customer_id and ("subscription_info" in needs or "payments_info" in needs):
-            subscriptions = self._redefine.get_subscriptions(customer_id)
-
+        subscriptions = self._redefine.get_subscriptions(customer_id) if customer_id and (
+            "subscription_info" in needs or "payments_info" in needs) else []
         if "subscription_info" in needs:
             sections.append(self._fmt_subscriptions(subscriptions))
-
         if "payments_info" in needs:
-            payment_methods = self._redefine.get_payment_methods(customer_id) if customer_id else []
-            transactions = []
-            for sub in subscriptions:
-                transactions.extend(self._redefine.get_transactions(sub["id"]))
-            sections.append(self._fmt_payments(payment_methods, transactions))
-
+            sections.append(self._fmt_payments_section(customer_id, subscriptions))
         if "audit_log" in needs and customer_id:
-            log = self._redefine.get_audit_log(customer_id, email)
-            sections.append(self._fmt_audit_log(log))
+            sections.append(self._fmt_audit_log(self._redefine.get_audit_log(customer_id, email)))
+        return sections
 
-        return "\n\n".join(sections)
+    def _fmt_payments_section(self, customer_id, subscriptions):
+        payment_methods = self._redefine.get_payment_methods(customer_id) if customer_id else []
+        transactions = []
+        for sub in subscriptions:
+            transactions.extend(self._redefine.get_transactions(sub["id"]))
+        return self._fmt_payments(payment_methods, transactions)
 
 
     @staticmethod

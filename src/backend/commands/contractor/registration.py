@@ -4,10 +4,17 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 
-from backend import parse_contractor_data, translate_name_to_russian
+from backend.brain.prompt_loader import load_template
+from backend.config import GEMINI_MODEL_FAST
+from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
+from backend.infrastructure.memory.retriever import KnowledgeRetriever
 from backend.infrastructure.repositories.postgres import DbGateway
 from backend.models import CONTRACTOR_CLASS_BY_TYPE, ContractorType
+
+_gemini = GeminiGateway()
+_retriever = KnowledgeRetriever()
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +44,15 @@ def parse_registration_data(
                 + "\n".join(f"- {w}" for w in warnings)
             )
 
-    result = parse_contractor_data(text, fields, context)
+    knowledge = _retriever.get_domain_context("contractor") + "\n\n" + _retriever.retrieve_full_domain("contractor")
+    prompt = load_template("contractor/contractor-parse.md", {
+        "FIELDS": fields,
+        "CONTEXT": context,
+        "INPUT": text,
+    })
+    if knowledge:
+        prompt = knowledge + "\n\n" + prompt
+    result = _gemini.call(prompt)
 
     if "parse_error" not in result:
         vid = DbGateway().save_message(
@@ -52,4 +67,13 @@ def parse_registration_data(
 
 
 def translate_contractor_name(name_en: str) -> str:
-    return translate_name_to_russian(name_en)
+    prompt = load_template("contractor/translate-name.md", {"NAME": name_en})
+    t0 = time.time()
+    result = _gemini.call(prompt)
+    latency_ms = int((time.time() - t0) * 1000)
+    DbGateway().save_message(
+        text=prompt, type="system",
+        metadata={"task": "TRANSLATE_NAME", "model": GEMINI_MODEL_FAST,
+                  "result": json.dumps(result), "latency_ms": latency_ms},
+    )
+    return result.get("translated_name", "")

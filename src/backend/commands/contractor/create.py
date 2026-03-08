@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from backend import (
+from backend.infrastructure.repositories.sheets.contractor_repo import (
     next_contractor_id,
     pop_random_secret_code,
     save_contractor,

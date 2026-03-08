@@ -5,29 +5,32 @@ import logging
 import re
 from decimal import Decimal
 
-from backend import (
-    add_redirect_rule,
-    bind_telegram_id,
-    create_and_save_invoice,
-    delete_invoice,
-    fetch_articles,
-    find_contractor_by_id,
-    find_contractor_by_telegram_id,
-    find_redirect_rules_by_target,
-    fuzzy_find,
-    load_all_contractors,
-    redirect_in_budget,
-    remove_redirect_rule,
-    unredirect_in_budget,
-    update_contractor_fields,
-    update_invoice_status,
-    upload_invoice_pdf,
-    validate_contractor_fields,
-)
+from backend.commands.budget.redirect import redirect_in_budget, unredirect_in_budget
 from backend.commands.contractor.create import check_registration_complete, create_contractor
 from backend.commands.contractor.registration import parse_registration_data, translate_contractor_name
+from backend.commands.contractor.validate import validate_fields as validate_contractor_fields
+from backend.commands.invoice.generate import GenerateInvoice
 from backend.commands.invoice.service import DeliveryAction, prepare_new_invoice_data, resolve_existing_invoice
 from backend.config import ADMIN_TELEGRAM_TAG, PRODUCT_NAME
+from backend.infrastructure.gateways.drive_gateway import DriveGateway
+from backend.infrastructure.gateways.republic_gateway import RepublicGateway
+from backend.infrastructure.repositories.sheets.contractor_repo import (
+    bind_telegram_id,
+    find_contractor_by_id,
+    find_contractor_by_telegram_id,
+    fuzzy_find,
+    load_all_contractors,
+    update_contractor_fields,
+)
+from backend.infrastructure.repositories.sheets.invoice_repo import (
+    delete_invoice,
+    update_invoice_status,
+)
+from backend.infrastructure.repositories.sheets.rules_repo import (
+    add_redirect_rule,
+    find_redirect_rules_by_target,
+    remove_redirect_rule,
+)
 from backend.interact.helpers import (
     InteractContext,
     Payload,
@@ -500,12 +503,12 @@ def handle_amount_input(payload: Payload, ctx: InteractContext) -> dict:
 
     if progress:
         progress.emit("fetch_articles", f"Загружаю публикации за {month}")
-    articles = fetch_articles(contractor, month)
+    articles = RepublicGateway().fetch_articles(contractor, month)
 
     if progress:
         progress.emit("generate_invoice", f"Генерирую документ для {contractor.display_name}")
     try:
-        result = create_and_save_invoice(contractor, month, amount, articles)
+        result = GenerateInvoice().create_and_save(contractor, month, amount, articles)
     except Exception as e:
         logger.exception("Generate failed for %s", contractor.display_name)
         return respond([msg(f"Ошибка генерации: {e}")], fsm_state=None)
@@ -693,7 +696,7 @@ def handle_document(payload: Payload, ctx: InteractContext) -> dict:
         month = prev_month()
         if progress:
             progress.emit("upload_drive", "Загружаю документ на Google Drive")
-        drive_link = upload_invoice_pdf(contractor, month, filename, content)
+        drive_link = DriveGateway().upload_invoice_pdf(contractor, month, filename, content)
         update_invoice_status(contractor.id, month, InvoiceStatus.SIGNED)
 
     sides = [side_msg(admin_id, data={

@@ -6,21 +6,23 @@ import os
 import tempfile
 from decimal import Decimal
 
-from backend import (
-    create_and_save_invoice,
-    export_pdf,
-    fetch_articles,
+from backend.commands.invoice.generate import GenerateInvoice
+from backend.commands.invoice.prepare import prepare_existing_invoice
+from backend.config import ADMIN_TELEGRAM_TAG
+from backend.infrastructure.gateways.docs_gateway import DocsGateway
+from backend.infrastructure.gateways.republic_gateway import RepublicGateway
+from backend.infrastructure.repositories.sheets.budget_repo import load_all_amounts
+from backend.infrastructure.repositories.sheets.contractor_repo import (
     find_contractor,
     find_contractor_by_id,
     fuzzy_find,
     load_all_contractors,
-    load_budget_amounts,
+)
+from backend.infrastructure.repositories.sheets.invoice_repo import (
     load_invoices,
-    prepare_existing_invoice,
     update_invoice_status,
     update_legium_link,
 )
-from backend.config import ADMIN_TELEGRAM_TAG
 from backend.interact.helpers import (
     ROLE_LABELS,
     InteractContext,
@@ -75,8 +77,8 @@ def handle_generate(payload: Payload, ctx: InteractContext) -> dict:  # noqa: PL
         return respond([not_found])
 
     month = prev_month()
-    budget_amounts = load_budget_amounts(month)
-    articles = fetch_articles(contractor, month)
+    budget_amounts = load_all_amounts(month)
+    articles = RepublicGateway().fetch_articles(contractor, month)
 
     name_lower = contractor.display_name.lower().strip()
     budget_entry = budget_amounts.get(name_lower)
@@ -91,7 +93,7 @@ def handle_generate(payload: Payload, ctx: InteractContext) -> dict:  # noqa: PL
     if progress:
         progress.emit("generate_invoice", f"Генерирую документ для {contractor.display_name}")
     try:
-        result = create_and_save_invoice(contractor, month, Decimal(str(amount_int)), articles, debug=debug)
+        result = GenerateInvoice().create_and_save(contractor, month, Decimal(str(amount_int)), articles, debug=debug)
     except Exception as e:
         logger.exception("Generate failed for %s", contractor.display_name)
         return respond([msg(f"Ошибка генерации: {e}")])
@@ -136,7 +138,7 @@ def handle_articles(payload: Payload, _ctx: InteractContext) -> dict:
     if not contractor:
         return respond([not_found])
 
-    articles = fetch_articles(contractor, month)
+    articles = RepublicGateway().fetch_articles(contractor, month)
     if not articles:
         return respond([msg(f"У {contractor.display_name} нет публикаций за {month}.")])
 
@@ -251,7 +253,7 @@ def handle_send_global(payload: Payload, _ctx: InteractContext) -> dict:
             errors.append(f"{contractor.display_name}: нет doc_id для экспорта PDF")
             continue
         try:
-            pdf_bytes = export_pdf(inv.doc_id)
+            pdf_bytes = DocsGateway().export_pdf(inv.doc_id)
         except Exception as e:
             errors.append(f"{contractor.display_name}: ошибка экспорта PDF ({e})")
             continue
@@ -339,7 +341,7 @@ def handle_send_legium(payload: Payload, _ctx: InteractContext) -> dict:
 def handle_orphans(_payload: Payload, _ctx: InteractContext) -> dict:
     month = prev_month()
     contractors = load_all_contractors()
-    budget_amounts = load_budget_amounts(month)
+    budget_amounts = load_all_amounts(month)
     contractor_names = {c.display_name.lower().strip() for c in contractors}
     orphans = sorted(n for n in budget_amounts if n not in contractor_names)
     if not orphans:

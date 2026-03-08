@@ -22,7 +22,10 @@ class MemoryService:
     def remember(self, text: str, domain: str, *, source: str = "api",  # noqa: PLR0913
                  tier: str = "specific", user_id: str | None = None,
                  source_url: str | None = None,
-                 expires_at: datetime | None = None) -> str:
+                 expires_at: datetime | None = None,
+                 visibility: str = "public",
+                 environment_id: str | None = None,
+                 source_type: str = "") -> str:
         embedding = self._embed.embed_one(text)
         existing_id = self._find_duplicate(embedding, domain, source_url)
         if existing_id:
@@ -32,6 +35,8 @@ class MemoryService:
             tier=tier, domain=domain, title=text[:60].strip(), content=text,
             source=source, embedding=embedding, user_id=user_id,
             source_url=source_url, expires_at=expires_at,
+            visibility=visibility, environment_id=environment_id,
+            source_type=source_type,
         )
 
     def _find_duplicate(self, embedding, domain: str, source_url: str | None) -> str | None:
@@ -45,14 +50,14 @@ class MemoryService:
         return None
 
     # ── RECALL ─────────────────────────────────────────────────
-    def recall(self, query: str, domain: str | None = None,
-               domains: list[str] | None = None,
+    def recall(self, query: str, *, role: str = "admin", user_id: str | None = None,
+               environment: str | None = None, domain: str | None = None,
                limit: int = 5) -> list[dict]:
         embedding = self._embed.embed_one(query)
-        if domains is not None:
-            entries = self._db.search_knowledge_multi_domain(embedding, domains=domains, limit=limit)
-        else:
-            entries = self._db.search_knowledge(embedding, domain=domain, limit=limit)
+        entries = self._db.search_knowledge(
+            embedding, role=role, user_id=user_id, environment=environment,
+            domain=domain, limit=limit,
+        )
         return [
             {
                 "id": e["id"],
@@ -66,46 +71,52 @@ class MemoryService:
         ]
 
     # ── TEACH ──────────────────────────────────────────────────
-    def teach(self, text: str, domain: str, tier: str, title: str = "") -> str:
-        return self._retriever.store_teaching(text, domain=domain, tier=tier, title=title)
+    def teach(self, text: str, domain: str, tier: str, title: str = "",
+              visibility: str = "public") -> str:
+        return self._retriever.store_teaching(text, domain=domain, tier=tier, title=title,
+                                              visibility=visibility)
 
     # ── CONTEXT ────────────────────────────────────────────────
-    def get_context(self, environment: str | None = None,
+    def get_context(self, *, environment: str | None = None,
                     chat_id: int | None = None,
                     user_id: int | None = None,
+                    role: str = "admin",
                     query: str = "") -> dict:
-        env_ctx, env_domains = self._resolve_env(environment, chat_id)
-        knowledge = self._gather_knowledge(env_domains, query)
-        user_context = self._resolve_user_context(user_id)
+        env = self._resolve_env(environment, chat_id)
+        env_ctx = env.get("system_context", "") if env else ""
+        env_name = env.get("name") if env else None
+        user_id_str = self._resolve_user_id(user_id)
+        knowledge = self._gather_knowledge(role=role, user_id=user_id_str,
+                                           environment=env_name, query=query)
+        user_context = self._retriever.get_user_context(user_id_str) if user_id_str else ""
         return {
             "environment": env_ctx,
             "knowledge": knowledge,
             "user_context": user_context,
-            "domains": env_domains or [],
         }
 
-    def _resolve_env(self, environment: str | None, chat_id: int | None) -> tuple[str, list[str] | None]:
-        env = None
+    def _resolve_env(self, environment: str | None, chat_id: int | None) -> dict | None:
         if environment:
-            env = self._db.get_environment(environment)
-        elif chat_id:
-            env = self._db.get_environment_by_chat_id(chat_id)
-        if not env:
-            return "", None
-        return env.get("system_context", ""), env.get("allowed_domains")
+            return self._db.get_environment(environment)
+        if chat_id:
+            return self._db.get_environment_by_chat_id(chat_id)
+        return None
 
-    def _gather_knowledge(self, env_domains: list[str] | None, query: str) -> str:
-        if env_domains is not None:
-            base = self._retriever.get_multi_domain_context(env_domains)
-            return base + "\n\n" + self._retriever.retrieve(query, domains=env_domains) if query else base
-        base = self._retriever.get_core()
-        return base + "\n\n" + self._retriever.retrieve(query) if query else base
+    def _resolve_user_id(self, telegram_id: int | None) -> str | None:
+        if not telegram_id:
+            return None
+        user = self._db.get_user_by_telegram_id(telegram_id)
+        return user["id"] if user else None
 
-    def _resolve_user_context(self, user_id: int | None) -> str:
-        if not user_id:
-            return ""
-        user = self._db.get_user_by_telegram_id(user_id)
-        return self._retriever.get_user_context(user["id"]) if user else ""
+    def _gather_knowledge(self, *, role: str, user_id: str | None,
+                          environment: str | None, query: str) -> str:
+        base = self._retriever.get_context(role=role, user_id=user_id, environment=environment)
+        if not query:
+            return base
+        relevant = self._retriever.retrieve(
+            query, role=role, user_id=user_id, environment=environment,
+        )
+        return base + "\n\n" + relevant if base else relevant
 
     # ── USER OPS ───────────────────────────────────────────────
     def get_user(self, user_id: str) -> dict | None:

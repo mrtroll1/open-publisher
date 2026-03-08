@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
 from backend.brain.tool import TOOLS, ToolContext
+from backend.commands.env_summarize import EnvSummarize
 from backend.interact import handle
 from backend.models import InboxCategory, PendingItem, ProgressEmitter, ProgressEvent
 from backend.wiring import create_brain
@@ -24,6 +25,7 @@ memory = _components.memory
 inbox = _components.inbox
 db = _components.db
 retriever = _components.retriever
+gemini = _components.gemini
 
 
 # --- SSE streaming helper ---
@@ -405,6 +407,21 @@ def interact_stream(req: InteractRequest):
     def work(emitter):
         return handle(req.action, req.payload, req.context, progress=emitter)
 
+    return _sse_stream(work)
+
+
+class EnvSummarizeRequest(BaseModel):
+    messages: list[dict]
+    environment: str
+    month: str | None = None
+
+@app.post("/env/summarize/stream")
+def env_summarize_stream(req: EnvSummarizeRequest):
+    """SSE endpoint: process chat messages into knowledge entries."""
+    summarizer = EnvSummarize(gemini, memory, db)
+    def work(emitter):
+        return summarizer.execute(req.messages, req.environment,
+                                  month=req.month, progress=emitter)
     return _sse_stream(work)
 
 

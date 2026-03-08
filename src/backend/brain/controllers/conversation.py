@@ -205,15 +205,14 @@ class _ConversationContext:
         user = self.auth.ctx.user
         if user and user.get("id"):
             self.user_context = self.retriever.get_user_context(user["id"])
-        env = self.auth.ctx.env
-        allowed_domains = env.get("allowed_domains")
-        if allowed_domains is not None:
-            core = self.retriever.get_multi_domain_context(allowed_domains)
-            relevant = self.retriever.retrieve(self.input, domains=allowed_domains)
-        else:
-            core = self.retriever.get_core()
-            relevant = self.retriever.retrieve(self.input)
-        self.knowledge = (core + "\n\n" + relevant) if core else relevant
+        role = self.auth.role
+        user_id = user.get("id") if user else None
+        env_name = self.auth.env_name
+        context = self.retriever.get_context(role=role, user_id=user_id, environment=env_name)
+        relevant = self.retriever.retrieve(
+            self.input, role=role, user_id=user_id, environment=env_name,
+        )
+        self.knowledge = (context + "\n\n" + relevant) if context else relevant
 
     def single_llm_call(self, system_prompt: str) -> dict:
         self._emit("llm", "Генерирую ответ")

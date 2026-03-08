@@ -149,7 +149,8 @@ class menu:
         "/env_unbind — отвязать текущий чат от окружения\n"
         "/env_create <имя> <описание> — создать новое окружение\n\n"
         "Пайплайны:\n"
-        "/extract_knowledge [hours] — извлечь факты из переписки\n\n"
+        "/extract_knowledge [hours] — извлечь факты из переписки\n"
+        "/env_summarize [YYYY-MM] — загрузить историю чата и извлечь знания\n\n"
         "Прочее:\n"
         "/chatid — показать ID текущего чата\n"
         "/nl <текст> — команда на естественном языке"
@@ -242,6 +243,10 @@ class admin:
     extract_knowledge_start = "Извлекаю факты из необработанных сообщений..."
     extract_knowledge_done = "Извлечено фактов: {count}"
     extract_knowledge_error = "Ошибка извлечения: {error}"
+    env_summarize_no_env = "Чат не привязан к окружению. Используйте /env_bind сначала."
+    env_summarize_no_telethon = "TELEGRAM_API_ID и TELEGRAM_API_HASH не настроены."
+    env_summarize_no_messages = "Не удалось получить сообщения из чата."
+    env_summarize_error = "Ошибка: {error}"
 
 
 # ── Notifications (admin-facing) ────────────────────────────────────

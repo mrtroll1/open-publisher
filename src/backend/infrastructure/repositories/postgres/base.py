@@ -48,15 +48,21 @@ CREATE TABLE IF NOT EXISTS knowledge_entries (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Rename knowledge_entries → unit_of_knowledge
+DO $$ BEGIN
+    ALTER TABLE knowledge_entries RENAME TO unit_of_knowledge;
+EXCEPTION WHEN undefined_table THEN NULL;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_knowledge_embedding
-    ON knowledge_entries USING ivfflat (embedding vector_cosine_ops) WITH (lists = 10);
+    ON unit_of_knowledge USING ivfflat (embedding vector_cosine_ops) WITH (lists = 10);
 CREATE INDEX IF NOT EXISTS idx_knowledge_domain
-    ON knowledge_entries(domain, is_active);
+    ON unit_of_knowledge(domain, is_active);
 CREATE INDEX IF NOT EXISTS idx_knowledge_tier
-    ON knowledge_entries(tier, is_active);
+    ON unit_of_knowledge(tier, is_active);
 
 -- Migrate: core entries in non-identity domains → meta
-UPDATE knowledge_entries SET tier = 'meta'
+UPDATE unit_of_knowledge SET tier = 'meta'
 WHERE tier = 'core' AND domain != 'identity';
 
 CREATE TABLE IF NOT EXISTS environments (
@@ -113,32 +119,57 @@ CREATE INDEX IF NOT EXISTS idx_msg_user ON messages(user_id) WHERE user_id IS NO
 CREATE INDEX IF NOT EXISTS idx_msg_telegram_mid ON messages((metadata->>'telegram_message_id')) WHERE metadata->>'telegram_message_id' IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_msg_email_mid ON messages((metadata->>'email_message_id')) WHERE metadata->>'email_message_id' IS NOT NULL;
 
--- user FK on knowledge_entries
+-- user FK on unit_of_knowledge
 DO $$ BEGIN
-    ALTER TABLE knowledge_entries ADD COLUMN user_id UUID REFERENCES users(id);
+    ALTER TABLE unit_of_knowledge ADD COLUMN user_id UUID REFERENCES users(id);
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
 CREATE INDEX IF NOT EXISTS idx_knowledge_user
-    ON knowledge_entries(user_id) WHERE user_id IS NOT NULL;
+    ON unit_of_knowledge(user_id) WHERE user_id IS NOT NULL;
 
 DO $$ BEGIN
-    ALTER TABLE knowledge_entries ADD COLUMN source_url TEXT;
+    ALTER TABLE unit_of_knowledge ADD COLUMN source_url TEXT;
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
 CREATE INDEX IF NOT EXISTS idx_knowledge_source_url
-    ON knowledge_entries(source_url) WHERE source_url IS NOT NULL;
+    ON unit_of_knowledge(source_url) WHERE source_url IS NOT NULL;
 
 DO $$ BEGIN
-    ALTER TABLE knowledge_entries ADD COLUMN expires_at TIMESTAMP;
+    ALTER TABLE unit_of_knowledge ADD COLUMN expires_at TIMESTAMP;
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 
 DO $$ BEGIN
-    ALTER TABLE knowledge_entries ADD COLUMN parent_id UUID REFERENCES knowledge_entries(id);
+    ALTER TABLE unit_of_knowledge ADD COLUMN parent_id UUID REFERENCES unit_of_knowledge(id);
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
+
+-- Visibility-based access control on knowledge entries
+DO $$ BEGIN
+    ALTER TABLE unit_of_knowledge ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public';
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE unit_of_knowledge ADD COLUMN environment_id TEXT REFERENCES environments(name);
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE unit_of_knowledge ADD COLUMN source_type TEXT NOT NULL DEFAULT '';
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+-- Migrate: entries with user_id → visibility 'user'
+UPDATE unit_of_knowledge SET visibility = 'user'
+WHERE user_id IS NOT NULL AND visibility = 'public';
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_visibility
+    ON unit_of_knowledge(visibility);
+CREATE INDEX IF NOT EXISTS idx_knowledge_env_id
+    ON unit_of_knowledge(environment_id) WHERE environment_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS run_logs (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),

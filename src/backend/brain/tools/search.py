@@ -7,11 +7,12 @@ def make_search_tool(retriever) -> Tool:
     def fn(args: dict, ctx: ToolContext) -> dict:
         query = args.get("query") or args.get("input", "")
         domain = args.get("domain")
-        if domain:
-            text = retriever.retrieve(query, domain=domain)
-        else:
-            allowed = ctx.env.get("allowed_domains")
-            text = retriever.retrieve(query, domains=allowed)
+        role = ctx.user.get("role", "user") if ctx.user else "user"
+        user_id = ctx.user.get("id") if ctx.user else None
+        env_name = ctx.env.get("name")
+        text = retriever.retrieve(
+            query, role=role, user_id=user_id, environment=env_name, domain=domain,
+        )
         return {"results": text}
 
     return Tool(
@@ -21,7 +22,7 @@ def make_search_tool(retriever) -> Tool:
             "type": "object",
             "properties": {
                 "query": {"type": "string", "description": "Поисковый запрос"},
-                "domain": {"type": "string", "description": "Домен для поиска"},
+                "domain": {"type": "string", "description": "Домен для поиска (опционально)"},
             },
             "required": ["query"],
         },

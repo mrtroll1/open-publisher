@@ -33,5 +33,6 @@ class ClassifyTeaching(BaseGenAI):
     def _parse_response(self, raw: dict) -> dict:
         domain = raw.get("domain", "general")
         tier = raw.get("tier", "specific")
+        visibility = raw.get("visibility", "public")
         self._db.get_or_create_domain(domain)
-        return {"domain": domain, "tier": tier}
+        return {"domain": domain, "tier": tier, "visibility": visibility}

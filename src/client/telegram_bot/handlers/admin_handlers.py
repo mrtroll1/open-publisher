@@ -15,6 +15,7 @@ from telegram_bot.handler_utils import (
     _admin_reply_map,
     _support_draft_map,
     parse_month_arg,
+    resolve_environment_record,
     send_typing,
 )
 from telegram_bot.handlers.conversation_handlers import _handle_nl_reply, handle_kedit_reply
@@ -27,6 +28,7 @@ __all__ = [
     "cmd_articles",
     "cmd_budget",
     "cmd_chatid",
+    "cmd_env_summarize",
     "cmd_extract_knowledge",
     "cmd_generate",
     "cmd_generate_invoices",
@@ -162,6 +164,69 @@ async def cmd_extract_knowledge(message: types.Message, _state: FSMContext) -> N
     except Exception as e:
         logger.exception("Knowledge extraction failed")
         await message.answer(replies.admin.extract_knowledge_error.format(error=e))
+
+
+async def cmd_env_summarize(message: types.Message, _state: FSMContext) -> None:
+    """Pull chat history from Telegram and extract knowledge for the environment."""
+    from telegram_bot.chat_history import fetch_chat_messages
+    from telegram_bot.config import TELEGRAM_API_ID
+
+    # Check env binding
+    env = await resolve_environment_record(message.chat.id)
+    if not env:
+        await message.answer(replies.admin.env_summarize_no_env)
+        return
+
+    if not TELEGRAM_API_ID:
+        await message.answer(replies.admin.env_summarize_no_telethon)
+        return
+
+    # Parse optional month arg
+    args = message.text.split(maxsplit=1)
+    month = args[1].strip() if len(args) > 1 else None
+
+    thinking: ThinkingMessage | None = None
+
+    async def _on_progress(stage: str, detail: str) -> None:
+        nonlocal thinking
+        txt = detail or stage
+        if thinking is None:
+            thinking = ThinkingMessage(message, txt)
+            await thinking.__aenter__()
+        else:
+            await thinking.update(txt)
+
+    try:
+        # Fetch history from Telegram via Telethon
+        await _on_progress("fetch", "Загружаю историю чата...")
+        messages = await fetch_chat_messages(message.chat.id, month=month)
+        if not messages:
+            if thinking:
+                await thinking.__aexit__(None, None, None)
+            await message.answer(replies.admin.env_summarize_no_messages)
+            return
+
+        await _on_progress("fetch", f"Загружено {len(messages)} сообщений")
+
+        # Send to backend for processing
+        result = await backend_client.env_summarize_stream(
+            messages=messages,
+            environment=env["name"],
+            month=month,
+            on_progress=_on_progress,
+        )
+
+        count = result.get("count", 0) if isinstance(result, dict) else 0
+        if thinking:
+            await thinking.finish_long(f"Извлечено {count} единиц знаний из истории чата.")
+        else:
+            await message.answer(f"Извлечено {count} единиц знаний из истории чата.")
+
+    except Exception as e:
+        logger.exception("env_summarize failed")
+        if thinking:
+            await thinking.__aexit__(None, None, None)
+        await message.answer(replies.admin.env_summarize_error.format(error=e))
 
 
 # ── Utility ──────────────────────────────────────────────────────────

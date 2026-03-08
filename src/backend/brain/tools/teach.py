@@ -9,24 +9,27 @@ logger = logging.getLogger(__name__)
 
 
 def make_teach_tool(classify_teaching, memory, gemini) -> Tool:
-    def _classify(content: str, args: dict) -> tuple[str, str]:
+    def _classify(content: str, args: dict) -> dict:
         domain = args.get("domain")
         tier = args.get("tier", "specific")
         if domain:
-            return domain, tier
-        result = classify_teaching.run(content, {})
-        return result["domain"], result.get("tier", tier)
+            return {"domain": domain, "tier": tier, "visibility": args.get("visibility", "public")}
+        return classify_teaching.run(content, {})
 
     def fn(args: dict, _ctx: ToolContext) -> dict:
         text = args.get("text") or args.get("input", "")
         extracted = _extract_knowledge(gemini, text, args.get("context", ""))
         title = extracted.get("title", "")
         content = extracted.get("content", text)
-        domain, tier = _classify(content, args)
-        entry_id = memory.teach(content, domain, tier, title=title)
+        classified = _classify(content, args)
+        domain = classified["domain"]
+        tier = classified.get("tier", "specific")
+        visibility = classified.get("visibility", "public")
+        entry_id = memory.teach(content, domain, tier, title=title, visibility=visibility)
         return {
             "confirmation": f"Запомнил: {title}" if title else "Запомнил!",
-            "entry_id": entry_id, "domain": domain, "tier": tier, "title": title,
+            "entry_id": entry_id, "domain": domain, "tier": tier,
+            "visibility": visibility, "title": title,
         }
 
     def _extract_knowledge(gemini_gw, message: str, context: str) -> dict:

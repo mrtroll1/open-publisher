@@ -32,6 +32,7 @@ from telegram_bot.handlers.admin_handlers import (
     cmd_articles,
     cmd_budget,
     cmd_chatid,
+    cmd_env_summarize,
     cmd_extract_knowledge,
     cmd_generate,
     cmd_generate_invoices,
@@ -137,6 +138,7 @@ _ADMIN_COMMANDS: dict[str, Callable] = {
     "budget": cmd_budget,
     "upload_to_airtable": cmd_upload_to_airtable,
     "extract_knowledge": cmd_extract_knowledge,
+    "env_summarize": cmd_env_summarize,
     "chatid": cmd_chatid,
     "health": cmd_health,
     "support": cmd_support,
@@ -331,7 +333,7 @@ class _GroupConfig:
     natural_language = True
 
 
-_GROUP_ADMIN_COMMANDS = {"env_bind", "env_unbind"}
+_GROUP_ADMIN_COMMANDS = {"env_bind", "env_unbind", "env_summarize"}
 
 
 def _parse_command(text: str) -> str:

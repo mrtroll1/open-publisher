@@ -144,6 +144,7 @@ class BrainComponents:
     memory: MemoryService
     db: DbGateway
     retriever: KnowledgeRetriever
+    gemini: GeminiGateway
 
 
 def _create_infrastructure() -> tuple[DbGateway, GeminiGateway, EmbeddingGateway, KnowledgeRetriever, MemoryService]:
@@ -240,4 +241,5 @@ def create_brain() -> BrainComponents:
         memory=memory,
         db=db,
         retriever=retriever,
+        gemini=gemini,
     )

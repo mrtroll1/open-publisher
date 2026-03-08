@@ -19,16 +19,44 @@ def _row_to_dict(row, cols: tuple[str, ...]) -> dict:
     return d
 
 
-def _search_by_embedding(cur, emb_str: str, domain_filter: str, params: tuple, limit: int) -> list[dict]:
+def _visibility_clause(role: str, user_id: str | None = None,
+                        environment: str | None = None) -> tuple[str, list]:
+    """Build WHERE fragment for visibility filtering.
+
+    Visibility levels:
+        public       — everyone
+        environment  — same environment + admins
+        role:editor  — editors + admins
+        role:admin   — admins only
+        user         — owner (user_id) + admins
+    """
+    if role == "admin":
+        return "", []
+    parts = ["visibility = 'public'"]
+    params: list = []
+    if environment:
+        parts.append("(visibility = 'environment' AND environment_id = %s)")
+        params.append(environment)
+    if role == "editor":
+        parts.append("visibility = 'role:editor'")
+    if user_id:
+        parts.append("(visibility = 'user' AND user_id = %s)")
+        params.append(user_id)
+    return "AND (" + " OR ".join(parts) + ")", params
+
+
+def _search_by_embedding(cur, emb_str: str, *, where_extra: str = "",
+                          params_extra: tuple = (), limit: int = 5) -> list[dict]:
     cur.execute(
         f"""SELECT id, tier, domain, title, content, source,
                   1 - (embedding <=> %s::vector) AS similarity
-           FROM knowledge_entries
-           WHERE is_active = TRUE {domain_filter}
+           FROM unit_of_knowledge
+           WHERE is_active = TRUE
                  AND (expires_at IS NULL OR expires_at > NOW())
+                 {where_extra}
            ORDER BY embedding <=> %s::vector ASC
            LIMIT %s""",
-        (*params, emb_str, limit),
+        (emb_str, *params_extra, emb_str, limit),
     )
     return _rows_to_dicts(cur.fetchall(), _SEARCH_COLS)
 
@@ -36,7 +64,7 @@ def _search_by_embedding(cur, emb_str: str, domain_filter: str, params: tuple, l
 def _fetch_entries(cur, where: str, params: tuple, order: str = "created_at") -> list[dict]:
     cur.execute(
         f"""SELECT id, tier, domain, title, content, source
-           FROM knowledge_entries
+           FROM unit_of_knowledge
            WHERE is_active = TRUE AND {where}
            ORDER BY {order}""",
         params,
@@ -52,63 +80,66 @@ class KnowledgeRepo(BasePostgresRepo):
                              user_id: str | None = None,
                              source_url: str | None = None,
                              expires_at=None,
-                             parent_id: str | None = None) -> str:
+                             parent_id: str | None = None,
+                             visibility: str = "public",
+                             environment_id: str | None = None,
+                             source_type: str = "") -> str:
         with self._cursor() as cur:
             cur.execute(
-                """INSERT INTO knowledge_entries (tier, domain, title, content, source, embedding,
-                              user_id, source_url, expires_at, parent_id)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """INSERT INTO unit_of_knowledge
+                          (tier, domain, title, content, source, embedding,
+                           user_id, source_url, expires_at, parent_id,
+                           visibility, environment_id, source_type)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                    RETURNING id""",
                 (tier, domain, title, content, source,
                  str(embedding) if embedding is not None else None,
-                 user_id, source_url, expires_at, parent_id),
+                 user_id, source_url, expires_at, parent_id,
+                 visibility, environment_id, source_type),
             )
             return str(cur.fetchone()[0])
 
     def update_knowledge_entry(self, entry_id: str, content: str, embedding: list[float] | None = None) -> bool:
         with self._cursor() as cur:
             cur.execute(
-                """UPDATE knowledge_entries
+                """UPDATE unit_of_knowledge
                    SET content = %s, embedding = %s, updated_at = NOW()
                    WHERE id = %s""",
                 (content, str(embedding) if embedding is not None else None, entry_id),
             )
             return cur.rowcount > 0
 
-    def search_knowledge(self, query_embedding: list[float], domain: str | None = None, limit: int = 5) -> list[dict]:
+    def search_knowledge(self, query_embedding: list[float], *,  # noqa: PLR0913
+                         role: str = "admin", user_id: str | None = None,
+                         environment: str | None = None,
+                         domain: str | None = None, limit: int = 5) -> list[dict]:
         emb_str = str(query_embedding)
+        vis_clause, vis_params = _visibility_clause(role, user_id, environment)
+        domain_clause = "AND domain = %s" if domain else ""
+        domain_params = [domain] if domain else []
+        where_extra = f"{vis_clause} {domain_clause}"
+        params_extra = (*vis_params, *domain_params)
         with self._cursor() as cur:
-            if domain is not None:
-                return _search_by_embedding(cur, emb_str, "AND domain = %s", (emb_str, domain), limit)
-            return _search_by_embedding(cur, emb_str, "", (emb_str,), limit)
-
-    def search_knowledge_multi_domain(
-        self, query_embedding: list[float],
-        domains: list[str] | None = None,
-        limit: int = 5,
-    ) -> list[dict]:
-        emb_str = str(query_embedding)
-        with self._cursor() as cur:
-            if domains is not None:
-                return _search_by_embedding(cur, emb_str, "AND domain = ANY(%s)", (emb_str, domains), limit)
-            return _search_by_embedding(cur, emb_str, "", (emb_str,), limit)
+            return _search_by_embedding(cur, emb_str, where_extra=where_extra,
+                                        params_extra=params_extra, limit=limit)
 
     def get_knowledge_by_tier(self, tier: str) -> list[dict]:
         with self._cursor() as cur:
             return _fetch_entries(cur, "tier = %s", (tier,), order="domain, created_at")
 
+    def get_visible_meta(self, *, role: str = "admin", user_id: str | None = None,
+                         environment: str | None = None) -> list[dict]:
+        """Meta entries visible to caller."""
+        vis_clause, vis_params = _visibility_clause(role, user_id, environment)
+        where = f"tier = 'meta' {vis_clause}"
+        with self._cursor() as cur:
+            return _fetch_entries(cur, where, tuple(vis_params), order="domain, created_at")
+
     def get_domain_context(self, domain: str) -> list[dict]:
-        """Fetch core (global) + meta (domain-wide) entries for a domain."""
+        """Core (global) + meta (domain-wide) entries. For internal pipelines."""
         with self._cursor() as cur:
             return _fetch_entries(
                 cur, "tier = 'core' OR (tier = 'meta' AND domain = %s)", (domain,), order="tier, created_at",
-            )
-
-    def get_multi_domain_context(self, domains: list[str]) -> list[dict]:
-        """Fetch core (global) + meta entries for multiple domains."""
-        with self._cursor() as cur:
-            return _fetch_entries(
-                cur, "tier = 'core' OR (tier = 'meta' AND domain = ANY(%s))", (domains,), order="tier, created_at",
             )
 
     def get_knowledge_by_domain(self, domain: str) -> list[dict]:
@@ -116,7 +147,7 @@ class KnowledgeRepo(BasePostgresRepo):
             return _fetch_entries(cur, "domain = %s", (domain,))
 
     def list_knowledge(self, domain: str | None = None, tier: str | None = None) -> list[dict]:
-        sql = "SELECT id, tier, domain, title, content, source, created_at FROM knowledge_entries WHERE is_active = TRUE"
+        sql = "SELECT id, tier, domain, title, content, source, created_at FROM unit_of_knowledge WHERE is_active = TRUE"
         params: list = []
         if domain is not None:
             sql += " AND domain = %s"
@@ -133,7 +164,7 @@ class KnowledgeRepo(BasePostgresRepo):
         with self._cursor() as cur:
             cur.execute(
                 """SELECT id, tier, domain, title, content, source, created_at
-                   FROM knowledge_entries
+                   FROM unit_of_knowledge
                    WHERE id = %s AND is_active = TRUE""",
                 (entry_id,),
             )
@@ -143,7 +174,7 @@ class KnowledgeRepo(BasePostgresRepo):
     def deactivate_knowledge(self, entry_id: str) -> bool:
         with self._cursor() as cur:
             cur.execute(
-                "UPDATE knowledge_entries SET is_active = FALSE, updated_at = NOW() WHERE id = %s",
+                "UPDATE unit_of_knowledge SET is_active = FALSE, updated_at = NOW() WHERE id = %s",
                 (entry_id,),
             )
             return cur.rowcount > 0
@@ -160,7 +191,7 @@ class KnowledgeRepo(BasePostgresRepo):
         with self._cursor() as cur:
             cur.execute(
                 """SELECT id, tier, domain, title, content, source, source_url
-                   FROM knowledge_entries
+                   FROM unit_of_knowledge
                    WHERE source_url = %s AND is_active = TRUE
                    ORDER BY created_at DESC LIMIT 1""",
                 (source_url,),

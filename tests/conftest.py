@@ -101,10 +101,14 @@ class FakeRetriever:
     def get_core(self) -> str:
         return ""
 
-    def get_multi_domain_context(self, domains: list[str]) -> str:
+    def get_context(self, *, role="admin", user_id=None, environment=None) -> str:
         return ""
 
-    def retrieve(self, query: str, domains=None) -> str:
+    def get_domain_context(self, domain: str) -> str:
+        return ""
+
+    def retrieve(self, query: str, *, role="admin", user_id=None,
+                 environment=None, domain=None, **kwargs) -> str:
         return ""
 
 

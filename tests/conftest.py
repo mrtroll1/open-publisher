@@ -36,6 +36,7 @@ class FakeDb:
         self.users: dict[int, dict] = {}
         self.messages: list[dict] = []
         self.run_logs: list[dict] = []
+        self.permissions: dict[tuple[str, str], list[str]] = {}  # (tool, env) -> roles
 
     def get_environment(self, env_id: str) -> dict | None:
         return self.environments.get(env_id)
@@ -54,6 +55,22 @@ class FakeDb:
 
     def log_run_step(self, run_id, step, type, content):
         self.run_logs.append({"run_id": run_id, "step": step, "type": type, "content": content})
+
+    def get_permissions_for_env(self, env_name: str) -> dict[str, list[str]]:
+        result: dict[str, list[str]] = {}
+        fallbacks: dict[str, list[str]] = {}
+        for (tool, env), roles in self.permissions.items():
+            if env == env_name:
+                result[tool] = roles
+            elif env == "*":
+                fallbacks[tool] = roles
+        for tool, roles in fallbacks.items():
+            if tool not in result:
+                result[tool] = roles
+        return result
+
+    def grant(self, tool_name: str, environment: str, roles: list[str]) -> None:
+        self.permissions[(tool_name, environment)] = roles
 
 
 # ── Fake Gemini ──────────────────────────────────────────────────────

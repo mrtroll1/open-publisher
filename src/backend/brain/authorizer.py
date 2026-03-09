@@ -41,9 +41,10 @@ class Authorizer:
         return {}
 
     def _filter_tools(self, role: str, env_name: str) -> list[Tool]:
+        perms = self._db.get_permissions_for_env(env_name)
         result = []
         for tool in TOOLS.values():
-            allowed = tool.permissions.get(env_name) or tool.permissions.get("*", set())
+            allowed = perms.get(tool.name, [])
             if "*" in allowed or role in allowed:
                 result.append(tool)
         return result

@@ -23,6 +23,7 @@ from backend.brain.tools import (
     make_code_tool,
     make_health_tool,
     make_invoice_tool,
+    make_permissions_tool,
     make_query_db_tools,
     make_search_tool,
     make_support_tool,
@@ -192,6 +193,7 @@ def _register_core_tools(genai, memory, retriever, gemini, db) -> None:
     _set_retriever(retriever)
     register_tool(make_code_tool())
     register_tool(make_health_tool())
+    register_tool(make_permissions_tool(db))
 
 
 def _register_domain_tools(query_db_map) -> None:

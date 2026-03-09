@@ -84,7 +84,7 @@ def make_yandex_metrica_tool(gw: YandexMetricaGateway) -> Tool:
             "required": ["method", "date_from", "date_to"],
         },
         fn=fn,
-        permissions={"*": {"admin"}, "editorial_group": {"*"}, "ceo_group": {"*"}},
+        permissions={},
         nl_routable=False,
         conversational=True,
     )
@@ -131,7 +131,7 @@ def make_cloudflare_tool(gw: CloudflareGateway) -> Tool:
             "required": ["method", "date_from", "date_to"],
         },
         fn=fn,
-        permissions={"*": {"admin"}, "editorial_group": {"*"}, "ceo_group": {"*"}},
+        permissions={},
         nl_routable=False,
         conversational=True,
     )

@@ -377,6 +377,32 @@ def get_bindings(name: str) -> BrainResponse:
     return BrainResponse(result=db.get_bindings_for_environment(name))
 
 
+# --- Permissions ---
+
+class PermGrantRequest(BaseModel):
+    tool_name: str
+    environment: str = "*"
+    roles: list[str] = ["*"]
+
+class PermRevokeRequest(BaseModel):
+    tool_name: str
+    environment: str
+
+@app.get("/permissions")
+def list_permissions() -> BrainResponse:
+    return BrainResponse(result=db.list_permissions())
+
+@app.post("/permissions/grant")
+def grant_permission(req: PermGrantRequest) -> BrainResponse:
+    db.grant(req.tool_name, req.environment, req.roles)
+    return BrainResponse(result="ok")
+
+@app.post("/permissions/revoke")
+def revoke_permission(req: PermRevokeRequest) -> BrainResponse:
+    ok = db.revoke(req.tool_name, req.environment)
+    return BrainResponse(result="ok" if ok else "not_found")
+
+
 # --- User endpoints ---
 
 @app.get("/user/admin_telegram_ids")

@@ -305,6 +305,25 @@ async def get_bindings(name: str) -> list:
     return _unwrap(resp)
 
 
+async def list_permissions() -> list[dict]:
+    resp = await _request_with_retry("GET", "/permissions")
+    return _unwrap(resp)
+
+
+async def grant_permission(tool_name: str, environment: str = "*", roles: list[str] | None = None):
+    resp = await _request_with_retry("POST", "/permissions/grant", json={
+        "tool_name": tool_name, "environment": environment, "roles": roles or ["*"],
+    })
+    return _unwrap(resp)
+
+
+async def revoke_permission(tool_name: str, environment: str):
+    resp = await _request_with_retry("POST", "/permissions/revoke", json={
+        "tool_name": tool_name, "environment": environment,
+    })
+    return _unwrap(resp)
+
+
 # --- User ---
 
 async def get_admin_telegram_ids() -> list[int]:

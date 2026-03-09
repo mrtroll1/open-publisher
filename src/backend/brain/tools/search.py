@@ -27,7 +27,7 @@ def make_search_tool(retriever) -> Tool:
             "required": ["query"],
         },
         fn=fn,
-        permissions={"*": {"admin"}, "editorial_group": {"*"}, "ceo_group": {"*"}},
+        permissions={},
         slash_command="search",
         examples=["найди информацию про ...", "что мы знаем о ..."],
         nl_routable=True,

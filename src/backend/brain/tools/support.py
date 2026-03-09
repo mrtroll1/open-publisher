@@ -19,7 +19,7 @@ def make_support_tool(tech_support) -> Tool:
             "required": ["question"],
         },
         fn=fn,
-        permissions={"*": {"*"}},
+        permissions={},
         slash_command="support",
         examples=["как отменить подписку?", "не работает оплата"],
         nl_routable=True,

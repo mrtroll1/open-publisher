@@ -33,7 +33,7 @@ def make_invoice_tool(gen_invoice) -> Tool:
             "required": ["contractor"],
         },
         fn=fn,
-        permissions={"*": {"admin"}, "ceo_group": {"*"}},
+        permissions={},
         slash_command="generate",
         nl_routable=False,
         conversational=False,

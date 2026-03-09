@@ -476,3 +476,24 @@ async def cmd_env_unbind(message: types.Message, _state: FSMContext) -> None:
     """Unbind current chat from its environment: /env_unbind"""
     await backend_client.unbind_environment(message.chat.id)
     await message.answer(replies.env.unbound)
+
+
+async def cmd_perm(message: types.Message, _state: FSMContext) -> None:
+    """/perm [tool] — list permissions, optionally filtered by tool name."""
+    args = message.text.split(maxsplit=1)
+    filter_tool = args[1].strip() if len(args) > 1 else None
+    perms = await backend_client.list_permissions()
+    if filter_tool:
+        perms = [p for p in perms if p["tool_name"] == filter_tool]
+    if not perms:
+        await message.answer("Нет настроенных разрешений." if not filter_tool else f"Нет разрешений для {filter_tool}.")
+        return
+    by_tool: dict[str, list[str]] = {}
+    for p in perms:
+        by_tool.setdefault(p["tool_name"], []).append(
+            f"  {p['environment']}: {', '.join(p['allowed_roles'])}"
+        )
+    lines = []
+    for tool_name, entries in by_tool.items():
+        lines.append(f"<b>{tool_name}</b>\n" + "\n".join(entries))
+    await _send(message, "\n\n".join(lines), parse_mode="HTML")

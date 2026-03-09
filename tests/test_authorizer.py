@@ -6,13 +6,15 @@ from backend.brain.authorizer import Authorizer
 from backend.brain.tool import register_tool
 
 
-def _setup(fake_db, env=None, user=None, tools=None):
+def _setup(fake_db, env=None, user=None, tools=None, perms=None):
     if env:
         fake_db.environments[env["id"]] = env
     if user:
         fake_db.users[user["telegram_id"]] = user
     for t in (tools or []):
         register_tool(t)
+    for (tool_name, environment), roles in (perms or {}).items():
+        fake_db.grant(tool_name, environment, roles)
     return Authorizer(fake_db)
 
 
@@ -20,11 +22,12 @@ def _setup(fake_db, env=None, user=None, tools=None):
 
 
 def test_admin_gets_admin_tools(fake_db):
-    admin_only = make_tool("secret", permissions={"*": {"admin"}})
+    admin_only = make_tool("secret")
     auth = _setup(fake_db,
                   env={"id": "e1", "name": "main"},
                   user={"id": "u1", "role": "admin", "telegram_id": 100},
-                  tools=[admin_only])
+                  tools=[admin_only],
+                  perms={("secret", "*"): ["admin"]})
 
     result = auth.authorize("e1", "100")
 
@@ -33,11 +36,12 @@ def test_admin_gets_admin_tools(fake_db):
 
 
 def test_user_excluded_from_admin_tools(fake_db):
-    admin_only = make_tool("secret", permissions={"*": {"admin"}})
+    admin_only = make_tool("secret")
     _setup(fake_db,
            env={"id": "e1", "name": "main"},
            user={"id": "u1", "role": "user", "telegram_id": 200},
-           tools=[admin_only])
+           tools=[admin_only],
+           perms={("secret", "*"): ["admin"]})
     auth = Authorizer(fake_db)
 
     result = auth.authorize("e1", "200")
@@ -46,11 +50,12 @@ def test_user_excluded_from_admin_tools(fake_db):
 
 
 def test_wildcard_permission_grants_everyone(fake_db):
-    public = make_tool("public", permissions={"*": {"*"}})
+    public = make_tool("public")
     auth = _setup(fake_db,
                   env={"id": "e1", "name": "main"},
                   user={"id": "u1", "role": "user", "telegram_id": 300},
-                  tools=[public])
+                  tools=[public],
+                  perms={("public", "*"): ["*"]})
 
     result = auth.authorize("e1", "300")
 
@@ -59,11 +64,12 @@ def test_wildcard_permission_grants_everyone(fake_db):
 
 def test_env_specific_override(fake_db):
     """A tool denied by default but allowed in a specific environment."""
-    tool = make_tool("special", permissions={"*": set(), "vip": {"user"}})
+    tool = make_tool("special")
     auth = _setup(fake_db,
                   env={"id": "e1", "name": "vip"},
                   user={"id": "u1", "role": "user", "telegram_id": 400},
-                  tools=[tool])
+                  tools=[tool],
+                  perms={("special", "vip"): ["user"]})
 
     result = auth.authorize("e1", "400")
 
@@ -71,11 +77,12 @@ def test_env_specific_override(fake_db):
 
 
 def test_env_specific_override_denies_other_envs(fake_db):
-    tool = make_tool("special", permissions={"*": set(), "vip": {"user"}})
+    tool = make_tool("special")
     auth = _setup(fake_db,
                   env={"id": "e1", "name": "general"},
                   user={"id": "u1", "role": "user", "telegram_id": 500},
-                  tools=[tool])
+                  tools=[tool],
+                  perms={("special", "vip"): ["user"]})
 
     result = auth.authorize("e1", "500")
 

@@ -14,7 +14,7 @@ def make_health_tool() -> Tool:
         description="Проверка доступности сервисов",
         parameters={"type": "object", "properties": {}},
         fn=fn,
-        permissions={"*": {"*"}},
+        permissions={},
         slash_command="health",
         examples=["лежит сайт", "всё ли работает?"],
         nl_routable=True,

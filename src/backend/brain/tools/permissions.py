@@ -80,6 +80,6 @@ def make_permissions_tool(db: DbGateway) -> Tool:
             "дай доступ к budget в editorial_group",
             "убери доступ к code в contractor_dm",
         ],
-        nl_routable=True,
+        nl_routable=False,
         conversational=True,
     )

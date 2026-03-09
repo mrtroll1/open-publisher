@@ -177,10 +177,10 @@ async def cmd_user(message: types.Message, _state: FSMContext) -> None:
     args = message.text.split(maxsplit=1)
     if len(args) < 2 or not args[1].strip():
         await message.answer(
-            "Использование: /user &lt;описание&gt;\n"
+            "Использование: /user_create &lt;описание&gt;\n"
             "Примеры:\n"
-            "<code>/user Маша Иванова, telegram 123456789, редактор</code>\n"
-            "<code>/user 123456789 Петя editor</code>",
+            "<code>/user_create Маша Иванова, telegram 123456789, редактор</code>\n"
+            "<code>/user_create 123456789 Петя editor</code>",
             parse_mode="HTML",
         )
         return

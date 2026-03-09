@@ -304,15 +304,19 @@ async def _send_group_result(message, clean_text, result, thinking):
 
 
 def _build_nl_kwargs(clean_text: str, message: types.Message, *, is_reply_to_bot: bool) -> dict:
+    input_text = clean_text
+    reply = message.reply_to_message
+    if reply and reply.from_user and not reply.from_user.is_bot:
+        input_text = f"[telegram_id={reply.from_user.id}] {clean_text}"
     kwargs = {
-        "input": clean_text,
+        "input": input_text,
         "environment_id": str(message.chat.id),
         "user_id": str(message.from_user.id),
     }
-    if is_reply_to_bot and message.reply_to_message:
+    if is_reply_to_bot and reply:
         kwargs["chat_id"] = message.chat.id
-        kwargs["reply_to_message_id"] = message.reply_to_message.message_id
-        kwargs["reply_to_text"] = message.reply_to_message.text or ""
+        kwargs["reply_to_message_id"] = reply.message_id
+        kwargs["reply_to_text"] = reply.text or ""
     return kwargs
 
 

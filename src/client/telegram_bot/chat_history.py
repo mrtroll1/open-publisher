@@ -14,18 +14,20 @@ logger = logging.getLogger(__name__)
 
 
 async def fetch_chat_messages(
-    chat_id: int,
+    chat_id: int | str,
     month: str | None = None,
     limit: int = 5000,
     topic_id: int | None = None,
+    since: datetime | None = None,
 ) -> list[dict]:
     """Fetch message history from a chat using Telethon user session.
 
     Args:
-        chat_id: Telegram chat ID
+        chat_id: Telegram chat ID (int) or channel username (str, e.g. '@meduzalive')
         month: optional 'YYYY-MM' to filter by month
         limit: max messages to fetch
         topic_id: optional forum topic (message_thread_id) to filter by
+        since: optional datetime — only fetch messages after this timestamp
 
     Returns:
         List of {sender, sender_id, text, date} dicts, oldest first.
@@ -42,6 +44,8 @@ async def fetch_chat_messages(
         )
 
     offset_date, min_date = _parse_month_range(month)
+    if since and not min_date:
+        min_date = since
 
     client = TelegramClient(StringSession(TELEGRAM_SESSION), TELEGRAM_API_ID, TELEGRAM_API_HASH)
     await client.connect()

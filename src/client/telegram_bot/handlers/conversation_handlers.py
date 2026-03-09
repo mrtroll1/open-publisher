@@ -429,7 +429,7 @@ async def cmd_env(message: types.Message, _state: FSMContext) -> None:
         await _show_env_list(message)
 
 
-_ENV_EDITABLE_FIELDS = {"description", "system_context", "allowed_domains"}
+_ENV_EDITABLE_FIELDS = {"description", "system_context", "allowed_domains", "telegram_handle"}
 
 
 def _parse_env_value(field: str, value: str):

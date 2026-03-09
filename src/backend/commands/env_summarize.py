@@ -8,6 +8,7 @@ from datetime import datetime
 from backend.brain.prompt_loader import load_template
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.memory.memory_service import MemoryService
+from backend.infrastructure.memory.retriever import KnowledgeRetriever
 from backend.infrastructure.repositories.postgres import DbGateway
 from backend.models import ProgressEmitter
 
@@ -45,10 +46,12 @@ def _parse_month_range(month: str | None) -> tuple[datetime | None, datetime | N
 
 
 class EnvSummarize:
-    def __init__(self, gemini: GeminiGateway, memory: MemoryService, db: DbGateway):
+    def __init__(self, gemini: GeminiGateway, memory: MemoryService, db: DbGateway,
+                 retriever: KnowledgeRetriever | None = None):
         self._gemini = gemini
         self._memory = memory
         self._db = db
+        self._retriever = retriever
 
     def execute(self, messages: list[dict], environment: str,
                 month: str | None = None,
@@ -59,6 +62,7 @@ class EnvSummarize:
         domain_names = ", ".join(d["name"] for d in domains) if domains else "(пусто)"
         users = self._db.list_users()
         users_info = self._format_users(users)
+        knowledge = self._retriever.get_core() if self._retriever else ""
 
         filtered = self._filter_by_month(messages, month)
         if not filtered:
@@ -71,9 +75,11 @@ class EnvSummarize:
             if progress:
                 progress.emit("summarize", f"Обрабатываю блок {i + 1}/{len(chunks)}")
 
-            entries = self._extract_from_chunk(chunk, env_context, domain_names, users_info)
+            entries = self._extract_from_chunk(chunk, env_context, domain_names, users_info, knowledge)
             stored = self._store_entries(entries, environment)
             total_stored += stored
+
+        self._db.update_environment(environment, last_summarized_at=datetime.utcnow())
 
         if progress:
             progress.emit("done", f"Извлечено {total_stored} единиц знаний")
@@ -114,9 +120,11 @@ class EnvSummarize:
         return "\n".join(lines)
 
     def _extract_from_chunk(self, chunk: list[dict], env_context: str,
-                            domain_names: str, users_info: str) -> list[dict]:
+                            domain_names: str, users_info: str,
+                            knowledge: str = "") -> list[dict]:
         formatted = _format_messages(chunk)
         prompt = load_template("knowledge/extract-chat-knowledge.md", {
+            "KNOWLEDGE": knowledge or "(нет)",
             "ENVIRONMENT": env_context or "(не указан)",
             "DOMAINS": domain_names,
             "USERS": users_info,

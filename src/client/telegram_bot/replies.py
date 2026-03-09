@@ -133,13 +133,13 @@ class menu:
         "/articles <имя> [YYYY-MM] — статьи контрагента\n"
         "/lookup <имя> — информация о контрагенте\n\n"
         "Tech:\n"
-        "/health — проверка доступности сайтов\n"
-        "/support [-e] [-v] <вопрос> — вопрос по техподдержке\n"
-        "/code [-e] [-v] <запрос> — запустить Claude Code\n\n"
+        "~ /health — проверка доступности сайтов\n"
+        "~ /support [-e] [-v] <вопрос> — вопрос по техподдержке\n"
+        "~ /code [-e] [-v] <запрос> — запустить Claude Code\n\n"
         "Знания и память:\n"
-        "/teach <текст> — научить бота\n"
+        "~ /teach <текст> — научить бота\n"
         "/knowledge [-v] [domain] [tier] — список записей\n"
-        "/ksearch <запрос> — поиск по знаниям\n"
+        "~ /ksearch <запрос> — поиск по знаниям\n"
         "/kedit <id> — редактировать запись\n"
         "/forget <id> — удалить запись\n\n"
         "Окружения:\n"
@@ -150,12 +150,13 @@ class menu:
         "/env_create <имя> <описание> — создать окружение\n"
         "/env_summarize [YYYY-MM] — извлечь знания из истории чата\n\n"
         "Пользователи:\n"
-        "/user <описание> — добавить/обновить пользователя\n"
+        "~ /user <описание> — добавить/обновить пользователя\n"
         "/users — список пользователей\n\n"
         "Прочее:\n"
         "/extract_knowledge [hours] — извлечь факты из переписки\n"
         "/chatid — показать ID чата\n"
-        "/nl <текст> — команда на естественном языке"
+        "/nl <текст> — команда на естественном языке\n\n"
+        "~ = доступно через естественный язык"
     )
 
 
@@ -315,7 +316,7 @@ class ksearch:
 
 class env:
     usage = "Использование: /env [name] — список всех или детали одного окружения"
-    edit_usage = "Использование: /env_edit <name> <field> <value>\nПоля: description, system_context, allowed_domains"
+    edit_usage = "Использование: /env_edit <name> <field> <value>\nПоля: description, system_context, allowed_domains, telegram_handle"
     bind_usage = "Использование: /env_bind <name>"
     create_usage = "Использование: /env_create <name> <описание>"
     not_found = "Окружение не найдено."

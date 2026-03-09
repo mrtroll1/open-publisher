@@ -273,10 +273,12 @@ async def get_environment(chat_id: int = 0, name: str = "") -> dict | None:
     return _unwrap(resp)
 
 
-async def create_environment(name: str, description: str, system_context: str = ""):
-    resp = await _request_with_retry("POST","/memory/environment/create", json={
-        "name": name, "description": description, "system_context": system_context,
-    })
+async def create_environment(name: str, description: str, system_context: str = "",
+                             telegram_handle: str | None = None):
+    payload = {"name": name, "description": description, "system_context": system_context}
+    if telegram_handle:
+        payload["telegram_handle"] = telegram_handle
+    resp = await _request_with_retry("POST", "/memory/environment/create", json=payload)
     return _unwrap(resp)
 
 
@@ -364,6 +366,18 @@ async def store_feedback(text: str, domain: str):
 
 
 # --- Environment summarize ---
+
+async def list_scrapable_environments() -> list[dict]:
+    resp = await _request_with_retry("GET", "/scrape/environments")
+    return _unwrap(resp) or []
+
+
+async def scrape_channel(messages: list[dict], environment: str) -> dict:
+    resp = await _request_with_retry("POST", "/scrape/channel", json={
+        "messages": messages, "environment": environment,
+    })
+    return _unwrap(resp)
+
 
 async def env_summarize_stream(
     messages: list[dict], environment: str, month: str | None = None,

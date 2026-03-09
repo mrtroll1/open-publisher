@@ -8,6 +8,7 @@ import logging
 from aiogram import Dispatcher
 
 from telegram_bot.bot_helpers import bot, load_admin_ids
+from telegram_bot.handlers.channel_scraper import channel_scraper_task
 from telegram_bot.handlers.email_listener import email_listener_task
 from telegram_bot.router import register_all, set_bot_commands
 
@@ -26,9 +27,10 @@ async def main():
     logger.info("Starting bot...")
     await load_admin_ids()
     await set_bot_commands(bot)
-    task = asyncio.create_task(email_listener_task())
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
+    for coro in (email_listener_task(), channel_scraper_task()):
+        task = asyncio.create_task(coro)
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
     await dp.start_polling(bot)
 
 

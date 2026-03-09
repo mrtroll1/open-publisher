@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import logging
+from datetime import datetime
 
 from aiogram import types
 from aiogram.fsm.context import FSMContext
@@ -201,7 +202,9 @@ async def cmd_env_summarize(message: types.Message, _state: FSMContext) -> None:
     try:
         # Fetch history from Telegram via Telethon
         await _on_progress("fetch", "Загружаю историю чата...")
-        messages = await fetch_chat_messages(message.chat.id, month=month, topic_id=topic_id)
+        since = _parse_last_summarized(env) if not month else None
+        messages = await fetch_chat_messages(message.chat.id, month=month,
+                                             topic_id=topic_id, since=since)
         if not messages:
             if thinking:
                 await thinking.__aexit__(None, None, None)
@@ -229,6 +232,15 @@ async def cmd_env_summarize(message: types.Message, _state: FSMContext) -> None:
         if thinking:
             await thinking.__aexit__(None, None, None)
         await message.answer(replies.admin.env_summarize_error.format(error=e))
+
+
+def _parse_last_summarized(env: dict) -> datetime | None:
+    last = env.get("last_summarized_at")
+    if isinstance(last, str):
+        return datetime.fromisoformat(last)
+    if isinstance(last, datetime):
+        return last
+    return None
 
 
 # ── Utility ──────────────────────────────────────────────────────────

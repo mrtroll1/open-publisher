@@ -12,6 +12,7 @@ from starlette.responses import StreamingResponse
 
 from backend.brain.tool import TOOLS, ToolContext
 from backend.commands.env_summarize import EnvSummarize
+from backend.commands.scrape_channels import ScrapeChannels
 from backend.interact import handle
 from backend.models import InboxCategory, PendingItem, ProgressEmitter, ProgressEvent
 from backend.wiring import create_brain
@@ -182,12 +183,14 @@ class EnvironmentCreateRequest(BaseModel):
     name: str
     description: str
     system_context: str = ""
+    telegram_handle: str | None = None
 
 class EnvironmentUpdateRequest(BaseModel):
     name: str
     description: str | None = None
     system_context: str | None = None
     allowed_domains: list[str] | None = None
+    telegram_handle: str | None = None
 
 class EnvironmentBindRequest(BaseModel):
     chat_id: int
@@ -345,6 +348,8 @@ def get_environment(chat_id: int = 0, name: str = "") -> BrainResponse:
 @app.post("/memory/environment/create")
 def create_environment(req: EnvironmentCreateRequest) -> BrainResponse:
     db.save_environment(req.name, req.description, req.system_context)
+    if req.telegram_handle:
+        db.update_environment(req.name, telegram_handle=req.telegram_handle)
     return BrainResponse(result="ok")
 
 @app.put("/memory/environment/update")
@@ -356,6 +361,8 @@ def update_environment(req: EnvironmentUpdateRequest) -> BrainResponse:
         kwargs["system_context"] = req.system_context
     if req.allowed_domains is not None:
         kwargs["allowed_domains"] = req.allowed_domains
+    if req.telegram_handle is not None:
+        kwargs["telegram_handle"] = req.telegram_handle
     return BrainResponse(result=memory.update_environment(req.name, **kwargs))
 
 @app.post("/memory/environment/bind")
@@ -446,11 +453,30 @@ class EnvSummarizeRequest(BaseModel):
 @app.post("/env/summarize/stream")
 def env_summarize_stream(req: EnvSummarizeRequest):
     """SSE endpoint: process chat messages into knowledge entries."""
-    summarizer = EnvSummarize(gemini, memory, db)
+    summarizer = EnvSummarize(gemini, memory, db, retriever)
     def work(emitter):
         return summarizer.execute(req.messages, req.environment,
                                   month=req.month, progress=emitter)
     return _sse_stream(work)
+
+
+class ScrapeChannelRequest(BaseModel):
+    messages: list[dict]
+    environment: str
+
+
+@app.post("/scrape/channel")
+def scrape_channel(req: ScrapeChannelRequest) -> BrainResponse:
+    """Process fetched channel messages into knowledge entries."""
+    scraper = ScrapeChannels(gemini, memory, db, retriever)
+    result = scraper.process_channel(req.messages, req.environment)
+    return BrainResponse(result=result)
+
+
+@app.get("/scrape/environments")
+def list_scrapable_environments() -> BrainResponse:
+    """List environments with telegram_handle set (channels to scrape)."""
+    return BrainResponse(result=db.list_scrapable_environments())
 
 
 @app.post("/admin/store-feedback")

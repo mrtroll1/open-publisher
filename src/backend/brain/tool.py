@@ -15,7 +15,6 @@ class EnvContext(TypedDict, total=False):
     """Environment configuration from the DB."""
     name: str
     system_context: str
-    allowed_domains: list[str] | None
 
 
 class UserContext(TypedDict, total=False):

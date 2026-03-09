@@ -27,7 +27,7 @@ def make_code_tool() -> Tool:
             "required": ["prompt"],
         },
         fn=fn,
-        permissions={"*": {"admin"}},
+        permissions={"*": {"admin"}, "ceo_group": {"*"}},
         slash_command="code",
         examples=["как нам скрыть лайки?", "можем ли мы изменить дизайн рассылки?"],
         nl_routable=True,

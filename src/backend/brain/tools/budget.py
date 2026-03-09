@@ -28,7 +28,7 @@ def make_budget_tool(compute_budget) -> Tool:
             },
         },
         fn=fn,
-        permissions={"*": {"admin"}},
+        permissions={"*": {"admin"}, "ceo_group": {"*"}},
         slash_command="budget",
         nl_routable=False,
         conversational=False,

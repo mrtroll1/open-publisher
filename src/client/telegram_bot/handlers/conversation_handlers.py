@@ -380,10 +380,6 @@ async def cmd_ksearch(message: types.Message, _state: FSMContext) -> None:
     await _send(message, "\n".join(lines), parse_mode="HTML")
 
 
-def _format_domains(env: dict) -> str:
-    return ", ".join(env["allowed_domains"]) if env.get("allowed_domains") else "—"
-
-
 def _format_chats(bindings: list) -> str:
     return ", ".join(str(c) for c in bindings) if bindings else "—"
 
@@ -397,7 +393,6 @@ async def _show_env_detail(message, name):
     text = (
         f"<b>{env['name']}</b>\n"
         f"Описание: {env['description']}\n"
-        f"Домены: {_format_domains(env)}\n"
         f"Чаты: {_format_chats(bindings)}\n\n"
         f"system_context:\n<pre>{env['system_context']}</pre>"
     )
@@ -414,7 +409,6 @@ async def _show_env_list(message):
         bindings = await backend_client.get_bindings(e["name"])
         lines.append(
             f"<b>{e['name']}</b> — {e['description']}\n"
-            f"  домены: {_format_domains(e)}\n"
             f"  чаты: {_format_chats(bindings)}"
         )
     await _send(message, "\n\n".join(lines), parse_mode="HTML")
@@ -429,12 +423,10 @@ async def cmd_env(message: types.Message, _state: FSMContext) -> None:
         await _show_env_list(message)
 
 
-_ENV_EDITABLE_FIELDS = {"description", "system_context", "allowed_domains", "telegram_handle"}
+_ENV_EDITABLE_FIELDS = {"description", "system_context", "telegram_handle"}
 
 
-def _parse_env_value(field: str, value: str):
-    if field == "allowed_domains":
-        return [d.strip() for d in value.split(",") if d.strip()]
+def _parse_env_value(value: str):
     return value
 
 
@@ -444,7 +436,7 @@ async def cmd_env_edit(message: types.Message, _state: FSMContext) -> None:
         await message.answer(replies.env.edit_usage)
         return
     name, field, value = args[1].strip(), args[2].strip(), args[3].strip()
-    ok = await backend_client.update_environment(name, **{field: _parse_env_value(field, value)})
+    ok = await backend_client.update_environment(name, **{field: _parse_env_value(value)})
     if not ok:
         await message.answer(replies.env.update_failed.format(name=name))
         return

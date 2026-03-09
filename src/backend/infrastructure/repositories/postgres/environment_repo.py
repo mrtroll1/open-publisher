@@ -9,9 +9,9 @@ from backend.infrastructure.repositories.postgres.base import BasePostgresRepo
 
 class EnvironmentRepo(BasePostgresRepo):
 
-    _ENV_COLS: typing.ClassVar = ["name", "description", "system_context", "allowed_domains",
+    _ENV_COLS: typing.ClassVar = ["name", "description", "system_context",
                                   "created_at", "updated_at", "last_summarized_at", "telegram_handle"]
-    _ENV_SELECT = """SELECT name, description, system_context, allowed_domains,
+    _ENV_SELECT = """SELECT name, description, system_context,
                             created_at, updated_at, last_summarized_at, telegram_handle
                      FROM environments"""
 
@@ -26,7 +26,7 @@ class EnvironmentRepo(BasePostgresRepo):
     def get_environment_by_chat_id(self, chat_id: int) -> dict | None:
         with self._cursor() as cur:
             cur.execute(
-                """SELECT e.name, e.description, e.system_context, e.allowed_domains,
+                """SELECT e.name, e.description, e.system_context,
                           e.created_at, e.updated_at, e.last_summarized_at, e.telegram_handle
                    FROM environment_bindings b
                    JOIN environments e ON e.name = b.environment
@@ -43,23 +43,21 @@ class EnvironmentRepo(BasePostgresRepo):
             cur.execute(f"{self._ENV_SELECT} ORDER BY name")
             return [dict(zip(self._ENV_COLS, row, strict=False)) for row in cur.fetchall()]
 
-    def save_environment(self, name: str, description: str, system_context: str,
-                         allowed_domains: list[str] | None = None) -> str:
+    def save_environment(self, name: str, description: str, system_context: str) -> str:
         with self._cursor() as cur:
             cur.execute(
-                """INSERT INTO environments (name, description, system_context, allowed_domains)
-                   VALUES (%s, %s, %s, %s)
+                """INSERT INTO environments (name, description, system_context)
+                   VALUES (%s, %s, %s)
                    ON CONFLICT (name) DO UPDATE
                    SET description = EXCLUDED.description,
                        system_context = EXCLUDED.system_context,
-                       allowed_domains = EXCLUDED.allowed_domains,
                        updated_at = NOW()""",
-                (name, description, system_context, allowed_domains),
+                (name, description, system_context),
             )
             return name
 
     def update_environment(self, name: str, **fields) -> bool:
-        allowed = {"description", "system_context", "allowed_domains",
+        allowed = {"description", "system_context",
                    "last_summarized_at", "telegram_handle"}
         to_update = {k: v for k, v in fields.items() if k in allowed}
         if not to_update:

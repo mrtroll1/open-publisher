@@ -38,7 +38,6 @@ __all__ = [
     "_support_draft_map",
     "parse_date_range_arg",
     "parse_month_arg",
-    "resolve_environment",
     "resolve_environment_record",
     "resolve_user_context",
     "send_typing",
@@ -101,13 +100,6 @@ async def resolve_environment_record(chat_id: int) -> dict | None:
     """Return the full environment dict for a chat, or None if unbound."""
     return await backend_client.get_environment(chat_id=chat_id)
 
-
-async def resolve_environment(chat_id: int) -> tuple[str, list[str] | None]:
-    """Return (system_context, allowed_domains) for a chat, or ("", None) if unbound."""
-    env = await backend_client.get_environment(chat_id=chat_id)
-    if env is None:
-        return "", None
-    return env["system_context"], env.get("allowed_domains")
 
 
 async def resolve_user_context(user_id: int) -> str:

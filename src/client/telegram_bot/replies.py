@@ -316,7 +316,7 @@ class ksearch:
 
 class env:
     usage = "Использование: /env [name] — список всех или детали одного окружения"
-    edit_usage = "Использование: /env_edit <name> <field> <value>\nПоля: description, system_context, allowed_domains, telegram_handle"
+    edit_usage = "Использование: /env_edit <name> <field> <value>\nПоля: description, system_context, telegram_handle"
     bind_usage = "Использование: /env_bind <name>"
     create_usage = "Использование: /env_create <name> <описание>"
     not_found = "Окружение не найдено."

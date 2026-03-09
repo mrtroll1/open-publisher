@@ -189,7 +189,6 @@ class EnvironmentUpdateRequest(BaseModel):
     name: str
     description: str | None = None
     system_context: str | None = None
-    allowed_domains: list[str] | None = None
     telegram_handle: str | None = None
 
 class EnvironmentBindRequest(BaseModel):
@@ -359,8 +358,6 @@ def update_environment(req: EnvironmentUpdateRequest) -> BrainResponse:
         kwargs["description"] = req.description
     if req.system_context is not None:
         kwargs["system_context"] = req.system_context
-    if req.allowed_domains is not None:
-        kwargs["allowed_domains"] = req.allowed_domains
     if req.telegram_handle is not None:
         kwargs["telegram_handle"] = req.telegram_handle
     return BrainResponse(result=memory.update_environment(req.name, **kwargs))

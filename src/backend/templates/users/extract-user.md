@@ -6,7 +6,7 @@
 ## Задача
 
 Определи из текста:
-- **telegram_id** — числовой Telegram ID (если есть)
+- **telegram_id** — числовой Telegram ID (если есть, может быть в формате [telegram_id=123456789])
 - **name** — имя/фамилия человека
 - **role** — роль: user, editor, admin (по умолчанию user)
 - **email** — email (если есть)

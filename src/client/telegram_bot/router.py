@@ -157,8 +157,8 @@ _ADMIN_COMMANDS: dict[str, Callable] = {
     "env_bind": cmd_env_bind,
     "env_create": cmd_env_create,
     "env_unbind": cmd_env_unbind,
-    "user": cmd_user,
-    "users": cmd_users,
+    "user": cmd_users,
+    "user_create": cmd_user,
     "perm": cmd_perm,
 }
 

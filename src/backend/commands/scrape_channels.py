@@ -72,10 +72,10 @@ class ScrapeChannels:
 
         self._memory.remember(
             digest, domain,
-            source="competitor_tg_channel", tier="specific",
+            source=environment, tier="specific",
             visibility="role:editor",
             environment_id=environment,
-            source_type="competitor_tg_channel",
+            source_type="tg_channel",
             source_url=source_url,
         )
 

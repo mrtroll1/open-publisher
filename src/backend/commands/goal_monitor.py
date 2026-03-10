@@ -50,7 +50,7 @@ class GoalMonitor:
                 if result.get("triggered"):
                     self._db.update_task(task["id"], status="in_progress")
                     if task.get("goal_id"):
-                        self._db.add_progress(task["goal_id"], f"Задача активирована: {task['title']}", source="monitor")
+                        self._db.add_progress(task["goal_id"], f"Задача активирована: {task['title']}", source="auto")
                     self._db.create_notification("task_triggered", {
                         "task_id": str(task["id"]),
                         "task_title": task["title"],

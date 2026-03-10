@@ -471,15 +471,13 @@ def interact_stream(req: InteractRequest):
 class EnvSummarizeRequest(BaseModel):
     messages: list[dict]
     environment: str
-    month: str | None = None
 
 @app.post("/env/summarize/stream")
 def env_summarize_stream(req: EnvSummarizeRequest):
     """SSE endpoint: process chat messages into knowledge entries."""
     summarizer = EnvSummarize(gemini, memory, db, retriever)
     def work(emitter):
-        return summarizer.execute(req.messages, req.environment,
-                                  month=req.month, progress=emitter)
+        return summarizer.execute(req.messages, req.environment, progress=emitter)
     return _sse_stream(work)
 
 

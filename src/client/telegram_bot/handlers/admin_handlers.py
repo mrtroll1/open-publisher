@@ -181,10 +181,6 @@ async def cmd_env_summarize(message: types.Message, _state: FSMContext) -> None:
         await message.answer(replies.admin.env_summarize_no_telethon)
         return
 
-    # Parse optional month arg
-    args = message.text.split(maxsplit=1)
-    month = args[1].strip() if len(args) > 1 else None
-
     # Detect forum topic
     topic_id = getattr(message, "message_thread_id", None)
 
@@ -202,8 +198,8 @@ async def cmd_env_summarize(message: types.Message, _state: FSMContext) -> None:
     try:
         # Fetch history from Telegram via Telethon
         await _on_progress("fetch", "Загружаю историю чата...")
-        since = _parse_last_summarized(env) if not month else None
-        messages = await fetch_chat_messages(message.chat.id, month=month,
+        since = _parse_last_summarized(env)
+        messages = await fetch_chat_messages(message.chat.id,
                                              topic_id=topic_id, since=since)
         if not messages:
             if thinking:
@@ -217,7 +213,6 @@ async def cmd_env_summarize(message: types.Message, _state: FSMContext) -> None:
         result = await backend_client.env_summarize_stream(
             messages=messages,
             environment=env["name"],
-            month=month,
             on_progress=_on_progress,
         )
 

@@ -399,12 +399,10 @@ async def scrape_channel(messages: list[dict], environment: str) -> dict:
 
 
 async def env_summarize_stream(
-    messages: list[dict], environment: str, month: str | None = None,
+    messages: list[dict], environment: str,
     on_progress: Callable[[str, str], None] | None = None,
 ) -> dict:
     """Call /env/summarize/stream SSE endpoint."""
     body = {"messages": messages, "environment": environment}
-    if month:
-        body["month"] = month
     return await _stream_with_retry("POST", "/env/summarize/stream",
                                     on_progress=on_progress, json=body)

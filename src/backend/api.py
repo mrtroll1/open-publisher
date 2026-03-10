@@ -490,10 +490,11 @@ class ScrapeChannelRequest(BaseModel):
 
 @app.post("/scrape/channel")
 def scrape_channel(req: ScrapeChannelRequest) -> BrainResponse:
-    """Process fetched channel messages into knowledge entries."""
+    """Process fetched channel messages into a daily digest."""
     scraper = ScrapeChannels(gemini, memory, db, retriever)
     result = scraper.process_channel(req.messages, req.environment)
     return BrainResponse(result=result)
+
 
 
 @app.get("/scrape/environments")

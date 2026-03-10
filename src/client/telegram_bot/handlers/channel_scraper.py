@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["channel_scraper_task"]
 
-_DEFAULT_INTERVAL = 6 * 3600  # 6 hours
+_DEFAULT_INTERVAL = 24 * 3600  # once a day
 
 
 async def channel_scraper_task() -> None:
@@ -61,4 +61,4 @@ async def _scrape_one(env: dict) -> None:
     logger.info("Fetched %d messages from %s, sending to backend", len(messages), handle)
     result = await backend_client.scrape_channel(messages, name)
     count = result.get("count", 0) if isinstance(result, dict) else 0
-    logger.info("Scraped %s: %d knowledge entries stored", name, count)
+    logger.info("Scraped %s: daily digest stored" if count else "Scraped %s: nothing notable", name)

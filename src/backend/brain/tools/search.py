@@ -17,7 +17,7 @@ def make_search_tool(retriever) -> Tool:
 
     return Tool(
         name="search",
-        description="Поиск по базе знаний",
+        description="Поиск по базе знаний: внутренние данные, конкуренты, редакционная аналитика и другое",
         parameters={
             "type": "object",
             "properties": {

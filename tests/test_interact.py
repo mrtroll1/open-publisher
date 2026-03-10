@@ -730,6 +730,36 @@ def test_admin_legium_reply_with_telegram_sends(mock_find, _, mock_update, mock_
     assert len(result.get("side_messages", [])) == 1
 
 
+# ── Admin: batch generate ──────────────────────────────────────────
+
+
+@patch("backend.interact.admin.load_all_contractors", return_value=[])
+@patch("backend.interact.admin.create_generate_batch_invoices")
+def test_admin_batch_generate_no_new_invoices(mock_batch_cls, *_):
+    batch_result = MagicMock()
+    batch_result.total = 0
+    mock_batch_cls.return_value.execute.return_value = batch_result
+
+    result = handle("admin_batch_generate", {"text": ""}, {"user_id": 1})
+
+    assert "Нет новых" in result["messages"][0]["text"]
+
+
+@patch("backend.interact.admin.load_all_contractors", return_value=[])
+@patch("backend.interact.admin.create_generate_batch_invoices")
+def test_admin_batch_generate_with_results(mock_batch_cls, *_):
+    batch_result = MagicMock()
+    batch_result.total = 2
+    batch_result.counts = {"самозанятый": 1, "ИП": 1}
+    batch_result.errors = []
+    batch_result.generated = []
+    mock_batch_cls.return_value.execute.return_value = batch_result
+
+    result = handle("admin_batch_generate", {"text": ""}, {"user_id": 1})
+
+    assert result["messages"][0]["data"]["type"].value == "operation_summary"
+
+
 # ── Admin: send global ──────────────────────────────────────────────
 
 

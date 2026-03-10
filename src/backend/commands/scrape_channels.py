@@ -46,7 +46,7 @@ class ScrapeChannels:
         env_context = env.get("system_context", "")
         knowledge = self._retriever.get_core() if self._retriever else ""
         today = date.today().isoformat()
-        domain = environment
+        domain = "competitors"
 
         formatted = _format_messages(messages)
         prompt = load_template("knowledge/scrape-tg-channel.md", {

@@ -77,13 +77,14 @@ def _optional_section(title: str, content: str) -> str:
 
 
 def _build_system_prompt(env: dict, user_context: str, knowledge: str,
-                         conversation_history: str) -> str:
+                         conversation_history: str, goals_summary: str = "") -> str:
     now = datetime.now(timezone(timedelta(hours=1)))
     parts = [f"Текущая дата и время: {now.strftime('%Y-%m-%d %H:%M')} (CET)"]
     parts.extend(line.format(site=REPUBLIC_SITE_URL) for line in _BASE_INSTRUCTIONS)
     parts.append(_optional_section("Окружение", env.get("system_context", "")))
     parts.append(_optional_section("О собеседнике", user_context))
     parts.append(_optional_section("Контекст", knowledge))
+    parts.append(_optional_section("Мои цели и задачи", goals_summary))
     parts.append(_optional_section("История разговора", conversation_history))
     return "\n".join(p for p in parts if p)
 
@@ -147,7 +148,11 @@ def conversation_handler(
         ctx = _ConversationContext(gemini, db, retriever, input, auth, **kwargs)
         ctx.load_history()
         ctx.load_knowledge()
-        system_prompt = _build_system_prompt(auth.ctx.env, ctx.user_context, ctx.knowledge, ctx.history)
+        ctx.load_goals()
+        system_prompt = _build_system_prompt(
+            auth.ctx.env, ctx.user_context, ctx.knowledge,
+            ctx.history, goals_summary=ctx.goals_summary,
+        )
         conv_tools = [t for t in auth.tools if t.conversational]
         ctx.log("input", {
             "user_input": input,
@@ -181,6 +186,7 @@ class _ConversationContext:
         self.parent_id = None
         self.user_context = ""
         self.knowledge = ""
+        self.goals_summary = ""
 
     def log(self, type: str, content: dict):
         self.db.log_run_step(self.run_id, self._step, type, content)
@@ -213,6 +219,10 @@ class _ConversationContext:
             self.input, role=role, user_id=user_id, environment=env_name,
         )
         self.knowledge = (context + "\n\n" + relevant) if context else relevant
+
+    def load_goals(self):
+        if self.auth.role == "admin":
+            self.goals_summary = self.db.get_active_goals_summary()
 
     def single_llm_call(self, system_prompt: str) -> dict:
         self._emit("llm", "Генерирую ответ")

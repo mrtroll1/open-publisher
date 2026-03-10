@@ -403,6 +403,17 @@ def revoke_permission(req: PermRevokeRequest) -> BrainResponse:
     return BrainResponse(result="ok" if ok else "not_found")
 
 
+# --- Notifications ---
+
+@app.get("/notifications/pending")
+def pending_notifications() -> BrainResponse:
+    items = db.get_pending_notifications()
+    if items:
+        ids = [str(n["id"]) for n in items]
+        db.mark_notifications_read(ids)
+    return BrainResponse(result=items)
+
+
 # --- User endpoints ---
 
 @app.get("/user/admin_telegram_ids")

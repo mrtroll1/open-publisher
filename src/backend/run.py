@@ -1,6 +1,8 @@
 """Backend API entry point with scheduled tasks."""
 
+import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -9,11 +11,28 @@ from backend.api import app
 
 logger = logging.getLogger(__name__)
 
+GOAL_MONITOR_INTERVAL = int(os.getenv("GOAL_MONITOR_INTERVAL", "3600"))
+
+
+async def _goal_monitor_loop():
+    from backend.api import db, gemini  # noqa: PLC0415
+    from backend.commands.goal_monitor import GoalMonitor  # noqa: PLC0415
+
+    monitor = GoalMonitor(db, gemini)
+    while True:
+        await asyncio.sleep(GOAL_MONITOR_INTERVAL)
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(None, monitor.run)
+            logger.info("GoalMonitor: %s", result)
+        except Exception:
+            logger.exception("GoalMonitor failed")
+
 
 @asynccontextmanager
 async def lifespan(_app):
     """Start background tasks on API startup."""
     tasks = [
+        asyncio.create_task(_goal_monitor_loop()),
     ]
     yield
     for t in tasks:

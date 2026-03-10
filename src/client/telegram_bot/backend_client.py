@@ -384,6 +384,13 @@ async def store_feedback(text: str, domain: str):
     return _unwrap(resp)
 
 
+# --- Notifications ---
+
+async def get_pending_notifications() -> list[dict]:
+    resp = await _request_with_retry("GET", "/notifications/pending")
+    return _unwrap(resp) or []
+
+
 # --- Environment summarize ---
 
 async def list_scrapable_environments() -> list[dict]:

@@ -5,7 +5,6 @@ from backend.brain.dynamic.draft_support import DraftSupport
 from backend.brain.dynamic.extract_knowledge import ExtractKnowledge
 from backend.brain.dynamic.parse_contractor import ParseContractor
 from backend.brain.dynamic.query_db import QueryDB
-from backend.brain.dynamic.summarize_article import SummarizeArticle
 from backend.brain.dynamic.tech_support import TechSupport
 
 __all__ = [
@@ -16,6 +15,5 @@ __all__ = [
     "ExtractKnowledge",
     "ParseContractor",
     "QueryDB",
-    "SummarizeArticle",
     "TechSupport",
 ]

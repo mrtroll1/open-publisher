@@ -11,7 +11,6 @@ from backend.brain.dynamic import (
     AssessEditorial,
     ClassifyInbox,
     ClassifyTeaching,
-    SummarizeArticle,
     TechSupport,
 )
 from backend.brain.dynamic.query_db import QueryDB
@@ -164,7 +163,6 @@ def _create_genai_instances(gemini, db, embed, retriever) -> dict:
         "tech_support": TechSupport(gemini, retriever, db),
         "inbox_classify": ClassifyInbox(gemini, retriever),
         "editorial_assess": AssessEditorial(gemini, retriever),
-        "summarize_article": SummarizeArticle(gemini, retriever),
     }
 
 

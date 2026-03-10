@@ -59,8 +59,9 @@ def _extract_result_fields(result) -> tuple[str, str | None, str | None]:
 
 
 async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
-    if await state.get_state() is not None or not _is_reply_to_bot(message, state):
+    if not _is_reply_to_bot(message, state):
         return False
+    await state.clear()
     reply = message.reply_to_message
     thinking: ThinkingMessage | None = None
     try:

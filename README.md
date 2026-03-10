@@ -3,12 +3,15 @@
 An AI agent with Telegram bot interface to automate my work as a publisher at republicmag.io
 
 - What it does:
-   Handles monthly accounting
-   Handles document generation & signing for and with contractors
+   Monthly accounting
+   Document generation & signing for and with contractors
+   Tech support
+   DB lookups across multiple databses
+   Interactive knowledgebase 
 
 - What it will do:
-   Handle tech support, db look-ups and repo bug fixes
-   Act as an interactive knowledgebase & publisher assistant
+   Creative initiative
+   Ownership of own implementation & use
 
 - Vision:
    Backoffice of a small media requires little to none human presense

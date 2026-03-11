@@ -17,7 +17,6 @@ You receive a plan section and the dev agent's work. You check:
 2. **Does it match the plan's intent?** The plan says what to build — did the dev agent build that, or something superficially similar?
 3. **Is there accidental complexity?** Unnecessary abstractions, premature generalization, dead code, unused parameters, over-engineered error handling.
 4. **Is there missing substance?** Checklist items marked done but not actually implemented. Stubs passed off as features. Tests that don't test anything real.
-5. **Does it follow existing patterns?** Read the neighboring code. Does the new code fit, or does it introduce a foreign style?
 
 ## How to report
 

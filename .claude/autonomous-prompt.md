@@ -35,12 +35,20 @@ Each session is a fresh context. The plan file and `.claude/memory/dev-agent.md`
    - Instruction to review and fix any issues, then run `pytest`
 9. After the supervisor completes, check its findings. If it made fixes, note them.
 
+### Phase C2: Linter cleans up
+10. Read `.claude/agents/linter-agent.md` for the linter instructions
+11. Spawn a linter agent (Agent tool, subagent_type="general-purpose") with:
+   - The full linter-agent.md instructions
+   - A summary of which files were created or modified by the dev and supervisor agents
+   - Instruction to review those files for code smells and fix them
+12. After the linter completes, check if it made changes. If so, note them.
+
 ### Phase D: Wrap up
-10. Update the plan checklist — mark completed items with `[x]`, add notes if needed
-11. Update `.claude/memory/dev-agent.md` with what was done and any context for next session
-12. Update `autonomous/dev/manual.md` if there's anything the user needs to manually do
-13. Update `autonomous/dev/external-todo.md` if work depends on external systems
-14. Commit all changes with a descriptive message and push to origin
+13. Update the plan checklist — mark completed items with `[x]`, add notes if needed
+14. Update `.claude/memory/dev-agent.md` with what was done and any context for next session
+15. Update `autonomous/dev/manual.md` if there's anything the user needs to manually do
+16. Update `autonomous/dev/external-todo.md` if work depends on external systems
+17. Commit all changes with a descriptive message and push to origin
 
 ## When the plan is complete
 

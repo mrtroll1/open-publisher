@@ -41,3 +41,23 @@
 
 10. **`all_names` pattern repeated across 4 subclasses** (`models.py`)
     `GlobalContractor`, `IPContractor`, `SamozanyatyContractor`, `StubContractor` all have the same `all_names` pattern: prepend a name field, extend with aliases. Could be a base method parameterized by a `_name_field` attribute.
+
+## 2026-03-11 — Contractor Type Change audit
+
+### Moderate
+
+11. **`change_contractor_type` is non-atomic: delete before save** (`contractor_repo.py:356-375`)
+    If `save_contractor` fails (sheets API error, validation, etc.) after `delete_contractor_from_sheet` succeeds, the contractor is lost. Same pattern exists in `upgrade_from_stub` — both should save-then-delete, or at minimum catch and re-insert on failure.
+
+12. **No test for `change_contractor_type`** (`contractor_repo.py:347-377`)
+    Public function with no unit test. Should test: old row deleted, new row saved with correct type, preserved fields (id, aliases, telegram, secret_code, mags), reset fields (invoice_number=0), type-specific fields populated from new_data.
+
+13. **No test for `change_type` handler or `_execute_type_change`** (`interact/contractor.py:247-264, 485-489`)
+    The new handler flow (menu button -> type selection -> data input -> type change) has no integration test. At minimum: test that `menu_callback` with `"menu:change_type"` starts the flow, test that `_complete_registration` with `changing_type_id` in fsm_data calls `change_contractor_type`.
+
+14. ~~**`_execute_type_change` raises bare `ValueError` on missing contractor**~~ — **FIXED** in this audit. Now returns `None`, caller shows user-friendly message.
+
+### Minor
+
+15. **`ContractorHandlers` now ~660 lines** (`interact/contractor.py`)
+    Continues to grow (see item 9). The type-change flow adds another public handler + private helper. The class now has 15 public handlers — well past the "a few publics max" threshold.

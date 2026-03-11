@@ -393,10 +393,10 @@ def change_contractor_type(
 ```
 
 **Done when:**
-- [ ] Deletes from old sheet, creates in new sheet
-- [ ] id, aliases, role_code, telegram, secret_code preserved
-- [ ] invoice_number reset to 0
-- [ ] Type-specific fields populated from new_data
+- [x] Deletes from old sheet, creates in new sheet
+- [x] id, aliases, role_code, telegram, secret_code preserved
+- [x] invoice_number reset to 0
+- [x] Type-specific fields populated from new_data
 
 ---
 
@@ -484,10 +484,10 @@ if action == "change_type":
 ```
 
 **Done when:**
-- [ ] Contractor can change type from menu button
-- [ ] Admin can initiate type change via `target_contractor_id` in fsm_data
-- [ ] After type change, data entry flow lets contractor fill new type-specific fields
-- [ ] Old sheet row deleted, new sheet row created
+- [x] Contractor can change type from menu button
+- [x] Admin can initiate type change via `target_contractor_id` in fsm_data
+- [x] After type change, data entry flow lets contractor fill new type-specific fields
+- [x] Old sheet row deleted, new sheet row created
 
 ---
 

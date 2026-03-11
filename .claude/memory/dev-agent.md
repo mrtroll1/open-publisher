@@ -21,6 +21,18 @@
 - All 181 tests pass, ruff clean
 - 7 moderate debt items logged to memory/linter-debt.md
 
+### Session 3 (plan-13, Phase 3)
+- Implemented `change_contractor_type` in `contractor_repo.py`: deletes from old sheet, creates in new with preserved identity fields, resets invoice_number
+- Added `change_type` handler in `interact/contractor.py`: supports self-service (menu button) and admin-initiated (via `target_contractor_id` in fsm_data), rejects stubs
+- Updated `_complete_registration` to handle `changing_type_id` branch alongside existing `claiming_stub_id`
+- Added `_execute_type_change` helper with null guard
+- Menu button "Сменить тип контрагента" + `menu_callback` case
+- Registered `"change_type"` in `_HANDLERS` (`interact/__init__.py`)
+- Supervisor: added null guard in `_execute_type_change` (returns None + log instead of crash)
+- Linter: improved error handling pattern (return None + user-friendly message instead of ValueError)
+- Linter logged 4 moderate debt items (#11-#15) including non-atomic type change and missing tests
+- All 181 tests pass, ruff clean
+
 ## Known issues
 
 _None._

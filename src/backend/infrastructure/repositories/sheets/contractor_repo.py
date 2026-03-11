@@ -344,6 +344,39 @@ def pop_random_secret_code() -> str:
     return code
 
 
+def change_contractor_type(
+    old_contractor: Contractor, new_type: ContractorType, new_data: dict[str, str],
+) -> Contractor:
+    """Delete old contractor, create new one with new type.
+
+    Preserves: id, aliases, role_code, is_photographer, telegram, secret_code, mags.
+    Resets: invoice_number to 0.
+    Takes from new_data: all type-specific fields + email, bank fields.
+    """
+    delete_contractor_from_sheet(old_contractor.id)
+    cls = CONTRACTOR_CLASS_BY_TYPE[new_type]
+    kwargs = {
+        "id": old_contractor.id,
+        "aliases": old_contractor.aliases,
+        "role_code": old_contractor.role_code,
+        "is_photographer": old_contractor.is_photographer,
+        "telegram": old_contractor.telegram,
+        "secret_code": old_contractor.secret_code,
+        "email": new_data.get("email", old_contractor.email),
+        "bank_name": new_data.get("bank_name", ""),
+        "bank_account": new_data.get("bank_account", ""),
+        "mags": old_contractor.mags,
+        "invoice_number": 0,
+    }
+    for field in cls.FIELD_META:
+        if field not in kwargs:
+            kwargs[field] = new_data.get(field, "")
+    contractor = cls(**kwargs)
+    save_contractor(contractor)
+    logger.info("Changed %s type to %s", old_contractor.id, new_type.value)
+    return contractor
+
+
 def update_contractor_fields(contractor_id: str, updates: dict[str, str]) -> int:
     """Update specific fields for a contractor in their sheet. Returns number of fields updated."""
     result = _find_contractor_in_sheets(contractor_id)

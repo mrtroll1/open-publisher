@@ -21,6 +21,7 @@ _HANDLERS = {
     "sign_doc": _contractor.sign_doc,
     "update_payment_data": _contractor.update_payment_data,
     "manage_redirects": _contractor.manage_redirects,
+    "change_type": _contractor.change_type,
 
     # Contractor FSM inputs
     "free_text": _contractor.free_text,

@@ -17,6 +17,7 @@ from backend.infrastructure.gateways.drive_gateway import DriveGateway
 from backend.infrastructure.gateways.republic_gateway import RepublicGateway
 from backend.infrastructure.repositories.sheets.contractor_repo import (
     bind_telegram_id,
+    change_contractor_type,
     find_contractor_by_id,
     find_contractor_by_telegram_id,
     fuzzy_find,
@@ -120,6 +121,8 @@ class ContractorHandlers:
                     "collected_data": {"aliases": [alias]} if alias else {}}
         if prev_fsm.get("claiming_stub_id"):
             fsm_data["claiming_stub_id"] = prev_fsm["claiming_stub_id"]
+        if prev_fsm.get("changing_type_id"):
+            fsm_data["changing_type_id"] = prev_fsm["changing_type_id"]
         return respond(
             [msg(self._DATA_PROMPTS[ctype])], fsm_state="waiting_data",
             fsm_data=fsm_data,
@@ -237,7 +240,28 @@ class ContractorHandlers:
                                "Отправьте «отмена» для отмены.")], fsm_state="waiting_update_data")
         if action == "editor":
             return self._show_editor_sources(contractor)
+        if action == "change_type":
+            return self.change_type(payload, ctx)
         return respond([msg("Неизвестное действие.")])
+
+    def change_type(self, _payload: Payload, ctx: InteractContext) -> dict:
+        """Start type change flow."""
+        contractor_id = ctx.get("fsm_data", {}).get("target_contractor_id")
+        if contractor_id:
+            contractor = find_contractor_by_id(contractor_id, load_all_contractors())
+        else:
+            contractor, _ = self._get_contractor(ctx["user_id"])
+        if not contractor:
+            return respond([msg("Контрагент не найден.")], fsm_state=None)
+        if contractor.is_stub:
+            return respond([msg("Заглушка не имеет типа.")], fsm_state=None)
+        return respond(
+            [msg(f"Текущий тип: {contractor.type.value}. Выберите новый тип:"),
+             self._type_selection_prompt()],
+            fsm_state="waiting_type",
+            fsm_data={"alias": contractor.display_name,
+                      "changing_type_id": contractor.id},
+        )
 
     def document(self, payload: Payload, ctx: InteractContext) -> dict:
         user_id = ctx["user_id"]
@@ -282,6 +306,7 @@ class ContractorHandlers:
         ]
         if contractor.role_code == RoleCode.REDAKTOR:
             rows.append([{"text": "Настроить, за кого я получаю деньги", "data": "menu:editor"}])
+        rows.append([{"text": "Сменить тип контрагента", "data": "menu:change_type"}])
         return rows
 
     def _menu_response(self, contractor):
@@ -440,9 +465,15 @@ class ContractorHandlers:
         contractors = load_all_contractors()
         fsm_data = ctx.get("fsm_data", {})
         claiming_stub_id = fsm_data.get("claiming_stub_id")
+        changing_type_id = fsm_data.get("changing_type_id")
         if claiming_stub_id:
             contractor, secret_code = self._upgrade_stub(
                 claiming_stub_id, collected, ctype, telegram_id, contractors)
+        elif changing_type_id:
+            contractor = self._execute_type_change(changing_type_id, collected, ctype, contractors)
+            if not contractor:
+                return respond([msg("Контрагент не найден.")], fsm_state=None)
+            secret_code = contractor.secret_code
         else:
             contractor, secret_code = ContractorFactory().create(collected, ctype, telegram_id, contractors)
         sides = self._admin_registration_notify(collected, ctype, raw_text, ctx.get("admin_ids", []))
@@ -452,6 +483,13 @@ class ContractorHandlers:
     def _upgrade_stub(self, stub_id, collected, ctype, telegram_id, contractors):
         return ContractorFactory().upgrade_from_stub(
             stub_id, collected, ctype, telegram_id, contractors)
+
+    def _execute_type_change(self, contractor_id, collected, new_type, contractors):
+        old = find_contractor_by_id(contractor_id, contractors)
+        if not old:
+            logger.error("Contractor %s not found for type change", contractor_id)
+            return None
+        return change_contractor_type(old, new_type, collected)
 
     def _maybe_add_russian_alias(self, collected, ctype):
         if ctype != ContractorType.GLOBAL:

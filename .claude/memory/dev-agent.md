@@ -33,6 +33,17 @@
 - Linter logged 4 moderate debt items (#11-#15) including non-atomic type change and missing tests
 - All 181 tests pass, ruff clean
 
+### Session 4 (plan-13, Phase 4)
+- Implemented contractor lookup in redirect source flow (`interact/contractor.py`)
+- `_add_editor_source` now does fuzzy search before adding redirect rule
+- New methods: `_suggest_source_contractors`, `_offer_stub_or_raw`, `_create_stub_and_link`, `_finalize_editor_source`
+- Extended `esrc_callback` with `link:`, `stub`, `raw` cases reading from fsm_data
+- Supervisor: fixed bug where `esrc:link:<id>` ignored contractor ID (used raw typed name instead of display_name); updated test
+- Linter: fixed triple `load_all_contractors()` call in esrc_callback path (each hits Google Sheets API)
+- Linter logged 4 moderate debt items (#16-#19)
+- All 182 tests pass, ruff clean
+- Phases 1-4 and 6.1 complete. Next: Phase 5 (NL contractor operations) or Phase 6 (remaining tests)
+
 ## Known issues
 
 _None._

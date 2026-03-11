@@ -214,7 +214,7 @@ class ContractorHandlers:
             return respond([msg("Контрагент не найден.")])
         return self._verify_or_reject(contractor, ctx["user_id"])
 
-    def esrc_callback(self, payload: Payload, ctx: InteractContext) -> dict:
+    def esrc_callback(self, payload: Payload, ctx: InteractContext) -> dict:  # noqa: PLR0911
         data = payload.get("callback_data", "").removeprefix("esrc:")
         contractor, _ = self._get_contractor(ctx["user_id"])
         if not contractor:
@@ -226,6 +226,22 @@ class ContractorHandlers:
                           fsm_state="waiting_editor_source_name")
         if data == "back":
             return respond([msg("Что хотите сделать?", keyboard=self._menu_keyboard(contractor))])
+
+        fsm_data = ctx.get("fsm_data", {})
+        source_name = fsm_data.get("pending_source_name", "")
+        editor_id = fsm_data.get("editor_id", contractor.id)
+        contractors = load_all_contractors()
+        editor = find_contractor_by_id(editor_id, contractors) or contractor
+
+        if data.startswith("link:"):
+            linked_id = data.removeprefix("link:")
+            linked = find_contractor_by_id(linked_id, contractors)
+            name = linked.display_name if linked else source_name
+            return self._finalize_editor_source(name, editor)
+        if data == "stub":
+            return self._create_stub_and_link(source_name, editor, contractors)
+        if data == "raw":
+            return self._finalize_editor_source(source_name, editor)
         return respond([msg("Неизвестное действие.")])
 
     def menu_callback(self, payload: Payload, ctx: InteractContext) -> dict:
@@ -617,13 +633,49 @@ class ContractorHandlers:
         return respond([msg("Данные обновлены.")], fsm_state=None)
 
     def _add_editor_source(self, source_name, contractor):
+        contractors = load_all_contractors()
+        matches = fuzzy_find(source_name, contractors, threshold=0.6)
+        if matches:
+            return self._suggest_source_contractors(matches, source_name, contractor)
+        return self._offer_stub_or_raw(source_name, contractor)
+
+    def _suggest_source_contractors(self, matches, source_name, editor):
+        buttons = []
+        for c, _ in matches[:5]:
+            label = f"{c.display_name} (заглушка)" if c.is_stub else c.display_name
+            buttons.append([{"text": label, "data": f"esrc:link:{c.id}"}])
+        buttons.append([{"text": "Создать заглушку", "data": "esrc:stub"}])
+        buttons.append([{"text": "Добавить как есть", "data": "esrc:raw"}])
+        return respond(
+            [msg(f"Найдены похожие контрагенты для «{source_name}»:", keyboard=buttons)],
+            fsm_data={"editor_id": editor.id, "pending_source_name": source_name},
+        )
+
+    def _offer_stub_or_raw(self, source_name, editor):
+        buttons = [
+            [{"text": "Создать заглушку", "data": "esrc:stub"}],
+            [{"text": "Добавить как есть", "data": "esrc:raw"}],
+        ]
+        return respond(
+            [msg(f"Контрагент «{source_name}» не найден.", keyboard=buttons)],
+            fsm_data={"editor_id": editor.id, "pending_source_name": source_name},
+        )
+
+    def _create_stub_and_link(self, source_name, editor, contractors=None):
+        if contractors is None:
+            contractors = load_all_contractors()
+        ContractorFactory().create_stub(source_name, contractors)
+        return self._finalize_editor_source(source_name, editor)
+
+    def _finalize_editor_source(self, source_name, editor):
         month = prev_month()
-        add_redirect_rule(source_name, contractor.id)
-        delete_invoice(contractor.id, month)
-        redirect_in_budget(source_name, contractor, month)
-        rules = find_redirect_rules_by_target(contractor.id)
+        add_redirect_rule(source_name, editor.id)
+        delete_invoice(editor.id, month)
+        redirect_in_budget(source_name, editor, month)
+        rules = find_redirect_rules_by_target(editor.id)
         text, keyboard = self._editor_keyboard(rules)
-        return respond([msg(f"Автор «{source_name}» добавлен."), msg(text, keyboard=keyboard)], fsm_state=None)
+        return respond([msg(f"Автор «{source_name}» добавлен."),
+                        msg(text, keyboard=keyboard)], fsm_state=None)
 
     def _remove_editor_source(self, source_name, contractor):
         month = prev_month()

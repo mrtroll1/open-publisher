@@ -591,10 +591,10 @@ def _finalize_editor_source(self, source_name, editor):
 ```
 
 **Done when:**
-- [ ] Editor enters source name → fuzzy search runs, suggestions shown with buttons
-- [ ] "Создать заглушку" creates stub + adds redirect rule
-- [ ] "Добавить как есть" adds redirect rule with raw name
-- [ ] Clicking an existing contractor link adds redirect rule with source_name
+- [x] Editor enters source name → fuzzy search runs, suggestions shown with buttons
+- [x] "Создать заглушку" creates stub + adds redirect rule
+- [x] "Добавить как есть" adds redirect rule with raw name
+- [x] Clicking an existing contractor link adds redirect rule with source_name
 
 ---
 

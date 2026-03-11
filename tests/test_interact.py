@@ -926,6 +926,30 @@ def test_editor_source_name_no_match_offers_stub(mock_fuzzy, mock_find, *_):
 @patch("backend.interact.contractor.delete_invoice")
 @patch("backend.interact.contractor.add_redirect_rule")
 @patch("backend.interact.contractor.find_redirect_rules_by_target", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_id")
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_esrc_callback_link_uses_linked_contractor(mock_find, _, mock_find_by_id, *__):
+    c = MagicMock()
+    c.id = "c1"
+    mock_find.return_value = c
+
+    linked = MagicMock()
+    linked.display_name = "Linked Author"
+    mock_find_by_id.return_value = linked
+
+    ctx = {"user_id": 42, "fsm_data": {"pending_source_name": "Original Name", "editor_id": "c1"}}
+    result = handle("esrc_callback", {"callback_data": "esrc:link:c99"}, ctx)
+
+    assert result.get("fsm_state") is None
+    assert "добавлен" in result["messages"][0]["text"].lower()
+    assert "Linked Author" in result["messages"][0]["text"]
+
+
+@patch("backend.interact.contractor.redirect_in_budget")
+@patch("backend.interact.contractor.delete_invoice")
+@patch("backend.interact.contractor.add_redirect_rule")
+@patch("backend.interact.contractor.find_redirect_rules_by_target", return_value=[])
 @patch("backend.interact.contractor.ContractorFactory")
 @patch("backend.interact.contractor.load_all_contractors", return_value=[])
 @patch("backend.interact.contractor.find_contractor_by_telegram_id")

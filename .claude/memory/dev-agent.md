@@ -67,6 +67,12 @@
 - All 197 tests pass, ruff clean
 - **Plan 13 is COMPLETE.** All phases (1-7) fully implemented and tested.
 
+### Session 7 (maintenance — tests + bug fix)
+- Added missing test `test_esrc_callback_link_uses_linked_contractor` in `test_interact.py` — verifies link: path uses linked contractor's display_name
+- Found and fixed bug: `_find_contractor_in_sheets` in `contractor_repo.py` didn't search stub sheet, breaking `bind_telegram_id` for stubs
+- Linter resolved "Missing tests for esrc_callback link: and stub: paths" debt item
+- All 198 tests pass, ruff clean
+
 ## Known issues
 
 _None._

@@ -220,7 +220,7 @@ def find_contractor_by_telegram_id(telegram_id: int, contractors: list[Contracto
 
 def _find_contractor_in_sheets(contractor_id: str) -> tuple[str, list[list[str]], int] | None:
     """Find which sheet a contractor lives in. Returns (sheet_name, rows, row_idx) or None."""
-    for sheet_name in SHEET_CONFIG:
+    for sheet_name in [*SHEET_CONFIG, STUB_SHEET]:
         range_name = _sheet_range(sheet_name)
         rows = _sheets.read(CONTRACTORS_SHEET_ID, range_name)
         if not rows:

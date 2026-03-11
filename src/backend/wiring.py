@@ -20,6 +20,7 @@ from backend.brain.tools import (
     make_budget_tool,
     make_cloudflare_tool,
     make_code_tool,
+    make_contractors_tool,
     make_goals_tool,
     make_health_tool,
     make_invoice_tool,
@@ -194,6 +195,7 @@ def _register_core_tools(genai, memory, retriever, gemini, db) -> None:
     register_tool(make_health_tool())
     register_tool(make_permissions_tool(db))
     register_tool(make_goals_tool(db, gemini))
+    register_tool(make_contractors_tool())
 
 
 def _register_domain_tools(query_db_map) -> None:

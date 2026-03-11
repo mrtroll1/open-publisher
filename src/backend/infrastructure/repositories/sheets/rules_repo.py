@@ -41,6 +41,7 @@ class ArticleRateRule:
 
 
 _REDIRECT_RANGE = "'payment_redirect_rules'!A:Z"
+_ARTICLE_RATE_RANGE = "'per_article_rate_rules'!A:Z"
 
 
 def load_redirect_rules() -> list[RedirectRule]:
@@ -110,9 +111,35 @@ def load_flat_rate_rules() -> list[FlatRateRule]:
     return rules
 
 
+def upsert_article_rate_rule(contractor_id: str, eur: int = 0, rub: int = 0) -> None:
+    """Set or update per-article rate for a contractor."""
+    raw_rows = _sheets.read(SPECIAL_RULES_SHEET_ID, _ARTICLE_RATE_RANGE)
+    if len(raw_rows) < 2:
+        _sheets.append(SPECIAL_RULES_SHEET_ID, _ARTICLE_RATE_RANGE,
+                       [[contractor_id, str(eur), str(rub)]])
+        return
+    for i, row in enumerate(raw_rows[1:], start=2):
+        cid = (row[0] if len(row) > 0 else "").strip()
+        if cid == contractor_id:
+            _sheets.write(SPECIAL_RULES_SHEET_ID,
+                          f"'per_article_rate_rules'!A{i}:C{i}",
+                          [[contractor_id, str(eur), str(rub)]])
+            return
+    _sheets.append(SPECIAL_RULES_SHEET_ID, _ARTICLE_RATE_RANGE,
+                   [[contractor_id, str(eur), str(rub)]])
+
+
+def get_article_rate_rule(contractor_id: str) -> ArticleRateRule | None:
+    """Get per-article rate for a specific contractor."""
+    for rule in load_article_rate_rules():
+        if rule.contractor_id == contractor_id:
+            return rule
+    return None
+
+
 def load_article_rate_rules() -> list[ArticleRateRule]:
     """Read per_article_rate_rules sheet."""
-    rows = _sheets.read_as_dicts(SPECIAL_RULES_SHEET_ID, "'per_article_rate_rules'!A:Z")
+    rows = _sheets.read_as_dicts(SPECIAL_RULES_SHEET_ID, _ARTICLE_RATE_RANGE)
     rules: list[ArticleRateRule] = []
     for r in rows:
         cid = r.get("contractor_id", "").strip()

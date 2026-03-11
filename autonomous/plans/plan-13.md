@@ -661,8 +661,8 @@ def get_article_rate_rule(contractor_id: str) -> ArticleRateRule | None:
 ```
 
 **Done when:**
-- [ ] `upsert_article_rate_rule("c001", eur=150)` creates or updates the row
-- [ ] `get_article_rate_rule("c001")` returns the rule
+- [x] `upsert_article_rate_rule("c001", eur=150)` creates or updates the row
+- [x] `get_article_rate_rule("c001")` returns the rule
 
 ---
 
@@ -818,8 +818,8 @@ def make_contractors_tool(gemini: GeminiGateway) -> Tool:
 ```
 
 **Done when:**
-- [ ] All 5 actions work correctly
-- [ ] Tool is conversational and nl_routable
+- [x] All 5 actions work correctly
+- [x] Tool is conversational and nl_routable
 
 ---
 
@@ -841,8 +841,8 @@ register_tool(make_contractors_tool(gemini))
 ```
 
 **Done when:**
-- [ ] `contractors` appears in `TOOLS` dict at startup
-- [ ] Authorized for admin+editor in editor_dm and admin_dm via tool_permissions
+- [x] `contractors` appears in `TOOLS` dict at startup
+- [x] Authorized for admin+editor in editor_dm and admin_dm via tool_permissions
 
 ---
 

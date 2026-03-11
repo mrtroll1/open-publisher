@@ -42,7 +42,17 @@
 - Linter: fixed triple `load_all_contractors()` call in esrc_callback path (each hits Google Sheets API)
 - Linter logged 4 moderate debt items (#16-#19)
 - All 182 tests pass, ruff clean
-- Phases 1-4 and 6.1 complete. Next: Phase 5 (NL contractor operations) or Phase 6 (remaining tests)
+- Phases 1-4, 5.1-5.4, and 6.1 complete. Next: Phase 5.5 (admin DM NL routing) or Phase 6 (remaining tests)
+
+### Session 5 (plan-13, Phase 5.1-5.4)
+- Created migration 008: `editor_dm` environment + `contractors` tool permissions for admin+editor
+- Added `upsert_article_rate_rule` and `get_article_rate_rule` to `rules_repo.py`
+- Created `src/backend/brain/tools/contractors.py` with 5 actions: lookup, create_stub, add_redirect, set_rate, get_rate
+- Registered tool in `tools/__init__.py` and `wiring.py`
+- Supervisor: removed unused `gemini` parameter from `make_contractors_tool()` (tool doesn't need Gemini directly)
+- Linter: fixed `load_article_rate_rules` to use `_ARTICLE_RATE_RANGE` constant instead of hardcoded string
+- Linter logged 6 moderate debt items (repeated `load_all_contractors()` calls in tool actions, missing tests)
+- All 182 tests pass, ruff clean
 
 ## Known issues
 

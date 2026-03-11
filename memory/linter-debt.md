@@ -61,3 +61,27 @@
 
 15. **`ContractorHandlers` now ~660 lines** (`interact/contractor.py`)
     Continues to grow (see item 9). The type-change flow adds another public handler + private helper. The class now has 15 public handlers — well past the "a few publics max" threshold.
+
+## 2026-03-12 — Contractors tool & article rate rules audit
+
+### Moderate
+
+16. **`contractors.py` actions each call `load_all_contractors()` independently** (`brain/tools/contractors.py:27,43,57,73,85`)
+    Every action function loads all contractors from the Google Sheet. The dispatch function (`fn`) could load once and pass the list to each action, like `goals.py` passes `db` and `gemini`. This avoids 1 redundant sheet API call per invocation and makes the dependency explicit.
+
+17. **Sheet name duplicated between range constant and row-level writes** (`rules_repo.py`)
+    `_ARTICLE_RATE_RANGE` defines `"'per_article_rate_rules'!A:Z"` but `upsert_article_rate_rule` hardcodes `f"'per_article_rate_rules'!A{i}:C{i}"`. Same pre-existing pattern in `remove_redirect_rule` with `_REDIRECT_RANGE`. Extract a helper like `_row_range(sheet_name, row, cols)` or at minimum derive the sheet prefix from the constant.
+
+18. **No tests for `make_contractors_tool` or its actions** (`brain/tools/contractors.py`)
+    Five public actions (`lookup`, `create_stub`, `add_redirect`, `set_rate`, `get_rate`) with no test coverage. The tool touches sheets and contractor factory — at minimum mock-based tests for the dispatch and error paths.
+
+19. **No tests for `upsert_article_rate_rule` or `get_article_rate_rule`** (`rules_repo.py`)
+    Two new public functions with no test coverage. `upsert` has branching logic (empty sheet, existing row, new row) that warrants unit tests.
+
+### Minor
+
+20. **`_ctx` unused in contractors tool dispatch** (`brain/tools/contractors.py:105`)
+    The context is ignored — none of the actions use it. This is fine for now since the tool relies on DB-level permissions, but if any action needs user context later, the plumbing is already there.
+
+21. **Migration 008 `ON CONFLICT DO NOTHING` is safe but silent** (`migrations/008_editor_dm_environment.sql:12`)
+    If the `tool_permissions` rows already exist with *different* `allowed_roles`, the migration silently keeps the old values. This matches migration 006's pattern but could mask permission drift. Acceptable for seed data.

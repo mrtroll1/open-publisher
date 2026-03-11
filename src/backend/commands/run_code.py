@@ -9,9 +9,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
-from backend.brain.base_controller import BaseUseCase
 from backend.config import REPOS_DIR
 
 logger = logging.getLogger(__name__)
@@ -255,6 +253,3 @@ class _StreamParser:
         return CodeResult(text="(пустой ответ от Claude Code)", session_id=self.session_id)
 
 
-class RunClaudeCodeUseCase(BaseUseCase):
-    def execute(self, prepared: Any, _env: dict, _user: dict) -> Any:
-        return run_claude_code(**prepared)

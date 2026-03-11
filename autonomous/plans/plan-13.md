@@ -993,16 +993,16 @@ Add to "Conversational Tools" list:
 ### 7.2 Update `autonomous/dev/external-todo.md`
 
 ```markdown
-## Contractor Operations Overhaul (Plan 13)
+<!-- ## Contractor Operations Overhaul (Plan 13)
 
-- [ ] Create "stub" tab in the contractors Google Sheet with header: `id | name | aliases | role_code | telegram | secret_code`
-- [ ] Deploy migration 008 (editor_dm environment + contractors tool permissions)
-- [ ] Bind editor DM chats to `editor_dm` environment via API
-- [ ] Create editor users with role `editor` so Authorizer grants correct tools
-- [ ] Test self-registration with improved matching threshold (0.6)
-- [ ] Test type change flow end-to-end: samozanyaty → global
-- [ ] Test stub claim flow: admin creates stub → author starts bot → matches → verifies → fills data
-- [ ] Test NL contractor operations in admin DM
+- Create "stub" tab in the contractors Google Sheet with header: `id | name | aliases | role_code | telegram | secret_code`
+- Deploy migration 008 (editor_dm environment + contractors tool permissions)
+- Bind editor DM chats to `editor_dm` environment via API
+- Create editor users with role `editor` so Authorizer grants correct tools
+- Test self-registration with improved matching threshold (0.6)
+- Test type change flow end-to-end: samozanyaty → global
+- Test stub claim flow: admin creates stub → author starts bot → matches → verifies → fills data
+- Test NL contractor operations in admin DM -->
 ```
 
 ---

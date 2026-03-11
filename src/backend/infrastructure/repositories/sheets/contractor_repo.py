@@ -112,6 +112,23 @@ def _similarity(a: str, b: str) -> float:
     return SequenceMatcher(None, a.lower().strip(), b.lower().strip()).ratio()
 
 
+def _normalize_words(text: str) -> set[str]:
+    """Split into lowercase words."""
+    return {w.strip() for w in text.lower().split() if w.strip()}
+
+
+def _word_independent_score(query: str, name: str) -> float:
+    """Score based on word overlap regardless of order."""
+    q_words = _normalize_words(query)
+    n_words = _normalize_words(name)
+    if not q_words or not n_words:
+        return 0.0
+    overlap = q_words & n_words
+    if not overlap:
+        return 0.0
+    return len(overlap) / max(len(q_words), len(n_words))
+
+
 def fuzzy_find(
     query: str, contractors: list[Contractor], threshold: float = 0.8
 ) -> list[tuple[Contractor, float]]:
@@ -126,7 +143,9 @@ def fuzzy_find(
             if query_lower in name_lower or name_lower in query_lower:
                 score = 0.95
             else:
-                score = _similarity(query_lower, name_lower)
+                seq_score = _similarity(query_lower, name_lower)
+                word_score = _word_independent_score(query_lower, name_lower)
+                score = max(seq_score, word_score)
             best_score = max(best_score, score)
         if best_score >= threshold:
             results.append((c, best_score))

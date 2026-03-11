@@ -104,7 +104,7 @@ class ContractorHandlers:
         if contractor:
             return self._menu_response(contractor)
         query = payload.get("text", "").strip()
-        matches = fuzzy_find(query, contractors, threshold=0.8)
+        matches = fuzzy_find(query, contractors, threshold=0.6)
         if matches:
             return self._suggest_duplicates(matches, query)
         return self._start_registration(query)

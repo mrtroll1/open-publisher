@@ -49,9 +49,9 @@ for name in c.all_names:
 ```
 
 **Done when:**
-- [ ] `fuzzy_find("Иванов Петр", [...])` matches contractor named "Петр Иванов" with score >= 0.8
-- [ ] `fuzzy_find("John Smith", [...])` matches "Smith John" with score >= 0.8
-- [ ] Existing substring matching and SequenceMatcher still work
+- [x] `fuzzy_find("Иванов Петр", [...])` matches contractor named "Петр Иванов" with score >= 0.8
+- [x] `fuzzy_find("John Smith", [...])` matches "Smith John" with score >= 0.8
+- [x] Existing substring matching and SequenceMatcher still work
 
 ---
 
@@ -69,8 +69,8 @@ matches = fuzzy_find(query, contractors, threshold=0.6)
 ```
 
 **Done when:**
-- [ ] `free_text` with a loose match (score 0.65) shows suggestions instead of starting registration
-- [ ] Very poor matches (score < 0.6) still go to registration
+- [x] `free_text` with a loose match (score 0.65) shows suggestions instead of starting registration
+- [x] Very poor matches (score < 0.6) still go to registration
 
 ---
 
@@ -921,12 +921,12 @@ def _make_contractor(name):
     return c
 ```
 
-- [ ] `test_word_order_ru` — `fuzzy_find("Иванов Петр", [_make_contractor("Петр Иванов")])` returns match >= 0.8
-- [ ] `test_word_order_en` — `fuzzy_find("Smith John", [_make_contractor("John Smith")])` returns match >= 0.8
-- [ ] `test_substring_still_works` — `fuzzy_find("Иван", [_make_contractor("Иванов")])` returns match 0.95
-- [ ] `test_threshold_respected` — `fuzzy_find("xyz", [_make_contractor("Петр Иванов")], threshold=0.9)` returns empty
-- [ ] `test_low_threshold_catches_loose` — `fuzzy_find("Иван", [_make_contractor("Иванов Петр Сергеевич")], threshold=0.6)` returns match
-- [ ] `test_word_independent_score_basic` — `_word_independent_score("Петр Иванов", "Иванов Петр")` returns 1.0
+- [x] `test_word_order_ru` — `fuzzy_find("Иванов Петр", [_make_contractor("Петр Иванов")])` returns match >= 0.8
+- [x] `test_word_order_en` — `fuzzy_find("Smith John", [_make_contractor("John Smith")])` returns match >= 0.8
+- [x] `test_substring_still_works` — `fuzzy_find("Иван", [_make_contractor("Иванов")])` returns match 0.95
+- [x] `test_threshold_respected` — `fuzzy_find("xyz", [_make_contractor("Петр Иванов")], threshold=0.9)` returns empty
+- [x] `test_low_threshold_catches_loose` — `fuzzy_find("Иван", [_make_contractor("Иванов Петр Сергеевич")], threshold=0.6)` returns match
+- [x] `test_word_independent_score_basic` — `_word_independent_score("Петр Иванов", "Иванов Петр")` returns 1.0
 
 ---
 

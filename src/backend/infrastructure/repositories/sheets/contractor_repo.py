@@ -17,6 +17,7 @@ from backend.models import (
     ContractorType,
     Currency,
     RoleCode,
+    StubContractor,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,8 @@ SHEET_CONFIG: dict[str, tuple[ContractorType, Currency]] = {
     "ИП": (ContractorType.IP, Currency.RUB),
     "самозанятый": (ContractorType.SAMOZANYATY, Currency.RUB),
 }
+
+STUB_SHEET = "stub"
 
 # Reverse lookup: ContractorType -> sheet name
 SHEET_NAME_BY_TYPE: dict[ContractorType, str] = {
@@ -94,8 +97,28 @@ def _parse_contractor(
         return None
 
 
+def _parse_stub(row: dict[str, str]) -> StubContractor | None:
+    role_code, is_photographer = _parse_role(row.get("role_code", "A"))
+    try:
+        return StubContractor(
+            id=row.get("id", ""),
+            name=row.get("name", ""),
+            aliases=_parse_aliases(row.get("aliases", "")),
+            role_code=role_code,
+            is_photographer=is_photographer,
+            email="",
+            bank_name="",
+            bank_account="",
+            telegram=row.get("telegram", ""),
+            secret_code=row.get("secret_code", ""),
+        )
+    except ValidationError as e:
+        logger.warning("Skipping stub %s: %s", row.get("id", "???"), e)
+        return None
+
+
 def load_all_contractors() -> list[Contractor]:
-    """Load all contractors from all three sheets."""
+    """Load all contractors from all typed sheets + stub sheet."""
     contractors: list[Contractor] = []
     for sheet_name, (ctype, _currency) in SHEET_CONFIG.items():
         rows = _sheets.read_as_dicts(CONTRACTORS_SHEET_ID, _sheet_range(sheet_name))
@@ -104,6 +127,12 @@ def load_all_contractors() -> list[Contractor]:
                 c = _parse_contractor(r, ctype)
                 if c is not None:
                     contractors.append(c)
+    # Load stubs
+    for r in _sheets.read_as_dicts(CONTRACTORS_SHEET_ID, _sheet_range(STUB_SHEET)):
+        if r.get("id"):
+            s = _parse_stub(r)
+            if s is not None:
+                contractors.append(s)
     return contractors
 
 
@@ -246,6 +275,27 @@ def save_contractor(c: Contractor) -> None:
     sheet_name = SHEET_NAME_BY_TYPE[c.type]
     _sheets.append(CONTRACTORS_SHEET_ID, _sheet_range(sheet_name), [contractor_to_row(c)])
     logger.info("Saved contractor %s (%s) to sheet '%s'", c.id, c.display_name, sheet_name)
+
+
+def save_stub(c: StubContractor) -> None:
+    """Append a stub contractor to the stub sheet."""
+    _sheets.append(CONTRACTORS_SHEET_ID, _sheet_range(STUB_SHEET), [contractor_to_row(c)])
+    logger.info("Saved stub %s (%s) to sheet '%s'", c.id, c.display_name, STUB_SHEET)
+
+
+def delete_contractor_from_sheet(contractor_id: str) -> bool:
+    """Delete a contractor row from any sheet (typed or stub). Returns True if found."""
+    all_sheets = [*SHEET_CONFIG, STUB_SHEET]
+    for sheet_name in all_sheets:
+        rows = _sheets.read(CONTRACTORS_SHEET_ID, _sheet_range(sheet_name))
+        if not rows:
+            continue
+        for idx, row in enumerate(rows[1:], start=1):
+            if len(row) > 0 and row[0] == contractor_id:
+                _sheets.delete_row(CONTRACTORS_SHEET_ID, sheet_name, idx)
+                logger.info("Deleted contractor %s from sheet '%s'", contractor_id, sheet_name)
+                return True
+    return False
 
 
 def next_contractor_id(contractors: list[Contractor]) -> str:

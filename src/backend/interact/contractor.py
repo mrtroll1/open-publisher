@@ -114,11 +114,15 @@ class ContractorHandlers:
         ctype = self._TYPE_MAP.get(text.lower())
         if not ctype:
             return respond([msg("Пожалуйста, выберите 1, 2 или 3.")])
-        alias = ctx.get("fsm_data", {}).get("alias", "")
+        prev_fsm = ctx.get("fsm_data", {})
+        alias = prev_fsm.get("alias", "")
+        fsm_data = {"contractor_type": ctype.value,
+                    "collected_data": {"aliases": [alias]} if alias else {}}
+        if prev_fsm.get("claiming_stub_id"):
+            fsm_data["claiming_stub_id"] = prev_fsm["claiming_stub_id"]
         return respond(
             [msg(self._DATA_PROMPTS[ctype])], fsm_state="waiting_data",
-            fsm_data={"contractor_type": ctype.value,
-                      "collected_data": {"aliases": [alias]} if alias else {}},
+            fsm_data=fsm_data,
         )
 
     def data_input(self, payload: Payload, ctx: InteractContext) -> dict:
@@ -434,10 +438,20 @@ class ContractorHandlers:
         self._maybe_add_russian_alias(collected, ctype)
         telegram_id = str(ctx["user_id"])
         contractors = load_all_contractors()
-        contractor, secret_code = ContractorFactory().create(collected, ctype, telegram_id, contractors)
+        fsm_data = ctx.get("fsm_data", {})
+        claiming_stub_id = fsm_data.get("claiming_stub_id")
+        if claiming_stub_id:
+            contractor, secret_code = self._upgrade_stub(
+                claiming_stub_id, collected, ctype, telegram_id, contractors)
+        else:
+            contractor, secret_code = ContractorFactory().create(collected, ctype, telegram_id, contractors)
         sides = self._admin_registration_notify(collected, ctype, raw_text, ctx.get("admin_ids", []))
         messages = [self._registration_complete_msg(cls, collected, secret_code)]
         return self._try_invoice_after_registration(contractor, messages, sides)
+
+    def _upgrade_stub(self, stub_id, collected, ctype, telegram_id, contractors):
+        return ContractorFactory().upgrade_from_stub(
+            stub_id, collected, ctype, telegram_id, contractors)
 
     def _maybe_add_russian_alias(self, collected, ctype):
         if ctype != ContractorType.GLOBAL:
@@ -487,6 +501,12 @@ class ContractorHandlers:
         sides = [side_msg(admin_id,
                           text=f"Контрагент {contractor.display_name} привязался к Telegram.")
                  for admin_id in ctx.get("admin_ids", [])]
+        if contractor.is_stub:
+            return respond([
+                msg(f"Отлично! Вы привязаны как {contractor.display_name}."),
+                self._type_selection_prompt(),
+            ], side_messages=sides, fsm_state="waiting_type",
+               fsm_data={"alias": contractor.display_name, "claiming_stub_id": contractor.id})
         return respond([
             msg(f"Отлично! Вы привязаны как {contractor.display_name}."),
             msg("Что хотите сделать?", keyboard=self._menu_keyboard(contractor)),

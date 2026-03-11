@@ -138,8 +138,8 @@ AnyContractor = GlobalContractor | IPContractor | SamozanyatyContractor | StubCo
 Do NOT add `StubContractor` to `CONTRACTOR_CLASS_BY_TYPE` — stubs are created/loaded separately.
 
 **Done when:**
-- [ ] `StubContractor(id="c099", name="Test", aliases=[], role_code=RoleCode.AUTHOR, email="", bank_name="", bank_account="", telegram="", secret_code="abc")` creates successfully
-- [ ] `StubContractor.is_stub` returns `True`, `GlobalContractor.is_stub` returns `False`
+- [x] `StubContractor(id="c099", name="Test", aliases=[], role_code=RoleCode.AUTHOR, email="", bank_name="", bank_account="", telegram="", secret_code="abc")` creates successfully
+- [x] `StubContractor.is_stub` returns `True`, `GlobalContractor.is_stub` returns `False`
 
 ---
 
@@ -227,10 +227,10 @@ id | name | aliases | role_code | telegram | secret_code
 ```
 
 **Done when:**
-- [ ] `load_all_contractors()` includes stubs
-- [ ] `save_stub(stub)` appends to stub sheet
-- [ ] `delete_contractor_from_sheet(id)` removes from correct sheet (typed or stub)
-- [ ] `fuzzy_find` works on stubs since they have `all_names`
+- [x] `load_all_contractors()` includes stubs
+- [x] `save_stub(stub)` appends to stub sheet
+- [x] `delete_contractor_from_sheet(id)` removes from correct sheet (typed or stub)
+- [x] `fuzzy_find` works on stubs since they have `all_names`
 
 ---
 
@@ -259,7 +259,7 @@ def create_stub(self, name: str, contractors: list) -> tuple:
 ```
 
 **Done when:**
-- [ ] `ContractorFactory().create_stub("Test Author", contractors)` saves to stub sheet, returns `(StubContractor, secret_code)`
+- [x] `ContractorFactory().create_stub("Test Author", contractors)` saves to stub sheet, returns `(StubContractor, secret_code)`
 
 ---
 
@@ -345,10 +345,10 @@ def _upgrade_stub(self, stub_id, collected, ctype, telegram_id, contractors):
 ```
 
 **Done when:**
-- [ ] Stub contractor passes verification → sees type selection (not menu)
-- [ ] After data entry → stub deleted from stub sheet, full contractor created in typed sheet
-- [ ] Contractor id and secret_code preserved from stub
-- [ ] Non-stub contractors still bind normally and see menu
+- [x] Stub contractor passes verification → sees type selection (not menu)
+- [x] After data entry → stub deleted from stub sheet, full contractor created in typed sheet
+- [x] Contractor id and secret_code preserved from stub
+- [x] Non-stub contractors still bind normally and see menu
 
 ---
 

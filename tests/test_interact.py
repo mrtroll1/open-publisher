@@ -138,6 +138,7 @@ def test_verification_correct_code_binds(mock_bind, mock_find, *_):
     c.secret_code = "ABC123"
     c.display_name = "Test"
     c.role_code = RoleCode.AUTHOR
+    c.is_stub = False
     mock_find.return_value = c
 
     ctx: InteractContext = {

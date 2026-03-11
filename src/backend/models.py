@@ -16,6 +16,7 @@ class ContractorType(StrEnum):
     SAMOZANYATY = "самозанятый"
     IP = "ИП"
     GLOBAL = "global"
+    STUB = "stub"
 
 
 class Currency(StrEnum):
@@ -98,6 +99,10 @@ class Contractor(BaseModel):
     @property
     def all_names(self) -> list[str]:
         return list(self.aliases)
+
+    @property
+    def is_stub(self) -> bool:
+        return False
 
     @classmethod
     def required_fields(cls) -> dict[str, str]:
@@ -269,7 +274,44 @@ class SamozanyatyContractor(Contractor):
         return names
 
 
-AnyContractor = GlobalContractor | IPContractor | SamozanyatyContractor
+class StubContractor(Contractor):
+    """Name-only placeholder that cannot receive invoices."""
+    name: str = ""
+
+    SHEET_COLUMNS: ClassVar[list[str]] = [
+        "id", "name", "aliases", "role_code", "telegram", "secret_code",
+    ]
+
+    FIELD_META: ClassVar[dict[str, FieldMeta]] = {
+        "name": FieldMeta("имя", required=True),
+    }
+
+    @property
+    def type(self) -> ContractorType:
+        return ContractorType.STUB
+
+    @property
+    def currency(self) -> Currency:
+        raise NotImplementedError("Stub contractors have no currency")
+
+    @property
+    def display_name(self) -> str:
+        return self.name or self.id
+
+    @property
+    def all_names(self) -> list[str]:
+        names = []
+        if self.name:
+            names.append(self.name)
+        names.extend(self.aliases)
+        return names
+
+    @property
+    def is_stub(self) -> bool:
+        return True
+
+
+AnyContractor = GlobalContractor | IPContractor | SamozanyatyContractor | StubContractor
 
 # Map ContractorType enum → subclass for construction
 CONTRACTOR_CLASS_BY_TYPE: dict[ContractorType, type[Contractor]] = {

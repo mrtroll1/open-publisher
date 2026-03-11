@@ -54,6 +54,19 @@
 - Linter logged 6 moderate debt items (repeated `load_all_contractors()` calls in tool actions, missing tests)
 - All 182 tests pass, ruff clean
 
+### Session 6 (plan-13, Phase 5.5 + 6.2-6.5 + 7)
+- Added admin DM NL routing in `router.py`: admin free text in DM now goes through Brain NL (contractors tool available)
+- Routing priority preserved: commands > admin reply-to > FSM > admin NL > contractor catch-all
+- Added 11 new tests in `test_interact.py` (stub verification, type change, redirect source, esrc callbacks)
+- Created `tests/test_contractors_tool.py` with 8 tests for all 5 tool actions
+- Updated `docs/diagrams/brain-flows.md` with contractors tool
+- Updated `autonomous/dev/external-todo.md` with Plan 13 deployment checklist
+- Supervisor: removed unused `state` parameter from `_route_admin_dm_nl`
+- Linter: promoted `_stream_with_thinking`/`_dispatch_nl_result` to public API in conversation_handlers.py, removed duplicate test
+- Linter logged 3 moderate debt items (#22-#24)
+- All 197 tests pass, ruff clean
+- **Plan 13 is COMPLETE.** All phases (1-7) fully implemented and tested.
+
 ## Known issues
 
 _None._

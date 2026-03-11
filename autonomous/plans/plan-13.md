@@ -890,11 +890,11 @@ async def _route_admin_dm_nl(message: types.Message, state: FSMContext, text: st
 **Important:** The `environment_id` used by Brain is derived from `chat_id`. Admin DM chats should be bound to `admin_dm` (existing) or `editor_dm` (new). The `Authorizer` resolves environment from chat binding and filters tools by role.
 
 **Done when:**
-- [ ] Admin sends free text in DM → goes through Brain NL (contractors tool available)
-- [ ] Admin sends `/generate Test` → still goes through slash command (line 382-383)
-- [ ] Contractor sends free text → still goes through contractor flow
-- [ ] Admin reply-to still works (line 385-387)
-- [ ] FSM states still work for admins (line 388-391)
+- [x] Admin sends free text in DM → goes through Brain NL (contractors tool available)
+- [x] Admin sends `/generate Test` → still goes through slash command (line 382-383)
+- [x] Contractor sends free text → still goes through contractor flow
+- [x] Admin reply-to still works (line 385-387)
+- [x] FSM states still work for admins (line 388-391)
 
 ---
 
@@ -934,8 +934,8 @@ def _make_contractor(name):
 
 **File:** `tests/test_interact.py` (append)
 
-- [ ] `test_stub_verification_starts_type_selection` — mock stub contractor with `is_stub=True`, verify after correct code: `fsm_state="waiting_type"` and `claiming_stub_id` in fsm_data
-- [ ] `test_non_stub_verification_goes_to_menu` — mock normal contractor, verify `fsm_state=None` and keyboard present (already covered by `test_verification_correct_code_binds`, but add `is_stub=False` explicitly)
+- [x] `test_stub_verification_starts_type_selection` — mock stub contractor with `is_stub=True`, verify after correct code: `fsm_state="waiting_type"` and `claiming_stub_id` in fsm_data
+- [x] `test_non_stub_verification_goes_to_menu` — mock normal contractor, verify `fsm_state=None` and keyboard present (already covered by `test_verification_correct_code_binds`, but add `is_stub=False` explicitly)
 
 ---
 
@@ -943,8 +943,8 @@ def _make_contractor(name):
 
 **File:** `tests/test_interact.py` (append)
 
-- [ ] `test_change_type_from_menu` — mock contractor, call `menu_callback` with `"menu:change_type"`, verify `fsm_state="waiting_type"` and `changing_type_id` in fsm_data
-- [ ] `test_change_type_stub_rejected` — mock stub contractor, call `change_type`, verify error message
+- [x] `test_change_type_from_menu` — mock contractor, call `menu_callback` with `"menu:change_type"`, verify `fsm_state="waiting_type"` and `changing_type_id` in fsm_data
+- [x] `test_change_type_stub_rejected` — mock stub contractor, call `change_type`, verify error message
 
 ---
 
@@ -952,10 +952,10 @@ def _make_contractor(name):
 
 **File:** `tests/test_interact.py` (append)
 
-- [ ] `test_editor_source_name_shows_suggestions` — mock `fuzzy_find` to return matches, verify keyboard with `esrc:link:` buttons and `esrc:stub` button
-- [ ] `test_editor_source_name_no_match_offers_stub` — mock `fuzzy_find` returning empty, verify keyboard with `esrc:stub` and `esrc:raw` buttons
-- [ ] `test_esrc_callback_raw_adds_rule` — mock `add_redirect_rule`, callback `esrc:raw` with `pending_source_name` in fsm_data, verify redirect added
-- [ ] `test_esrc_callback_stub_creates_and_links` — mock `ContractorFactory.create_stub` + `add_redirect_rule`, callback `esrc:stub`, verify both called
+- [x] `test_editor_source_name_shows_suggestions` — mock `fuzzy_find` to return matches, verify keyboard with `esrc:link:` buttons and `esrc:stub` button
+- [x] `test_editor_source_name_no_match_offers_stub` — mock `fuzzy_find` returning empty, verify keyboard with `esrc:stub` and `esrc:raw` buttons
+- [x] `test_esrc_callback_raw_adds_rule` — mock `add_redirect_rule`, callback `esrc:raw` with `pending_source_name` in fsm_data, verify redirect added (covered by existing test_esrc_callback_raw_adds_source)
+- [x] `test_esrc_callback_stub_creates_and_links` — mock `ContractorFactory.create_stub` + `add_redirect_rule`, callback `esrc:stub`, verify both called
 
 ---
 
@@ -963,14 +963,14 @@ def _make_contractor(name):
 
 **File:** `tests/test_contractors_tool.py`
 
-- [ ] `test_lookup_found` — mock `fuzzy_find` returning matches, verify `{"contractors": [...]}`
-- [ ] `test_lookup_not_found` — mock `fuzzy_find` returning empty, verify `{"suggestions": []}`
-- [ ] `test_create_stub_success` — mock `ContractorFactory.create_stub`, verify `{"created": {...}}`
-- [ ] `test_create_stub_duplicate` — mock `fuzzy_find` returning high match, verify `{"error": ...}`
-- [ ] `test_add_redirect` — mock `find_contractor` + `add_redirect_rule`, verify confirmation
-- [ ] `test_set_rate` — mock `find_contractor` + `upsert_article_rate_rule`, verify confirmation
-- [ ] `test_get_rate_exists` — mock `get_article_rate_rule` returning rule, verify eur/rub
-- [ ] `test_get_rate_missing` — mock returning None, verify message
+- [x] `test_lookup_found` — mock `fuzzy_find` returning matches, verify `{"contractors": [...]}`
+- [x] `test_lookup_not_found` — mock `fuzzy_find` returning empty, verify `{"suggestions": []}`
+- [x] `test_create_stub_success` — mock `ContractorFactory.create_stub`, verify `{"created": {...}}`
+- [x] `test_create_stub_duplicate` — mock `fuzzy_find` returning high match, verify `{"error": ...}`
+- [x] `test_add_redirect` — mock `find_contractor` + `add_redirect_rule`, verify confirmation
+- [x] `test_set_rate` — mock `find_contractor` + `upsert_article_rate_rule`, verify confirmation
+- [x] `test_get_rate_exists` — mock `get_article_rate_rule` returning rule, verify eur/rub
+- [x] `test_get_rate_missing` — mock returning None, verify message
 
 ---
 

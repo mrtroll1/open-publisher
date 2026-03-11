@@ -793,3 +793,149 @@ def test_admin_send_legium_no_pending(*_):
     result = handle("admin_send_legium", {"text": ""}, {"user_id": 1})
 
     assert "Нет неотправленных" in result["messages"][0]["text"]
+
+
+# ── Stub verification flow (6.2) ────────────────────────────────────
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_id")
+@patch("backend.interact.contractor.bind_telegram_id")
+def test_stub_verification_starts_type_selection(mock_bind, mock_find, *_):
+    c = MagicMock()
+    c.id = "c1"
+    c.secret_code = "ABC123"
+    c.display_name = "Stub Author"
+    c.role_code = RoleCode.AUTHOR
+    c.is_stub = True
+    mock_find.return_value = c
+
+    ctx: InteractContext = {
+        "user_id": 42,
+        "fsm_data": {"pending_contractor_id": "c1", "verification_attempts": 0},
+    }
+    result = handle("verification_code", {"text": "abc123"}, ctx)
+
+    assert result.get("fsm_state") == "waiting_type"
+    assert result["fsm_data"]["claiming_stub_id"] == "c1"
+    mock_bind.assert_called_once_with("c1", 42)
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_id")
+@patch("backend.interact.contractor.bind_telegram_id")
+def test_non_stub_verification_goes_to_menu(mock_bind, mock_find, *_):
+    c = MagicMock()
+    c.id = "c1"
+    c.secret_code = "ABC123"
+    c.display_name = "Real Author"
+    c.role_code = RoleCode.AUTHOR
+    c.is_stub = False
+    mock_find.return_value = c
+
+    ctx: InteractContext = {
+        "user_id": 42,
+        "fsm_data": {"pending_contractor_id": "c1", "verification_attempts": 0},
+    }
+    result = handle("verification_code", {"text": "abc123"}, ctx)
+
+    assert result.get("fsm_state") is None
+    assert any("keyboard" in m for m in result["messages"])
+    mock_bind.assert_called_once_with("c1", 42)
+
+
+# ── Type change (6.3) ───────────────────────────────────────────────
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_change_type_from_menu(mock_find, *_):
+    c = MagicMock()
+    c.id = "c1"
+    c.type = ContractorType.SAMOZANYATY
+    c.is_stub = False
+    c.role_code = RoleCode.AUTHOR
+    c.display_name = "Test"
+    mock_find.return_value = c
+
+    result = handle("menu_callback", {"callback_data": "menu:change_type"}, {"user_id": 42})
+
+    assert result.get("fsm_state") == "waiting_type"
+    assert result["fsm_data"]["changing_type_id"] == "c1"
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_change_type_stub_rejected(mock_find, *_):
+    c = MagicMock()
+    c.id = "c1"
+    c.is_stub = True
+    c.role_code = RoleCode.AUTHOR
+    mock_find.return_value = c
+
+    result = handle("menu_callback", {"callback_data": "menu:change_type"}, {"user_id": 42})
+
+    assert result.get("fsm_state") is None
+    assert "Заглушка" in result["messages"][0]["text"]
+
+
+# ── Redirect source lookup (6.4) ────────────────────────────────────
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+@patch("backend.interact.contractor.fuzzy_find")
+def test_editor_source_name_shows_suggestions(mock_fuzzy, mock_find, *_):
+    editor = MagicMock()
+    editor.id = "e1"
+    mock_find.return_value = editor
+    match = MagicMock()
+    match.id = "c1"
+    match.display_name = "Author X"
+    match.is_stub = False
+    mock_fuzzy.return_value = [(match, 0.8)]
+
+    result = handle("editor_source_name", {"text": "Author X"}, {"user_id": 42})
+
+    assert any("keyboard" in m for m in result["messages"])
+    keyboards = [m["keyboard"] for m in result["messages"] if "keyboard" in m]
+    flat = [btn["data"] for row in keyboards[0] for btn in row]
+    assert any(d.startswith("esrc:link:") for d in flat)
+    assert any(d == "esrc:stub" for d in flat)
+
+
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+@patch("backend.interact.contractor.fuzzy_find", return_value=[])
+def test_editor_source_name_no_match_offers_stub(mock_fuzzy, mock_find, *_):
+    editor = MagicMock()
+    editor.id = "e1"
+    mock_find.return_value = editor
+
+    result = handle("editor_source_name", {"text": "Unknown Author"}, {"user_id": 42})
+
+    assert any("keyboard" in m for m in result["messages"])
+    keyboards = [m["keyboard"] for m in result["messages"] if "keyboard" in m]
+    flat = [btn["data"] for row in keyboards[0] for btn in row]
+    assert any(d == "esrc:stub" for d in flat)
+    assert any(d == "esrc:raw" for d in flat)
+
+
+
+@patch("backend.interact.contractor.redirect_in_budget")
+@patch("backend.interact.contractor.delete_invoice")
+@patch("backend.interact.contractor.add_redirect_rule")
+@patch("backend.interact.contractor.find_redirect_rules_by_target", return_value=[])
+@patch("backend.interact.contractor.ContractorFactory")
+@patch("backend.interact.contractor.load_all_contractors", return_value=[])
+@patch("backend.interact.contractor.find_contractor_by_telegram_id")
+def test_esrc_callback_stub_creates_and_links(mock_find, _, mock_factory_cls, *__):
+    c = MagicMock()
+    c.id = "c1"
+    mock_find.return_value = c
+
+    ctx = {"user_id": 42, "fsm_data": {"pending_source_name": "Stub Author", "editor_id": "c1"}}
+    result = handle("esrc_callback", {"callback_data": "esrc:stub"}, ctx)
+
+    mock_factory_cls.return_value.create_stub.assert_called_once()
+    assert "добавлен" in result["messages"][0]["text"].lower()

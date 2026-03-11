@@ -42,7 +42,9 @@ __all__ = [
     "cmd_teach",
     "cmd_user",
     "cmd_users",
+    "dispatch_nl_result",
     "handle_kedit_reply",
+    "stream_with_thinking",
 ]
 
 
@@ -65,7 +67,7 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
     reply = message.reply_to_message
     thinking: ThinkingMessage | None = None
     try:
-        thinking, result = await _stream_with_thinking(message, thinking,
+        thinking, result = await stream_with_thinking(message, thinking,
             input=message.text, chat_id=message.chat.id,
             reply_to_message_id=reply.message_id, reply_to_text=reply.text or "")
         answer, parent_id, run_id = _extract_result_fields(result)
@@ -83,7 +85,7 @@ async def _handle_nl_reply(message: types.Message, state: FSMContext) -> bool:
         return False
 
 
-async def _stream_with_thinking(message, thinking, **kwargs):
+async def stream_with_thinking(message, thinking, **kwargs):
     async def _on_progress(stage: str, detail: str) -> None:
         nonlocal thinking
         text = detail or stage
@@ -133,17 +135,17 @@ async def cmd_nl(message: types.Message, _state: FSMContext) -> None:
     text = args[1].strip()
     thinking: ThinkingMessage | None = None
     try:
-        thinking, result = await _stream_with_thinking(message, thinking, input=text)
+        thinking, result = await stream_with_thinking(message, thinking, input=text)
     except Exception:
         if thinking:
             await thinking.__aexit__(None, None, None)
         logger.exception("NL processing failed")
         await message.answer("Не удалось обработать команду.")
         return
-    await _dispatch_nl_result(message, text, result, thinking)
+    await dispatch_nl_result(message, text, result, thinking)
 
 
-async def _dispatch_nl_result(message, text, result, thinking):
+async def dispatch_nl_result(message, text, result, thinking):
     if isinstance(result, dict) and "reply" in result:
         await _send_nl_reply(message, text, result, thinking)
         return

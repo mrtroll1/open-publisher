@@ -72,8 +72,7 @@
 17. **Sheet name duplicated between range constant and row-level writes** (`rules_repo.py`)
     `_ARTICLE_RATE_RANGE` defines `"'per_article_rate_rules'!A:Z"` but `upsert_article_rate_rule` hardcodes `f"'per_article_rate_rules'!A{i}:C{i}"`. Same pre-existing pattern in `remove_redirect_rule` with `_REDIRECT_RANGE`. Extract a helper like `_row_range(sheet_name, row, cols)` or at minimum derive the sheet prefix from the constant.
 
-18. **No tests for `make_contractors_tool` or its actions** (`brain/tools/contractors.py`)
-    Five public actions (`lookup`, `create_stub`, `add_redirect`, `set_rate`, `get_rate`) with no test coverage. The tool touches sheets and contractor factory — at minimum mock-based tests for the dispatch and error paths.
+18. ~~**No tests for `make_contractors_tool` or its actions**~~ — **RESOLVED**: `tests/test_contractors_tool.py` now covers all 5 actions (8 tests).
 
 19. **No tests for `upsert_article_rate_rule` or `get_article_rate_rule`** (`rules_repo.py`)
     Two new public functions with no test coverage. `upsert` has branching logic (empty sheet, existing row, new row) that warrants unit tests.
@@ -85,3 +84,26 @@
 
 21. **Migration 008 `ON CONFLICT DO NOTHING` is safe but silent** (`migrations/008_editor_dm_environment.sql:12`)
     If the `tool_permissions` rows already exist with *different* `allowed_roles`, the migration silently keeps the old values. This matches migration 006's pattern but could mask permission drift. Acceptable for seed data.
+
+## 2026-03-12 — Router, interact tests, contractors tool tests audit
+
+### Fixed (critical)
+
+- **Cross-module private imports in `router.py`** — `_dispatch_nl_result` and `_stream_with_thinking` were underscore-prefixed private functions in `conversation_handlers.py` but imported by `router.py`. Promoted to public (`dispatch_nl_result`, `stream_with_thinking`) and added to `__all__`.
+- **Duplicate test `test_esrc_callback_raw_adds_rule`** in `test_interact.py` — identical to pre-existing `test_esrc_callback_raw_adds_source` (same code path, same assertions, different fixture name only). Removed.
+
+### Moderate
+
+22. **ThinkingMessage cleanup pattern duplicated 3 times** (`router.py:_route_admin_dm_nl`, `router.py:_handle_group_nl`, `conversation_handlers.py:cmd_nl`)
+    Each does the same try/except with manual `thinking.__aexit__` on failure. Extract a helper like `async with nl_stream(message, **kwargs) as (thinking, result):` that encapsulates the streaming + cleanup pattern.
+
+23. **`_route_admin_dm_nl` mostly duplicates `cmd_nl`** (`router.py:402-418`)
+    The only difference is that `cmd_nl` strips the `/nl` prefix. The streaming, error handling, and dispatch are identical. Could reuse `cmd_nl` logic or extract a shared `_run_nl(message, text)`.
+
+24. **`test_interact.py` is 950+ lines** (`tests/test_interact.py`)
+    Single file covering contractor, admin, and callback flows. Consider splitting into `test_interact_contractor.py`, `test_interact_admin.py`, `test_interact_callbacks.py` for navigability.
+
+### Minor
+
+25. **`external-todo.md` mixes deployment ops and testing tasks** (`autonomous/dev/external-todo.md`)
+    Plan 13 items range from "create Google Sheet tab" to "test NL operations". Separating deploy prereqs from verification tasks would make it easier to track blockers.

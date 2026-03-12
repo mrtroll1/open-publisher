@@ -66,7 +66,7 @@ def _write_claude_md() -> None:
     """Write CLAUDE.md from DB knowledge (scope=code) into REPOS_DIR."""
     if _retriever is None:
         return
-    context = _retriever.retrieve_full_scope("code")
+    context = _retriever.retrieve_full_domain("code")
     if context:
         Path(REPOS_DIR, "CLAUDE.md").write_text(context, encoding="utf-8")
 

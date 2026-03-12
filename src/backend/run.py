@@ -11,7 +11,7 @@ from backend.api import app
 
 logger = logging.getLogger(__name__)
 
-GOAL_MONITOR_INTERVAL = int(os.getenv("GOAL_MONITOR_INTERVAL", "3600"))
+GOAL_MONITOR_INTERVAL = int(os.getenv("GOAL_MONITOR_INTERVAL", ""))
 
 
 async def _goal_monitor_loop():

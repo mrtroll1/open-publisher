@@ -39,7 +39,7 @@ async def goal_notification_task() -> None:
         logger.warning("No admin IDs configured, goal notifications disabled")
         return
     admin_id = next(iter(admin_ids))
-    poll_interval = int(os.getenv("GOAL_NOTIFICATION_INTERVAL", "300"))
+    poll_interval = int(os.getenv("GOAL_NOTIFICATION_INTERVAL", ""))
     logger.info("Goal notification listener started (poll every %ds)", poll_interval)
     while True:
         try:

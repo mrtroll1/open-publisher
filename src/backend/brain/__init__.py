@@ -27,6 +27,7 @@ class Brain:
             return self._conversation_fn(input, auth, **kwargs)
         if progress:
             progress.emit("tool", f"Вызываю {tool.name}")
+            auth.ctx.progress = progress
         return tool.execute({"input": input}, auth.ctx)
 
     def process_command(self, command: str, args: str, environment_id: str, user_id: str) -> Any:

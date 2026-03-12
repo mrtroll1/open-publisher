@@ -30,6 +30,7 @@ class ToolContext:
     """Execution context passed to every tool."""
     env: EnvContext
     user: UserContext
+    progress: object | None = None  # ProgressEmitter, when streaming
 
 
 @dataclass

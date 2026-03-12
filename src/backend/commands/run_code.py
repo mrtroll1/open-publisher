@@ -124,7 +124,7 @@ def _build_cmd(full_prompt: str, resume_session_id: str | None, extra_args: list
         cmd += ["--resume", resume_session_id, "-p", full_prompt]
     else:
         cmd += ["-p", full_prompt]
-    cmd += ["--max-turns", "5"]
+    cmd += ["--max-turns", "15"]
     if extra_args:
         cmd += extra_args
     return cmd

@@ -19,13 +19,10 @@ class Brain:
         if progress:
             progress.emit("authorize", "Авторизация")
         auth = self.authorizer.authorize(environment_id, user_id)
-        is_reply = bool(kwargs.get("reply_to_message_id"))
-        if is_reply:
-            tool = None
-        else:
-            if progress:
-                progress.emit("route", "Классифицирую запрос")
-            tool = self.router.route(input, auth.tools)
+        if progress:
+            progress.emit("route", "Классифицирую запрос")
+        reply_context = kwargs.get("reply_to_text", "")
+        tool = self.router.route(input, auth.tools, reply_context=reply_context)
         if tool is None:
             # Conversation mode — ReAct loop with conversational tools
             return self._conversation_fn(input, auth, **kwargs)

@@ -24,7 +24,7 @@ def make_user_tool(db: DbGateway, gemini) -> Tool:  # noqa: C901
         name = args.get("name", "")
         role = args.get("role", "")
         email = args.get("email")
-        if text and not telegram_id and not name:
+        if text and (not telegram_id or not name):
             extracted = _extract(text)
             telegram_id = telegram_id or extracted.get("telegram_id")
             name = name or extracted.get("name", "")

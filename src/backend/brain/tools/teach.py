@@ -17,7 +17,7 @@ def make_teach_tool(classify_teaching, memory, gemini) -> Tool:
         return classify_teaching.run(content, {})
 
     def fn(args: dict, _ctx: ToolContext) -> dict:
-        text = args.get("text") or args.get("input", "")
+        text = args.get("text", "")
         extracted = _extract_knowledge(gemini, text, args.get("context", ""))
         content = extracted.get("content", text)
         classified = _classify(content, args)
@@ -61,4 +61,5 @@ def make_teach_tool(classify_teaching, memory, gemini) -> Tool:
         examples=["запомни, что я сейчас скажу ..."],
         nl_routable=True,
         conversational=True,
+        nl_param="text",
     )

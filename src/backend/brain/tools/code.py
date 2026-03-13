@@ -6,7 +6,7 @@ from backend.commands.run_code import run_claude_code
 
 def make_code_tool() -> Tool:
     def fn(args: dict, ctx: ToolContext) -> dict:
-        prompt = args.get("prompt") or args.get("input", "")
+        prompt = args.get("prompt", "")
         def on_event(status: str) -> None:
             ctx.progress.emit("tool", status)
 
@@ -38,4 +38,5 @@ def make_code_tool() -> Tool:
         examples=["как нам скрыть лайки?", "можем ли мы изменить дизайн рассылки?"],
         nl_routable=True,
         conversational=False,
+        nl_param="prompt",
     )

@@ -14,7 +14,7 @@ def make_budget_tool(compute_budget) -> Tool:
         return f"{today.year}-{today.month - 1:02d}"
 
     def fn(args: dict, ctx: ToolContext) -> dict:
-        month = args.get("month") or args.get("input", "").strip() or _prev_month()
+        month = args.get("month", "").strip() or _prev_month()
         use_case = ComputeBudgetUseCase(compute_budget)
         return use_case.execute({"month": month}, ctx.env, ctx.user)
 

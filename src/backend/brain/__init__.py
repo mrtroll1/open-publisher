@@ -28,9 +28,9 @@ class Brain:
         if progress:
             progress.emit("tool", f"Вызываю {tool.name}")
             auth.ctx.progress = progress
-        return tool.execute({"input": input}, auth.ctx)
+        return tool.execute({tool.nl_param: input}, auth.ctx)
 
     def process_command(self, command: str, args: str, environment_id: str, user_id: str) -> Any:
         auth = self.authorizer.authorize(environment_id, user_id)
         tool = TOOLS[command]
-        return tool.execute({"input": args}, auth.ctx)
+        return tool.execute({tool.nl_param: args}, auth.ctx)

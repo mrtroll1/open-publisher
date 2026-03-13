@@ -5,7 +5,7 @@ from backend.brain.tool import Tool, ToolContext
 
 def make_search_tool(retriever) -> Tool:
     def fn(args: dict, ctx: ToolContext) -> dict:
-        query = args.get("query") or args.get("input", "")
+        query = args.get("query", "")
         domain = args.get("domain")
         role = ctx.user.get("role", "user") if ctx.user else "user"
         user_id = ctx.user.get("id") if ctx.user else None
@@ -32,4 +32,5 @@ def make_search_tool(retriever) -> Tool:
         examples=["найди информацию про ...", "что мы знаем о ..."],
         nl_routable=True,
         conversational=True,
+        nl_param="query",
     )

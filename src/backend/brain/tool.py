@@ -45,6 +45,7 @@ class Tool:
     examples: list[str] = field(default_factory=list)
     nl_routable: bool = True
     conversational: bool = False
+    nl_param: str = "input"
 
     def execute(self, args: dict, ctx: ToolContext) -> dict:
         return self.fn(args, ctx)

@@ -5,11 +5,9 @@ from backend.commands.invoice import GenerateInvoiceUseCase
 
 
 def _parse_invoice_input(args: dict) -> dict:
-    inp = args.get("input", "")
-    if not inp:
-        contractor = args.get("contractor", "")
-        month = args.get("month", "")
-        inp = f"{contractor} {month}".strip() if month else contractor
+    contractor = args.get("contractor", "")
+    month = args.get("month", "")
+    inp = f"{contractor} {month}".strip() if month else contractor
     parts = inp.strip().rsplit(maxsplit=1)
     if len(parts) == 2 and "-" in parts[1]:
         return {"contractor": parts[0], "month": parts[1]}
@@ -37,4 +35,5 @@ def make_invoice_tool(gen_invoice) -> Tool:
         slash_command="generate",
         nl_routable=False,
         conversational=False,
+        nl_param="contractor",
     )

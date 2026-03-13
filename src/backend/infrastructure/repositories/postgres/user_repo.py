@@ -10,6 +10,9 @@ _USER_COLS = ["id", "name", "role", "telegram_id", "email", "created_at", "updat
 def _user_row(row) -> dict:
     d = dict(zip(_USER_COLS, row, strict=False))
     d["id"] = str(d["id"])
+    for k in ("created_at", "updated_at"):
+        if d.get(k):
+            d[k] = d[k].isoformat()
     return d
 
 

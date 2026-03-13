@@ -19,7 +19,7 @@ def make_user_tool(db: DbGateway, gemini) -> Tool:  # noqa: C901
             return {}
 
     def _resolve_fields(args: dict) -> dict:
-        text = args.get("input") or args.get("text", "")
+        text = args.get("text", "")
         telegram_id = args.get("telegram_id")
         name = args.get("name", "")
         role = args.get("role", "")
@@ -56,9 +56,7 @@ def make_user_tool(db: DbGateway, gemini) -> Tool:  # noqa: C901
         return {"user": db.get_user(user_id), "action": "created"}
 
     def fn(args: dict, _ctx: ToolContext) -> dict:
-        logger.info("user tool args: %s", args)
         fields = _resolve_fields(args)
-        logger.info("user tool resolved fields: %s", fields)
         if not fields["telegram_id"] and not fields["email"]:
             return {"error": "Не удалось определить telegram_id или email пользователя."}
         return _upsert(fields)
@@ -81,4 +79,5 @@ def make_user_tool(db: DbGateway, gemini) -> Tool:  # noqa: C901
         examples=["добавь пользователя ...", "это наш редактор ...", "Маша Иванова, telegram 123, editor"],
         nl_routable=True,
         conversational=True,
+        nl_param="text",
     )

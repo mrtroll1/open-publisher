@@ -56,7 +56,9 @@ def make_user_tool(db: DbGateway, gemini) -> Tool:  # noqa: C901
         return {"user": db.get_user(user_id), "action": "created"}
 
     def fn(args: dict, _ctx: ToolContext) -> dict:
+        logger.info("user tool args: %s", args)
         fields = _resolve_fields(args)
+        logger.info("user tool resolved fields: %s", fields)
         if not fields["telegram_id"] and not fields["email"]:
             return {"error": "Не удалось определить telegram_id или email пользователя."}
         return _upsert(fields)

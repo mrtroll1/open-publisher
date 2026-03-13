@@ -171,10 +171,8 @@ class _ConversationContext:
         failed_tools: dict[str, int] = {}
 
         for iteration in range(MAX_TOOL_STEPS):
-            if text:
-                return self._reply(text)
             if not tool_calls:
-                return self._reply("Не удалось сформировать ответ.")
+                return self._reply(text or "Не удалось сформировать ответ.")
 
             self._emit("tool", ", ".join(tc["name"] for tc in tool_calls))
             results = _execute_tool_calls(tool_calls, tools_by_name, self.auth.ctx, failed_tools, self.log)

@@ -19,7 +19,7 @@ def make_user_tool(db: DbGateway, gemini) -> Tool:  # noqa: C901
             return {}
 
     def _resolve_fields(args: dict) -> dict:
-        text = args.get("text", "")
+        text = args.get("input") or args.get("text", "")
         telegram_id = args.get("telegram_id")
         name = args.get("name", "")
         role = args.get("role", "")

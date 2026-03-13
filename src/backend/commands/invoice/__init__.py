@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from backend.brain.base_controller import BaseUseCase
 
-
-class GenerateInvoiceUseCase(BaseUseCase):
+class GenerateInvoiceUseCase:
     def __init__(self, gen_invoice):
         self._gen = gen_invoice
 

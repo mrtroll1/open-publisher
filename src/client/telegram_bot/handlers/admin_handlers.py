@@ -35,6 +35,7 @@ __all__ = [
     "cmd_extract_knowledge",
     "cmd_generate",
     "cmd_generate_invoices",
+    "cmd_invoices",
     "cmd_lookup",
     "cmd_orphan_contractors",
     "cmd_send_global_invoices",
@@ -149,6 +150,35 @@ async def cmd_budget(message: types.Message, _state: FSMContext) -> None:
     except Exception as e:
         logger.exception("Budget generation failed")
         await message.answer(replies.admin.budget_error.format(error=e))
+
+
+async def cmd_invoices(message: types.Message, _state: FSMContext) -> None:
+    """List already-generated invoices: /invoices [name] [YYYY-MM]."""
+    raw = (message.text.split(maxsplit=1)[1:] or [""])[0].strip()
+    await send_typing(message.chat.id)
+    result = await backend_client.command(
+        "invoices", raw,
+        environment_id=str(message.chat.id),
+        user_id=str(message.from_user.id),
+    )
+    invoices = result.get("invoices", []) if isinstance(result, dict) else []
+    month_label = result.get("month", "") if isinstance(result, dict) else ""
+    name_filter = result.get("filter") if isinstance(result, dict) else None
+    if not invoices:
+        await message.answer(f"Счетов за {month_label} не найдено.")
+        return
+    header = f"Счета за {month_label}"
+    if name_filter:
+        header += f" ({name_filter})"
+    lines = [f"{header}:\n"]
+    for inv in invoices:
+        status = inv.get("status", "")
+        link = inv.get("gdrive_path") or inv.get("legium_link") or ""
+        line = f"• {inv['contractor_name']} — {inv['amount']} {inv['currency']} [{status}]"
+        if link:
+            line += f" {link}"
+        lines.append(line)
+    await message.answer("\n".join(lines))
 
 
 async def cmd_extract_knowledge(message: types.Message, _state: FSMContext) -> None:

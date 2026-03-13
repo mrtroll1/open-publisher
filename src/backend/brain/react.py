@@ -1,18 +1,21 @@
-"""Conversation controller — ReAct loop with Gemini function calling."""
+"""ReAct loop — Gemini function-calling with tool execution."""
 
 from __future__ import annotations
 
-import json
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from google.genai import types
 
 from backend.brain.authorizer import AuthContext
+from backend.brain.context import (
+    build_conversation_context,
+    build_system_prompt,
+    tool_declarations,
+)
 from backend.brain.tool import Tool
-from backend.config import GEMINI_MODEL_SMART, REPUBLIC_SITE_URL
+from backend.config import GEMINI_MODEL_SMART
 from backend.infrastructure.gateways.gemini_gateway import GeminiGateway
 from backend.infrastructure.memory.retriever import KnowledgeRetriever
 from backend.infrastructure.repositories.postgres import DbGateway
@@ -20,81 +23,6 @@ from backend.infrastructure.repositories.postgres import DbGateway
 logger = logging.getLogger(__name__)
 
 MAX_TOOL_STEPS = 5
-
-
-def _parse_meta(raw) -> dict:
-    if isinstance(raw, dict):
-        return raw
-    try:
-        return json.loads(raw) if raw else {}
-    except (json.JSONDecodeError, TypeError):
-        return {}
-
-
-def _format_chain_entry(entry: dict) -> str:
-    meta = _parse_meta(entry.get("metadata"))
-    prefix = entry["type"]
-    if meta:
-        prefix += f" [{' '.join(f'{k}={v}' for k, v in meta.items())}]"
-    return f"{prefix}: {entry['text']}"
-
-
-def _format_reply_chain(chain: list[dict]) -> str:
-    return "\n".join(_format_chain_entry(e) for e in chain)
-
-
-def _truncate_chain(chain: list[dict], max_verbatim: int) -> str:
-    if len(chain) <= max_verbatim:
-        return _format_reply_chain(chain)
-    skipped = len(chain) - max_verbatim
-    return f"[{skipped} предыдущих сообщений опущено]\n" + _format_reply_chain(chain[-max_verbatim:])
-
-
-def _build_conversation_context(
-    chat_id: int, reply_message_id: int, reply_text: str,
-    db: DbGateway, max_verbatim: int = 8,
-) -> tuple[str, str | None]:
-    msg = db.get_by_telegram_message_id(chat_id, reply_message_id)
-    if not msg:
-        return f"assistant: {reply_text}", None
-    chain = db.get_reply_chain(msg["id"], depth=20)
-    return _truncate_chain(chain, max_verbatim), msg["id"]
-
-
-_BASE_INSTRUCTIONS = [
-    "Ты — Иван Добровольский, издатель Republic ({site}). Ведёшь диалог в Telegram.",
-    "Используй контекст и инструменты. Отвечай по-русски.",
-    "Если не знаешь ответа — скажи.",
-    "Отвечай кратко и по делу.",
-    "ФОРМАТ: Telegram. ЗАПРЕЩЕНО: markdown-таблицы (|---|), republic.ru. Для списков данных — нумерованный список. Ссылки на статьи: {site}/posts/<id>.",
-    "НИКОГДА не выдумывай данные. Если инструмент не вернул результат (ошибка, пустой ответ, 'LLM did not produce a query') — сообщи об этом пользователю, но НЕ придумывай заголовки, названия, цифры или другие данные.",
-    "Если спрашивают о твоих прошлых действиях — используй agent_db для поиска в run_logs по run_id из истории. НИКОГДА не выдумывай SQL-запросы или результаты.",
-]
-
-
-def _optional_section(title: str, content: str) -> str:
-    return f"\n## {title}\n{content}" if content else ""
-
-
-def _build_system_prompt(env: dict, user_context: str, knowledge: str,
-                         conversation_history: str, goals_summary: str = "") -> str:
-    now = datetime.now(timezone(timedelta(hours=1)))
-    parts = [f"Текущая дата и время: {now.strftime('%Y-%m-%d %H:%M')} (CET)"]
-    parts.extend(line.format(site=REPUBLIC_SITE_URL) for line in _BASE_INSTRUCTIONS)
-    parts.append(_optional_section("Окружение", env.get("system_context", "")))
-    parts.append(_optional_section("О собеседнике", user_context))
-    parts.append(_optional_section("Контекст", knowledge))
-    parts.append(_optional_section("Мои цели и задачи", goals_summary))
-    parts.append(_optional_section("История разговора", conversation_history))
-    return "\n".join(p for p in parts if p)
-
-
-def _tool_declarations(tools: list[Tool]) -> list[dict]:
-    """Convert Tool list to Gemini function declarations."""
-    return [
-        {"name": t.name, "description": t.description, "parameters": t.parameters}
-        for t in tools
-    ]
 
 
 def _truncate(obj, max_len=500) -> Any:
@@ -149,7 +77,7 @@ def conversation_handler(
         ctx.load_history()
         ctx.load_knowledge()
         ctx.load_goals()
-        system_prompt = _build_system_prompt(
+        system_prompt = build_system_prompt(
             auth.ctx.env, ctx.user_context, ctx.knowledge,
             ctx.history, goals_summary=ctx.goals_summary,
         )
@@ -203,7 +131,7 @@ class _ConversationContext:
     def load_history(self):
         self._emit("context", "Загружаю контекст")
         if self.chat_id and self.reply_to_message_id:
-            self.history, self.parent_id = _build_conversation_context(
+            self.history, self.parent_id = build_conversation_context(
                 self.chat_id, self.reply_to_message_id, self.reply_to_text, self.db,
             )
 
@@ -232,7 +160,7 @@ class _ConversationContext:
         return self._reply(reply)
 
     def react_loop(self, system_prompt: str, conv_tools: list[Tool]) -> dict:
-        declarations = _tool_declarations(conv_tools)
+        declarations = tool_declarations(conv_tools)
         tools_by_name = {t.name: t for t in conv_tools}
 
         self._emit("llm", "Думаю...")

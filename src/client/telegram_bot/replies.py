@@ -124,6 +124,7 @@ class menu:
         "Что хотите сделать?\n\n"
         "Выплаты и деньги:\n"
         "/generate <имя> — сгенерировать документ\n"
+        "/invoices [YYYY-MM] — список счетов за месяц\n"
         "/generate_invoices — сгенерировать все счета\n"
         "/send_global_invoices — отправить глобальные счета\n"
         "/send_legium_links — отправить ссылки на Легиум\n"

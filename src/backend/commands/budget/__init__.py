@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from backend.brain.base_controller import BaseUseCase
 
-
-class ComputeBudgetUseCase(BaseUseCase):
+class ComputeBudgetUseCase:
     def __init__(self, compute_budget):
         self._compute = compute_budget
 

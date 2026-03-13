@@ -4,6 +4,7 @@ from backend.brain.tools.analytics import make_cloudflare_tool, make_yandex_metr
 from backend.brain.tools.budget import make_budget_tool
 from backend.brain.tools.code import make_code_tool
 from backend.brain.tools.contractors import make_contractors_tool
+from backend.brain.tools.get_invoices import make_get_invoices_tool
 from backend.brain.tools.goals import make_goals_tool
 from backend.brain.tools.health import make_health_tool
 from backend.brain.tools.invoice import make_invoice_tool
@@ -19,6 +20,7 @@ __all__ = [
     "make_cloudflare_tool",
     "make_code_tool",
     "make_contractors_tool",
+    "make_get_invoices_tool",
     "make_goals_tool",
     "make_health_tool",
     "make_invoice_tool",

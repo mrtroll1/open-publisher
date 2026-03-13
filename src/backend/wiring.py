@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 from backend.brain import Brain
 from backend.brain.authorizer import Authorizer
-from backend.brain.controllers.conversation import conversation_handler
 from backend.brain.dynamic import (
     AssessEditorial,
     ClassifyInbox,
@@ -14,6 +13,7 @@ from backend.brain.dynamic import (
     TechSupport,
 )
 from backend.brain.dynamic.query_db import QueryDB
+from backend.brain.react import conversation_handler
 from backend.brain.router import Router
 from backend.brain.tool import register_tool
 from backend.brain.tools import (
@@ -21,6 +21,7 @@ from backend.brain.tools import (
     make_cloudflare_tool,
     make_code_tool,
     make_contractors_tool,
+    make_get_invoices_tool,
     make_goals_tool,
     make_health_tool,
     make_invoice_tool,
@@ -201,6 +202,7 @@ def _register_core_tools(genai, memory, retriever, gemini, db) -> None:
 def _register_domain_tools(query_db_map) -> None:
     gen_invoice = GenerateInvoice(docs_gw=DocsGateway(), drive_gw=DriveGateway())
     register_tool(make_invoice_tool(gen_invoice))
+    register_tool(make_get_invoices_tool())
     compute_budget = ComputeBudget(republic_gw=RepublicGateway(), redefine_gw=RedefineGateway())
     register_tool(make_budget_tool(compute_budget))
     for tool in make_query_db_tools(query_db_map):

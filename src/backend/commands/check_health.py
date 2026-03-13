@@ -7,7 +7,6 @@ from typing import Any
 
 import requests
 
-from backend.brain.base_controller import BaseUseCase
 from backend.config import HEALTHCHECK_DOMAINS, KUBECTL_ENABLED
 from backend.infrastructure.gateways.cloudflare_gateway import CloudflareGateway
 
@@ -105,7 +104,7 @@ def _check_domain(domain: str) -> HealthResult:
         return HealthResult(domain, "error", str(e))
 
 
-class CheckHealthUseCase(BaseUseCase):
+class CheckHealthUseCase:
     def execute(self, _prepared: Any, _env: dict, _user: dict) -> list[HealthResult]:
         results = [_check_domain(d) for d in HEALTHCHECK_DOMAINS]
         if KUBECTL_ENABLED:

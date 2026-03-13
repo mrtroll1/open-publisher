@@ -7,7 +7,7 @@ import pytest
 from conftest import FakeDb, FakeRetriever, make_tool
 
 from backend.brain.authorizer import AuthContext
-from backend.brain.controllers.conversation import conversation_handler
+from backend.brain.react import conversation_handler
 from backend.brain.tool import ToolContext
 
 

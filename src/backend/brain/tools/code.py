@@ -7,9 +7,11 @@ from backend.commands.run_code import run_claude_code
 def make_code_tool() -> Tool:
     def fn(args: dict, ctx: ToolContext) -> dict:
         prompt = args.get("prompt") or args.get("input", "")
-        on_event = None
-        if ctx.progress:
-            on_event = lambda status: ctx.progress.emit("tool", status)
+        def on_event(status: str) -> None:
+            ctx.progress.emit("tool", status)
+
+        if not ctx.progress:
+            on_event = None
         result = run_claude_code(
             prompt,
             verbose=args.get("verbose", False),

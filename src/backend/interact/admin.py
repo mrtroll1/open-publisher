@@ -203,7 +203,7 @@ class AdminHandlers:
             return respond([msg(err)])
         if progress:
             progress.emit("generate_invoice", f"Генерирую документ для {contractor.display_name}")
-        result = self._create_invoice(contractor, month, amount, debug)
+        result = self._create_invoice(contractor, month, amount, debug=debug)
         if isinstance(result, dict):
             return result
         return self._format_generate_result(result, contractor, month, amount, debug)

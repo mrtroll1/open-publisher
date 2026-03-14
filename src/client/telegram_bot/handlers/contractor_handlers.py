@@ -99,10 +99,18 @@ async def _interact_callback(callback: CallbackQuery, state: FSMContext,
 
 async def handle_start(message: types.Message, state: FSMContext) -> None:
     await state.clear()
-    if not is_admin(message.from_user.id):
-        await backend_client.ensure_user(message.from_user.id)
+    user = await backend_client.ensure_user(message.from_user.id)
     await backend_client.bind_environment(message.chat.id, "dm")
-    await _interact(message, state, "start")
+    # Use DB role, not bot cache, to determine admin status
+    payload = {"text": ""}
+    fsm_state = await state.get_state()
+    fsm_data = await state.get_data()
+    ctx = _build_context(message.from_user.id, message.chat.id, fsm_state, fsm_data)
+    ctx["is_admin"] = user.get("role") == "admin"
+    result = await backend_client.interact_stream(
+        action="start", payload=payload, context=ctx,
+    )
+    await render(message, state, result)
 
 
 async def handle_start_callback(callback: CallbackQuery, state: FSMContext) -> None:

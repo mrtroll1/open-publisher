@@ -416,6 +416,12 @@ def pending_notifications() -> BrainResponse:
 
 # --- User endpoints ---
 
+@app.post("/user/ensure")
+def ensure_user(telegram_id: int) -> BrainResponse:
+    user = db.get_or_create_by_telegram_id(telegram_id)
+    return BrainResponse(result=user)
+
+
 @app.get("/user/admin_telegram_ids")
 def get_admin_telegram_ids() -> BrainResponse:
     return BrainResponse(result=db.get_admin_telegram_ids())

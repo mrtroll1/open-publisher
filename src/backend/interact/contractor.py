@@ -90,15 +90,26 @@ class ContractorHandlers:
 
     def start(self, _payload: Payload, ctx: InteractContext) -> dict:
         if ctx.get("is_admin"):
-            return respond([msg("Привет! Я бот для работы с контрагентами.\n\n"
-                               "Список доступных комманд: /menu")], fsm_state=None)
+            return respond([], fsm_state=None)
+        return respond([msg(
+            "Привет!\n\n"
+            "Если вы работаете на Republic и хотите оформить документы — "
+            "нажмите кнопку ниже.\n\n"
+            "А если нет - можем просто пообщаться.",
+            keyboard=[[{"text": "Я работаю на Republic", "data": "start:contractor"}]],
+        )], fsm_state=None)
+
+    def start_callback(self, _payload: Payload, ctx: InteractContext) -> dict:
+        contractor, _ = self._get_contractor(ctx["user_id"])
+        if contractor:
+            return self._menu_response(contractor)
         return self._greeting()
 
     def menu(self, _payload: Payload, ctx: InteractContext) -> dict:
         contractor, _ = self._get_contractor(ctx["user_id"])
         if contractor:
             return self._menu_response(contractor)
-        return self._greeting()
+        return self._not_a_contractor()
 
     def free_text(self, payload: Payload, ctx: InteractContext) -> dict:
         contractor, contractors = self._get_contractor(ctx["user_id"])
@@ -153,7 +164,7 @@ class ContractorHandlers:
     def sign_doc(self, _payload: Payload, ctx: InteractContext) -> dict:
         contractor, _ = self._get_contractor(ctx["user_id"])
         if not contractor:
-            return self._greeting()
+            return self._not_a_contractor()
         month = prev_month()
         admin_ids = ctx.get("admin_ids", [])
         return (self._deliver_existing_invoice(contractor, month, admin_ids)
@@ -174,7 +185,7 @@ class ContractorHandlers:
     def update_payment_data(self, _payload: Payload, ctx: InteractContext) -> dict:
         contractor, _ = self._get_contractor(ctx["user_id"])
         if not contractor:
-            return self._greeting()
+            return self._not_a_contractor()
         return respond(
             [msg("Какие данные вы хотите обновить? Отправьте новые значения в свободной форме.\n\n"
                  "Отправьте «отмена» для отмены.")],
@@ -192,7 +203,7 @@ class ContractorHandlers:
     def manage_redirects(self, _payload: Payload, ctx: InteractContext) -> dict:
         contractor, _ = self._get_contractor(ctx["user_id"])
         if not contractor or contractor.role_code != RoleCode.REDAKTOR:
-            return self._greeting()
+            return self._not_a_contractor()
         return self._show_editor_sources(contractor)
 
     def editor_source_name(self, payload: Payload, ctx: InteractContext) -> dict:
@@ -314,6 +325,13 @@ class ContractorHandlers:
             "Здравствуйте! Я бот для оформления оплаты.\n\n"
             f"Под каким именем/псевдонимом вы работаете на {PRODUCT_NAME}?"
         )], fsm_state=None)
+
+    def _not_a_contractor(self):
+        return respond([msg(
+            "Эта функция доступна только для контрагентов Republic.\n\n"
+            "Просто напишите мне, и я постараюсь помочь. "
+            "Если вы работаете на Republic — нажмите /start."
+        )])
 
     def _menu_keyboard(self, contractor):
         rows = [

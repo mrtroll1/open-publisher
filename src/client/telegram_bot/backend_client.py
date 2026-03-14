@@ -326,6 +326,11 @@ async def revoke_permission(tool_name: str, environment: str):
 
 # --- User ---
 
+async def ensure_user(telegram_id: int) -> dict:
+    resp = await _request_with_retry("POST", "/user/ensure", params={"telegram_id": telegram_id})
+    return _unwrap(resp)
+
+
 async def get_admin_telegram_ids() -> list[int]:
     resp = await _request_with_retry("GET","/user/admin_telegram_ids")
     return _unwrap(resp) or []

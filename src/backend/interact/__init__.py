@@ -17,6 +17,7 @@ _contractor = ContractorHandlers()
 _HANDLERS = {
     # Contractor commands
     "start": _contractor.start,
+    "start_callback": _contractor.start_callback,
     "menu": _contractor.menu,
     "sign_doc": _contractor.sign_doc,
     "update_payment_data": _contractor.update_payment_data,

@@ -5,11 +5,10 @@ Text message routing (priority order inside _route_text):
   2. /command              → _DM_COMMANDS or _ADMIN_COMMANDS lookup
   3. Admin reply-to-msg    → handle_admin_reply()
   4. FSM state active      → _FSM_HANDLERS[state]
-  5. Admin DM free text    → _route_admin_dm_nl() (Brain NL)
-  6. Free text (catch-all) → handle_contractor_text()
+  5. Free text (catch-all) → _route_dm_nl() (Brain NL for all DM users)
 
 Other message types (registered explicitly in register_all):
-  - Callback queries: 6 handlers
+  - Callback queries: 7 handlers (incl. start:contractor)
   - Documents: handle_document()
   - Media (photo/sticker/etc): handle_non_document()
 """
@@ -59,6 +58,7 @@ from telegram_bot.handlers.contractor_handlers import (
     handle_non_document,
     handle_sign_doc,
     handle_start,
+    handle_start_callback,
     handle_type_selection,
     handle_update_data,
     handle_update_payment_data,
@@ -392,17 +392,12 @@ async def _route_text(message: types.Message, state: FSMContext) -> None:
     if current_state is not None:
         await _route_fsm(message, state, current_state)
         return
-    # Admin/editor DMs: route through Brain NL (contractors tool available)
-    if is_admin(message.from_user.id):
-        await _route_admin_dm_nl(message, text)
-        return
-    # Contractors: existing flow
-    await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
-    await handle_contractor_text(message, state)
+    # All DM free text: route through Brain NL (role-based permissions handle security)
+    await _route_dm_nl(message, text)
 
 
-async def _route_admin_dm_nl(message: types.Message, text: str) -> None:
-    """Route admin DM free text through Brain NL."""
+async def _route_dm_nl(message: types.Message, text: str) -> None:
+    """Route DM free text through Brain NL."""
     from telegram_bot.handlers.conversation_handlers import (  # noqa: PLC0415
         dispatch_nl_result,
         stream_with_thinking,
@@ -415,7 +410,7 @@ async def _route_admin_dm_nl(message: types.Message, text: str) -> None:
     except Exception:
         if thinking:
             await thinking.__aexit__(None, None, None)
-        logger.exception("Admin DM NL failed")
+        logger.exception("DM NL failed")
         await message.answer("Не удалось обработать.")
 
 
@@ -432,6 +427,7 @@ def register_all(dp: Dispatcher) -> None:
     # Callback queries
     dp.callback_query.register(handle_support_callback, F.data.startswith("support:"))
     dp.callback_query.register(handle_editorial_callback, F.data.startswith("editorial:"))
+    dp.callback_query.register(handle_start_callback, F.data.startswith("start:"))
     dp.callback_query.register(handle_duplicate_callback, F.data.startswith("dup:"))
     dp.callback_query.register(handle_editor_source_callback, F.data.startswith("esrc:"))
     dp.callback_query.register(handle_linked_menu_callback, F.data.startswith("menu:"))

@@ -68,6 +68,16 @@ class GeminiGateway:
             for d in declarations
         ])
 
+    def search_web(self, query: str, model: str | None = None) -> str:
+        """Search the web via Gemini's Google Search grounding."""
+        model_used = model or self._model
+        config = self._config(
+            model_used,
+            tools=[types.Tool(google_search=types.GoogleSearch())],
+        )
+        response = self._generate(model_used, query, config)
+        return response.text.strip()
+
     def call(self, prompt: str, model: str | None = None) -> dict:
         """Send a prompt and return parsed JSON from the response."""
         model_used = model or self._model

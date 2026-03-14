@@ -74,6 +74,7 @@ def conversation_handler(
 
     def handle(input: str, auth: AuthContext, **kwargs) -> dict:
         ctx = _ConversationContext(gemini, db, retriever, input, auth, **kwargs)
+        auth.ctx.progress = ctx.progress
         ctx.load_history()
         ctx.load_knowledge()
         ctx.load_goals()

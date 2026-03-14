@@ -24,11 +24,11 @@ def make_code_tool() -> Tool:
 
     return Tool(
         name="code",
-        description="Работа с кодом, архитектура, баги",
+        description="Запустить Claude Code для анализа кодовой базы Republic и Redefine: архитектура, баги, фичи, код-ревью. Передай подробный prompt с контекстом задачи.",
         parameters={
             "type": "object",
             "properties": {
-                "prompt": {"type": "string", "description": "Задача для Claude Code"},
+                "prompt": {"type": "string", "description": "Подробное описание задачи для Claude Code (включи контекст из разговора)"},
             },
             "required": ["prompt"],
         },
@@ -36,7 +36,7 @@ def make_code_tool() -> Tool:
         permissions={},
         slash_command="code",
         examples=["как нам скрыть лайки?", "можем ли мы изменить дизайн рассылки?"],
-        nl_routable=True,
-        conversational=False,
+        nl_routable=False,
+        conversational=True,
         nl_param="prompt",
     )

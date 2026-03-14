@@ -55,8 +55,8 @@ def _is_reply_to_bot(message: types.Message, _state: FSMContext) -> bool:
 
 def _extract_result_fields(result) -> tuple[str, str | None, str | None]:
     if isinstance(result, dict):
-        return (result.get("reply", str(result)),
-                result.get("parent_id"), result.get("run_id"))
+        text = result.get("reply") or result.get("text") or str(result)
+        return text, result.get("parent_id"), result.get("run_id")
     return str(result), None, None
 
 

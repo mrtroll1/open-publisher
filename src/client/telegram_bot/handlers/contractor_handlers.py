@@ -101,23 +101,12 @@ async def handle_start(message: types.Message, state: FSMContext) -> None:
     await state.clear()
     if not is_admin(message.from_user.id):
         await backend_client.ensure_user(message.from_user.id)
-        await backend_client.bind_environment(message.chat.id, "user_dm")
+    await backend_client.bind_environment(message.chat.id, "dm")
     await _interact(message, state, "start")
 
 
 async def handle_start_callback(callback: CallbackQuery, state: FSMContext) -> None:
-    await callback.answer()
-    await backend_client.bind_environment(callback.message.chat.id, "contractor_dm")
-    msg = callback.message
-    fsm_state = await state.get_state()
-    fsm_data = await state.get_data()
-    ctx = _build_context(callback.from_user.id, msg.chat.id, fsm_state, fsm_data)
-    result = await backend_client.interact_stream(
-        action="start_callback",
-        payload={"callback_data": callback.data},
-        context=ctx,
-    )
-    await render(msg, state, result)
+    await _interact_callback(callback, state, "start_callback")
 
 
 async def handle_menu(message: types.Message, state: FSMContext) -> None:

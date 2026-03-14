@@ -18,7 +18,7 @@ def _make_brain(auth, router_returns=None, conversation_returns=None):
             return auth
 
     class FakeRouter:
-        def route(self, input, tools):
+        def route(self, input, tools, **kwargs):
             return router_returns
 
     def conversation_fn(input, auth, **kw):

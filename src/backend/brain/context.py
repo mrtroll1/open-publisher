@@ -67,12 +67,28 @@ def _optional_section(title: str, content: str) -> str:
     return f"\n## {title}\n{content}" if content else ""
 
 
+_DM_ROLE_CONTEXT = {
+    "admin": (
+        "Это приватный чат с администратором. Полный доступ ко всем функциям. "
+        "Можно обсуждать внутренние вопросы, контрагентов, бюджет. Давай развёрнутые ответы."
+    ),
+    "editor": (
+        "Это личный чат с редактором. Помогай с управлением документами для выплат, "
+        "контрагентами, редиректами, ставками. Отвечай по-русски, кратко."
+    ),
+    "user": "Это личный чат. Будь вежлив. Отвечай по-русски, кратко.",
+}
+
+
 def build_system_prompt(env: dict, user_context: str, knowledge: str,
                         conversation_history: str, goals_summary: str = "") -> str:
     now = datetime.now(timezone(timedelta(hours=1)))
     parts = [f"Текущая дата и время: {now.strftime('%Y-%m-%d %H:%M')} (CET)"]
     parts.extend(line.format(site=REPUBLIC_SITE_URL) for line in _BASE_INSTRUCTIONS)
-    parts.append(_optional_section("Окружение", env.get("system_context", "")))
+    env_context = env.get("system_context", "")
+    if not env_context:
+        env_context = _DM_ROLE_CONTEXT.get(env.get("role", ""), "")
+    parts.append(_optional_section("Окружение", env_context))
     parts.append(_optional_section("О собеседнике", user_context))
     parts.append(_optional_section("Контекст", knowledge))
     parts.append(_optional_section("Мои цели и задачи", goals_summary))

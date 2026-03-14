@@ -78,6 +78,7 @@ def conversation_handler(
         ctx.load_history()
         ctx.load_knowledge()
         ctx.load_goals()
+        auth.ctx.env["role"] = auth.role
         system_prompt = build_system_prompt(
             auth.ctx.env, ctx.user_context, ctx.knowledge,
             ctx.history, goals_summary=ctx.goals_summary,

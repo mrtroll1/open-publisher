@@ -115,7 +115,7 @@ class BasePostgresRepo:
             for admin_id in ADMIN_TELEGRAM_IDS:
                 cur.execute(
                     "INSERT INTO environment_bindings (chat_id, environment) VALUES (%s, %s) ON CONFLICT DO NOTHING",
-                    (admin_id, "admin_dm"),
+                    (admin_id, "dm"),
                 )
                 cur.execute(
                     "INSERT INTO users (name, role, telegram_id) VALUES (%s, %s, %s) "

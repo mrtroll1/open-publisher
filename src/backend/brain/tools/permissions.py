@@ -78,7 +78,7 @@ def make_permissions_tool(db: DbGateway) -> Tool:
             "какие разрешения у инструментов?",
             "какие права для budget?",
             "дай доступ к budget в editorial_group",
-            "убери доступ к code в contractor_dm",
+            "убери доступ к code в dm",
         ],
         nl_routable=False,
         conversational=True,

@@ -28,6 +28,7 @@ __all__ = [
     "handle_manage_redirects",
     "handle_menu",
     "handle_non_document",
+    "handle_receipt_photo",
     "handle_sign_doc",
     "handle_start",
     "handle_start_callback",
@@ -221,6 +222,24 @@ async def handle_document(message: types.Message, state: FSMContext) -> None:
                 await bot.forward_message(admin_id, message.chat.id, message.message_id)
             except Exception:
                 logger.warning("Failed to forward document to admin %s", admin_id, exc_info=True)
+
+
+async def handle_receipt_photo(message: types.Message, state: FSMContext) -> None:
+    """Handle photo uploads in DMs — potential receipt from samozanyaty."""
+    if is_admin(message.from_user.id):
+        return
+    if await state.get_state() is not None:
+        await message.answer("Пожалуйста, отправьте текстовое сообщение.")
+        return
+    photo = message.photo[-1]
+    file = await bot.get_file(photo.file_id)
+    data = await bot.download_file(file.file_path)
+    extra = {
+        "file_b64": base64.b64encode(data.read()).decode(),
+        "filename": f"receipt_{photo.file_unique_id}.jpg",
+        "mime": "image/jpeg",
+    }
+    await _interact(message, state, "document", extra)
 
 
 async def handle_non_document(message: types.Message, state: FSMContext) -> None:

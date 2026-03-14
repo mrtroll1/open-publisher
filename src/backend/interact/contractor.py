@@ -26,7 +26,9 @@ from backend.infrastructure.repositories.sheets.contractor_repo import (
 )
 from backend.infrastructure.repositories.sheets.invoice_repo import (
     delete_invoice,
+    load_invoices,
     update_invoice_status,
+    update_receipt_url,
 )
 from backend.infrastructure.repositories.sheets.rules_repo import (
     add_redirect_rule,
@@ -50,6 +52,7 @@ from backend.models import (
     GlobalContractor,
     InvoiceStatus,
     RoleCode,
+    SamozanyatyContractor,
     SideMessageTrackType,
 )
 from backend.models import ResponseDataType as DT
@@ -293,6 +296,10 @@ class ContractorHandlers:
     def document(self, payload: Payload, ctx: InteractContext) -> dict:
         user_id = ctx["user_id"]
         contractor, _ = self._get_contractor(user_id)
+        # Samozanyaty: receipt upload
+        if isinstance(contractor, SamozanyatyContractor) and payload.get("file_b64"):
+            return self._handle_receipt_upload(contractor, payload, ctx)
+        # GlobalContractor: signed PDF upload
         sender_info = contractor.display_name if contractor else f"TG#{user_id}"
         drive_link = self._handle_pdf_upload(contractor, payload, ctx.get("progress"))
         if isinstance(drive_link, dict):
@@ -732,3 +739,25 @@ class ContractorHandlers:
         link = DriveGateway().upload_invoice_pdf(contractor, month, payload.get("filename", "document"), content)
         update_invoice_status(contractor.id, month, InvoiceStatus.SIGNED)
         return link
+
+    def _handle_receipt_upload(self, contractor, payload, ctx):
+        month = prev_month()
+        invoices = load_invoices(month)
+        inv = next((i for i in invoices if i.contractor_id == contractor.id), None)
+        if not inv:
+            return respond([msg(f"У вас нет счёта за {month}.")])
+        if inv.receipt_url:
+            return respond([msg("Чек за этот месяц уже загружен.")])
+        content = base64.b64decode(payload["file_b64"])
+        mime = payload.get("mime", "application/pdf")
+        ext = "jpg" if "image" in mime else "pdf"
+        filename = f"Receipt_{contractor.display_name}_{month}.{ext}"
+        progress = ctx.get("progress")
+        if progress:
+            progress.emit("upload_drive", "Загружаю чек на Google Drive")
+        link = DriveGateway().upload_receipt(contractor, month, filename, content, mime)
+        update_receipt_url(contractor.id, month, link)
+        admin_ids = ctx.get("admin_ids", [])
+        sides = [side_msg(aid, text=f"Чек от {contractor.display_name} за {month}:\n{link}")
+                 for aid in admin_ids]
+        return respond([msg("Спасибо! Чек получен.")], side_messages=sides)

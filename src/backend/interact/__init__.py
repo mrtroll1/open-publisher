@@ -52,6 +52,7 @@ _HANDLERS = {
     "admin_orphans": _admin.orphans,
     "admin_upload_statement": _admin.upload_statement,
     "admin_legium_reply": _admin.legium_reply,
+    "admin_remind_receipts": _admin.remind_receipts,
 }
 
 

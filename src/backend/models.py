@@ -333,6 +333,7 @@ class Invoice(BaseModel):
     gdrive_path: str = ""
     doc_id: str = ""
     legium_link: str = ""
+    receipt_url: str = ""
 
 
 class ArticleEntry(BaseModel):

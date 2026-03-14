@@ -39,6 +39,7 @@ from telegram_bot.handlers.admin_handlers import (
     cmd_invoices,
     cmd_lookup,
     cmd_orphan_contractors,
+    cmd_remind_receipts,
     cmd_send_global_invoices,
     cmd_send_legium_links,
     cmd_upload_to_airtable,
@@ -56,6 +57,7 @@ from telegram_bot.handlers.contractor_handlers import (
     handle_manage_redirects,
     handle_menu,
     handle_non_document,
+    handle_receipt_photo,
     handle_sign_doc,
     handle_start,
     handle_start_callback,
@@ -138,6 +140,7 @@ _ADMIN_COMMANDS: dict[str, Callable] = {
     "send_global_invoices": cmd_send_global_invoices,
     "send_legium_links": cmd_send_legium_links,
     "orphan_contractors": cmd_orphan_contractors,
+    "remind_receipts": cmd_remind_receipts,
     "articles": cmd_articles,
     "lookup": cmd_lookup,
     "budget": cmd_budget,
@@ -439,7 +442,10 @@ def register_all(dp: Dispatcher) -> None:
     # Documents
     dp.message.register(handle_document, F.document)
 
-    # Media (photos, stickers, etc.)
+    # Photos in DMs — potential receipt from samozanyaty
+    dp.message.register(handle_receipt_photo, F.photo, F.chat.type == "private")
+
+    # Other media (stickers, video, etc. + group photos)
     dp.message.register(
         handle_non_document,
         F.photo | F.sticker | F.video | F.voice | F.video_note | F.audio,

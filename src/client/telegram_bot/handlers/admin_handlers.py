@@ -106,6 +106,10 @@ async def cmd_orphan_contractors(message: types.Message, state: FSMContext) -> N
     await _interact_cmd(message, state, "admin_orphans")
 
 
+async def cmd_remind_receipts(message: types.Message, state: FSMContext) -> None:
+    await _interact_cmd(message, state, "admin_remind_receipts")
+
+
 async def cmd_upload_to_airtable(message: types.Message, state: FSMContext) -> None:
     """Parse an attached bank statement CSV and upload expenses to Airtable."""
     text = message.text or message.caption or ""

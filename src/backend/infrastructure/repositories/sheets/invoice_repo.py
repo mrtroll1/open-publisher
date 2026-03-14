@@ -29,6 +29,7 @@ COLUMNS = [
     "gdrive_path",
     "doc_id",
     "legium_link",
+    "receipt_url",
 ]
 
 
@@ -49,6 +50,7 @@ def _row_to_invoice(row: dict[str, str]) -> Invoice | None:
             gdrive_path=row.get("gdrive_path", ""),
             doc_id=row.get("doc_id", ""),
             legium_link=row.get("legium_link", ""),
+            receipt_url=row.get("receipt_url", ""),
         )
     except Exception as e:
         logger.warning("Skipping invoice row: %s", e)
@@ -68,6 +70,7 @@ def _invoice_to_row(inv: Invoice) -> list[str]:
         inv.gdrive_path,
         inv.doc_id,
         inv.legium_link,
+        inv.receipt_url,
     ]
 
 
@@ -139,6 +142,16 @@ def update_invoice_status(contractor_id: str, month: str, status: InvoiceStatus)
     headers, row_idx = result
     _write_invoice_field(headers, row_idx, "status", status.value)
     logger.info("Updated invoice status for %s/%s to %s", contractor_id, month, status.value)
+
+
+def update_receipt_url(contractor_id: str, month: str, url: str) -> None:
+    result = _find_invoice_row(contractor_id, month)
+    if result is None:
+        logger.warning("Invoice not found for %s/%s", contractor_id, month)
+        return
+    headers, row_idx = result
+    _write_invoice_field(headers, row_idx, "receipt_url", url)
+    logger.info("Set receipt_url for %s/%s", contractor_id, month)
 
 
 def update_legium_link(contractor_id: str, month: str, url: str, *, mark_sent: bool = True) -> None:

@@ -35,6 +35,7 @@ from backend.interact.helpers import (
     side_msg,
 )
 from backend.models import (
+    ContractorType,
     Currency,
     GlobalContractor,
     InvoiceStatus,
@@ -129,6 +130,36 @@ class AdminHandlers:
         except ValueError:
             return self._upload_usage()
         return self._process_statement(base64.b64decode(file_b64), rate, ctx.get("progress"))
+
+    def remind_receipts(self, _payload: Payload, _ctx: InteractContext) -> dict:
+        month = prev_month()
+        invoices = load_invoices(month)
+        contractors = load_all_contractors()
+        missing = []
+        for inv in invoices:
+            if inv.receipt_url or inv.currency != Currency.RUB:
+                continue
+            c = find_contractor_by_id(inv.contractor_id, contractors)
+            if not c or c.type != ContractorType.SAMOZANYATY:
+                continue
+            if inv.status not in (InvoiceStatus.SENT, InvoiceStatus.SIGNED, InvoiceStatus.PAID):
+                continue
+            missing.append(c)
+        if not missing:
+            return respond([msg(f"Все чеки за {month} получены (или нет подходящих счетов).")])
+        sides = []
+        names = []
+        for c in missing:
+            names.append(c.display_name)
+            if c.telegram:
+                sides.append(side_msg(
+                    int(c.telegram),
+                    text=f"Напоминание: пожалуйста, отправьте чек за {month}. "
+                         "Отправьте фото или PDF чека в этот чат.",
+                ))
+        summary = f"Напоминание отправлено ({len(sides)} из {len(missing)}):\n"
+        summary += "\n".join(f"  - {n}" for n in names)
+        return respond([msg(summary)], side_messages=sides)
 
     def legium_reply(self, payload: Payload, _ctx: InteractContext) -> dict:
         url = payload.get("text", "").strip()

@@ -16,8 +16,8 @@
 
 - [x] Create "stub" tab in the contractors Google Sheet with header: `id | name | aliases | role_code | telegram | secret_code`
 - [x] Deploy migration 008 (editor_dm environment + contractors tool permissions)
-- [ ] Bind editor DM chats to `editor_dm` environment via API
-- [ ] Create editor users with role `editor` so Authorizer grants correct tools
+- [x] Bind editor DM chats to `editor_dm` environment via API
+- [x] Create editor users with role `editor` so Authorizer grants correct tools
 - [ ] Test self-registration with improved matching threshold (0.6)
 - [ ] Test type change flow end-to-end: samozanyaty → global
 - [ ] Test stub claim flow: admin creates stub → author starts bot → matches → verifies → fills data

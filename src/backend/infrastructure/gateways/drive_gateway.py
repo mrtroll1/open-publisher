@@ -129,8 +129,17 @@ class DriveGateway:
 
     def upload_invoice_pdf(self, contractor, month: str, filename: str, pdf_bytes: bytes) -> str:
         """Upload an invoice PDF to the appropriate folder structure. Returns a shareable link."""
+        return self._upload_to_contractor_folder(contractor, month, filename, pdf_bytes)
+
+    def upload_receipt(self, contractor, month: str, filename: str, file_bytes: bytes,
+                       mime_type: str = "application/pdf") -> str:
+        """Upload a receipt to the contractor's folder. Returns a shareable link."""
+        return self._upload_to_contractor_folder(contractor, month, filename, file_bytes, mime_type)
+
+    def _upload_to_contractor_folder(self, contractor, month: str, filename: str,
+                                     content: bytes, mime_type: str = "application/pdf") -> str:
         from backend.commands.invoice.service import InvoiceService  # noqa: PLC0415 — circular import
         parent, month_folder, name_folder = InvoiceService().folder_path(contractor, month)
         folder_id = self.get_contractor_folder(parent, month_folder, name_folder)
-        file_id = self.upload_file(folder_id, filename, pdf_bytes)
+        file_id = self.upload_file(folder_id, filename, content, mime_type)
         return self.make_shareable(file_id)

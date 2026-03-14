@@ -22,7 +22,7 @@ from backend.infrastructure.repositories.postgres import DbGateway
 
 logger = logging.getLogger(__name__)
 
-MAX_TOOL_STEPS = 5
+MAX_TOOL_STEPS = 10
 
 
 def _truncate(obj, max_len=500) -> Any:

@@ -166,7 +166,16 @@ class AdminHandlers:
         contractor_id = payload.get("contractor_id", "")
         contractor_telegram = payload.get("contractor_telegram", "")
         month = prev_month()
-        contractor = find_contractor_by_id(contractor_id, load_all_contractors())
+        contractors = load_all_contractors()
+        contractor = find_contractor_by_id(contractor_id, contractors) if contractor_id else None
+        if not contractor:
+            name = payload.get("contractor_name", "")
+            contractor = find_contractor(name, contractors) if name else None
+        if contractor:
+            contractor_id = contractor_id or contractor.id
+            contractor_telegram = contractor_telegram or contractor.telegram or ""
+        if not contractor_id:
+            return respond([msg("Контрагент не найден.")])
         if not contractor_telegram:
             update_legium_link(contractor_id, month, url, mark_sent=False)
             return respond([msg("Контрагент не привязан к Telegram. "

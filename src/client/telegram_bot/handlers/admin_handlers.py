@@ -280,20 +280,36 @@ async def cmd_chatid(message: types.Message, _state: FSMContext) -> None:
 
 # ── Admin reply routing ──────────────────────────────────────────────
 
+_LEGIUM_PATTERN = "sign.legium.io/"
+_LEGIUM_PROMPT_MARKER = "ссылкой из Легиума"
+
+
 async def _try_legium_reply(message, state, key) -> bool:
     entry = _admin_reply_map.get(key)
-    if not entry:
-        return False
-    contractor_tg, contractor_id = entry
+    if entry:
+        contractor_tg, contractor_id = entry
+        payload = {"text": message.text.strip(), "contractor_id": contractor_id,
+                   "contractor_telegram": contractor_tg}
+    else:
+        # Fallback: detect legium URL + invoice notification in replied-to message
+        text = (message.text or "").strip()
+        reply_msg = message.reply_to_message
+        reply_text = (reply_msg.text or reply_msg.caption or "") if reply_msg else ""
+        if _LEGIUM_PATTERN not in text or _LEGIUM_PROMPT_MARKER not in reply_text:
+            return False
+        # Parse contractor name from "Name (type) — month" format
+        name = reply_text.split("(")[0].strip() if "(" in reply_text else ""
+        if not name:
+            return False
+        payload = {"text": text, "contractor_name": name}
     try:
         result = await backend_client.interact(
             action="admin_legium_reply",
-            payload={"text": message.text.strip(), "contractor_id": contractor_id,
-                     "contractor_telegram": contractor_tg},
+            payload=payload,
             context={"user_id": message.from_user.id, "chat_id": message.chat.id, "is_admin": True},
         )
         await render(message, state, result)
-        del _admin_reply_map[key]
+        _admin_reply_map.pop(key, None)
     except Exception as e:
         await message.answer(replies.invoice.legium_send_error.format(error=e))
     return True

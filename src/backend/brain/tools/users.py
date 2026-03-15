@@ -76,8 +76,6 @@ def make_user_tool(db: DbGateway, gemini) -> Tool:  # noqa: C901
         },
         fn=fn,
         permissions={},
-        examples=["добавь пользователя ...", "это наш редактор ...", "Маша Иванова, telegram 123, editor"],
-        nl_routable=True,
+        nl_routable=False,
         conversational=True,
-        nl_param="text",
     )

@@ -266,7 +266,7 @@ class ComputeBudget:
             flat_rate_rules, contractors,
             flat_by_id=flat_by_id, rate_by_id=rate_by_id,
             author_counts=author_counts, redirect_bonuses=redirect_bonuses,
-            label_by_id=label_by_id, groups=groups, seen_ids=seen_ids,
+            groups=groups, seen_ids=seen_ids,
         )
         return groups
 
@@ -316,7 +316,6 @@ class ComputeBudget:
         rate_by_id: dict[str, tuple[int, int]],
         author_counts: dict[str, int],
         redirect_bonuses: dict[str, list[tuple[str, int, bool]]],
-        _label_by_id: dict[str, str],
         groups: dict[str, list[PaymentEntry]],
         seen_ids: set[str],
     ) -> None:

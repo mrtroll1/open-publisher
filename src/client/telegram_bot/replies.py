@@ -130,6 +130,7 @@ class menu:
         "/send_legium_links — отправить ссылки на Легиум\n"
         "/orphan_contractors — сверка бюджета и контрагентов\n"
         "/budget — расчёт бюджета\n"
+        "/remind_receipts — напомнить самозанятым о чеках\n"
         "/upload_to_airtable — загрузить банковскую выписку\n"
         "/articles <имя> [YYYY-MM] — статьи контрагента\n"
         "/lookup <имя> — информация о контрагенте\n\n"

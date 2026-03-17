@@ -155,7 +155,7 @@ class AdminHandlers:
                 sides.append(side_msg(
                     int(c.telegram),
                     text=f"Напоминание: пожалуйста, отправьте чек за {month}. "
-                         "Отправьте фото или PDF чека в этот чат.",
+                         "Отправьте фото или PDF в этот чат.",
                 ))
         summary = f"Напоминание отправлено ({len(sides)} из {len(missing)}):\n"
         summary += "\n".join(f"  - {n}" for n in names)

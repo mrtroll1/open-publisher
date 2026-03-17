@@ -41,6 +41,7 @@ _HANDLERS = {
     # File handling
     "document": _contractor.document,
     "non_document": _contractor.non_document,
+    "receipt_link": _contractor.receipt_link,
 
     # Admin commands
     "admin_generate": _admin.generate,

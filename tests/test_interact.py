@@ -88,7 +88,7 @@ def test_start_callback_returning_contractor_shows_menu(mock_find, *_):
 def test_start_callback_new_user_starts_registration(*_):
     result = handle("start_callback", {}, {"user_id": 999})
 
-    assert result.get("fsm_state") is None
+    assert result.get("fsm_state") == "lookup"
     assert len(result["messages"]) >= 1
 
 

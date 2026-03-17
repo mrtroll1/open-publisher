@@ -5,7 +5,8 @@ Text message routing (priority order inside _route_text):
   2. /command              → _DM_COMMANDS or _ADMIN_COMMANDS lookup
   3. Admin reply-to-msg    → handle_admin_reply()
   4. FSM state active      → _FSM_HANDLERS[state]
-  5. Free text (catch-all) → _route_dm_nl() (Brain NL for all DM users)
+  5. KPD receipt link      → handle_receipt_link() (non-admin only)
+  6. Free text (catch-all) → _route_dm_nl() (Brain NL for all DM users)
 
 Other message types (registered explicitly in register_all):
   - Callback queries: 7 handlers (incl. start:contractor)
@@ -16,6 +17,7 @@ Other message types (registered explicitly in register_all):
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 
 from aiogram import Dispatcher, F, types
@@ -57,6 +59,7 @@ from telegram_bot.handlers.contractor_handlers import (
     handle_manage_redirects,
     handle_menu,
     handle_non_document,
+    handle_receipt_link,
     handle_receipt_photo,
     handle_sign_doc,
     handle_start,
@@ -352,6 +355,13 @@ class _GroupConfig:
 _GROUP_ADMIN_COMMANDS = {"env_bind", "env_unbind", "env_summarize"}
 
 
+_RECEIPT_LINK_RE = re.compile(r"https?://\S*(lknpd\.nalog\.ru|kpd\S*nalog)", re.IGNORECASE)
+
+
+def _is_receipt_link(text: str) -> bool:
+    return bool(_RECEIPT_LINK_RE.search(text))
+
+
 def _parse_command(text: str) -> str:
     raw_cmd = text.split(maxsplit=1)[0].lstrip("/")
     return raw_cmd.split("@", 1)[0] if "@" in raw_cmd else raw_cmd
@@ -394,6 +404,10 @@ async def _route_text(message: types.Message, state: FSMContext) -> None:
     current_state = await state.get_state()
     if current_state is not None:
         await _route_fsm(message, state, current_state)
+        return
+    # KPD / nalog.ru receipt link from contractor
+    if not is_admin(message.from_user.id) and _is_receipt_link(text):
+        await handle_receipt_link(message, state)
         return
     # All DM free text: route through Brain NL (role-based permissions handle security)
     await _route_dm_nl(message, text)

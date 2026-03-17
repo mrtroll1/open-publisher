@@ -740,6 +740,25 @@ class ContractorHandlers:
         update_invoice_status(contractor.id, month, InvoiceStatus.SIGNED)
         return link
 
+    def receipt_link(self, payload: Payload, ctx: InteractContext) -> dict:
+        user_id = ctx["user_id"]
+        contractor, _ = self._get_contractor(user_id)
+        if not isinstance(contractor, SamozanyatyContractor):
+            return respond([msg("Эта функция доступна только для самозанятых.")])
+        url = payload.get("text", "").strip()
+        month = prev_month()
+        invoices = load_invoices(month)
+        inv = next((i for i in invoices if i.contractor_id == contractor.id), None)
+        if not inv:
+            return respond([msg(f"У вас нет счёта за {month}.")])
+        if inv.receipt_url:
+            return respond([msg("Чек за этот месяц уже загружен.")])
+        update_receipt_url(contractor.id, month, url)
+        admin_ids = ctx.get("admin_ids", [])
+        sides = [side_msg(aid, text=f"Чек (ссылка) от {contractor.display_name} за {month}:\n{url}")
+                 for aid in admin_ids]
+        return respond([msg("Спасибо! Ссылка на чек сохранена.")], side_messages=sides)
+
     def _handle_receipt_upload(self, contractor, payload, ctx):
         month = prev_month()
         invoices = load_invoices(month)

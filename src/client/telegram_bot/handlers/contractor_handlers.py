@@ -28,6 +28,7 @@ __all__ = [
     "handle_manage_redirects",
     "handle_menu",
     "handle_non_document",
+    "handle_receipt_link",
     "handle_receipt_photo",
     "handle_sign_doc",
     "handle_start",
@@ -219,6 +220,11 @@ async def handle_document(message: types.Message, state: FSMContext) -> None:
                 await bot.forward_message(admin_id, message.chat.id, message.message_id)
             except Exception:
                 logger.warning("Failed to forward document to admin %s", admin_id, exc_info=True)
+
+
+async def handle_receipt_link(message: types.Message, state: FSMContext) -> None:
+    await send_typing(message.chat.id)
+    await _interact(message, state, "receipt_link")
 
 
 async def handle_receipt_photo(message: types.Message, state: FSMContext) -> None:

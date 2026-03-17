@@ -331,7 +331,7 @@ class ContractorHandlers:
         return respond([msg(
             "Здравствуйте! Я бот для оформления оплаты.\n\n"
             f"Под каким именем/псевдонимом вы работаете на {PRODUCT_NAME}?"
-        )], fsm_state=None)
+        )], fsm_state="lookup")
 
     def _not_a_contractor(self):
         return respond([msg(

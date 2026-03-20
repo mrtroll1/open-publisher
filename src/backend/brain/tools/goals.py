@@ -67,7 +67,7 @@ def _plan(db, gemini, args: dict) -> dict:
     created = []
     for t in result.get("tasks", []):
         dep_idx = t.get("depends_on_index")
-        depends_on = created[dep_idx]["id"] if dep_idx is not None and dep_idx < len(created) else None
+        depends_on = created[dep_idx]["id"] if dep_idx is not None and 0 <= dep_idx < len(created) else None
         task = db.create_task(
             title=t["title"],
             description=t.get("description"),

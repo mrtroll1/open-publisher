@@ -115,6 +115,7 @@ class GoalMonitor:
                         "task_title": task["title"],
                         "result": result.get("result", ""),
                     })
+                    self._activate_next(task)
                 else:
                     self._db.update_task(task["id"], result=result.get("result", ""))
                 results.append(task)
@@ -122,27 +123,45 @@ class GoalMonitor:
                 logger.exception("Failed to execute agent task %s", task.get("id"))
         return results
 
+    def _activate_next(self, completed_task: dict) -> None:
+        """Activate the next task in chain after a task completes."""
+        if not completed_task.get("goal_id"):
+            return
+        goal_tasks = self._db.list_tasks(goal_id=completed_task["goal_id"])
+        for next_task in goal_tasks:
+            if next_task.get("depends_on") == completed_task["id"] and next_task["status"] == "pending":
+                self._db.update_task(next_task["id"], status="in_progress")
+                if next_task["assigned_to"] == "user":
+                    self._db.create_notification("checkpoint_ready", {
+                        "task_id": str(next_task["id"]),
+                        "task_title": next_task["title"],
+                        "task_description": next_task.get("description") or "",
+                        "prev_task_title": completed_task["title"],
+                        "prev_result": completed_task.get("result") or "",
+                        "goal_id": str(completed_task.get("goal_id", "")),
+                    })
+                break
+
     def _check_checkpoints(self) -> list[dict]:
-        """When an agent task completes and next task is user-assigned, create checkpoint notification."""
-        checkpoints = []
-        done_agent_tasks = self._db.list_tasks(status="done", assigned_to="agent")
-        for task in done_agent_tasks:
-            try:
-                goal_tasks = self._db.list_tasks(goal_id=task["goal_id"]) if task.get("goal_id") else []
-                for next_task in goal_tasks:
-                    if (next_task.get("depends_on") == task["id"]
-                            and next_task["assigned_to"] == "user"
-                            and next_task["status"] == "pending"):
-                        self._db.update_task(next_task["id"], status="in_progress")
+        """Safety net: activate stuck pending tasks whose dependency is already done."""
+        activated = []
+        active_goals = self._db.list_goals(status="active")
+        for goal in active_goals:
+            tasks = self._db.list_tasks(goal_id=goal["id"])
+            for task in tasks:
+                if (task["status"] == "pending"
+                        and task.get("depends_on")
+                        and any(t["id"] == task["depends_on"] and t["status"] == "done" for t in tasks)):
+                    self._db.update_task(task["id"], status="in_progress")
+                    if task["assigned_to"] == "user":
+                        dep = next(t for t in tasks if t["id"] == task["depends_on"])
                         self._db.create_notification("checkpoint_ready", {
-                            "task_id": str(next_task["id"]),
-                            "task_title": next_task["title"],
-                            "task_description": next_task.get("description") or "",
-                            "prev_task_title": task["title"],
-                            "prev_result": task.get("result") or "",
-                            "goal_id": str(task.get("goal_id", "")),
+                            "task_id": str(task["id"]),
+                            "task_title": task["title"],
+                            "task_description": task.get("description") or "",
+                            "prev_task_title": dep["title"],
+                            "prev_result": dep.get("result") or "",
+                            "goal_id": str(goal["id"]),
                         })
-                        checkpoints.append(next_task)
-            except Exception:
-                logger.exception("Failed checkpoint check for task %s", task.get("id"))
-        return checkpoints
+                    activated.append(task)
+        return activated

@@ -431,6 +431,18 @@ async def _route_dm_nl(message: types.Message, text: str) -> None:
         await message.answer("Не удалось обработать.")
 
 
+# ── Admin Documents ───────────────────────────────────────────────────
+
+async def _route_admin_document(message: types.Message, state: FSMContext) -> None:
+    """Route documents with /command captions from admins."""
+    if not is_admin(message.from_user.id):
+        return
+    cmd = _parse_command(message.caption)
+    handler = _ADMIN_COMMANDS.get(cmd)
+    if handler:
+        await handler(message, state)
+
+
 # ── Registration ──────────────────────────────────────────────────────
 
 async def set_bot_commands(bot) -> None:
@@ -452,6 +464,9 @@ def register_all(dp: Dispatcher) -> None:
 
     # Single text handler — all routing in _route_text
     dp.message.register(_route_text, F.text)
+
+    # Admin documents (e.g. /upload_to_airtable with attached CSV)
+    dp.message.register(_route_admin_document, F.document, F.caption.startswith("/"))
 
     # Documents
     dp.message.register(handle_document, F.document)

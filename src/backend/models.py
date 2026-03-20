@@ -429,7 +429,6 @@ class AirtableExpense(BaseModel):
     entity: str = ""
     description: str = ""
     group: str = ""
-    parent: str = ""
     splited: str = ""
     comment: str = ""
     created_at: str = ""  # date string, set when uploading

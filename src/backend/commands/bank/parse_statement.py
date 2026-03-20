@@ -83,11 +83,11 @@ def _bo(unit: str) -> str:
     return f"backoffice {unit}"
 
 
-def _classify_person(name: str) -> tuple[str, str, str, str]:
+def _classify_person(name: str) -> tuple[str, str, str]:
     info = KNOWN_PEOPLE.get(name)
     if info:
-        return info["group"], info["parent"], info["unit"], info["desc"]
-    return "authors", "staff", UNIT_PRIMARY, "Гонорар автора"
+        return info["group"], info["unit"], info["desc"]
+    return "authors", UNIT_PRIMARY, "Гонорар автора"
 
 
 def _is_owner(name: str) -> bool:
@@ -120,7 +120,7 @@ def _handle_incoming_transfer(
         expenses.append(AirtableExpense(
             payed=date_str, amount_rub=_to_rub(abs(amount), aed_to_rub),
             contractor=OWNER_NAME, unit=_bo(UNIT_PRIMARY), entity=DEFAULT_ENTITY,
-            description="Зп + амазон + авторы", group="managers", parent="staff",
+            description="Зп + амазон + авторы", group="managers",
         ))
     return True
 
@@ -146,7 +146,6 @@ def _handle_fee(  # noqa: PLR0913
             entity=DEFAULT_ENTITY,
             description=description,
             group="banking",
-            parent="goods and services",
         ))
     return True
 
@@ -161,7 +160,7 @@ def _handle_outgoing_transfer(
 
     name = to_match.group(1).strip()
     rub = _to_rub(abs(amount), aed_to_rub)
-    group, parent, unit, desc = _classify_person(name)
+    group, unit, desc = _classify_person(name)
     expenses.append(AirtableExpense(
         payed=date_str,
         amount_rub=rub,
@@ -170,7 +169,6 @@ def _handle_outgoing_transfer(
         entity=DEFAULT_ENTITY,
         description=desc,
         group=group,
-        parent=parent,
     ))
     return True
 
@@ -181,7 +179,7 @@ def _split_expense(date_str, rub_half, service) -> list[AirtableExpense]:
             payed=date_str, amount_rub=rub_half,
             contractor=service["contractor"], unit=_bo(unit_name),
             entity=DEFAULT_ENTITY, description=service["description"],
-            group=service["group"], parent=service["parent"], splited="checked",
+            group=service["group"], splited="checked",
         )
         for unit_name in (UNIT_SECONDARY, UNIT_PRIMARY)
     ]
@@ -199,7 +197,7 @@ def _handle_card_known_service(
             payed=date_str, amount_rub=rub, contractor=service["contractor"],
             unit=service["unit"], entity=DEFAULT_ENTITY,
             description=service["description"],
-            group=service["group"], parent=service["parent"],
+            group=service["group"],
         ))
 
 
@@ -218,7 +216,6 @@ def _handle_card_unknown_service(
             entity=DEFAULT_ENTITY,
             description=f"Оплата картой: {description}",
             group="infrastructure",
-            parent="goods and services",
             splited="checked",
             comment="NEEDS REVIEW",
         )
@@ -254,7 +251,6 @@ def _aggregate_swift_fees(
         entity=DEFAULT_ENTITY,
         description=f"SWIFT transaction fees {_month_label(last_date)}",
         group="comissions",
-        parent="expenses",
     ))
 
 
@@ -270,7 +266,7 @@ def _aggregate_fx_fees(
             payed=last_date, amount_rub=rub_half, contractor="Wio Bank",
             unit=_bo(unit_name), entity=DEFAULT_ENTITY,
             description=f"Foreign exchange transaction fees {_month_label(last_date)}",
-            group="comissions", parent="expenses", splited="checked",
+            group="comissions", splited="checked",
         )
         for unit_name in (UNIT_SECONDARY, UNIT_PRIMARY)
     )

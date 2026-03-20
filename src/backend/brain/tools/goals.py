@@ -113,8 +113,16 @@ def _launch(db, gemini, args: dict) -> dict:
     tasks = planned.get("tasks_created", [])
     if tasks:
         first = tasks[0]
-        if first["assigned_to"] == "agent":
-            db.update_task(first["id"], status="in_progress")
+        db.update_task(first["id"], status="in_progress")
+        if first["assigned_to"] == "user":
+            db.create_notification("checkpoint_ready", {
+                "task_id": str(first["id"]),
+                "task_title": first["title"],
+                "task_description": first.get("description") or "",
+                "prev_task_title": "(начало цепочки)",
+                "prev_result": "",
+                "goal_id": goal_id,
+            })
     return {
         "goal": created["goal"],
         "tasks_created": tasks,
@@ -123,13 +131,13 @@ def _launch(db, gemini, args: dict) -> dict:
 
 
 _ACTIONS = {
+    "launch": _launch,
     "list": _list,
-    "create": _create,
+    "create": _create,  # not in enum — internal use and backward compat
     "update": _update,
     "plan": _plan,
     "progress": _progress,
     "status": _status,
-    "launch": _launch,
 }
 
 
@@ -149,8 +157,8 @@ def make_goals_tool(db, gemini) -> Tool:
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["list", "create", "update", "plan", "progress", "status", "launch"],
-                    "description": "list=все цели, create=новая цель, update=обновить цель/задачу, plan=декомпозировать на задачи, progress=записать прогресс, status=подробный статус, launch=создать цель и сразу декомпозировать",
+                    "enum": ["launch", "list", "update", "plan", "progress", "status"],
+                    "description": "launch=создать цель и декомпозировать на задачи, list=все цели, update=обновить цель/задачу, plan=декомпозировать существующую цель на задачи, progress=записать прогресс, status=подробный статус",
                 },
                 "title": {"type": "string", "description": "Название (для create)"},
                 "description": {"type": "string", "description": "Описание (для create)"},

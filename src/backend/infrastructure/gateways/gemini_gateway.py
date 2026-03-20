@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 
 from google import genai
@@ -179,8 +180,18 @@ class GeminiGateway:
             try:
                 return json.loads(s)
             except json.JSONDecodeError:
-                cleaned = s.replace("\r\n", "\\n").replace("\r", "\\n").replace("\n", "\\n").replace("\t", "\\t")
-                return json.loads(cleaned)
+                # Escape control chars inside JSON string values only
+                cleaned = re.sub(
+                    r'(?<=": ")((?:[^"\\]|\\.)*)(?=")',
+                    lambda m: m.group(0).replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t"),
+                    s,
+                )
+                try:
+                    return json.loads(cleaned)
+                except json.JSONDecodeError:
+                    # Fallback: escape all control chars globally
+                    brutal = re.sub(r'[\x00-\x1f]', lambda m: f'\\u{ord(m.group()):04x}', s)
+                    return json.loads(brutal)
 
         if raw.startswith("{"):
             return _try_loads(raw)

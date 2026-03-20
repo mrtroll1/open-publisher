@@ -47,9 +47,50 @@ from backend.wiring import create_generate_batch_invoices, create_parse_bank_sta
 logger = logging.getLogger(__name__)
 
 
+def _activate_next_task(db, completed_task: dict) -> None:
+    """Find and activate the next task in chain after a checkpoint."""
+    if not completed_task.get("goal_id"):
+        return
+    goal_tasks = db.list_tasks(goal_id=completed_task["goal_id"])
+    for task in goal_tasks:
+        if task.get("depends_on") == completed_task["id"] and task["status"] == "pending":
+            db.update_task(task["id"], status="in_progress")
+            break
+
+
 class AdminHandlers:
 
     # ── Public handlers ──
+
+    def checkpoint_action(self, payload: Payload, _ctx: InteractContext) -> dict:
+        """Handle user response to a checkpoint notification."""
+        from backend.api import db  # noqa: PLC0415
+
+        task_id = payload.get("task_id", "")
+        action = payload.get("action", "")
+        edit_text = payload.get("edit_text", "")
+
+        if not task_id:
+            return respond([msg("Не указан task_id.")])
+
+        task = db.get_task(task_id)
+        if not task:
+            return respond([msg("Задача не найдена.")])
+
+        if action == "approve":
+            result = edit_text or "Утверждено пользователем"
+            db.update_task(task_id, status="done", result=result)
+            if task.get("goal_id"):
+                db.add_progress(task["goal_id"], f"Checkpoint пройден: {task['title']}", source="user")
+            _activate_next_task(db, task)
+            return respond([msg(f"Checkpoint пройден: {task['title']}")])
+
+        if action == "skip":
+            db.update_task(task_id, status="done", result="Пропущено пользователем")
+            _activate_next_task(db, task)
+            return respond([msg(f"Checkpoint пропущен: {task['title']}")])
+
+        return respond([msg(f"Неизвестное действие: {action}")])
 
     def generate(self, payload: Payload, ctx: InteractContext) -> dict:
         text = payload.get("text", "").strip()

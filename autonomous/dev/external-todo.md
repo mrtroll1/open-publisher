@@ -23,3 +23,13 @@
 - [ ] Test stub claim flow: admin creates stub → author starts bot → matches → verifies → fills data
 - [ ] Test NL contractor operations in admin DM
 
+## Autonomous Pipelines (Plan 14)
+
+- [ ] Deploy migration 012 (task depends_on column)
+- [ ] Deploy migration 013 (web_scrape permission)
+- [ ] Test full pipeline: create goal via "launch" → agent tasks execute with tools → checkpoint notification → approve → next task
+- [ ] Monitor GoalMonitor logs for agent task execution quality
+- [ ] Tune agent task tool subset if needed (add/remove tools from _AGENT_TOOLS)
+- [ ] Verify checkpoint notifications render correctly in Telegram with buttons
+- [ ] Test checkpoint approve/skip callback flow end-to-end
+

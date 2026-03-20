@@ -10,12 +10,13 @@ from aiogram import Dispatcher
 from telegram_bot.bot_helpers import bot, load_admin_ids
 from telegram_bot.handlers.channel_scraper import channel_scraper_task
 from telegram_bot.handlers.email_listener import email_listener_task
-from telegram_bot.handlers.goal_notifications import goal_notification_task
+from telegram_bot.handlers.goal_notifications import checkpoint_callback, goal_notification_task
 from telegram_bot.router import register_all, set_bot_commands
 
 logger = logging.getLogger(__name__)
 dp = Dispatcher()
 register_all(dp)
+dp.callback_query.register(checkpoint_callback, lambda c: c.data and c.data.startswith("chk:"))
 
 _background_tasks: set[asyncio.Task] = set()
 

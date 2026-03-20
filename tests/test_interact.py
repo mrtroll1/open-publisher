@@ -987,3 +987,20 @@ def test_remind_receipts_sends_reminders(mock_find, mock_contractors, mock_invoi
 
     assert len(result.get("side_messages", [])) == 1
     assert result["side_messages"][0]["chat_id"] == 555
+
+
+# ── Checkpoint action ────────────────────────────────────────────────
+
+
+def test_checkpoint_approve_activates_next_task(fake_db):
+    goal = fake_db.create_goal(title="Pipeline")
+    t_user = fake_db.create_task(title="Review", goal_id=goal["id"], assigned_to="user")
+    t_next = fake_db.create_task(title="Send", goal_id=goal["id"], assigned_to="agent", depends_on=t_user["id"])
+    fake_db.update_task(t_user["id"], status="in_progress")
+
+    # Simulate approve
+    from backend.interact.admin import _activate_next_task
+    fake_db.update_task(t_user["id"], status="done", result="Approved")
+    _activate_next_task(fake_db, fake_db.get_task(t_user["id"]))
+
+    assert fake_db.get_task(t_next["id"])["status"] == "in_progress"

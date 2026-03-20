@@ -31,6 +31,7 @@ from backend.brain.tools import (
     make_support_tool,
     make_teach_tool,
     make_user_tool,
+    make_web_scrape_tool,
     make_web_search_tool,
     make_yandex_metrica_tool,
 )
@@ -191,6 +192,7 @@ def _register_core_tools(genai, memory, retriever, gemini, db) -> None:
     register_tool(make_teach_tool(genai["classify_teaching"], memory, gemini))
     register_tool(make_search_tool(retriever))
     register_tool(make_web_search_tool(gemini))
+    register_tool(make_web_scrape_tool())
     register_tool(make_support_tool(genai["tech_support"]))
     register_tool(make_user_tool(db, gemini))
     _set_retriever(retriever)

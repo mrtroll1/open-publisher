@@ -15,10 +15,14 @@ GOAL_MONITOR_INTERVAL = int(os.getenv("GOAL_MONITOR_INTERVAL", ""))
 
 
 async def _goal_monitor_loop():
-    from backend.api import db, gemini  # noqa: PLC0415
+    from backend.api import db, gemini, retriever  # noqa: PLC0415
+    from backend.brain.agent_executor import AgentTaskExecutor  # noqa: PLC0415
+    from backend.brain.react import conversation_handler  # noqa: PLC0415
     from backend.commands.goal_monitor import GoalMonitor  # noqa: PLC0415
 
-    monitor = GoalMonitor(db, gemini)
+    conv_fn = conversation_handler(gemini, db, retriever)
+    executor = AgentTaskExecutor(conv_fn)
+    monitor = GoalMonitor(db, gemini, agent_executor=executor)
     while True:
         await asyncio.sleep(GOAL_MONITOR_INTERVAL)
         try:

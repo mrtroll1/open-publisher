@@ -73,17 +73,18 @@ class GoalRepo(BasePostgresRepo):
     def create_task(  # noqa: PLR0913
         self, title: str, description: str | None = None, goal_id: str | None = None,
         trigger_condition: str | None = None, due_date=None, assigned_to: str = "user",
+        depends_on: str | None = None,
     ) -> dict:
         with self._cursor() as cur:
             cur.execute(
-                """INSERT INTO tasks (title, description, goal_id, trigger_condition, due_date, assigned_to)
-                   VALUES (%s, %s, %s, %s, %s, %s) RETURNING *""",
-                (title, description, goal_id, trigger_condition, due_date, assigned_to),
+                """INSERT INTO tasks (title, description, goal_id, trigger_condition, due_date, assigned_to, depends_on)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING *""",
+                (title, description, goal_id, trigger_condition, due_date, assigned_to, depends_on),
             )
             return _row_to_dict(cur, cur.fetchone())
 
     def update_task(self, task_id: str, **fields) -> dict:
-        valid = {"title", "description", "status", "goal_id", "trigger_condition", "due_date", "assigned_to", "result"}
+        valid = {"title", "description", "status", "goal_id", "trigger_condition", "due_date", "assigned_to", "result", "depends_on"}
         unknown = set(fields) - valid
         if unknown:
             raise ValueError(f"Unknown fields: {unknown}")
@@ -121,6 +122,11 @@ class GoalRepo(BasePostgresRepo):
         with self._cursor() as cur:
             cur.execute(f"SELECT * FROM tasks{where} ORDER BY created_at", values)
             return _rows_to_dicts(cur)
+
+    def get_task(self, task_id: str) -> dict | None:
+        with self._cursor() as cur:
+            cur.execute("SELECT * FROM tasks WHERE id = %s", (task_id,))
+            return _row_to_dict(cur, cur.fetchone())
 
     def get_triggered_tasks(self) -> list[dict]:
         with self._cursor() as cur:

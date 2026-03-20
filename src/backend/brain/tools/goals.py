@@ -66,12 +66,14 @@ def _plan(db, gemini, args: dict) -> dict:
     result = gemini.call(prompt)
     created = []
     for t in result.get("tasks", []):
+        dep_idx = t.get("depends_on_index")
+        depends_on = created[dep_idx]["id"] if dep_idx is not None and dep_idx < len(created) else None
         task = db.create_task(
             title=t["title"],
             description=t.get("description"),
             goal_id=goal_id,
-            trigger_condition=t.get("trigger_condition"),
             assigned_to=t.get("assigned_to", "user"),
+            depends_on=depends_on,
         )
         created.append(task)
     return {"tasks_created": created}
@@ -98,6 +100,28 @@ def _status(db, _gemini, args: dict) -> dict:
     return {"goal": goal, "tasks": tasks, "recent_progress": progress}
 
 
+def _launch(db, gemini, args: dict) -> dict:
+    """Create goal + decompose in one step."""
+    created = _create(db, gemini, args)
+    if "error" in created:
+        return created
+    goal_id = created["goal"]["id"]
+    planned = _plan(db, gemini, {"goal_id": goal_id})
+    if "error" in planned:
+        return {"goal": created["goal"], "plan_error": planned["error"]}
+    # Activate first task in chain
+    tasks = planned.get("tasks_created", [])
+    if tasks:
+        first = tasks[0]
+        if first["assigned_to"] == "agent":
+            db.update_task(first["id"], status="in_progress")
+    return {
+        "goal": created["goal"],
+        "tasks_created": tasks,
+        "confirmation": f"Цель создана и декомпозирована на {len(tasks)} задач",
+    }
+
+
 _ACTIONS = {
     "list": _list,
     "create": _create,
@@ -105,6 +129,7 @@ _ACTIONS = {
     "plan": _plan,
     "progress": _progress,
     "status": _status,
+    "launch": _launch,
 }
 
 
@@ -124,8 +149,8 @@ def make_goals_tool(db, gemini) -> Tool:
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["list", "create", "update", "plan", "progress", "status"],
-                    "description": "list=все цели, create=новая цель, update=обновить цель/задачу, plan=декомпозировать на задачи, progress=записать прогресс, status=подробный статус",
+                    "enum": ["list", "create", "update", "plan", "progress", "status", "launch"],
+                    "description": "list=все цели, create=новая цель, update=обновить цель/задачу, plan=декомпозировать на задачи, progress=записать прогресс, status=подробный статус, launch=создать цель и сразу декомпозировать",
                 },
                 "title": {"type": "string", "description": "Название (для create)"},
                 "description": {"type": "string", "description": "Описание (для create)"},

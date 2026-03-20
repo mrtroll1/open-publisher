@@ -93,12 +93,13 @@ class FakeDb:
     # ── Tasks ──
 
     def create_task(self, title: str, description: str | None = None, goal_id: str | None = None,  # noqa: PLR0913
-                    trigger_condition: str | None = None, due_date=None, assigned_to: str = "user") -> dict:
+                    trigger_condition: str | None = None, due_date=None, assigned_to: str = "user",
+                    depends_on: str | None = None) -> dict:
         now = datetime.now(UTC)
         task = {
             "id": str(uuid.uuid4()), "title": title, "description": description,
             "goal_id": goal_id, "trigger_condition": trigger_condition,
-            "due_date": due_date, "assigned_to": assigned_to,
+            "due_date": due_date, "assigned_to": assigned_to, "depends_on": depends_on,
             "status": "pending", "result": None, "completed_at": None,
             "created_at": now,
         }
@@ -106,7 +107,7 @@ class FakeDb:
         return task
 
     def update_task(self, task_id: str, **fields) -> dict:
-        valid = {"title", "description", "status", "goal_id", "trigger_condition", "due_date", "assigned_to", "result"}
+        valid = {"title", "description", "status", "goal_id", "trigger_condition", "due_date", "assigned_to", "result", "depends_on"}
         unknown = set(fields) - valid
         if unknown:
             raise ValueError(f"Unknown fields: {unknown}")
@@ -125,6 +126,9 @@ class FakeDb:
         if assigned_to is not None:
             tasks = [t for t in tasks if t["assigned_to"] == assigned_to]
         return sorted(tasks, key=lambda t: t["created_at"])
+
+    def get_task(self, task_id: str) -> dict | None:
+        return self.tasks.get(task_id)
 
     def get_triggered_tasks(self) -> list[dict]:
         return [t for t in self.tasks.values() if t["status"] == "pending" and t["trigger_condition"] is not None]

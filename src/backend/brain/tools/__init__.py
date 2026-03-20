@@ -14,6 +14,7 @@ from backend.brain.tools.search import make_search_tool
 from backend.brain.tools.support import make_support_tool
 from backend.brain.tools.teach import make_teach_tool
 from backend.brain.tools.users import make_user_tool
+from backend.brain.tools.web_scrape import make_web_scrape_tool
 from backend.brain.tools.web_search import make_web_search_tool
 
 __all__ = [
@@ -31,6 +32,7 @@ __all__ = [
     "make_support_tool",
     "make_teach_tool",
     "make_user_tool",
+    "make_web_scrape_tool",
     "make_web_search_tool",
     "make_yandex_metrica_tool",
 ]

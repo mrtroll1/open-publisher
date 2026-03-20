@@ -35,7 +35,7 @@ def _expense_to_fields(exp: AirtableExpense) -> dict:
         "contractor": exp.contractor,
         "unit": exp.unit, "entity": exp.entity,
         "description": exp.description,
-        "group": exp.group, "parent": exp.parent,
+        "group": exp.group,
         "crated": datetime.now().strftime("%Y-%m-%d"),
     }
     if exp.splited:

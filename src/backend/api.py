@@ -62,7 +62,7 @@ def _generate(event_queue, thread, result_holder, error_holder):
     if error_holder:
         data = json.dumps({"result": None, "error": error_holder[0]}, ensure_ascii=False)
     else:
-        data = json.dumps({"result": result_holder[0]}, ensure_ascii=False)
+        data = json.dumps({"result": result_holder[0]}, ensure_ascii=False, default=str)
     yield f"event: done\ndata: {data}\n\n"
 
 

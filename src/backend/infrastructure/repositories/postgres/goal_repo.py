@@ -202,6 +202,6 @@ class GoalRepo(BasePostgresRepo):
     def mark_notifications_read(self, ids: list[str]) -> None:
         with self._cursor() as cur:
             cur.execute(
-                "UPDATE notifications SET read = TRUE WHERE id = ANY(%s)",
+                "UPDATE notifications SET read = TRUE WHERE id = ANY(%s::uuid[])",
                 (ids,),
             )

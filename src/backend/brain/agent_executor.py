@@ -52,6 +52,6 @@ class AgentTaskExecutor:
         tools = [t for name, t in TOOLS.items() if name in _AGENT_TOOLS and t.conversational]
         ctx = ToolContext(
             env={"name": "agent_task", "system_context": "Автономное выполнение задачи агентом."},
-            user={"id": "agent", "role": "admin"},
+            user={"role": "admin"},
         )
         return AuthContext(ctx=ctx, tools=tools, env_name="agent_task", role="admin")

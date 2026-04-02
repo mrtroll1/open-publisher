@@ -340,7 +340,7 @@ class AdminHandlers:
 
         try:
             return create_generate_batch_invoices().execute(
-                contractors, month, debug, on_progress=on_progress)
+                contractors, month, debug=debug, on_progress=on_progress)
         except ValueError as e:
             return respond([msg(str(e))])
 

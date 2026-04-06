@@ -26,6 +26,11 @@ _SAFETY_OFF = [
 ]
 
 _MAX_RETRIES = 3
+_FALLBACKS = {
+    "gemini-3-flash": ["gemini-2.5-pro", "gemini-2.5-flash"],
+    "gemini-2.5-pro": ["gemini-3-flash", "gemini-2.5-flash"],
+    "gemini-2.5-flash": ["gemini-3-flash", "gemini-2.5-pro"],
+}
 
 
 class GeminiGateway:
@@ -43,20 +48,46 @@ class GeminiGateway:
             )
         return types.GenerateContentConfig(**kwargs)
 
+    def _adapt_config(self, model: str, config: types.GenerateContentConfig) -> types.GenerateContentConfig:
+        """Rebuild config for a fallback model (adjusts thinking_config)."""
+        kwargs = {"safety_settings": _SAFETY_OFF}
+        if config.tools:
+            kwargs["tools"] = config.tools
+        if config.system_instruction:
+            kwargs["system_instruction"] = config.system_instruction
+        if "gemini-3-flash" in model:
+            kwargs["thinking_config"] = types.ThinkingConfig(
+                thinking_level=types.ThinkingLevel.MINIMAL,
+            )
+        return types.GenerateContentConfig(**kwargs)
+
     def _generate(self, model: str, contents, config: types.GenerateContentConfig):
+        last_error = None
         for attempt in range(_MAX_RETRIES):
             try:
                 return self._client.models.generate_content(
                     model=model, contents=contents, config=config,
                 )
             except (ServerError, ClientError) as e:
-                if attempt == _MAX_RETRIES - 1:
-                    raise
-                wait = (attempt + 1) * 5
-                logger.warning("Gemini error (%s), retrying in %ds (attempt %d/%d)",
-                               e, wait, attempt + 1, _MAX_RETRIES)
-                time.sleep(wait)
-        return None
+                last_error = e
+                if attempt < _MAX_RETRIES - 1:
+                    wait = (attempt + 1) * 5
+                    logger.warning("Gemini error (%s), retrying in %ds (attempt %d/%d)",
+                                   e, wait, attempt + 1, _MAX_RETRIES)
+                    time.sleep(wait)
+
+        for fallback in _FALLBACKS.get(model, []):
+            try:
+                logger.warning("Model %s unavailable, falling back to %s", model, fallback)
+                fb_config = self._adapt_config(fallback, config)
+                return self._client.models.generate_content(
+                    model=fallback, contents=contents, config=fb_config,
+                )
+            except (ServerError, ClientError) as e:
+                last_error = e
+                logger.warning("Fallback %s also failed: %s", fallback, e)
+
+        raise last_error
 
     @staticmethod
     def _build_tool(declarations: list[dict]) -> types.Tool:

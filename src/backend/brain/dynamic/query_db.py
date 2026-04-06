@@ -9,9 +9,6 @@ from backend.infrastructure.repositories.postgres import DbGateway
 
 logger = logging.getLogger(__name__)
 
-_MAX_ROWS = 50
-
-
 class QueryDB(BaseGenAI):
     """Compose SQL from natural language, execute, return rows.
 
@@ -51,8 +48,6 @@ class QueryDB(BaseGenAI):
 
         try:
             rows = self._gateway.execute(sql)
-            if len(rows) > _MAX_ROWS:
-                rows = rows[:_MAX_ROWS]
             return {"rows": rows, "sql": sql, "explanation": explanation, "error": ""}
         except Exception as e:
             logger.warning("Query execution failed: %s | SQL: %s", e, sql)

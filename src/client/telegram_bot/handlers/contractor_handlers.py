@@ -29,6 +29,7 @@ __all__ = [
     "handle_menu",
     "handle_non_document",
     "handle_receipt_link",
+    "handle_receipt_month_callback",
     "handle_receipt_photo",
     "handle_sign_doc",
     "handle_start",
@@ -194,6 +195,10 @@ async def handle_editor_source_callback(callback: CallbackQuery, state: FSMConte
 
 async def handle_linked_menu_callback(callback: CallbackQuery, state: FSMContext) -> None:
     await _interact_callback(callback, state, "menu_callback")
+
+
+async def handle_receipt_month_callback(callback: CallbackQuery, state: FSMContext) -> None:
+    await _interact_callback(callback, state, "receipt_month_callback")
 
 
 # ── Files ────────────────────────────────────────────────────────────

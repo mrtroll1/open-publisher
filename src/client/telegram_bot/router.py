@@ -60,6 +60,7 @@ from telegram_bot.handlers.contractor_handlers import (
     handle_menu,
     handle_non_document,
     handle_receipt_link,
+    handle_receipt_month_callback,
     handle_receipt_photo,
     handle_sign_doc,
     handle_start,
@@ -460,6 +461,7 @@ def register_all(dp: Dispatcher) -> None:
     dp.callback_query.register(handle_duplicate_callback, F.data.startswith("dup:"))
     dp.callback_query.register(handle_editor_source_callback, F.data.startswith("esrc:"))
     dp.callback_query.register(handle_linked_menu_callback, F.data.startswith("menu:"))
+    dp.callback_query.register(handle_receipt_month_callback, F.data.startswith("rcpt:"))
     dp.callback_query.register(handle_code_rate_callback, F.data.startswith("code_rate:"))
 
     # Single text handler — all routing in _route_text

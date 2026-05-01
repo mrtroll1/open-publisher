@@ -740,35 +740,55 @@ class ContractorHandlers:
         update_invoice_status(contractor.id, month, InvoiceStatus.SIGNED)
         return link
 
+    def _missing_receipt_months(self, contractor_id: str) -> list[str]:
+        invoices = load_invoices()
+        months = [i.month for i in invoices
+                  if i.contractor_id == contractor_id and not i.receipt_url]
+        return sorted(set(months))
+
+    def _ask_receipt_month(self, months: list[str], pending: dict) -> dict:
+        buttons = [[{"text": m, "data": f"rcpt:{m}"}] for m in months]
+        return respond(
+            [msg("За какой месяц этот чек?", keyboard=buttons)],
+            fsm_data={"pending_receipt": pending},
+        )
+
     def receipt_link(self, payload: Payload, ctx: InteractContext) -> dict:
         user_id = ctx["user_id"]
         contractor, _ = self._get_contractor(user_id)
         if not isinstance(contractor, SamozanyatyContractor):
             return respond([msg("Эта функция доступна только для самозанятых.")])
         url = payload.get("text", "").strip()
-        month = prev_month()
-        invoices = load_invoices(month)
-        inv = next((i for i in invoices if i.contractor_id == contractor.id), None)
-        if not inv:
-            return respond([msg(f"У вас нет счёта за {month}.")])
-        if inv.receipt_url:
-            return respond([msg("Чек за этот месяц уже загружен.")])
+        months = self._missing_receipt_months(contractor.id)
+        if not months:
+            return respond([msg("У вас нет счетов, ожидающих чека.")])
+        if len(months) == 1:
+            return self._save_receipt_link(contractor, months[0], url, ctx)
+        return self._ask_receipt_month(months, {"kind": "link", "url": url})
+
+    def _save_receipt_link(self, contractor, month: str, url: str, ctx) -> dict:
         update_receipt_url(contractor.id, month, url)
         admin_ids = ctx.get("admin_ids", [])
         sides = [side_msg(aid, text=f"Чек (ссылка) от {contractor.display_name} за {month}:\n{url}")
                  for aid in admin_ids]
-        return respond([msg("Спасибо! Ссылка на чек сохранена.")], side_messages=sides)
+        return respond([msg(f"Спасибо! Ссылка на чек за {month} сохранена.")], side_messages=sides)
 
     def _handle_receipt_upload(self, contractor, payload, ctx):
-        month = prev_month()
-        invoices = load_invoices(month)
-        inv = next((i for i in invoices if i.contractor_id == contractor.id), None)
-        if not inv:
-            return respond([msg(f"У вас нет счёта за {month}.")])
-        if inv.receipt_url:
-            return respond([msg("Чек за этот месяц уже загружен.")])
-        content = base64.b64decode(payload["file_b64"])
-        mime = payload.get("mime", "application/pdf")
+        months = self._missing_receipt_months(contractor.id)
+        if not months:
+            return respond([msg("У вас нет счетов, ожидающих чека.")])
+        if len(months) == 1:
+            return self._save_receipt_file(contractor, months[0],
+                                           payload["file_b64"],
+                                           payload.get("mime", "application/pdf"), ctx)
+        return self._ask_receipt_month(months, {
+            "kind": "file",
+            "file_b64": payload["file_b64"],
+            "mime": payload.get("mime", "application/pdf"),
+        })
+
+    def _save_receipt_file(self, contractor, month: str, file_b64: str, mime: str, ctx) -> dict:
+        content = base64.b64decode(file_b64)
         ext = "jpg" if "image" in mime else "pdf"
         filename = f"Receipt_{contractor.display_name}_{month}.{ext}"
         progress = ctx.get("progress")
@@ -779,4 +799,22 @@ class ContractorHandlers:
         admin_ids = ctx.get("admin_ids", [])
         sides = [side_msg(aid, text=f"Чек от {contractor.display_name} за {month}:\n{link}")
                  for aid in admin_ids]
-        return respond([msg("Спасибо! Чек получен.")], side_messages=sides)
+        return respond([msg(f"Спасибо! Чек за {month} получен.")], side_messages=sides)
+
+    def receipt_month_callback(self, payload: Payload, ctx: InteractContext) -> dict:
+        month = payload.get("callback_data", "").removeprefix("rcpt:")
+        contractor, _ = self._get_contractor(ctx["user_id"])
+        if not isinstance(contractor, SamozanyatyContractor):
+            return respond([msg("Эта функция доступна только для самозанятых.")], fsm_data={})
+        pending = ctx.get("fsm_data", {}).get("pending_receipt")
+        if not pending:
+            return respond([msg("Сессия истекла. Пожалуйста, отправьте чек ещё раз.")], fsm_data={})
+        if month not in self._missing_receipt_months(contractor.id):
+            return respond([msg(f"За {month} чек уже загружен или счёт отсутствует.")], fsm_data={})
+        if pending["kind"] == "link":
+            result = self._save_receipt_link(contractor, month, pending["url"], ctx)
+        else:
+            result = self._save_receipt_file(contractor, month,
+                                             pending["file_b64"], pending["mime"], ctx)
+        result["fsm_data"] = {}
+        return result

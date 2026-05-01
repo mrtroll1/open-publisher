@@ -37,6 +37,7 @@ _HANDLERS = {
     "dup_callback": _contractor.dup_callback,
     "esrc_callback": _contractor.esrc_callback,
     "menu_callback": _contractor.menu_callback,
+    "receipt_month_callback": _contractor.receipt_month_callback,
 
     # File handling
     "document": _contractor.document,

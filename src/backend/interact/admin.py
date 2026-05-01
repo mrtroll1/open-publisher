@@ -445,7 +445,7 @@ class AdminHandlers:
 
     def _upload_usage(self):
         return respond([msg("Прикрепите CSV-файл банковской выписки с подписью:\n"
-                           "/upload_to_airtable <курс AED→RUB>")])
+                           "/upload_to_airtable <курс EUR→RUB>")])
 
     def _process_statement(self, file_bytes, rate, progress):
         tmp_path = self._write_temp_csv(file_bytes)

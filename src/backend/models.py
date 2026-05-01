@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 from typing import ClassVar
@@ -341,18 +340,6 @@ class ArticleEntry(BaseModel):
     article_id: str
     role_code: RoleCode = RoleCode.AUTHOR
     language: str = "Russian"
-
-
-class BankTransaction(BaseModel):
-    """A row from the Wio Bank CSV."""
-    date: date
-    ref_number: str = ""
-    description: str = ""
-    amount: Decimal = Decimal("0")
-    balance: Decimal = Decimal("0")
-    transaction_type: str = ""  # Transfers, Card, Fees
-    original_ref: str = ""
-    notes: str = ""
 
 
 class IncomingEmail(BaseModel):

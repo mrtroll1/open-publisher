@@ -172,34 +172,37 @@ class AdminHandlers:
             return self._upload_usage()
         return self._process_statement(base64.b64decode(file_b64), rate, ctx.get("progress"))
 
-    def remind_receipts(self, _payload: Payload, _ctx: InteractContext) -> dict:
-        month = prev_month()
+    def remind_receipts(self, payload: Payload, _ctx: InteractContext) -> dict:
+        month = self._parse_month_arg(payload.get("text", ""))
         invoices = load_invoices(month)
         contractors = load_all_contractors()
-        missing = []
+        missing_by_contractor: dict[str, tuple] = {}
         for inv in invoices:
             if inv.receipt_url or inv.currency != Currency.RUB:
+                continue
+            if inv.status not in (InvoiceStatus.SENT, InvoiceStatus.SIGNED, InvoiceStatus.PAID):
                 continue
             c = find_contractor_by_id(inv.contractor_id, contractors)
             if not c or c.type != ContractorType.SAMOZANYATY:
                 continue
-            if inv.status not in (InvoiceStatus.SENT, InvoiceStatus.SIGNED, InvoiceStatus.PAID):
-                continue
-            missing.append(c)
-        if not missing:
-            return respond([msg(f"Все чеки за {month} получены (или нет подходящих счетов).")])
+            entry = missing_by_contractor.setdefault(c.id, (c, []))
+            entry[1].append(inv.month)
+        scope = f"за {month}" if month else "по всем месяцам"
+        if not missing_by_contractor:
+            return respond([msg(f"Все чеки {scope} получены (или нет подходящих счетов).")])
         sides = []
-        names = []
-        for c in missing:
-            names.append(c.display_name)
+        lines = []
+        for c, months in missing_by_contractor.values():
+            months_str = ", ".join(sorted(set(months)))
+            lines.append(f"  - {c.display_name} ({months_str})")
             if c.telegram:
                 sides.append(side_msg(
                     int(c.telegram),
-                    text=f"Напоминание: пожалуйста, отправьте чек за {month}. "
+                    text=f"Напоминание: пожалуйста, отправьте чек за {months_str}. "
                          "Отправьте фото, PDF или ссылку из КПД в этот чат.",
                 ))
-        summary = f"Напоминание отправлено ({len(sides)} из {len(missing)}):\n"
-        summary += "\n".join(f"  - {n}" for n in names)
+        summary = f"Напоминание отправлено ({len(sides)} из {len(missing_by_contractor)}):\n"
+        summary += "\n".join(lines)
         return respond([msg(summary)], side_messages=sides)
 
     def legium_reply(self, payload: Payload, _ctx: InteractContext) -> dict:
@@ -262,6 +265,12 @@ class AdminHandlers:
         if len(parts) == 2 and len(parts[1]) >= 6 and parts[1][:4].isdigit() and "-" in parts[1]:
             return parts[0], parts[1]
         return text, prev_month()
+
+    def _parse_month_arg(self, text: str) -> str | None:
+        token = text.strip()
+        if len(token) >= 6 and token[:4].isdigit() and "-" in token:
+            return token
+        return None
 
     def _legium_caption(self, link):
         return (f"Ссылка на Легиум:\n\n{link}\n\n"

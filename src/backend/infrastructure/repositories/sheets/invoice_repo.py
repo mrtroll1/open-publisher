@@ -74,15 +74,16 @@ def _invoice_to_row(inv: Invoice) -> list[str]:
     ]
 
 
-def load_invoices(month: str) -> list[Invoice]:
-    """Load all invoices for a given month."""
+def load_invoices(month: str | None = None) -> list[Invoice]:
+    """Load invoices, optionally filtered by month. None = all months."""
     rows = _sheets.read_as_dicts(CONTRACTORS_SHEET_ID, SHEET_RANGE)
     invoices = []
     for r in rows:
-        if r.get("month") == month:
-            inv = _row_to_invoice(r)
-            if inv:
-                invoices.append(inv)
+        if month is not None and r.get("month") != month:
+            continue
+        inv = _row_to_invoice(r)
+        if inv:
+            invoices.append(inv)
     return invoices
 
 

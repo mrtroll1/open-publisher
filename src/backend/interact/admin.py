@@ -95,13 +95,14 @@ class AdminHandlers:
     def generate(self, payload: Payload, ctx: InteractContext) -> dict:
         text = payload.get("text", "").strip()
         if not text:
-            return respond([msg("Использование: /generate <имя контрагента>")])
+            return respond([msg("Использование: /generate <имя контрагента> [YYYY-MM]")])
         debug = text.lower().startswith("debug ")
         query = text[6:].strip() if debug else text
-        contractor, err = self._find_or_suggest(query)
+        raw_name, month = self._parse_name_month(query)
+        contractor, err = self._find_or_suggest(raw_name)
         if not contractor:
             return respond([err])
-        return self._run_generate(contractor, debug, ctx.get("progress"))
+        return self._run_generate(contractor, month, debug, ctx.get("progress"))
 
     def articles(self, payload: Payload, _ctx: InteractContext) -> dict:
         text = payload.get("text", "").strip()
@@ -286,8 +287,8 @@ class AdminHandlers:
         }))
         return respond(messages, side_messages=sides)
 
-    def _run_generate(self, contractor, debug, progress):
-        month = prev_month()
+    def _run_generate(self, contractor, month, debug, progress):
+        month = month or prev_month()
         amount, err = self._budget_amount(contractor, month)
         if not amount:
             return respond([msg(err)])

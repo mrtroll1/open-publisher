@@ -29,7 +29,7 @@ async def main():
     logger.info("Starting bot...")
     await load_admin_ids()
     await set_bot_commands(bot)
-    for coro in (email_listener_task(), channel_scraper_task(), goal_notification_task()):
+    for coro in (email_listener_task(), goal_notification_task()):  # channel_scraper_task disabled
         task = asyncio.create_task(coro)
         _background_tasks.add(task)
         task.add_done_callback(_background_tasks.discard)
